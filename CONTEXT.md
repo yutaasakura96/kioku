@@ -89,3 +89,17 @@ _Avoid_: rating, classification
 A subject-defined ordered difficulty band derived from a term's level claims. Filters what is
 studied; never orders it.
 _Avoid_: difficulty, grade, rank, tier
+
+**Identity key**:
+The subject-declared tuple deciding whether two extracted notes are the same note. For JLPT
+vocabulary, dictionary-form term plus reading.
+_Avoid_: primary key, dedupe key, hash
+
+**Occurrence**:
+One appearance of a note's term in a source, at a position within it. A note accumulates occurrences;
+they never alter its fields.
+_Avoid_: instance, mention, hit, duplicate
+
+**Rejected**:
+A note declined at review. Permanent, and survives re-ingestion — a rejected term is never re-asked.
+_Avoid_: skipped, ignored, dismissed, deleted
