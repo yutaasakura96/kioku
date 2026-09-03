@@ -39,3 +39,17 @@ _Avoid_: flashcard, item, question
 **Sibling**:
 Another card derived from the same note.
 _Avoid_: related card, variant, duplicate
+
+**Subject**:
+A body of material studied together, declared once as a schema plus the ordered pipeline stages its
+ingestion needs. JLPT vocabulary is the first.
+_Avoid_: topic, domain, category, course
+
+**Pipeline stage**:
+One named step an ingestion runs, selected by the subject. Tokenisation is a stage; a subject that
+does not need it omits it.
+_Avoid_: step, processor, phase
+
+**Ingestion**:
+The run that turns one source into notes.
+_Avoid_: import, upload, processing, parse
