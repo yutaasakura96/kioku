@@ -75,3 +75,17 @@ _Avoid_: approved, confirmed, published
 Notes accepted at review that were later flagged wrong ÷ notes accepted. Detects a review step that
 has become theatre.
 _Avoid_: error rate, defect rate
+
+**Authority**:
+A named external body of opinion a level claim cites — a community word list, a published exam guide.
+Distinct from a source, which is ingested material.
+_Avoid_: source, reference, list, provider
+
+**Level claim**:
+One authority's assertion of a level for a term. A term carries a set of them, never collapsed.
+_Avoid_: rating, classification
+
+**Level**:
+A subject-defined ordered difficulty band derived from a term's level claims. Filters what is
+studied; never orders it.
+_Avoid_: difficulty, grade, rank, tier
