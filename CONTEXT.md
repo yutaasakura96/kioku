@@ -121,3 +121,24 @@ _Avoid_: review, approval, triage, curation, moderation
 **Review**:
 Answering a due card and grading it. Never used for the human check of a generated note.
 _Avoid_: study, test, quiz, practice
+
+**Deck**:
+A saved query over the card pool. Owns nothing; nothing is ever moved into or out of one.
+_Avoid_: collection, folder, category, group
+
+**Candidate**:
+A note proposed by re-generation, diffed against the existing note rather than replacing it.
+_Avoid_: draft, proposal, suggestion, revision
+
+**Memory-bearing field**:
+A field declared by its subject as one whose change invalidates what was memorised. Changing one
+resets the card; changing any other field leaves its history standing.
+_Avoid_: key field, core field, important field
+
+**Scheduling epoch**:
+One continuous scheduling life of a card. A reset begins a new epoch and retains the prior one.
+_Avoid_: reset, restart, generation
+
+**Suspended**:
+A card withdrawn from scheduling without being deleted. Its history survives untouched.
+_Avoid_: paused, archived, disabled, removed
