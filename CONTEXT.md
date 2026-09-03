@@ -53,3 +53,25 @@ _Avoid_: step, processor, phase
 **Ingestion**:
 The run that turns one source into notes.
 _Avoid_: import, upload, processing, parse
+
+**Provenance**:
+The record, per field, of where a value came from — looked up, judged or generated — together with
+the model and prompt version responsible. Trust is a property of provenance.
+_Avoid_: confidence, score, reliability, trust level
+
+**Judgement field**:
+A field whose value the LLM chose or wrote rather than looked up. The only fields review foregrounds.
+_Avoid_: generated field, AI field, uncertain field
+
+**Pending**:
+A note that has been generated but not yet reviewed. Mints no cards and is never studied.
+_Avoid_: provisional, draft, unconfirmed, staged
+
+**Accepted**:
+A note a human has confirmed at review. Minting its cards is what acceptance means.
+_Avoid_: approved, confirmed, published
+
+**False-accept rate**:
+Notes accepted at review that were later flagged wrong ÷ notes accepted. Detects a review step that
+has become theatre.
+_Avoid_: error rate, defect rate
