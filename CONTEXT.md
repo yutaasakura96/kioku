@@ -6,7 +6,7 @@ the app they are studied in.
 ## Language
 
 **Acceptance rate**:
-Cards accepted with no edit ÷ cards generated. The project's primary health metric — a low rate
+Notes accepted with no edit ÷ notes generated. The project's primary health metric — a low rate
 means the generation pipeline is failing regardless of how good the app feels.
 _Avoid_: accuracy, quality score, hit rate
 
@@ -20,7 +20,7 @@ The material a note was extracted from — a pasted document, list or file — r
 _Avoid_: document, input, material, import
 
 **Note**:
-A single fact extracted from a source, held as named fields. The unit a human reviews.
+A single fact extracted from a source, held as named fields. The unit a human vets.
 _Avoid_: entry, item, fact, record
 
 **Note type**:
@@ -60,19 +60,19 @@ the model and prompt version responsible. Trust is a property of provenance.
 _Avoid_: confidence, score, reliability, trust level
 
 **Judgement field**:
-A field whose value the LLM chose or wrote rather than looked up. The only fields review foregrounds.
+A field whose value the LLM chose or wrote rather than looked up. The only fields vetting foregrounds.
 _Avoid_: generated field, AI field, uncertain field
 
 **Pending**:
-A note that has been generated but not yet reviewed. Mints no cards and is never studied.
+A note that has been generated but not yet vetted. Mints no cards and is never studied.
 _Avoid_: provisional, draft, unconfirmed, staged
 
 **Accepted**:
-A note a human has confirmed at review. Minting its cards is what acceptance means.
+A note a human has confirmed at vetting. Minting its cards is what acceptance means.
 _Avoid_: approved, confirmed, published
 
 **False-accept rate**:
-Notes accepted at review that were later flagged wrong ÷ notes accepted. Detects a review step that
+Notes accepted at vetting that were later flagged wrong ÷ notes accepted. Detects a vetting step that
 has become theatre.
 _Avoid_: error rate, defect rate
 
@@ -101,7 +101,7 @@ they never alter its fields.
 _Avoid_: instance, mention, hit, duplicate
 
 **Rejected**:
-A note declined at review. Permanent, and survives re-ingestion — a rejected term is never re-asked.
+A note declined at vetting. Permanent, and survives re-ingestion — a rejected term is never re-asked.
 _Avoid_: skipped, ignored, dismissed, deleted
 
 **Grade**:
@@ -112,3 +112,12 @@ _Avoid_: score, rating, result, mark
 A bounded, finishable run of due cards, prefetched as a unit and sized to be finishable rather than
 to exhaust what is due.
 _Avoid_: queue, batch, round, set
+
+**Vetting**:
+The human check of a generated note before it mints cards — accept, edit or reject. Distinct from
+review, which is answering a due card.
+_Avoid_: review, approval, triage, curation, moderation
+
+**Review**:
+Answering a due card and grading it. Never used for the human check of a generated note.
+_Avoid_: study, test, quiz, practice

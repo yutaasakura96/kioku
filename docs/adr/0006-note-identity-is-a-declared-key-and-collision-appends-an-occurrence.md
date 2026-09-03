@@ -20,9 +20,9 @@ position Z. It does not produce a competing set of fields to reconcile. Provenan
 fields do not change; no card is minted, so **scheduling is untouched**. There was never a merge in
 the difficult sense.
 
-Consequently **there is no merge review**: a deterministic key means there is an exact match or there
-is not, never a *proposal*. Merge review is the tax paid for fuzzy identity, and keeping identity
-deterministic is what buys the automatic path. Deduplication runs before review, so a fifty-page
+Consequently **there is no merge vetting**: a deterministic key means there is an exact match or there
+is not, never a *proposal*. Merge vetting is the tax paid for fuzzy identity, and keeping identity
+deterministic is what buys the automatic path. Deduplication runs before vetting, so a fifty-page
 ingestion presents thirty unique notes rather than four hundred occurrences.
 
 ## Two consequences, accepted deliberately
@@ -30,10 +30,10 @@ ingestion presents thirty unique notes rather than four hundred occurrences.
 - **An accepted note's fields are frozen.** A later source implying a sense the note lacks raises a
   flag; it does not rewrite the note. Silently editing a card studied for a month breaks the contract
   between the card and the memory of it — you would be re-learning without being told. Flag, then
-  optional re-review. (Picked up again in §4.11.)
+  optional re-vetting. (Picked up again in §4.11.)
 - **Rejection is permanent and survives re-ingestion.** A rejected term is not resurrected by a
   second sighting. Otherwise every ingestion re-asks about the two hundred words already declined,
-  and review cost would grow with corpus size rather than with new material — the shape that kills §5.
+  and vetting cost would grow with corpus size rather than with new material — the shape that kills §5.
 
 The rejected set therefore accumulates into a lexicon of what is already known, which is §3's
 known-word tracking arriving as a side effect. Noted, not designed; that is §4.8.

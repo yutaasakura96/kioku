@@ -4,10 +4,10 @@ A **note** is a record of named fields extracted from a source; a **note type** 
 list and one or more **card templates**; a **card** is a note rendered through a template, and it
 owns its own scheduling state. Kioku adopts Anki's separation rather than emitting flat cards.
 
-The deciding argument is `BRIEF.md` §5, not precedent. **Human review cost scales with notes; study
-volume scales with cards.** Thirty reviewed notes can yield a hundred and twenty studied cards. A
-flat-card model multiplies the review burden by exactly the factor that makes the app worth using,
-and §5 names review cost as the assumption most likely to kill the project. Secondly, a wrong meaning
+The deciding argument is `BRIEF.md` §5, not precedent. **Vetting cost scales with notes; study
+volume scales with cards.** Thirty vetted notes can yield a hundred and twenty studied cards. A
+flat-card model multiplies the vetting burden by exactly the factor that makes the app worth using,
+and §5 names vetting cost as the assumption most likely to kill the project. Secondly, a wrong meaning
 should be **one** edit — under flat cards a bad definition is smeared across every card derived from
 it, with nothing that knows they are related.
 
