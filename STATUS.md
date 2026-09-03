@@ -4,8 +4,10 @@
 
 ## Where we are
 
-Eight of §4's twelve questions closed, each with an ADR in `docs/adr/`. `CONTEXT.md` holds the
-glossary — 24 terms — and is the authority on vocabulary; ADRs are the authority on decisions.
+**§4.1–§4.11 are closed.** Eleven questions, eleven ADRs in `docs/adr/`. `CONTEXT.md` holds the
+glossary — 29 terms — and is the authority on vocabulary; ADRs are the authority on decisions.
+
+**§4.12 (stack) is the only thing left in §4, and it is now unblocked.**
 
 | § | Question | ADR |
 | --- | --- | --- |
@@ -17,18 +19,26 @@ glossary — 24 terms — and is the authority on vocabulary; ADRs are the autho
 | 4.6 | Note identity | [0006](docs/adr/0006-note-identity-is-a-declared-key-and-collision-appends-an-occurrence.md) |
 | 4.7 | Offline mitigation | [0007](docs/adr/0007-prefetched-sessions-and-a-client-stamped-grade-outbox.md) |
 | 4.8a | Which §3 features, in what order | [0008](docs/adr/0008-v1-ships-no-section-3-features-and-sources-stay-durable.md) |
+| 4.10 | What a deck is | [0009](docs/adr/0009-a-deck-is-a-saved-query.md) |
+| 4.9 | What an ingestion costs | [0010](docs/adr/0010-cheap-filters-run-before-expensive-generation.md) |
+| 4.11 | Provenance and re-generation | [0011](docs/adr/0011-re-generation-proposes-and-history-is-never-destroyed.md) |
 
 ## Open
 
-- **§4.10 — what is a deck?** *Asked, awaiting an answer.* Recommendation on the table: v1 has no
-  decks; a deck is a saved query, never an owner; one schedule per card, never per card-per-deck;
-  a deck is a view and nothing ever moves; the pool is everything due and "everything due" stays
-  available.
-- **§4.9 — what an ingestion costs.** Product half only (does the user ever wait synchronously;
-  caching by content hash + prompt version). Money/infra half is §4.12.
-- **§4.11 — provenance and re-generation.** Partly pre-empted: ADR 0006 froze accepted notes and
-  ADR 0008 made sources durable. What remains is whether re-generation is a real workflow.
-- **§4.12 — stack.** Deliberately shut. Opens only when §4.1–4.11 are closed.
+- **§4.12 — stack.** The only remaining question, and its inputs are now largely fixed by the ADRs:
+  a card owns its scheduling state (0002); one declaration drives the LLM contract, the fields and
+  the templates (0003); the review loop prefetches a bounded session and flushes a client-stamped
+  grade outbox (0007); sources stay durable and re-enterable (0008); a deck is a query, not an owner
+  (0009); ingestion is a streaming background job with a replayable cache key (0010).
+
+  It was deliberately held shut for the whole grilling. **Do not open it without saying so first.**
+
+## Next, per `START-HERE.md` §3
+
+§4 is closed and the ADRs, glossary and this file exist. What follows is PRD, then tech design, then
+tickets, then code. `/setup-matt-pocock-skills` belongs here — after the grilling, since the grilling
+produced the material the tickets are made from. Choosing GitHub Issues needs a remote, which this
+repo still does not have.
 
 ## Verified facts
 
