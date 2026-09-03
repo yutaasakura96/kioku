@@ -103,3 +103,12 @@ _Avoid_: instance, mention, hit, duplicate
 **Rejected**:
 A note declined at review. Permanent, and survives re-ingestion — a rejected term is never re-asked.
 _Avoid_: skipped, ignored, dismissed, deleted
+
+**Grade**:
+The answer given to a card when it is reviewed, carrying the timestamp of the moment it was given.
+_Avoid_: score, rating, result, mark
+
+**Session**:
+A bounded, finishable run of due cards, prefetched as a unit and sized to be finishable rather than
+to exhaust what is due.
+_Avoid_: queue, batch, round, set
