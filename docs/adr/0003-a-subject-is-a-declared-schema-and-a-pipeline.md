@@ -10,9 +10,9 @@ field list and the templates drift apart you get cards rendering fields the mode
 produce, silently and only for some notes. One declaration with three consumers designs that class
 of bug out.
 
-Pipeline stages are folded in here rather than left to `BRIEF.md` §4.5 because deciding "a subject is
-only a schema" and then discovering it must also select a tokenizer would reopen this. *Where* stages
-run is §4.12 and stays closed.
+Pipeline stages are folded in here rather than left to `docs/01-project-brief.md` §4.5 because
+deciding "a subject is only a schema" and then discovering it must also select a tokenizer would
+reopen this. *Where* stages run is §4.12 and stays closed.
 
 ## Considered options
 

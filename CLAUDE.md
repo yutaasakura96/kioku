@@ -14,19 +14,22 @@ build, no test suite, no dependency manifest, and no stack — so there are no c
 ## Hard constraint while planning
 
 **Do not propose, assume, or discuss a tech stack, framework, database, hosting, or infrastructure.**
-Those follow from the product decisions, not the other way round. `BRIEF.md` §4.12 exists and is
-deliberately last. It gets opened only after §4.1–§4.11 are closed.
+Those follow from the product decisions, not the other way round. `docs/01-project-brief.md` §4.12
+exists and is deliberately last. It gets opened only after §4.1–§4.11 are closed.
 
 Also, during grilling: no code, no scaffolding, no schema design. The output is decisions, ADRs and
 a glossary.
 
 ## Reading order
 
-1. `START-HERE.md` — the cold-start handoff: setup checklist, the prompt that opens the grilling
+1. `docs/00-status.md` — where the project actually is, what was decided, and what is next. The
+   memory; nothing else is. `/project` and `/where-am-i` read it first and treat it as authoritative.
+2. `START-HERE.md` — the cold-start handoff: setup checklist, the prompt that opens the grilling
    session, and context that didn't fit the brief.
-2. `BRIEF.md` — the project brief. Read all of it before saying anything.
+3. `docs/01-project-brief.md` — the project brief. Read all of it before saying anything.
 
-`BRIEF.md` is a **grilling target, not a specification**, and its own §0 says how to treat it:
+`docs/01-project-brief.md` is a **grilling target, not a specification**, and its own §0 says how to
+treat it:
 
 - **§2 is settled.** Challenge only with new information, never with a preference.
 - **§4 is the agenda.** Twelve open, load-bearing questions, ordered by how much damage getting them
@@ -61,4 +64,5 @@ a glossary.
 `lfca-lab` (the LFCA exam simulator) is a different mid-build project that shares no code with
 Kioku. Patterns worth stealing from it, because they worked: pinning irreplaceable data by identity
 and guarding it in more than one place; keeping everything that decides a number in a pure, tested
-module; and the write-immediately-with-an-outbox pattern (relevant to `BRIEF.md` §4.7).
+module; and the write-immediately-with-an-outbox pattern (relevant to `docs/01-project-brief.md`
+§4.7).

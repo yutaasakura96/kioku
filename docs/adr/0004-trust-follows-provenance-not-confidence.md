@@ -1,7 +1,8 @@
 # Trust follows provenance, not confidence; vetting is mandatory in v1
 
-`BRIEF.md` §4.3 asks how much to trust "the LLM", as though a card were one thing a model wrote. It
-is not. For JLPT vocabulary `term`, `reading`, `part_of_speech` and the candidate `meaning`s are
+`docs/01-project-brief.md` §4.3 asks how much to trust "the LLM", as though a card were one thing a
+model wrote. It is not. For JLPT vocabulary `term`, `reading`, `part_of_speech` and the candidate
+`meaning`s are
 **dictionary lookups**, not generations. What the LLM contributes is **judgement** — which words in
 this source are worth a note, which dictionary sense applies here, and sometimes an example sentence.
 

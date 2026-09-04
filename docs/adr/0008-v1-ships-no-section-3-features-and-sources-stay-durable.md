@@ -1,6 +1,7 @@
 # v1 ships no §3 features, and sources stay durable
 
-None of `BRIEF.md` §3's ideas are in v1 except the two already falling out of earlier decisions:
+None of `docs/01-project-brief.md` §3's ideas are in v1 except the two already falling out of
+earlier decisions:
 **known-word tracking** is the permanent rejected set from ADR 0006, and **session shaping** is the
 prefetch bound from ADR 0007. Both are in at zero marginal cost. Everything else delays the number
 that justifies the project (ADR 0001).

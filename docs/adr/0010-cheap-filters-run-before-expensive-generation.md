@@ -1,7 +1,7 @@
 # Cheap filters run before expensive generation; ingestion is a streaming background job
 
 **Deduplication and the known/rejected filter run before any per-note LLM call.** This is the whole
-of `BRIEF.md` §4.9 at the product level.
+of `docs/01-project-brief.md` §4.9 at the product level.
 
 Whole-document stages (tokenising, candidate extraction) scale with document size. Per-note stages
 (sense selection, example generation) scale with the number of *new* notes. Because ADR 0006 made

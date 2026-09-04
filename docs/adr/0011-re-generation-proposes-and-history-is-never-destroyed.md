@@ -1,8 +1,9 @@
 # Re-generation proposes; history is never destroyed
 
-Most of `BRIEF.md` §4.11 is already settled elsewhere — ADR 0004 records model and prompt version per
-note and files wrong-flags against source and prompt version, ADR 0006 freezes accepted notes and
-links occurrences to source positions, ADR 0008 keeps sources durable. Provenance is therefore
+Most of `docs/01-project-brief.md` §4.11 is already settled elsewhere — ADR 0004 records model and
+prompt version per note and files wrong-flags against source and prompt version, ADR 0006 freezes
+accepted notes and links occurrences to source positions, ADR 0008 keeps sources durable. Provenance
+is therefore
 **a feature, not debugging**, and "delete everything that came from that bad PDF" is the capability
 that proves it — the one thing impossible to retrofit, because the links must be recorded at
 ingestion time.
@@ -27,7 +28,8 @@ corrected definition keeps a history that describes learning the wrong thing.
 
 ## Reset is not deletion, and neither is source deletion
 
-`BRIEF.md` §2.4: review history is the one thing in this system that cannot be regenerated.
+`docs/01-project-brief.md` §2.4: review history is the one thing in this system that cannot be
+regenerated.
 
 - A **reset** card begins a new scheduling epoch. The prior history is retained and exportable.
 - **Deleting a source suspends its cards.** Hard deletion is a separate, deliberate act, and even

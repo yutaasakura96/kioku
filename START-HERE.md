@@ -1,7 +1,7 @@
 # Start here — the prompt for the next session
 
 This file exists so the next session can begin cold, with no memory of the conversation that
-produced [`BRIEF.md`](BRIEF.md). Work through §1, then paste §2.
+produced [`docs/01-project-brief.md`](docs/01-project-brief.md). Work through §1, then paste §2.
 
 ---
 
@@ -37,7 +37,7 @@ markdown files are untracked. Committing them is the first sensible act of the n
 > the cards with an LLM, and is also the app I study them in. First subject is JLPT vocabulary;
 > after that, CS / web dev / networking / cloud / certification terminology.
 >
-> **Read `BRIEF.md` in this repo first — all of it — before you say anything.**
+> **Read `docs/01-project-brief.md` in this repo first — all of it — before you say anything.**
 >
 > It is written to be grilled, not followed. Section 2 is settled and I don't want it re-opened.
 > Section 4 is the agenda: twelve open questions, deliberately unresolved. Section 5 is the thesis
@@ -70,8 +70,9 @@ By the end of grilling, before any code exists:
 - A **glossary** — the vocabulary this project will use in code, commits and conversation. Kioku
   needs one badly: *note*, *card*, *deck*, *subject*, *source*, *ingestion*, *review*, *grade*,
   *provisional* and *known* all have loose everyday meanings and precise ones here.
-- A **status file** the session after this one reads first, so a cleared context doesn't lose its
-  bearings.
+- A **status file** at `docs/00-status.md` the session after this one reads first, so a cleared
+  context doesn't lose its bearings. That path is not arbitrary — it is where `/project` and
+  `/where-am-i` look, and they treat it as authoritative.
 
 Then, and only then: PRD, tech design, tickets, code.
 
@@ -79,7 +80,7 @@ Then, and only then: PRD, tech design, tickets, code.
 
 ## 4. Context the brief doesn't carry
 
-Things the previous conversation established that aren't in `BRIEF.md`:
+Things the previous conversation established that aren't in `docs/01-project-brief.md`:
 
 - **This is a second project, not a replacement for one.** `lfca-lab` (the LFCA exam simulator) is
   mid-build and stays that way. Kioku is unrelated and shares nothing with it.

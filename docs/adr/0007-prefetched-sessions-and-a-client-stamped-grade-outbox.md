@@ -1,9 +1,9 @@
 # Prefetched sessions and a client-stamped grade outbox
 
-`BRIEF.md` §2.2 (online-only) is not reopened. Its named failure — forty cards started on a train,
-thirty grades lost — is prevented by taking **both** of §4.7's options, because each is worthless
-alone: prefetch without an outbox keeps you answering while every grade evaporates; an outbox without
-prefetch leaves nothing to answer.
+`docs/01-project-brief.md` §2.2 (online-only) is not reopened. Its named failure — forty cards
+started on a train, thirty grades lost — is prevented by taking **both** of §4.7's options, because
+each is worthless alone: prefetch without an outbox keeps you answering while every grade
+evaporates; an outbox without prefetch leaves nothing to answer.
 
 Neither is really a mitigation, which is why it is cheap. A review loop fetching one card per
 keystroke would feel bad on a *good* connection, so the queue is prefetched for latency regardless.
