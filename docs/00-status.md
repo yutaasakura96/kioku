@@ -60,7 +60,10 @@ the PRD. Per `CLAUDE.md`, do not open it without saying so first.
   vocabulary lands in `CONTEXT.md` immediately, before the next question.
 - **No git remote yet.** `/setup-matt-pocock-skills` belongs after the grilling — it produced the
   material the tickets are made from — and choosing GitHub Issues as the tracker needs that remote.
-- **`frontend-design` is still enabled at project scope**, contrary to `START-HERE.md` §1.
+- **`frontend-design` is still active here**, contrary to `START-HERE.md` §1. It is `true` at *user*
+  scope and this repo never turns it off; the fix is
+  `"frontend-design@claude-plugins-official": false` in `.claude/settings.json`. (`superpowers`, the
+  other half of that instruction, is correctly off.)
 - **Branches:** `main` is the default and where work normally happens; `develop` exists for
   development work. Renamed from `master` on 2026-09-04, before any remote existed.
 
