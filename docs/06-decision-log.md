@@ -545,6 +545,66 @@ facts that are peers" is the *meaning* and the example. The third is settled by 
 line, which puts control padding outside the scale. **Nothing on the scale moved.**
 `10-screen-specifications.md` §2.3.
 
+### [2026-09-07] A measured criterion is reported, not asserted
+`S3`'s median *seconds-per-note* and `S10`'s four numbers get no threshold assertion. The suite tests
+that each number is **recorded correctly**; the threshold is a fact about a reader and a corpus that
+do not exist yet, and ADR 0018 needs *acceptance rate* free to fall.
+→ [ADR 0037](adr/0037-a-measured-criterion-is-reported-not-asserted.md)
+
+### [2026-09-07] Two test databases, split on the line ADR 0019 already drew
+⚠️ **The premise inverted under measurement.** PGlite is **PostgreSQL 18.3** and refuses every
+foreign key, trigger, partial index and check `04` relies on, in 946 ms with no Docker (verification
+§14.1). Only the worker's three concurrency behaviours need a container, and the worker is Python
+anyway.
+→ [ADR 0038](adr/0038-two-test-databases-split-on-the-line-adr-0019-already-drew.md)
+
+### [2026-09-07] The outbox pattern shares a property list, not a harness
+ADR 0007's *grade* outbox, ADR 0015's job table and ADR 0028's worker loop are one pattern in three
+processes and two languages. **Five written properties, three harnesses** — a shared adapter layer
+would be a fourth implementation of the pattern, tested by nothing.
+→ [ADR 0039](adr/0039-the-outbox-pattern-shares-a-property-list-not-a-harness.md)
+
+### [2026-09-07] The `noScripts` smoke test becomes a test, and it was always three assertions
+**Decision.** It stops being a first-week experiment and moves into `test/e2e/`. `@nuxt/test-utils`'
+`$fetch(url)` is documented as returning the **HTML** of a server-rendered page (verification §14.3),
+so the `curl`-and-grep is an assertion. Three of them: a *place* contains no `<script>`; ⚠️ a
+*mode*'s Done control is a real `<a href>` whose target also contains none, which is what a bare
+`<NuxtLink>` fails and nothing else would notice; and *Vet* and *Review* **do** ship JavaScript,
+because asserting only the negative passes on a globally broken `features.noScripts`. Plus a config
+assertion that no non-public route carries `prerender`, `swr` or `isr`.
+
+**Alternatives considered.** *Keep it an experiment* — rejected: a thing run once on the first deploy
+is not regression cover, and verification §8 established that nothing upstream tests this
+combination, so regression cover is the whole reason it exists. *One assertion, as carried* —
+rejected: it passes on the two configurations that break the app.
+
+**Reason.** It has been carried in `00-status.md` since Round 3 as an experiment because no cheaper
+mechanism was known. One now is. `11-testing-plan.md` §6.1.
+
+**Revisit if.** Nothing. The experiment is retired; the `psycopg.connect()` probe and the Neon
+scale-to-zero question stay experiments because neither is an assertion about our code.
+
+### [2026-09-07] ⚠️ The key-handler binding is tested by its behaviour, not by its location
+**Decision.** `10` §11 called this a Level A conformance test (SC 2.1.4, verification §13.4).
+**"Where a listener lives" is not assertable** — `getEventListeners` is a DevTools API, and
+inspecting Vue internals tests the framework's shape. So the suite asserts the **behaviour that
+distinguishes the two bindings**: with focus on the Done control's anchor, outside the mode
+container, pressing `R` leaves `note_vetting` unchanged; with focus returned, `R` rejects. A
+`document`-bound handler fails the first assertion.
+
+**Alternatives considered.** *Assert the binding by introspection* — rejected: it would pass while
+the app fails, and break on a Vue upgrade for no reason. *Leave it to code review* — rejected: it is
+a Level A criterion and the failure is invisible on screen, which is the worst combination for a
+convention.
+
+**Reason.** ADR 0037's principle applied to a different subject — where the thing you care about
+cannot be asserted, assert its observable consequence and **say which one you did**. ⚠️ It is written
+down as a behavioural proxy: if the Done control ever moves inside the container, the test needs
+re-thinking rather than re-running. `11-testing-plan.md` §6.2.
+
+**Revisit if.** A *running* mode gains a second focusable element outside the container, which would
+change what the proxy is measuring.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
@@ -579,13 +639,20 @@ line, which puts control padding outside the scale. **Nothing on the scale moved
   `10-screen-specifications.md`. That closes every item `05-design-system.md` §8 and §10 held open
   and every item `09` §9 handed forward.
 
+- ~~**What the measured criteria mean as tests** · **which tests need a real Postgres** · **the
+  `noScripts` smoke test's home** · **whether the key binding is testable** · **the outbox
+  harness**.~~ **All closed 2026-09-07** — ADRs 0037, 0038 and 0039 and two full entries, in
+  `11-testing-plan.md`. ⚠️ **The Postgres question inverted under measurement**: PGlite is
+  PostgreSQL 18.3 and fails every constraint `04` relies on, so the expensive harness is needed for
+  three tests rather than for most of them.
+
 **Nothing is open.** Every question the brief, the PRD or an ADR left for a later document has an
 answer or a dated entry.
 
 ### Carried into implementation, not decisions
 
-- **The `noScripts` smoke test**, ~15 minutes on the first deploy. Nothing upstream tests the Nuxt
-  4.5.2 + Vercel combination, so this guards a regression rather than an unknown.
+- ~~**The `noScripts` smoke test**, ~15 minutes on the first deploy.~~ **Promoted to a test
+  2026-09-07** — `11-testing-plan.md` §6.1, and it was always three assertions plus a config check.
 - **Whether an idle `LISTEN` connection defers Neon's scale-to-zero.** Neon is silent, and
   `00-status.md` asserted an answer it cannot support. ADR 0028 is correct either way; the experiment
   settles the cost question only.

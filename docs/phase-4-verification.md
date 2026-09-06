@@ -1,6 +1,6 @@
 # Phase 4 — verification findings
 
-**Date checked:** 2026-09-06; §12 added 2026-09-07, §13 added 2026-09-07. **Status:** facts only.
+**Date checked:** 2026-09-06; §12, §13 and §14 added 2026-09-07. **Status:** facts only.
 Nothing here is a decision.
 
 `CLAUDE.md` requires that anything about a library, an API, FSRS, pricing or a Japanese
@@ -1063,3 +1063,128 @@ read.
 **Sources for §13.2–13.4:** w3.org/TR/WCAG22/ — §2.1.4 Character Key Shortcuts, §2.5.1 Pointer
 Gestures, §2.5.5 Target Size (Enhanced), §2.5.7 Dragging Movements, §2.5.8 Target Size (Minimum);
 w3.org/WAI/WCAG22/Understanding/target-size-minimum.html. Checked 2026-09-07.
+
+---
+
+## 14. What a test can actually run against (`11-testing-plan.md`)
+
+**Checked 2026-09-07**, while writing `11-testing-plan.md`. **§1–13 are untouched.** §14.1 is a
+**measurement**, taken for the same reason §7.3's SudachiPy figures were: the number that decides the
+question is not published anywhere.
+
+### 14.1 ⚠️ PGlite is PostgreSQL 18.3, and it enforces every rule `04` relies on — measured
+
+The question that decided the test-database shape was whether an embedded Postgres could fail a
+foreign key, raise from a trigger and honour a partial unique index — because `04` puts the
+load-bearing rules in the schema, and a harness that cannot fail them cannot test them.
+
+**PGlite's own documentation does not state which PostgreSQL it builds.** Neither `pglite.dev/docs/about`
+nor the repository README carries a version sentence. So it was measured — `@electric-sql/pglite`
+**0.5.8**, installed and queried directly:
+
+```
+PostgreSQL 18.3 (PGlite 0.5.8) on wasm32-unknown-emscripten,
+compiled by emcc … 3.1.74, 32-bit
+```
+
+**18.3, not 17** — which matters, because `04` uses `uuidv7()` on every primary key and that is a
+Postgres 18 built-in (§10.1). `uuidv7()`, `uuidv4()` and `gen_random_uuid()` all return values.
+
+Then every schema mechanism `04` depends on, run against it. **Boot to first query: 946 ms.**
+
+| Mechanism | `04` | Result |
+| --- | --- | --- |
+| `plpgsql` available | §12's trigger is written in it | present |
+| `uuidv7()` as a column default | every PK | works |
+| Partial unique index | §7.4, one live epoch per card | created, **and refuses the second live epoch** |
+| `plpgsql` `BEFORE UPDATE OR DELETE` trigger | `review_log` append-only | **`UPDATE` raises. `DELETE` raises** |
+| `ON DELETE RESTRICT` | §9, everything irreplaceable | **refuses the delete**, naming the constraint |
+| `CHECK` constraint | `rating BETWEEN 1 AND 4` | **refuses `rating = 7`** |
+| `CHECK` on an enum-ish text column | `suspended_reason` | **refuses an unlisted value** |
+| `jsonb` column | `note.fields` (ADR 0029) | works |
+| `FOR UPDATE SKIP LOCKED` | §6.4's job claim | **parses** — see §14.2 |
+| `LISTEN` | ADR 0028 | **parses** — see §14.2 |
+
+⚠️ **This inverts the assumption the question was asked under.** "A mock cannot fail a foreign key"
+is true and irrelevant: PGlite is not a mock, it is Postgres, and every refusal above is the real
+error message from the real constraint.
+
+### 14.2 ⚠️ PGlite is single-connection, and that is where the line falls
+
+The two rows that only *parse* above are the two that need a second session to mean anything.
+From PGlite's own documentation:
+
+> as PGlite is **single connection only**, you may want to proxy multiple browser tabs to a single
+> PGlite instance.
+
+> Although PGlite is a **single-connection database**, it is possible to open and use multiple
+> simultaneous connections with `pglite-server`.
+
+and, in the same page's limitations:
+
+> Multiple concurrent connections are supported through a **multiplexer over the single conn**,
+> therefore **not all cases might be covered**.
+
+So `SKIP LOCKED` has nothing to skip past and a torn-down `LISTEN` has no second session to be torn
+down from. **The multiplexer is specifically the wrong instrument** for testing a concurrency
+mechanism, because it is itself an approximation of the thing under test.
+
+`04` §6.4's job claim and ADR 0028's reconnect loop therefore need a real Postgres. Both belong to
+the **Python worker**, which cannot use a JavaScript library in any case — so the line the harness
+splits on is the one ADR 0019 already drew.
+
+### 14.3 `@nuxt/test-utils`, and the two APIs that make three named tests possible
+
+From nuxt.com/docs/4.x/getting-started/testing.
+
+**End-to-end helpers**, imported from `@nuxt/test-utils/e2e`:
+
+| API | Documented as |
+| --- | --- |
+| `$fetch(url)` | "Get the **HTML** of a server-rendered page" |
+| `fetch(url)` | "Get the **response** of a server-rendered page" — `const { body, headers } = res` |
+| `url(path)` | The full URL including the test server's port |
+| `createPage(path)` | A Playwright page — `await page.getByTestId(…).isVisible()` |
+
+⚠️ **`$fetch` returning HTML is what turns the `noScripts` smoke test into a test.** It has been
+carried as a first-week `curl`-and-grep experiment since Round 3; the assertion is
+`expect(html).not.toContain('<script')`, and `fetch`'s `headers` covers the `303` and
+`Content-Disposition` cases.
+
+**`setup()` options:** `rootDir` (default `'.'`), `configFile`, `setupTimeout` (**default 120000 ms**,
+240000 on Windows), `teardownTimeout` (30000), `build` (default true), `server` (default true),
+`port`, **`host`** — "a URL to use as the test target instead of building and running a new server …
+which may provide a significant reduction in test execution timings" — `browser` (**default false**,
+Playwright underneath), `browserOptions.type` (`chromium` | `firefox` | `webkit`), and `runner`
+(`'vitest' | 'jest' | 'cucumber'`, **Vitest recommended**).
+
+⚠️ **`@nuxt/test-utils/runtime` and `@nuxt/test-utils/e2e` cannot be used in the same file.** They
+"need to run in different testing environments". The documented split is a per-file
+`// @vitest-environment nuxt` comment or a `.nuxt.spec.ts` filename. **This shapes the directory
+layout, not just an import** — and Nuxt's own recommended layout is `test/unit/` (no Nuxt),
+`test/nuxt/` (Nuxt runtime) and `test/e2e/` (a running app), with `test/` **not** auto-scanned.
+
+`mountSuspended(component, { route })` mounts a component inside the Nuxt environment, wrapping
+`@vue/test-utils`' `mount`.
+
+### 14.4 Versions, on the day
+
+| Package | Version | Note |
+| --- | --- | --- |
+| `vitest` | **5.0.0** | The recommended runner |
+| `@nuxt/test-utils` | **4.2.0** | |
+| `@electric-sql/pglite` | **0.5.8** | = PostgreSQL 18.3 (§14.1) |
+| `@electric-sql/pglite-socket` | 0.2.11 | The multiplexer §14.2 warns about |
+| `testcontainers` (Node) | 12.1.0 | Not used — see `11` §4 |
+| `testcontainers` (Python) | **4.15.0** | The worker's harness |
+| `pytest` | **9.1.1** | |
+| `drizzle-orm` | **0.45.2** | The pin `03` §13.5 names |
+
+⚠️ **`drizzle-orm` 0.45.2 exports `./pglite`, `./pglite/driver`, `./pglite/session` and
+`./pglite/migrator`.** The last one is what closes the loop: **the test database is built by the same
+migrations as production**, rather than by a second copy of the schema that drifts. Its other
+relevant exports are `./neon`, `./neon-http`, `./neon-serverless` and `./node-postgres`.
+
+**Sources:** measured locally with `@electric-sql/pglite` 0.5.8 (§14.1); pglite.dev/docs/about,
+/docs/pglite-socket, /docs/multi-tab-worker (§14.2); nuxt.com/docs/4.x/getting-started/testing and
+/docs/4.x/directory-structure/test (§14.3); npm registry and PyPI (§14.4). Checked 2026-09-07.

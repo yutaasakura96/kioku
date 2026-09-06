@@ -2,9 +2,9 @@
 
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
-**Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
-are closed and the frontier is empty. **36 ADRs.** `03`, `04`, `08`, `09` and `10` are written;
-**one doc is still owed.**
+**Phase:** 4 — Technical documents. **Complete.** The grilling is finished — Rounds 1, 2 and 3 are
+closed and the frontier is empty. **39 ADRs.** `03`, `04`, `08`, `09`, `10` and `11` are all
+written. **Nothing is owed. The next thing that happens is code.**
 **Updated:** 2026-09-07
 
 Read `CLAUDE.md` first, then this.
@@ -169,8 +169,38 @@ single-line in value but `<textarea>` in element**, because a 27px Japanese exam
 construction and an `<input>` would scroll it out of sight. **The refusal page has no rule**, and the
 absent rule is the specification. **The flagged rail tick is 2px tall rather than a new colour.**
 
+**[`11-testing-plan.md`](11-testing-plan.md) — written 2026-09-07. The last document.** Ten
+sections. The twelve stories mapped to tests, five tiers, and what is deliberately not tested.
+**Five things it decided**, three of them ADRs:
+
+- **A measured criterion is reported, not asserted** — [ADR 0037](adr/0037-a-measured-criterion-is-reported-not-asserted.md).
+  ⚠️ `S3`'s median and `S10`'s numbers get **no threshold assertion**. A test asserting `median < 5`
+  is a test of its own fixture, and ADR 0018 walks the model *down* until *acceptance rate* degrades
+  — the number has to be free to fall. What the suite asserts is that each number is **recorded
+  correctly**, including the nineteen/twenty suppression boundary, which is `S10`'s only branch.
+- **Two test databases** — [ADR 0038](adr/0038-two-test-databases-split-on-the-line-adr-0019-already-drew.md).
+  ⚠️ **The premise inverted under measurement.** "A mock cannot fail a foreign key" is true and
+  irrelevant: **PGlite is PostgreSQL 18.3**, measured because its docs never say so, and it refuses
+  every `RESTRICT`, trigger, partial index and `CHECK` in `04` — in **946 ms, no Docker**. It is
+  single-connection, so the worker's three concurrency behaviours get a real container. That line is
+  ADR 0019's, not a new one.
+- **The outbox shares a property list, not a harness** — [ADR 0039](adr/0039-the-outbox-pattern-shares-a-property-list-not-a-harness.md).
+  Three instances, three processes, two languages. **Five written properties, three harnesses.**
+- ⚠️ **The `noScripts` smoke test is promoted from experiment to test**, and it was always three
+  assertions plus a config check — `$fetch` returns the HTML (verification §14.3). It leaves the
+  first-week list.
+- ⚠️ **The key-handler binding is tested by behaviour, not location.** Where a listener lives is not
+  assertable; that `R` does nothing while focus is on the Done anchor is. Written down as a proxy.
+
+Also in it, and worth knowing without opening it: **the test database is built by Drizzle's own
+migrations** (`drizzle-orm/pglite/migrator`), because a hand-written test schema is the drift `04`
+§13 exists to refuse. **Model quality is not tested** — ADR 0018 made it a measurement and
+verification §3 found no benchmark, so generation tests use recorded fixtures and never call a
+provider; what is tested is the boundary. And **`S3`'s first real run of twenty notes joins the
+first-week list** as an experiment with a written-down expectation.
+
 **[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
-**twelve** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
+**fourteen** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
 Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement); **§8–9 added in
 Round 3** (`noScripts` under the Vercel preset; the Python driver and what scale-to-zero does to
 `LISTEN`); **§10 added while writing `04`** (Postgres 18's `uuidv7()`; Better Auth's generated
@@ -179,7 +209,9 @@ state cookie, the server-side session read, and three route rules that would dis
 **§12 added while writing `09`** (`<NuxtLink external>` as the only real mode exit; `SameSite=Lax`
 excluding cross-site `POST`); **§13 added while writing `10`** (what `enable_short_term: false`
 actually does to grade 1; the three WCAG criteria the screens are measured against; and the Level A
-criterion the key map turns out to be subject to).
+criterion the key map turns out to be subject to); **§14 added while writing `11`** — and
+⚠️ **§14.1 is a measurement, not a citation**: PGlite's PostgreSQL version is not stated in its own
+documentation, so it was installed and queried.
 Everything against primary sources. **Do not re-run this.**
 Re-verify only if older than ~3 months.
 
@@ -210,20 +242,35 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-**The grilling is over. One document is left.** `/grill-with-docs` has nothing left to ask — the
-frontier is empty and every question that was open has an ADR or a dated entry.
+⚠️ **Phase 4 is finished. The next thing that happens is code**, and it is the first code in the
+repository. `/grill-with-docs` has nothing left to ask — the frontier is empty and every question
+that was open has an ADR or a dated entry.
+
+**The planned flow now applies:** `/setup-matt-pocock-skills`, which `CLAUDE.md` says comes *after*
+the grilling, because the grilling produces the material the tickets are made from. It has now
+produced it — thirty-nine ADRs, seven documents and fourteen verification sections.
+
+⚠️ **`04-database-schema.md` is where schema work becomes legal, and it is written**, so the hard
+constraint `CLAUDE.md` §"Hard constraint while planning" imposed — no code, no scaffolding, no schema
+design — has been satisfied rather than lifted. The narrower constraint that replaces it still binds:
+**do not re-open a stack decision on preference**, and **nothing may depend on a Vercel-only
+feature.**
 
 | Doc | Blocked on |
 | --- | --- |
 | ~~`08-authentication.md`~~ | **Written 2026-09-06.** ADR 0030 and two decision-log entries |
 | ~~`09-user-flows.md`~~ | **Written 2026-09-07.** ADRs 0031, 0032, 0033, one full log entry and verification §12 |
 | ~~`10-screen-specifications.md`~~ | **Written 2026-09-07.** ADRs 0034, 0035, 0036, four full log entries, an amendment to ADR 0025 and verification §13. **Every item `05` §8 and §10 held open, and every item `09` §9 handed forward, is closed** |
-| `11-testing-plan.md` | **Unblocked. The last document.** PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen. `09` §9 adds five more, including the `from` fallback and a `Z` that must fail on the `RESTRICT` rather than delete. **`10` §11 adds four**, one of which is ⚠️ **a Level A conformance test**: the key handlers must bind to the mode container and not to `document` (verification §13.4) |
+| ~~`11-testing-plan.md`~~ | **Written 2026-09-07.** ADRs 0037, 0038, 0039, two full log entries and verification §14. Original scope, kept for the record: PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen. `09` §9 adds five more, including the `from` fallback and a `Z` that must fail on the `RESTRICT` rather than delete. **`10` §11 adds four**, one of which is ⚠️ **a Level A conformance test**: the key handlers must bind to the mode container and not to `document` (verification §13.4) |
 
-**Three first-week experiments**, none blocking a document:
+**Three first-week experiments**, none blocking anything:
 
-- **The `noScripts` smoke test**, ~15 min. One route `{ prerender: true, noScripts: true }`, one
-  `{ noScripts: true }` alone; `curl` both, grep for `<script`. The second is the runtime path.
+- ~~**The `noScripts` smoke test.**~~ ⚠️ **Promoted to a test 2026-09-07** — `11` §6.1. It leaves
+  this list. It was always three assertions plus a config check, and `@nuxt/test-utils`' `$fetch`
+  returns the HTML, so the `curl`-and-grep is a `expect(...).not.toContain('<script')`.
+- ⚠️ **`S3`'s first real run of twenty notes**, with a written-down expectation. **New here**, and it
+  is an experiment rather than a test on purpose (ADR 0037): if the median comes back at eleven
+  seconds that is the project learning something, and a red suite is the wrong way to be told.
 - **One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
   live connection falsifies it cheaply.
 - **Whether an idle `LISTEN` connection defers scale-to-zero.** Neon is silent. ADR 0028 holds either
@@ -270,6 +317,18 @@ Nothing.
   ship no JavaScript, so loading is the browser's and an error is a re-rendered document. **The
   asymmetry in `10`'s tables is the decision, not an unfinished table.** And **nothing in v1 is
   disabled**, deliberately — ADR 0032 already refused a disabled start control once.
+- ⚠️ **The suite cannot tell you the thesis is failing, and that is the design** — ADR 0037. Green
+  tests mean the instrument is built correctly and say nothing about what it will read. `S3` and
+  `S10` are answered by `/stats`, by a person, after twenty notes. **Do not add a threshold
+  assertion later "to be safe"** — ADR 0018 needs *acceptance rate* free to fall while the model is
+  walked down.
+- **PGlite is PostgreSQL 18.3 and its version is load-bearing** — ADR 0038, verification §14.1,
+  **measured because the docs do not say**. `04` defaults every primary key to `uuidv7()`, a Postgres
+  18 built-in, so a PGlite that regressed to 17 fails on the first migration. It joins the four pins
+  in `03` §13.5.
+- **Docker is required for three tests and nothing else** — ADR 0038. A laptop without it runs the
+  whole TypeScript suite. Do not "simplify" the two harnesses into one Testcontainers tier; the
+  946 ms inner loop is the thing being bought.
 - **Grade by swipe is refused, not pending** — ADR 0036. ADR 0026 called it "genuinely good", which
   is exactly why it needed answering: SC 2.5.1 is **Level A**, so a gesture could only ever have been
   additive, and the trade the deferral assumed never existed.
