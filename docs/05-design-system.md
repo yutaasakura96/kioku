@@ -403,3 +403,20 @@ now carry their outcomes. What is left is drawing, not deciding:
 - **The *Review* phone layout** (§8). Its scope is settled; its drawing is not.
 
 All three belong to `10-screen-specifications.md`.
+
+> **Closed 2026-09-07 in [`10-screen-specifications.md`](10-screen-specifications.md), and nothing
+> here is open any more.** The five interaction states are
+> [ADR 0035](adr/0035-five-interaction-states-is-not-a-set-and-three-screens-have-three.md) — and the
+> answer is that they are not one set of five: Ingest, Sources and Stats have three, because loading
+> and error are client concepts and those routes ship none. The grade labels are
+> [ADR 0034](adr/0034-the-grade-labels-name-recall-because-they-cannot-name-a-time.md) —
+> `1 Forgot · 2 Hard · 3 Good · 4 Easy`. The Done control is `10` §4.3 and §5.2, and the *Review*
+> phone layout is `10` §10. §8's grade-by-swipe deferral is
+> [ADR 0036](adr/0036-grade-by-swipe-is-refused-because-it-could-only-ever-be-additive.md), refused.
+>
+> **Three edits this file should absorb when it is next touched**, all decided in `10` and recorded
+> there rather than applied here: `--k-key-face` gains the hover role and `--k-ink-ground` the active
+> role for any resting control on `--k-raised` (`10` §2.1); §5's ambiguous `14` resolves to `12` and
+> §7's card gap `30` to `28`, while the *facts strip*'s `30` padding and the key cap's `10` stay
+> because neither is a gap (`10` §2.3); and §5's "`--k-gutter` … without exception" gains one — it
+> is `20px` below the 720px phone breakpoint (`10` §10.1).

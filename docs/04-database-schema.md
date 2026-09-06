@@ -747,7 +747,11 @@ forever, because that row *is* the filter that keeps `S5` true.
 itself.
 
 **Deleting a note, card, epoch or review log:** there is no path, in the app or in the worker. If one
-is ever needed it is a migration written by a person who has read this section.
+is ever needed it is a migration written by a person who has read this section. ⚠️ **One exception,
+added 2026-09-07:** `Z` in *Vet* un-mints the `card` its own acceptance created, inside the run that
+created it, which is provably historyless — and if that proof is ever wrong, `review_session_card →
+card` and `review_log → card` are both `RESTRICT`, so the database refuses and `Z` fails visibly
+([ADR 0033](adr/0033-done-in-vet-ends-the-run-and-spends-the-undo.md), `09` §5.3).
 
 ---
 

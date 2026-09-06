@@ -446,6 +446,105 @@ top-level `GET` (verification §12.2), so a malicious link can start the downloa
 read the response. The fix is a `POST` with a form token, at which point the export stops being a
 plain link.
 
+### [2026-09-07] The grade labels name recall, because they cannot name a time
+`1 Forgot · 2 Hard · 3 Good · 4 Easy`. `Again` does not survive: ADR 0016 turned same-day relearning
+off, and with `enable_short_term: false` the soonest a graded *card* returns is tomorrow (verification
+§13.1). The count, the digits and the FSRS `Rating` mapping are untouched.
+→ [ADR 0034](adr/0034-the-grade-labels-name-recall-because-they-cannot-name-a-time.md)
+
+### [2026-09-07] Five interaction states is not a set, and a screen with no client has three
+Ingest, Sources and Stats have hover, active and focus; their loading state is the browser's and
+their error state is a re-rendered document. *Vet* and *Review* have all five for real. **Nothing in
+v1 is disabled**, so `--k-disabled` is not a token.
+→ [ADR 0035](adr/0035-five-interaction-states-is-not-a-set-and-three-screens-have-three.md)
+
+### [2026-09-07] Grade by swipe is refused, because it could only ever have been additive
+SC 2.5.1 Pointer Gestures is **Level A** and SC 2.5.7 Dragging Movements is **Level AA**
+(verification §13.2), so a gesture owes a single-pointer equivalent — the four controls it was meant
+to replace. ADR 0026 deferred this here by name; it is answered, not deferred again.
+→ [ADR 0036](adr/0036-grade-by-swipe-is-refused-because-it-could-only-ever-be-additive.md)
+
+### [2026-09-07] The Done cluster is a key cap and its label, on both modes
+**Decision.** Done is the footer legend's own cap-plus-label component (`05` §7) at the right end of
+the mode's header: an `Esc` cap in the secondary state, `8px`, then `Done` at 15px
+`--k-ink-secondary`, `min-height: 32px`. On *Review* the header becomes a three-column grid — a left
+spacer the width of the cluster, the rail, the cluster — so the *progress rail* **stays optically
+centred** above the 760px card, and its width becomes `min(620px, 100% − 2 × (cluster + 28px))`.
+On the phone the cap is dropped and the label alone is the control.
+
+**Alternatives considered.** *The primary control* — rejected: `--k-ink-ground` is the loudest
+treatment in the system and would make the exit the loudest thing on a screen whose hierarchy is
+entirely grey. *Done at the left, rail right-aligned* — rejected: the rail is the header of a centred
+card and cannot sit off-axis. *"Done · 3 permanent" as a variable-width label* — ADR 0033 already
+rejected it, and it is worse here, because a variable width breaks the symmetric spacer.
+
+**Reason.** The control's job is to name the key as much as to be a target. Desktop keeps `Esc` and
+*gains* a visible way out (ADR 0026), so a control that does not say `Esc` teaches the keyboard
+reader nothing — and on the phone, where the key does not exist, the cap would be naming a key that
+does nothing. `10-screen-specifications.md` §4.3 and §5.2.
+
+**Revisit if.** A mode ever carries a second header control, at which point the spacer stops being a
+single width and the grid has to become a real three-column layout rather than a trick.
+
+### [2026-09-07] The start block is the quiet affordance, minus its arrow
+**Decision.** ADR 0032 required the start block to read as different from the nav beside it. The
+distinction is that **the nav is text and the start block is bounded**: the two start controls are
+`05` §7's quiet affordance — `--k-raised`, `1px --k-border-control`, `--k-radius-control`,
+`13px 20px`, a 17px `--k-ink` label — carrying their count in the *Vet* chrome bar's own treatment
+(figure `--k-ink`, word `--k-ink-secondary`, both 12px mono). ⚠️ **The accent `→` is dropped.** It
+sits in the page body as the first block, not in the bar, with `as of this page load` beneath it in
+13px italic.
+
+**Alternatives considered.** *A second nav row* — rejected by ADR 0032 itself: a row that means two
+different things depending on which item is clicked is a row that lies. *Elevation* — rejected: `05`
+§6 elevates one element and says so. *Accent* — rejected: `05` §2 spends the accent on where you are
+and what costs you the decision, and a start control is neither.
+
+**Reason.** The affordance already exists, was drawn, and already means "the way on from here" — it
+is the same component ADR 0032 puts on empty *Vet*. The arrow is dropped because the affordance is
+the whole sentence when it is alone on a screen; two of them side by side above a form is decoration,
+and `05` §2 says the accent is never that. The block sits in the page body because `09` §2 makes its
+figures as-of-page-load, and a page-load-stamped figure belongs on the page rather than in the chrome
+that frames it. `10-screen-specifications.md` §3.2.
+
+**Revisit if.** ADR 0032's own revisit condition fires — the counts turn out to be what the reader
+reads on every load — at which point the question is Stats moving into the shell, and the block's
+treatment follows that rather than leading it.
+
+### [2026-09-07] ⚠️ ADR 0025's exception list grows: a mode rings where it has stopped
+**Decision.** *Review*'s end screen carries the *session*-size knob, "Start another session" and Done
+— three focusable elements — and both of *Review*'s non-terminal empty states carry the knob and
+Done. **Those three screens draw the focus ring.** The running mode still does not. The rule that
+covers every case: *a mode draws no ring while it is running, and draws it on the screens where it
+has stopped.* The token and its geometry are unchanged.
+
+**Alternatives considered.** *Keep the knob off the end screen* — rejected: `09` §4.7 put it there
+because a knob that appeared mid-session would be lying about a snapshotted *session*. *Ring
+everything in the modes* — rejected for ADR 0025's own reason: focus never moves during the running
+mode, so a ring would mark a position that cannot change.
+
+**Reason.** ADR 0025 named this trigger and named the answer — "Revisit if a screen appears with more
+than one focusable element inside a mode — at which point the ring stops being decoration there and
+the exception list grows past *Vet*'s edit state." This is that ADR working as designed, not a
+reversal, and the generalised rule is what ADR 0025 was reaching for: *Vet*'s edit state and
+*Review*'s terminal screens are the same case. ADR 0025 is amended in place;
+`10-screen-specifications.md` §4.2 has the table.
+
+**Revisit if.** A *running* mode gains a focusable element — which would be a genuine reversal of
+ADR 0025 rather than an extension of it, and belongs in a new ADR.
+
+### [2026-09-07] `05` §5's three ambiguous spacing values — two resolved, one dissolved
+**Decision.** `14 → 12` (the *judgement field*'s eyebrow-to-value gap). `30 → 28` where it is the
+*Review* card's *meaning*-to-example gap; **`30` stays** as the *facts strip*'s divider padding.
+**`10` was never a gap** — it is key-cap padding.
+
+**Reason.** `05` §5 snapped nineteen hand-set values onto ten steps and left these three "exactly 2px
+from two steps", each to be decided against a screen. Two are settled by `05` §5's own meanings —
+"8–12px, inside one thing, a label and its value" is an eyebrow and its value; "28–32px, between two
+facts that are peers" is the *meaning* and the example. The third is settled by `05` §5's own scope
+line, which puts control padding outside the scale. **Nothing on the scale moved.**
+`10-screen-specifications.md` §2.3.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
@@ -474,6 +573,12 @@ plain link.
   first was a gap `08` left when it set `callbackURL: "/"`; the middle two were the half of ADR 0013
   it did not decide, including the empty-*Vet* gap it claimed to have closed and could not.
 
+- ~~**The grade labels** · **the five interaction states** · **the Done control's geometry** · **the
+  *Review* phone layout** · **the start block, and the three screens the canvas never drew**.~~
+  **All closed 2026-09-07** — ADRs 0034, 0035 and 0036 and four full entries, in
+  `10-screen-specifications.md`. That closes every item `05-design-system.md` §8 and §10 held open
+  and every item `09` §9 handed forward.
+
 **Nothing is open.** Every question the brief, the PRD or an ADR left for a later document has an
 answer or a dated entry.
 
@@ -487,13 +592,13 @@ answer or a dated entry.
 - **Whether Better Auth's sign-in and sign-out endpoints accept a plain `<form method="post">`.**
   Nothing was found either way, so `08-authentication.md` §2 gives the door route JavaScript. If they
   do, the app ships none outside the two *modes*.
-- **Five interaction states** — hover, active, disabled, loading, error — and the **Done** control's
-  geometry, both for `10-screen-specifications.md`.
-- ⚠️ **`04-database-schema.md` §9.1 needs one sentence.** "There is no path" to delete a `card` must
-  except the card un-minted by `Z` inside the vetting run that minted it (ADR 0033). This is an
-  amendment to a written document, not a note for later.
-- ⚠️ **`03-technical-design.md` §8.1 describes the outbox as carrying *grades*.** It carries
-  *grades* and `S9` flags (`09` §4.9). One sentence.
+- ~~**Five interaction states** — hover, active, disabled, loading, error — and the **Done** control's
+  geometry.~~ **Closed 2026-09-07** in `10-screen-specifications.md` — ADR 0035 and the Done-cluster
+  entry above.
+- ~~⚠️ **`04-database-schema.md` §9.1 needs one sentence.**~~ **Applied 2026-09-07.** §9.1 now
+  excepts the card un-minted by `Z` inside the run that minted it (ADR 0033).
+- ~~⚠️ **`03-technical-design.md` §8.1 describes the outbox as carrying *grades*.**~~
+  **Applied 2026-09-07.** §8.1 now says it carries *grades* and `S9` flags (`09` §4.9).
 - **The `external` prop on every *mode* exit** (`09` §5.2, verification §12.1). It works in
   development and quietly ships a hydrated *place* in production, so it belongs on the same list as
   the `noScripts` smoke test — the same `curl`-and-grep proves both.

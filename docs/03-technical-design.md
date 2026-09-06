@@ -417,6 +417,11 @@ FSRS schedules on elapsed time, so a card answered at 09:00 underground and stam
 the scheduler that recall took nine hours, and every interval derived from it is wrong in six
 months' time.
 
+⚠️ **The outbox carries two kinds of entry, not one** (added 2026-09-07): a *grade*, and an `S9`
+flag written by `X`, which suspends a *card* and returns its *note* to the vetting queue (`09` §4.9,
+`04` §7.8). `S9` says the suspension is immediate, and immediate has to survive the same tunnel the
+*grades* do.
+
 The outbox is **append-only, single-device, replays in order, never merges, resolves no conflicts**
 (ADR 0007). This is the same pattern as ADR 0028's worker loop and ADR 0015's job table, a third
 time: **write immediately, treat the signal as a hint, let the durable record decide.**

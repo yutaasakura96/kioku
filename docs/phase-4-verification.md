@@ -1,6 +1,7 @@
 # Phase 4 — verification findings
 
-**Date checked:** 2026-09-06. **Status:** facts only. Nothing here is a decision.
+**Date checked:** 2026-09-06; §12 added 2026-09-07, §13 added 2026-09-07. **Status:** facts only.
+Nothing here is a decision.
 
 `CLAUDE.md` requires that anything about a library, an API, FSRS, pricing or a Japanese
 tokeniser is checked against real documentation before it becomes a decision. This is that
@@ -939,3 +940,126 @@ sets the attribute explicitly, so the strict reading of `Lax` is the one in forc
 
 **Sources:** developer.mozilla.org — `Web/HTTP/Reference/Headers/Set-Cookie` (SameSite attribute
 values). Checked 2026-09-07.
+
+---
+
+## 13. Four facts the screens needed (`10-screen-specifications.md`)
+
+**Checked 2026-09-07**, while writing `10-screen-specifications.md`, and added for the same reason
+§10, §11 and §12 were: decisions in that document rest on library and standards behaviour that §1–12
+do not cover. **§1–12 are untouched.**
+
+### 13.1 With `enable_short_term: false`, grade 1 is a minimum of one day — not ten minutes
+
+ADR 0016 turned same-day relearning off. Nothing had checked what that leaves grade 1 actually
+*doing*, and the grade labels depend on the answer, because "Again" in Anki names a return in
+minutes.
+
+Read from `ts-fsrs` source at the version `03` §8 pins. ⚠️ **`main` and `v5.4.2` are the same
+code** — `packages/fsrs/package.json` on `main` reads `"version": "5.4.2"`, and there is no `v5.4.2`
+tag to fetch, so `main` is the pinned release and not a later one.
+
+`enable_short_term: false` selects `LongTermScheduler` — "Determines whether to use the
+BasicScheduler with learning steps or the LongTermScheduler … when disabled, it skips the learning
+phase and moves cards directly into the review state." Inside it, every one of the four outcomes is
+scheduled in **days**:
+
+```ts
+next_again.scheduled_days = again_interval
+next_again.due = date_scheduler(this.review_time, again_interval, true)
+```
+
+`date_scheduler(now, t, isDay)` documents its own third argument — 「时间偏移量，当 isDay 为 true 时
+表示天数，为 false 时表示分钟」: *the offset is days when `isDay` is true, minutes when it is false*.
+`LongTermScheduler` passes `true` for all four grades.
+
+And the interval cannot be zero. `FSRSAlgorithm.next_interval` clamps at 1 before fuzz:
+
+```ts
+next_interval(s: number, elapsed_days: number): int {
+  const newInterval = Math.min(
+    Math.max(1, Math.round(s * this.intervalModifier)),
+    this.param.maximum_interval
+  ) as int
+  return this.apply_fuzz(newInterval, elapsed_days)
+}
+```
+
+Two further facts from the same file, both load-bearing for the labels:
+
+- **The four intervals are forced strictly increasing**, and grade 1 is forced to the shortest:
+  `again = Math.min(again, hard)`, then `hard = Math.max(hard, again + 1)`, `good = Math.max(good,
+  hard + 1)`, `easy = Math.max(easy, good + 1)`.
+- **Grade 1 is the only one that counts a lapse** — `next_again.lapses += 1` in `reviewState`, and
+  all four then take `state = State.Review` with `learning_steps = 0`. So the library's own split is
+  one failure and three successes, which is the split ADR 0034's words mirror.
+
+⚠️ **This is the fact that retires the word "Again".** It is a promise of a same-day return, and this
+configuration cannot make one: **the soonest a graded *card* comes back is tomorrow.**
+
+**Sources:** github.com/open-spaced-repetition/ts-fsrs @ `main` (= 5.4.2) —
+`packages/fsrs/src/algorithm.ts` (`next_interval`), `packages/fsrs/src/impl/long_term_scheduler.ts`
+(`next_interval`, `reviewState`, `next_state`), `packages/fsrs/src/help.ts` (`date_scheduler`),
+`_autodocs/04-configuration.md` (Short-Term Mode), `packages/fsrs/package.json`. Checked 2026-09-07.
+
+### 13.2 A path-based gesture is Level A, so swipe could never have replaced the four grade controls
+
+ADR 0026 deferred grade-by-swipe to this document. The deferral assumed swipe would be an
+*alternative* to the four controls. WCAG 2.2 says it cannot be:
+
+> **Success Criterion 2.5.1 Pointer Gestures (Level A)** — All functionality that uses multipoint or
+> path-based gestures for operation can be operated with a single pointer without a path-based
+> gesture, unless a multipoint or path-based gesture is essential.
+
+and, new at AA in 2.2:
+
+> **Success Criterion 2.5.7 Dragging Movements (Level AA)** — All functionality that uses a dragging
+> movement for operation can be achieved by a single pointer without dragging, unless dragging is
+> essential or the functionality is determined by the user agent and not modified by the author.
+
+Grading is not an essential path-based gesture — it is a choice among four values — so a swipe
+implementation would owe a non-path, non-drag equivalent, which is the four controls it was meant to
+replace. **Swipe is only ever additive**, and ADR 0036 is decided on that.
+
+### 13.3 The target-size floors, which the phone layout is measured against
+
+> **Success Criterion 2.5.8 Target Size (Minimum) (Level AA)** — The size of the target for pointer
+> inputs is at least **24 by 24 CSS pixels**, except when: **Spacing** … **Equivalent** … **Inline**
+> … **User Agent Control** … **Essential** …
+
+> **Success Criterion 2.5.5 Target Size (Enhanced) (Level AAA)** — The size of the target for
+> pointer inputs is at least **44 by 44 CSS pixels** except when: Equivalent, Inline, User Agent
+> Control, Essential.
+
+ADR 0024 committed the system to AA, so **24 × 24 is the floor and 44 × 44 is the target worth
+hitting where it is free.** `10` §10.4 checks the phone's grade controls against both.
+
+### 13.4 ⚠️ Single-character shortcuts are a Level A criterion, and ADR 0025 already satisfies it
+
+Nothing in this project had noticed that the key map is regulated.
+
+> **Success Criterion 2.1.4 Character Key Shortcuts (Level A)** — If a keyboard shortcut is
+> implemented in content using only letter (including upper- and lower-case letters), punctuation,
+> number, or symbol characters, then at least one of the following is true: **Turn off** A mechanism
+> is available to turn the shortcut off; **Remap** A mechanism is available to remap the shortcut to
+> include one or more non-printable keyboard keys (e.g., Ctrl, Alt); **Active only on focus** The
+> keyboard shortcut for a user interface component is only active when that component has focus.
+
+ADR 0023's map is `E`, `R`, `Z`, `X` and `1`–`4` — all printable characters, with no turn-off and no
+remap. The application would fail SC 2.1.4 on the first two options.
+
+**It passes on the third, and it passes because of a decision already made for a different reason.**
+ADR 0025 holds focus on the *mode container* rather than letting it wander: "The container still
+takes focus, because keystrokes have to land somewhere and a reload has to restore it." That makes
+the container the user interface component, and the shortcuts are active only while it has focus —
+which is the "Active only on focus" exception, met exactly.
+
+⚠️ **This makes ADR 0025's container focus load-bearing for conformance, not just for
+implementation.** Binding the keys to `document` or `window` instead — the obvious shortcut, and the
+thing a future session will reach for — moves the application from passing SC 2.1.4 to failing a
+Level A criterion, with nothing on screen to show it. `10` §4.1 states the rule where it will be
+read.
+
+**Sources for §13.2–13.4:** w3.org/TR/WCAG22/ — §2.1.4 Character Key Shortcuts, §2.5.1 Pointer
+Gestures, §2.5.5 Target Size (Enhanced), §2.5.7 Dragging Movements, §2.5.8 Target Size (Minimum);
+w3.org/WAI/WCAG22/Understanding/target-size-minimum.html. Checked 2026-09-07.

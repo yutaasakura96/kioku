@@ -56,3 +56,19 @@ implying the set is complete.
 
 A screen appears with more than one focusable element inside a mode — at which point the ring stops
 being decoration there and the exception list grows past *Vet*'s edit state.
+
+> **Amended 2026-09-07. The condition above fired, exactly as written, and the exception list has
+> grown.** *Review*'s end screen carries the *session*-size knob (`09` §4.7), "Start another session"
+> and Done — three focusable elements — and both of *Review*'s non-terminal empty states carry the
+> knob and Done. **Those three screens draw the ring; the running mode still does not.** The rule
+> that covers all of it, and that this ADR was reaching for: *a mode draws no ring while it is
+> running, and draws it on the screens where it has stopped.* *Vet*'s edit state and *Review*'s
+> terminal screens are the same case — the mode has paused and focus is a real, movable position.
+> Full entry in `06-decision-log.md`; the geometry is `10-screen-specifications.md` §4.2.
+
+> **Also 2026-09-07: this ADR turns out to be load-bearing for WCAG conformance**, which nothing
+> knew when it was written. ADR 0023's key map is all printable characters, so SC 2.1.4 Character Key
+> Shortcuts (**Level A**) applies, and the application passes only on that criterion's "Active only
+> on focus" exception — which is true *because* this ADR holds focus on the mode container.
+> ⚠️ **Binding the keys to `document` or `window` instead moves the application from passing a Level
+> A criterion to failing it, with nothing on screen to show it.** Verification §13.4.

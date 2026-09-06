@@ -3,8 +3,8 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
-are closed and the frontier is empty. **33 ADRs.** `03`, `04`, `08` and `09` are written; **two docs
-are still owed.**
+are closed and the frontier is empty. **36 ADRs.** `03`, `04`, `08`, `09` and `10` are written;
+**one doc is still owed.**
 **Updated:** 2026-09-07
 
 Read `CLAUDE.md` first, then this.
@@ -124,7 +124,50 @@ identical, and "queued for four minutes, not picked up" is the honest sentence. 
 
 ⚠️ **It also generates two amendments to written documents**, both in the decision log's carried
 list: `04` §9.1's "there is no path" to delete a `card` needs the `Z` exception, and `03` §8.1's
-outbox carries `S9` flags as well as *grades*.
+outbox carries `S9` flags as well as *grades*. **Both were applied 2026-09-07 while writing `10`.**
+
+**[`10-screen-specifications.md`](10-screen-specifications.md) — written 2026-09-07.** Eleven
+sections, seven screens, **nine new components and four screens that need none.** Mostly citation.
+**Five things it decided**, three of them ADRs:
+
+- **The grade labels** — [ADR 0034](adr/0034-the-grade-labels-name-recall-because-they-cannot-name-a-time.md).
+  `1 Forgot · 2 Hard · 3 Good · 4 Easy`. ⚠️ **`Again` does not survive**: ADR 0016 turned same-day
+  relearning off, and verification §13.1 read `ts-fsrs` at the pinned version — `LongTermScheduler`
+  schedules every grade in **days** and `next_interval` clamps at `Math.max(1, …)`, so the soonest a
+  graded *card* returns is **tomorrow**. Copying Anki's word for a ten-minute return it cannot make
+  teaches the reader something false. `Forgot` names the lapse the library itself counts.
+- **The five interaction states are not a set** — [ADR 0035](adr/0035-five-interaction-states-is-not-a-set-and-three-screens-have-three.md).
+  ⚠️ **Ingest, Sources and Stats have three, not five.** Loading and error are client concepts and
+  those routes ship no JavaScript: loading is the browser's, and an error is a re-rendered document
+  (`09` §4.2). Also: **nothing in v1 is disabled**, so `--k-disabled` is not a token.
+- **Grade by swipe is refused** — [ADR 0036](adr/0036-grade-by-swipe-is-refused-because-it-could-only-ever-be-additive.md).
+  ADR 0026 deferred it here by name. ⚠️ **SC 2.5.1 Pointer Gestures is Level A** and SC 2.5.7 is
+  Level AA (verification §13.2), so a gesture owes a single-pointer equivalent — the four controls it
+  was meant to replace. **Swipe was only ever additive**, which removes the trade the deferral
+  assumed.
+- **The Done cluster** — the footer legend's own cap-plus-label, at the right of the mode's header.
+  On *Review* the header is a three-column grid with a spacer the width of the cluster, so **the rail
+  stays optically centred**. On the phone the cap is dropped, because a phone has no `Esc`.
+- **The start block** — `05` §7's quiet affordance, **minus its accent arrow**, in the page body
+  rather than the bar. Full entries in the decision log for both.
+
+⚠️ **It also amends ADR 0025**, under that ADR's own revisit condition, which fired exactly as
+written: *Review*'s end screen has three focusable elements, so **a mode draws no ring while it is
+running and draws it on the screens where it has stopped.**
+
+⚠️ **And it found that the key map is regulated.** Verification §13.4: ADR 0023's keys are all
+printable characters, so **SC 2.1.4 Character Key Shortcuts (Level A)** applies, and the application
+passes only on the "Active only on focus" exception — which is true *because* ADR 0025 holds focus on
+the mode container. **Binding the keys to `document` moves the app from passing a Level A criterion
+to failing it, with nothing on screen to show it.** It is now a test in `11`'s list.
+
+Also in it, and worth knowing without opening it: **no new colour token and no sixth measure** —
+hover borrows `--k-key-face` and active borrows `--k-ink-ground`, and the three undrawn *places* take
+existing measures. **`05` §5's three ambiguous spacing values are closed** — `14 → 12`, `30 → 28` as
+a gap and `30` stays as padding, and `10` was never a gap at all. ***Vet*'s edit fields are
+single-line in value but `<textarea>` in element**, because a 27px Japanese example sentence wraps by
+construction and an `<input>` would scroll it out of sight. **The refusal page has no rule**, and the
+absent rule is the specification. **The flagged rail tick is 2px tall rather than a new colour.**
 
 **[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
 **twelve** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
@@ -134,7 +177,9 @@ Round 3** (`noScripts` under the Vercel preset; the Python driver and what scale
 Drizzle types and its cascades); **§11 added while writing `08`** (the cookie defaults, the OAuth
 state cookie, the server-side session read, and three route rules that would disable the gate);
 **§12 added while writing `09`** (`<NuxtLink external>` as the only real mode exit; `SameSite=Lax`
-excluding cross-site `POST`).
+excluding cross-site `POST`); **§13 added while writing `10`** (what `enable_short_term: false`
+actually does to grade 1; the three WCAG criteria the screens are measured against; and the Level A
+criterion the key map turns out to be subject to).
 Everything against primary sources. **Do not re-run this.**
 Re-verify only if older than ~3 months.
 
@@ -165,16 +210,15 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-**The grilling is over. Write the remaining four documents**, in this order. `/grill-with-docs` has
-nothing left to ask — the frontier is empty and every question that was open has an ADR or a dated
-entry.
+**The grilling is over. One document is left.** `/grill-with-docs` has nothing left to ask — the
+frontier is empty and every question that was open has an ADR or a dated entry.
 
 | Doc | Blocked on |
 | --- | --- |
 | ~~`08-authentication.md`~~ | **Written 2026-09-06.** ADR 0030 and two decision-log entries |
 | ~~`09-user-flows.md`~~ | **Written 2026-09-07.** ADRs 0031, 0032, 0033, one full log entry and verification §12 |
-| `10-screen-specifications.md` | **Unblocked. Start here.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout, the door and the refusal page (`08` §11), **and now six more from `09` §9** — the start block, the Done confirmation on *Vet*, the *progress rail*'s fourth mark, *Vet*'s three empty states, the *session*-size knob's two homes, and the *source* delete confirmation page. **Belongs to Phase 4, not Phase 3** — see Carrying |
-| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen. `09` §9 adds five more, including the `from` fallback and a `Z` that must fail on the `RESTRICT` rather than delete |
+| ~~`10-screen-specifications.md`~~ | **Written 2026-09-07.** ADRs 0034, 0035, 0036, four full log entries, an amendment to ADR 0025 and verification §13. **Every item `05` §8 and §10 held open, and every item `09` §9 handed forward, is closed** |
+| `11-testing-plan.md` | **Unblocked. The last document.** PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen. `09` §9 adds five more, including the `from` fallback and a `Z` that must fail on the `RESTRICT` rather than delete. **`10` §11 adds four**, one of which is ⚠️ **a Level A conformance test**: the key handlers must bind to the mode container and not to `document` (verification §13.4) |
 
 **Three first-week experiments**, none blocking a document:
 
@@ -212,6 +256,23 @@ Nothing.
 - **The ink ramp is four greys, not seven** — ADR 0024, and `05-design-system.md` §2 carries the
   outcome. *Vet* now reads heavier than the artboard does. **That is the decision, not drift**; do
   not "restore" the canvas values.
+- ⚠️ **The key handlers bind to the mode container, never to `document` or `window`.** ADR 0025 put
+  focus there so keystrokes land somewhere and a reload restores it. Verification §13.4 found the
+  second reason: ADR 0023's map is all printable characters, so **SC 2.1.4 Character Key Shortcuts
+  (Level A)** applies, and the application passes **only** on that criterion's "Active only on focus"
+  exception. Binding to `document` is the obvious shortcut and it fails a Level A criterion with
+  nothing on screen to show it. ADR 0025 is amended; `10` §4.1 and §11.
+- **"Again" is not a grade label here** — ADR 0034. ADR 0016 turned same-day relearning off, so the
+  soonest a graded *card* returns is **tomorrow** (verification §13.1, read from `ts-fsrs` source).
+  `1 Forgot · 2 Hard · 3 Good · 4 Easy`. Anyone comparing a screenshot with Anki's will think the
+  difference is cosmetic; it is the visible end of ADR 0016.
+- **Three screens have three interaction states, not five** — ADR 0035. Ingest, Sources and Stats
+  ship no JavaScript, so loading is the browser's and an error is a re-rendered document. **The
+  asymmetry in `10`'s tables is the decision, not an unfinished table.** And **nothing in v1 is
+  disabled**, deliberately — ADR 0032 already refused a disabled start control once.
+- **Grade by swipe is refused, not pending** — ADR 0036. ADR 0026 called it "genuinely good", which
+  is exactly why it needed answering: SC 2.5.1 is **Level A**, so a gesture could only ever have been
+  additive, and the trade the deferral assumed never existed.
 - **`10-screen-specifications.md` belongs to Phase 4**, not Phase 3. The `/project` skill's own
   phase table says Phase 3; this project overrode it deliberately. Do not let a future session move
   it back on the skill's authority.
@@ -284,10 +345,9 @@ Nothing.
   still belongs after planning.
 - **`frontend-design` and `superpowers` are off at project scope**, for different reasons.
   `CLAUDE.md` § Tooling state has both correctly.
-- ⚠️ **Two amendments are owed to documents that are already written**, and they are not notes for
-  later. `04` §9.1's "there is no path" to delete a `card` must except the card un-minted by `Z`
-  inside the vetting run that minted it (ADR 0033). `03` §8.1 describes the outbox as carrying
-  *grades*; it carries *grades* and `S9` flags (`09` §4.9).
+- ~~⚠️ **Two amendments are owed to documents that are already written.**~~ **Both applied
+  2026-09-07** while writing `10`: `04` §9.1 now excepts the card un-minted by `Z`, and `03` §8.1 now
+  says the outbox carries *grades* **and** `S9` flags.
 - ⚠️ **A *mode*'s Done control must be `external`.** `<NuxtLink :to="origin" external>` or
   `navigateTo(origin, { external: true })`. A bare `<NuxtLink>` client-renders the *place* into the
   page that is already running and hands the reader a `noScripts` screen with a live Vue app on it,
