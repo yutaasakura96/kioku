@@ -174,28 +174,58 @@ Only option giving dictionary form, reading *and* a normalized form — which is
 Worker is Python. `kuromoji`'s dictionary has been frozen since 2007.
 → [ADR 0019](adr/0019-sudachi-is-the-tokeniser-and-it-chooses-the-worker-s-language.md)
 
+### [2026-09-06] Nuxt is the framework, because a route can ship no JavaScript
+Of seven TypeScript frameworks, only three document a zero-JS route and only four a per-route SSR
+switch. Nuxt is in both sets, so ADR 0013's split becomes a build property rather than a discipline.
+⚠️ Nuxt 5 lands Q4 2026 and `routeRules` is experimental — both adopted knowingly.
+→ [ADR 0020](adr/0020-nuxt-is-the-framework-because-a-route-can-ship-no-javascript.md)
+
+### [2026-09-06] Postgres is forced by two writing processes, not chosen
+SQLite's own WAL docs require all processes on one host; Turso's embedded replicas are read-only.
+ADR 0015 + ADR 0019 already made two writers in two languages, which decided storage before taste
+entered. Drizzle over Kysely, because `lfca-lab` already pairs it with Better Auth.
+→ [ADR 0021](adr/0021-postgres-is-forced-by-two-writers-not-chosen.md)
+
+### [2026-09-06] The first deployment is Vercel, Neon and a laptop — deliberately temporary
+Vercel cannot host a resident worker (300s ceiling, no always-on primitive), so *ingestion* runs on
+the developer's machine for now. Neon Free's non-disableable scale-to-zero decides the connection
+rule: pooled for the app, direct for the worker, never a permanent daemon. S3 is the answer for
+blobs and is decided-but-not-built. → [ADR 0022](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+
 ## Still open
 
-- **§4.12 — the stack.** ~~Held shut for the whole grilling.~~ **Opened 2026-09-06.** Partly
-  closed: ADRs 0013–0019 settle rendering, the worker, storage, identity, the model and the
-  tokeniser. **Still owed: the framework, the host and the database** — the next session's Round 2.
-- ~~**Navigation between the five screens.**~~ **Closed** — ADR 0013.
-- ~~**The grade set.**~~ **Closed** — ADR 0016. The Phase 2 placeholder was correct and can now be
-  extracted into the design system.
+- ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
+  database and the host. The brief's last open question is done.
+- **The note's storage shape.** ADR 0021 carries a recommendation, not a decision: `notes.fields` as
+  `jsonb` with a relational `note_field_provenance` table. The honest counter (both-as-blobs; the
+  row-lock argument is weak at one user) is recorded there. **Closes in `04-database-schema.md`.**
+- **Which Python driver.** `psycopg` was recommended, then ⚠️ Neon's SNI-tested list turned out to
+  name `asyncpg` and `pg8000` and not psycopg. Verify or take `asyncpg`.
+- **Whether `noScripts` survives Vercel.** Undocumented by both Nitro and Vercel, and it is the main
+  reason ADR 0020 chose Nuxt. **Test it with one throwaway page in the first week.** ADR 0020's
+  revisit condition depends on it.
 - **Key assignments.** `A` / `E` / `R` at *vetting*; space to reveal, `1`-`4` to grade, `X` to flag
-  during *review*. Drawn, not decided. **Now unblocked** — ADR 0013 settled navigation, and `Esc`
-  is spoken for. ADR 0016 confirms `1`-`4`.
-- **The phone layout.** Not drawn. The facts strip and the four grade controls are what have to
-  change.
-- **Colour contrast in the ink ramp.** Four of the seven greys fail WCAG AA against the ground —
-  `#8b8175` at 3.46 carries the *reading* and every empty-state body, `#ada393` at 2.25 carries every
-  eyebrow. Measured during Phase 3 extraction and recorded in `05-design-system.md` §10. Raising them
-  is a change to a settled visual direction, so it is a decision rather than a correction.
-- **A focus state.** No artboard draws hover, focus, active, disabled, loading or error for any
-  component. *Vet* and *Review* are keyboard-driven by design and one keystroke per *note* is a
-  measured criterion, so a focus treatment is blocking for implementation.
-- **Whether the spacing scale gets regularised.** Nineteen distinct gap values, hand-set, no 4pt or
-  8pt grid. Cheapest to settle before the three undrawn screens multiply it.
+  during *review*. Drawn, not decided. Unblocked since ADR 0013. **Asked in Phase 4 Round 2 and not
+  yet answered** — the recommendation on the table is `space` accept, `E` edit, `R` reject, `Z` undo,
+  `Esc` leave, on the rule that space is always the default forward action. It is the same decision
+  as *whether vetting has an undo*, because ADR 0006 makes rejection permanent.
+- **Colour contrast in the ink ramp.** Four of seven greys fail WCAG AA. **Measured 2026-09-06:
+  there are only 3.6 lightness points between `--k-ink-value` and the 4.5:1 floor, so seven greys
+  cannot all pass and remain seven distinguishable greys.** The recommendation on the table is a
+  four-step AA ramp — `#1d1a16` 15.67 · `#4c463d` 8.44 · `#60584d` 6.33 · `#776d5f` 4.59 — retiring
+  `--k-ink-tertiary`, `--k-ink-aside` and `--k-ink-label`. Cost: every eyebrow moves 2.25 → 4.59 and
+  *Vet* reads heavier than the artboard. **Asked in Round 2, not yet answered.**
+- **A focus state.** No artboard draws hover, focus, active, disabled, loading or error. Blocking for
+  two keyboard-driven screens. Recommendation on the table: one `--k-focus` token = the accent, 2px
+  outline at 2px offset, `:focus-visible` only, never animated; the modes hold focus on the container
+  and draw no ring except in *Vet*'s edit state. **Asked in Round 2, not yet answered.**
+- **Whether the spacing scale gets regularised.** Nineteen hand-set values. Recommendation on the
+  table: snap to ten 4pt steps — `4 8 12 16 20 28 32 40 44 52` — no value moving more than 2px, and
+  §5's meaning table surviving intact. **Asked in Round 2, not yet answered.**
+- **The phone layout.** Not drawn. Recommendation on the table: v1 ships a phone layout for *Review*
+  only; Ingest, Sources and Stats reflow untouched; *Vet* says vetting needs a keyboard. The tension
+  to resolve is that *Review* is a *mode* left with `Esc`, and a phone has no `Esc`. **Asked in
+  Round 2, not yet answered.**
 
 ## Adding an entry
 

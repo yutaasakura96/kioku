@@ -13,12 +13,19 @@ build, no test suite, no dependency manifest, and no stack — so there are no c
 
 ## Hard constraint while planning
 
-**Do not propose, assume, or discuss a tech stack, framework, database, hosting, or infrastructure.**
-Those follow from the product decisions, not the other way round. `docs/01-project-brief.md` §4.12
-exists and is deliberately last. It gets opened only after §4.1–§4.11 are closed.
+**§4.12 is closed as of 2026-09-06.** The stack was held shut until §4.1–§4.11 were settled, which
+was the point, and it is now decided: **Nuxt 4.5.2 / Vue, Postgres via Drizzle, and a deliberately
+temporary Vercel + Neon + local-worker deployment** — ADRs 0020, 0021, 0022. The constraint that
+replaces the old one is narrower and still binding:
 
-Also, during grilling: no code, no scaffolding, no schema design. The output is decisions, ADRs and
-a glossary.
+- **Do not re-open a stack decision on preference.** Each of the three ADRs carries a revisit
+  condition; that is the door, and new information is the key.
+- **Nothing may depend on a Vercel-only feature** — no Vercel KV, Blob or Cron. ADR 0022's whole
+  premise is that the move to EC2 or Lightsail stays a Nitro preset change plus a `pg_dump`.
+
+Still true, and still the point: during grilling there is **no code, no scaffolding, no schema
+design**. The output is decisions, ADRs and a glossary. `04-database-schema.md` is where schema
+work becomes legal, and it has not started.
 
 ## Reading order
 
@@ -39,7 +46,11 @@ treat it:
 
 ## Working agreements
 
-- **One question at a time.** Wait for the answer before the next one.
+- **Grilling asks the whole frontier per round.** `/grill-with-docs` is the sanctioned mode and it
+  works in rounds — every question whose prerequisites are settled, numbered, each with a recommended
+  answer, then wait. This deliberately replaces the "one question at a time" rule that stood here
+  until 2026-09-06. A question that depends on another still open in this round belongs to the next
+  round, not this one.
 - **Recommend an option**, don't lay out a neutral menu. Yuta pushes back if he disagrees.
 - **Never verify from memory.** Anything about a library, an API, FSRS, pricing, or a Japanese
   tokenizer is checked against real docs — context7 for libraries, web search for everything else —
