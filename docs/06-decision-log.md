@@ -53,6 +53,43 @@ Ingestion is a streaming background job with a replayable cache key.
 Review history is the one thing in the system that cannot be regenerated (§2.4).
 → [ADR 0011](adr/0011-re-generation-proposes-and-history-is-never-destroyed.md)
 
+### [2026-09-06] Identity is invite-only from v1, and personal data carries an owner
+One invited user, no self-registration. Entities are labelled shared or personal, and personal ones
+carry an owner from the first row written — because review history (§2.4) cannot be attributed
+retroactively. Mechanism (Better Auth + Google OIDC) is a parked, unverified preference for Phase 4.
+→ [ADR 0012](adr/0012-identity-is-invite-only-and-personal-data-carries-an-owner.md)
+
+### [2026-09-06] Vetting speed is a measured criterion, not an aspiration
+**Decision:** accepting an unedited *note* is exactly one keystroke, and median *seconds-per-note*
+must be under 5 seconds over a run of at least 20. Recorded per note from day one, alongside
+acceptance rate.
+**Alternatives considered:** §4.3's own three-second figure — rejected as glance speed, not read
+speed, for a note carrying a reading, a meaning and an example sentence. Leaving it unmeasured —
+rejected because a 95% acceptance rate at 30 seconds per note is a failed thesis that acceptance
+rate alone would score as a success.
+**Reason:** §5's assumption is about time, and nothing else in the instrument measures time.
+**Revisit if:** a second card template ships and vetting starts covering more fields per note.
+
+### [2026-09-06] A session is one knob: a fixed card count, default 20
+**Decision:** *sessions* are a fixed number of *cards*, reader-settable, composed due-first with new
+*cards* filling the remainder, snapshotted at the start, ending in a screen. Starting another is a
+deliberate action. No ahead-of-schedule study in v1.
+**Alternatives considered:** a time budget — rejected as a worse fit for a prefetch bound. A separate
+per-day new-card cap — deferred (PRD L4): at thirty cards it protects nothing and costs a setting.
+**Reason:** ADR 0007 bounded the prefetch by session shape and left the size open; this is that size.
+**Revisit if:** the pool passes a few hundred cards, at which point the new-card cap is the first
+thing to add.
+
+### [2026-09-06] The v1 surface is five screens
+**Decision:** Ingest, Vet, Review, Sources, Stats. No home screen, no settings screen, no card browser.
+**Alternatives considered:** a card browser, which Anki makes central — rejected because a browser
+without a query language is a list, and the query language is deck work (ADR 0009), which is v2.
+**Reason:** Sources answers "where did this come from"; Vet answers "what needs me". Nothing in v1
+needs a third way to look at cards.
+**Revisit if:** saved queries ship — the browser is the query language's screen, and arrives with it.
+**Consequence:** triggers docs 09 and 10 in Phase 4, and confirms Phases 2 and 3 apply to Vet and
+Review.
+
 ## Still open
 
 - **§4.12 — the stack.** Deliberately held shut for the whole grilling; belongs to Phase 4. Its

@@ -15,6 +15,11 @@ Minutes from submitting a source to answering the first card generated from it. 
 minutes, Kioku is a different chore rather than a replacement for hand-authoring.
 _Avoid_: ingestion time, latency, turnaround
 
+**Seconds-per-note**:
+Median wall-clock time to vet one note that is accepted without edit. The other half of acceptance
+rate — a high acceptance rate reached slowly is a failed thesis, not a passing one.
+_Avoid_: vetting speed, throughput, time per card
+
 **Source**:
 The material a note was extracted from — a pasted document, list or file — retained after ingestion.
 _Avoid_: document, input, material, import
@@ -138,6 +143,12 @@ _Avoid_: key field, core field, important field
 **Scheduling epoch**:
 One continuous scheduling life of a card. A reset begins a new epoch and retains the prior one.
 _Avoid_: reset, restart, generation
+
+**Personal**:
+Data that is a statement about one reader rather than about the material — cards, grades, vetting
+state. Carries an owner from the first row written. Its opposite is *shared*: sources, note fields,
+occurrences and level claims, which are true regardless of who is asking.
+_Avoid_: private, user data, per-user, scoped
 
 **Suspended**:
 A card withdrawn from scheduling without being deleted. Its history survives untouched.
