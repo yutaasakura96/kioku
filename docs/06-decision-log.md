@@ -90,10 +90,39 @@ needs a third way to look at cards.
 **Consequence:** triggers docs 09 and 10 in Phase 4, and confirms Phases 2 and 3 apply to Vet and
 Review.
 
+### [2026-09-06] Vet and Review take the paper direction, and provenance is never hidden behind a hover
+**Decision:** of three explored directions, the built one is warm paper with Mincho for Japanese and
+a serif for English. *Vetting*'s hierarchy comes from spatial zoning — *term*, part of speech and
+*level* compress into one horizontal strip above a rule, and only the *judgement fields* sit below
+it at reading size. The *level*'s honesty bit is a filled marker for a named *authority* and a
+hollow one for a model estimate, with the *level claims* set inline rather than behind a hover.
+*Review* carries no screen label in any of its four states.
+**Alternatives considered:** a dark, dense terminal-style screen — fastest to scan and the best at
+absorbing a seventh field, rejected because the *meaning* is the field that costs the decision and
+it read worst there, and because it is the closest of the three to the thing being replaced. A
+left-gutter direction naming every field's *provenance* — the tightest single mechanism, rejected
+for costing 168px of width and reading as a tool rather than a reading surface.
+**Reason:** the two constraints that decide the screen are S4's hierarchy and ADR 0005's one visible
+bit. Zoning answers the first without spending colour on it; inline claims answer the second without
+spending an interaction, which is what *vetting* has least of.
+**Revisit if:** measured median *seconds-per-note* misses 5s and eye travel rather than reading time
+is the cause — the dense direction is the fallback and is kept on the canvas.
+**Consequence:** four things the design needed and the PRD does not decide are now open, below.
+
 ## Still open
 
 - **§4.12 — the stack.** Deliberately held shut for the whole grilling; belongs to Phase 4. Its
   inputs are now fixed by ADRs 0002, 0003, 0007, 0008, 0009 and 0010.
+- **Navigation between the five screens.** The PRD names five screens and no way to move between
+  them. Surfaced by Phase 2's empty *Vet* state, which can only point at Ingest as plain text. Not a
+  design preference — a gap. Needs closing before screen specs.
+- **The grade set.** *Review* needs labels to grade with; the PRD names none and the scheduler is
+  §4.12. Phase 2 drew `1 Again / 2 Hard / 3 Good / 4 Easy` as a placeholder and it should not be
+  extracted into the design system until the scheduler is chosen.
+- **Key assignments.** `A` / `E` / `R` at *vetting*; space to reveal, `1`-`4` to grade, `X` to flag
+  during *review*. Drawn, not decided.
+- **The phone layout.** Not drawn. The facts strip and the four grade controls are what have to
+  change.
 
 ## Adding an entry
 
