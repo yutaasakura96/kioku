@@ -36,22 +36,78 @@ three were recorded in full in the decision log, one is specified in the PRD's �
 
 ## Next
 
-**Phase 2 — Design exploration**, in Claude Design. It leaves this tool.
+**Phase 2 — Design exploration.** Run `/design` and paste the prompt below verbatim.
 
 **Explore only Vet and Review.** They are the two screens where the interaction *is* the product —
 a one-keystroke accept and a sub-5-second median are design problems as much as engineering ones.
 Ingest, Sources and Stats are generic and are not explored.
 
-**The prompt shape:** *"[screen] for [product from the PRD], in the style of [reference], with [key
-constraints]."* Take `02-product-requirements.md` §2 (S3, S4, S7, S9) and §4 in with you, plus
-Mobbin references. Explore 2–3 directions, pick **one**, iterate on that one only, then export or
-save the prototype beside `docs/`.
+**Before pasting:** replace the bracketed references in the prompt's §Style with your own Mobbin
+picks. The suggestions there are suggestions, not decisions.
 
-**What to bring back:** the prototype's HTML or screenshots. Phase 3 extracts real hex codes, spacing
-and component states from it into `05-design-system.md` and `10-screen-specifications.md`. The
-prototype is a visual reference, never the design system doc.
+**The rule that matters during Phase 2:** a pretty prototype will try to bend the requirements to
+match it. `02-product-requirements.md` wins every time — if the design wants a different rule,
+that is a new question for `/project`, not a quiet edit.
+
+**What to bring back:** the canvas artifact's HTML, or screenshots. Phase 3 extracts real hex codes,
+spacing, radii and component states from it into `05-design-system.md` and
+`10-screen-specifications.md`. The prototype is a visual reference, never the design system doc.
 
 Then run `/project`.
+
+### The prompt — paste this into `/design`
+
+> Design two screens for **Kioku**, a spaced-repetition app that generates Japanese vocabulary
+> flashcards from pasted source material and is also where they are studied. One user, keyboard-first,
+> desktop-first but usable on a phone. Read `docs/02-product-requirements.md` and `CONTEXT.md` in this
+> repo before you start — the vocabulary there is exact and the acceptance criteria are pass-or-fail.
+>
+> **Six artboards, in this order:**
+>
+> 1. **Vet — populated.** One pending note, mid-queue.
+> 2. **Vet — empty.** Nothing to vet.
+> 3. **Review — card front.** The prompt side, mid-session.
+> 4. **Review — card back.** Answer revealed, grading available.
+> 5. **Review — session end.** The finish screen.
+> 6. **Review — nothing due.** Everything accepted, nothing due yet.
+>
+> **Vet is the screen the product lives or dies on.** Its job is to let me accept a correct note in
+> one keystroke and move on, at a median under five seconds. Design constraints, all load-bearing:
+>
+> - **Keyboard only.** Accept, reject and edit are each one key. No confirmation dialog, no focus
+>   change, no pointer target. Show the keys — this is a screen used hundreds of times, so it should
+>   teach itself once and then get out of the way.
+> - **Fields are not equal.** A JLPT vocabulary note has `term`, `reading`, `meaning`,
+>   `part_of_speech`, `level` and `example_sentence`. Most are dictionary lookups and need to be
+>   *checkable at a glance without being read*. One or two are **judgement fields** — the model chose
+>   or wrote them — and those are the only ones asking for a decision. That difference is the screen's
+>   main hierarchy problem.
+> - **Level is honest or it is wrong.** A level backed by a named authority and a level the model
+>   estimated must differ by **one visible bit**, with the authority available on hover or inspection.
+>   Not a caveat paragraph, not a tooltip on everything.
+> - **Editing happens in place**, without leaving the queue or losing the keystroke rhythm.
+> - Show queue position and how many are pending. Vetting is a queue, not a session — there is no
+>   finish line here and the design should not imply one.
+>
+> **Review is the opposite mood.** Calm, one card, no chrome competing with it.
+>
+> - A card is term → reading + meaning. Japanese and English sit together, so the type has to handle
+>   kanji, kana and Latin text at very different optical sizes without looking like two designs.
+> - A session is a **fixed 20 cards and it ends**. Progress must be visible and finishable — the
+>   thing being designed against is a queue with no visible end.
+> - Grading is keyboard-first too.
+> - There is a one-key **"this is wrong"** action that suspends the card and sends the note back to
+>   vetting. It must be reachable and never fired by accident.
+> - The end screen shows the session's numbers and offers one more session. It does not start one.
+>
+> **Style:** explore **2–3 distinct directions**, then stop and let me pick one before you refine
+> anything. Suggested reference points, replace them with mine if I give you others: **[Linear or
+> Raycast]** for keyboard-first density and quiet chrome, **[Duolingo]** for how a session announces
+> its own end, **[Anki]** as an anti-reference — it is the thing being replaced and its screen is
+> where the work goes to feel like work.
+>
+> **Do not design** Ingest, Sources or Stats. Do not invent features that are not in the PRD — if a
+> layout seems to need one, say so instead of adding it.
 
 ## Blocked
 
