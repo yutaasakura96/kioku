@@ -241,7 +241,11 @@ Nothing.
   *place* nor a *mode* — and `/auth/refused` carries a message and nothing else. This does not amend
   ADR 0013, whose taxonomy is about the five screens of the app; `08` §2 adds the boundary before
   them.
-- **No git remote yet.** `/setup-matt-pocock-skills` still belongs after planning.
+- **The remote is [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku), public, added
+  2026-09-07.** ⚠️ **Public is the constraint that matters:** `KIOKU_INVITED_EMAIL` and every other
+  value in `03` §13.1 stay out of the repository, and `08` §4.1's argument for keeping the allowlist
+  in the environment is now stronger than it was when it was written. `/setup-matt-pocock-skills`
+  still belongs after planning.
 - **`frontend-design` and `superpowers` are off at project scope**, for different reasons.
   `CLAUDE.md` § Tooling state has both correctly.
 - ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it

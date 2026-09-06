@@ -178,9 +178,15 @@ environment · one value, per ADR 0017*. This section is why, and what the shape
 An email address is not a credential, so `03` §13.1's "never in the repo" is not automatically
 decisive. Two things make it decisive anyway. `03` §13.4 already classifies the reader's email as
 sensitive data — never logged, an id instead — and a constant in the repository is a weaker place
-than a log. And there is **no git remote yet** (`03` §13.5): the decision that puts a personal email
-into version control is made once and is effectively permanent, before the repository has an
-audience.
+than a log. And a commit is permanent in a way an environment variable is not: rotating a leaked
+constant means rewriting history, not editing a value.
+
+⚠️ **Strengthened 2026-09-07.** This section was written the day before the repository had a remote,
+and argued from "the repository has no audience yet". **It now has one:
+[`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku) is public.** The decision does not
+change — it was already the right one — but the margin it was made with is gone, and the reason to
+re-examine it if anyone proposes a repo constant is now much shorter: the file would be world
+readable the moment it was pushed.
 
 The environment variable also gets **per-environment values for free**, which matters because Neon
 runs a branch per environment and production has never shared a string with development.

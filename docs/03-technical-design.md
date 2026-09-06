@@ -605,9 +605,12 @@ it is checked.** The claim this design does rest on is §13.6's, and that one is
 
 ### 13.5 Dependencies
 
-Two ecosystems, two flows. No git remote exists yet, so the honest statement is a cadence and a
-trigger: **a manual monthly check on both manifests now, and Renovate or Dependabot configured in
-the same commit that adds the remote.**
+Two ecosystems, two flows. ⚠️ **Corrected 2026-09-07:** the remote now exists
+([`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku), public) and this paragraph named it
+as the trigger. That was the wrong trigger — **a bot has nothing to read until a manifest exists**,
+and there is no `package.json` and no `requirements.txt` yet. The honest statement is a cadence and a
+corrected trigger: **a manual check on both manifests once they exist, and Renovate or Dependabot
+configured in the same commit that adds the first one.**
 
 **Four pins that a routine cleanup must not touch:**
 
