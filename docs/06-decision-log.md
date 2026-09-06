@@ -249,6 +249,79 @@ unclaimed work on every reconnect, in that order, so correctness never depends o
 Same shape as ADR 0007's outbox, a third time.
 → [ADR 0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md)
 
+### [2026-09-06] The dictionary version joins the ingestion cache key
+
+**Decision.** ADR 0010's cache key becomes **(content-chunk hash, dictionary version, prompt
+version, model id)**. `SudachiDict-core` is pinned at `20260723`, and moving it is a reviewed data
+event rather than a dependency bump.
+
+**Alternatives considered.** Leaving the key as ADR 0010 wrote it — rejected: a dictionary upgrade
+changes tokenisation, which changes candidate extraction, which changes `normalized_form`, which is
+half of ADR 0006's *identity key*. Under the old key that upgrade silently serves cached results
+computed against a different tokenisation of the same text. Pinning the dictionary and leaving the
+key alone — rejected as a rule with nothing enforcing it; the key is where an input becomes visible.
+
+**Reason.** ADR 0010's key exists to make the pipeline replayable, and a key that omits an input
+that changes the output does not.
+
+**Revisit if.** A subject ships whose pipeline names no tokenisation stage — the field is then inert
+for that subject rather than wrong.
+
+### [2026-09-06] The subject declaration is language-neutral data, owned by neither toolchain
+
+**Decision.** A *subject* is declared as JSON under `subjects/`, one file per subject. TypeScript
+derives its types and its runtime validator from it; Python reads the same file for its stage list
+and field names. A test on each side asserts its view matches the file, and the field lists are
+compared across the two.
+
+**Alternatives considered.** TypeScript owning the declaration and generating a Python artifact —
+rejected because it makes the worker a downstream consumer of a build step in the other toolchain,
+which is a build-order dependency across ADR 0019's deliberate boundary. Two declarations kept in
+step by discipline — rejected: that is exactly the drift ADR 0003 exists to design out. YAML —
+rejected because JSON parses on both sides with nothing installed.
+
+**Reason.** ADR 0003 made one declaration with three consumers; ADR 0019 then put one consumer in
+another language. The failure ADR 0003 prevents returns in a form no compiler catches, so the guard
+has to be a test.
+
+**Revisit if.** A second subject makes the declarations large enough that JSON stops being
+writable by hand — at which point the source format changes and the neutrality rule does not.
+
+### [2026-09-06] A client-stamped grade is validated on replay
+
+**Decision.** The server rejects a replayed *grade* stamped in the future beyond a small skew
+allowance, and one stamped before its own *session* snapshot was taken. Rejections are surfaced to
+the reader, not dropped. Everything between those bounds is accepted exactly as stamped.
+
+**Alternatives considered.** Accepting every stamp, which is the literal reading of ADR 0007 —
+rejected: a wrong system clock writes review history that FSRS cannot be told to ignore, and §2.4
+makes that the one thing that cannot be regenerated. Server-stamping on receipt — rejected outright;
+ADR 0007 already argued that one and it is the failure §2.3 chose FSRS to avoid.
+
+**Reason.** ADR 0007 decided *that* the client stamps the *grade* and never said what the server
+does with a stamp it cannot trust. The outbox is the one place client-authored data becomes
+permanent history.
+
+**Revisit if.** A second device is ever supported — the snapshot bound assumes one session at a
+time, which is ADR 0007's stated boundary.
+
+### [2026-09-06] Drizzle owns every migration; the worker never issues DDL
+
+**Decision.** All schema changes go through Drizzle from the TypeScript side. The Python worker
+reads and writes rows and never alters structure. Better Auth's tables are generated
+(`npx auth@latest generate`) and land in the same migration flow.
+
+**Alternatives considered.** The worker owning the tables it alone uses — the job table, chunk
+progress — rejected because "what shape is this table" would have two answers in two toolchains,
+and the job table is read by both. Better Auth's own migrator — ruled out rather than rejected:
+`getMigrations` does not work with the Drizzle adapter.
+
+**Reason.** ADR 0019 accepted a two-toolchain tax knowingly. Two migration owners is the version of
+that tax that corrupts data rather than costing time.
+
+**Revisit if.** The worker is ever split into its own deploy unit with tables no TypeScript code
+reads — which is ADR 0015's second-worker condition, not a schema question.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the

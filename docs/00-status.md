@@ -3,7 +3,7 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
-are closed and the frontier is empty. **28 ADRs.** Six docs are still owed.
+are closed and the frontier is empty. **28 ADRs.** `03` is written; **five docs are still owed.**
 **Updated:** 2026-09-06
 
 Read `CLAUDE.md` first, then this.
@@ -42,6 +42,17 @@ hanging at the end of Round 2 are answered; so are the three stack follow-ups.
 | 8 | `noScripts` on Vercel | Verification §8 — **it survives**; ADR 0020 amended |
 | 9 | The worker's dropped listener | [0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md) — the job table is the truth |
 
+**[`03-technical-design.md`](03-technical-design.md) — written 2026-09-06.** Eighteen sections. It
+carries ADR 0028's worker loop (`LISTEN` **then** poll, on every connect and reconnect), the two
+connection strings, the psycopg floor as a reason, the current `noScripts` API names, the
+construct-`Dictionary()`-once rule, both pipeline findings, ADR 0007's outbox shape and ADR 0013's
+split. **The security baseline is §13 and is answered in full.** No schema, no code.
+
+It made **four new decisions**, all logged in [`06-decision-log.md`](06-decision-log.md) and none of
+them a stack question: the dictionary version joins ADR 0010's cache key; the *subject* declaration
+is language-neutral JSON owned by neither toolchain; a client-stamped *grade* is validated on
+replay; Drizzle owns every migration and the worker never issues DDL.
+
 **[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
 nine sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
 Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement); **§8–9 added in
@@ -72,13 +83,13 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-**The grilling is over. Write the six documents**, in this order. `/grill-with-docs` has nothing
-left to ask — the frontier is empty and every question that was open has an ADR or a dated entry.
+**The grilling is over. Write the remaining five documents**, in this order. `/grill-with-docs` has
+nothing left to ask — the frontier is empty and every question that was open has an ADR or a dated
+entry.
 
 | Doc | Blocked on |
 | --- | --- |
-| `03-technical-design.md` | **Unblocked. Start here.** Security baseline is mandatory. Carries ADR 0028's worker loop and the current `noScripts` API names |
-| `04-database-schema.md` | `03`. **Closes the note storage shape** — the one decision deliberately still open. Also needs the job table's claimed/unclaimed distinction from ADR 0028. Every entity needs columns and delete behaviour |
+| `04-database-schema.md` | **Unblocked. Start here.** `03` is written and §18 hands over a list of inputs. **Closes the note storage shape** — the one decision deliberately still open. Also needs the job table's claimed/unclaimed distinction (ADR 0028), durable per-chunk progress, the dictionary version in the cache key, no column on `elapsed_days`, and `ReviewLog` rows stored from day one. Every entity needs columns and delete behaviour |
 | `08-authentication.md` | Mostly written already — ADR 0017 + verification §2 |
 | `09-user-flows.md` | Unblocked — ADR 0013 closed navigation |
 | `10-screen-specifications.md` | **Unblocked.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout. **Belongs to Phase 4, not Phase 3** — see Carrying |
@@ -144,9 +155,19 @@ Nothing.
   while the worker was away. **ADR 0028 is the answer and it holds whichever way the cost question
   resolves** — the job table is the truth, `NOTIFY` only shortens latency, and the worker
   re-`LISTEN`s *then* polls on every reconnect, in that order.
-- **⚠️ Two pipeline findings for `03`:** numerals come back `is_oov=True` with `normalized_form`
-  rewritten to ASCII (六 → `6`), which ADR 0006's *identity key* depends on; and `tokenize()`'s
-  result is not sliceable.
+- **⚠️ Two pipeline findings, now carried by `03` §5.2:** numerals come back `is_oov=True` with
+  `normalized_form` rewritten to ASCII (六 → `6`), which ADR 0006's *identity key* depends on — the
+  rule is that numerals are excluded at candidate extraction rather than reaching the key; and
+  `tokenize()`'s result is not sliceable, so anything windowing over morphemes iterates.
+- **The dictionary version is now part of the ingestion cache key**, and `SudachiDict-core` is
+  pinned at `20260723`. **Moving it can change the identity of existing *notes*** — it is a reviewed
+  data event with a re-ingestion plan, never an automated bump. `03` §5.3 and the decision log.
+- **⚠️ The laptop is the security weak point, and it is named rather than mitigated.** It holds the
+  direct connection string and the model provider key at once. `03` §13.6 states what is true today
+  (disk encryption, rotatable credentials, no key in the repo) and what is not (any second factor).
+  This is a cost of ADR 0022's temporary shape, and part of what the move buys.
+- **Backups are `S12`'s tested export, not Neon.** Free gives six hours of instant restore and one
+  snapshot; six hours is not a backup for the one thing that cannot be regenerated. `03` §13.6.
 - **No git remote yet.** `/setup-matt-pocock-skills` still belongs after planning.
 - **`frontend-design` and `superpowers` are off at project scope**, for different reasons.
   `CLAUDE.md` § Tooling state has both correctly.
