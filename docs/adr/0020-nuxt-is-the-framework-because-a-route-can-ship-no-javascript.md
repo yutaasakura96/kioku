@@ -70,6 +70,13 @@ are.
 
 ## Revisit if
 
-`noScripts` proves not to survive the deployment target (see ADR 0022 — it is untested there), at
-which point Nuxt's advantage over the React options narrows to the per-route switch alone and the
-decision is worth re-weighing against the two-ecosystem cost.
+`noScripts` proves not to survive the deployment target, at which point Nuxt's advantage over the
+React options narrows to the per-route switch alone and the decision is worth re-weighing against
+the two-ecosystem cost.
+
+**Checked 2026-09-06 and this premise holds** — `phase-4-verification.md` §8. `noScripts` occurs in
+zero files in `nitropack@2.13.4`; the Vercel preset never reads it, and the rule is applied at render
+time inside the handler the preset packages verbatim. Neither vendor documents the interaction, and
+nothing upstream tests it, so a ~15-minute smoke test stays on the first-week list — but the
+condition above is no longer an open risk. Note also that the current API is `routeRules.noScripts`
+and `features.noScripts`; `experimental.noScripts` is deprecated.

@@ -28,24 +28,25 @@ work through the shadow (§6), not through the fill.
 
 ## 2. Ink
 
-Seven greys, ordered. The contrast column is measured against `--k-ground` (`#f7f3ec`); on
-`--k-raised` every figure is ~0.3 higher.
+Four greys, ordered, **all of them meeting WCAG AA at 4.5:1**. The contrast column is measured
+against `--k-ground` (`#f7f3ec`); on `--k-raised` every figure is ~0.3 higher.
 
-| Token | Value | Contrast | Role as drawn |
+| Token | Value | Contrast | Role |
 | --- | --- | --- | --- |
 | `--k-ink` | `#1d1a16` | 15.67 | The *term*, the *meaning*, every screen-level statement. |
 | `--k-ink-quiet` | `#4c463d` | 8.44 | The Japanese example inside the *Review* card — one step back from the answer without leaving it. |
-| `--k-ink-value` | `#6d6558` | 5.20 | A fact's value: part of speech, an unselected grade digit. |
-| `--k-ink-secondary` | `#8b8175` | 3.46 | The *reading*, the English gloss, empty-state body. |
-| `--k-ink-tertiary` | `#97907f` | 2.87 | Counters, the word "pending", the gloss inside the card. |
-| `--k-ink-aside` | `#a1978a` | 2.60 | Italic asides — "the model wrote this", the flag explanation. |
-| `--k-ink-label` | `#ada393` | 2.25 | Eyebrow labels, and the hollow *level* marker's border. |
+| `--k-ink-value` | `#60584d` | 6.33 | A fact's value: part of speech, an unselected grade digit. |
+| `--k-ink-secondary` | `#776d5f` | 4.59 | Everything ancillary — the *reading*, the English gloss, empty-state body, counters, the word "pending", italic asides, eyebrow labels, and the hollow *level* marker's border. |
 
-**Four of these fail WCAG AA for body text.** `--k-ink-secondary` and below are all under 4.5:1, and
-none of the type they carry is large enough to qualify for the 3:1 large-text exception (which needs
-24px regular; the biggest is 18px). This is recorded, not fixed — the palette is a settled decision
-and repairing it is a change to the visual direction, not an extraction. It is now an open question;
-see §10.
+The canvas drew seven. **`--k-ink-tertiary`, `--k-ink-aside` and `--k-ink-label` are retired**, and
+`--k-ink-value` and `--k-ink-secondary` both moved — see
+[ADR 0024](adr/0024-four-greys-that-pass-not-seven-that-do-not.md). The measurement that forced it:
+there are **3.6 lightness points** between `--k-ink-value` as drawn and the 4.5:1 floor, so seven
+greys cannot all pass and remain seven distinguishable greys. None of the failing type qualified for
+the 3:1 large-text exception either — that needs 24px regular, and the biggest was 18px.
+
+**Every eyebrow therefore moves from 2.25:1 to 4.59:1, and *Vet* reads heavier than the artboard
+does.** That is the accepted cost, not a drawing error to be corrected back.
 
 ### Accent
 
@@ -177,16 +178,27 @@ the decision log. Its header is the rail or nothing at all.
 
 ### Spacing
 
-Values in use, by frequency: `4 5 7 8 9 10 12 14 16 18 20 26 28 30 32 34 38 40 44`. There is no
-strict 4pt or 8pt grid — the drawing is hand-set. The intervals that recur and carry meaning:
+**Ten steps, on a 4pt grid: `4 8 12 16 20 28 32 40 44 52`.** The canvas was hand-set and used
+nineteen distinct values; these are those nineteen snapped, with **no value moving more than 2px**.
+The meanings below are the canvas's own and survive the snap intact.
 
 | Gap | Meaning |
 | --- | --- |
-| `8–14px` | Inside one thing — a label and its value, a key cap and its name |
-| `18px` | Between a body block and what introduced it |
-| `28–34px` | Between two facts that are peers |
+| `8–12px` | Inside one thing — a label and its value, a key cap and its name |
+| `20px` | Between a body block and what introduced it |
+| `28–32px` | Between two facts that are peers |
 | `44px` | Between two *judgement fields* — the largest gap in the reading column, and the one that makes the zoning read |
 | `52px` | From the *facts strip*'s lower rule down to the first *judgement field* |
+
+Regularised before the three undrawn screens were built against the irregular set, which is what
+would have multiplied it. New values are added to the scale, never set by hand beside it.
+
+The snap, for the record: `5 → 4`, `7 → 8`, `9 → 8`, `18 → 20`, `26 → 28`, `34 → 32`, `38 → 40`.
+**Three are genuinely ambiguous — `10`, `14` and `30` each sit exactly 2px from two steps** — and
+they are not resolved here, because each wants deciding against the screen it appears on rather than
+globally. `10-screen-specifications.md` owes those three. Component dimensions in §7 that are neither
+gaps nor on the scale (row heights, type sizes, control padding) were not snapped and are not in
+scope for this scale.
 
 ## 6. Geometry
 
@@ -218,7 +230,7 @@ else in the system is elevated.**
 
 56px tall, `--k-gutter` padding, `--k-rule` bottom border. Left: the screen label in accent, 11px
 mono, 0.22em; then the *source* name at 14px in Mincho, `--k-ink-secondary`. Right: the pending
-count — figure in `--k-ink`, the word "pending" in `--k-ink-tertiary`, both 12px mono — a `·`
+count — figure in `--k-ink`, the word "pending" in `--k-ink-secondary`, both 12px mono — a `·`
 separator, then the *note* index.
 
 ### Facts strip (*Vet*)
@@ -237,30 +249,34 @@ A **7 × 7px square**, and the one visible honesty bit ADR 0005 requires.
 | State | Treatment |
 | --- | --- |
 | Named authority | Filled `--k-ink`, no border |
-| Model estimate | Transparent, `1px solid --k-ink-label` |
+| Model estimate | Transparent, `1px solid --k-ink-secondary` |
 
 The *level claims* sit inline beside it at 11px mono — the attributing authority in
-`--k-ink-value`, dissenting ones in `--k-ink-label`, `·` between. **Never behind a hover.**
+`--k-ink-value`, dissenting ones in `--k-ink-secondary`, `·` between. **Never behind a hover.**
 
 ### Judgement field (*Vet*)
 
-An eyebrow row — 10px mono accent label at 0.18em, then a 13px italic `--k-ink-aside` note on where
+An eyebrow row — 10px mono accent label at 0.18em, then a 13px italic `--k-ink-secondary` note on where
 the value came from — a `14px` gap, then the value at reading size. Fields are `44px` apart.
 
 ### Key cap
 
 | State | Face | Border | Ink | Padding |
 | --- | --- | --- | --- | --- |
-| Primary (`A`) | `--k-ink-ground` | none | `--k-ground` | `5px 10px` |
-| Secondary (`E`, `R`) | `--k-key-face` | `1px --k-border-control` | `--k-ink-value` | `5px 10px` |
-| Available-but-aside (`X`) | none | `1px dashed --k-border-dashed` | `--k-ink-tertiary` | `3px 8px` |
+| Primary (`space`) | `--k-ink-ground` | none | `--k-ground` | `5px 10px` |
+| Secondary (`E`, `R`, `Z`) | `--k-key-face` | `1px --k-border-control` | `--k-ink-value` | `5px 10px` |
+| Available-but-aside (`X`) | none | `1px dashed --k-border-dashed` | `--k-ink-secondary` | `3px 8px` |
+
+The primary cap holds `space`, not a letter — [ADR 0023](adr/0023-space-is-the-forward-action-and-z-is-the-confirm.md)
+makes `space` the forward action in both modes. It is therefore the widest cap in the legend rather
+than one square among equals.
 
 12px mono, `--k-radius-key`. The label beside it is 15px: `--k-ink` when the key is primary,
 `--k-ink-secondary` otherwise.
 
 ### Progress rail (*Review*)
 
-620px wide. A 12px mono counter at each end in `--k-ink-tertiary`, `18px` from the bar. Between
+620px wide. A 12px mono counter at each end in `--k-ink-secondary`, `20px` from the bar. Between
 them, one `flex-grow: 1` tick per *card* in the *session*, `6px` tall, `4px` apart.
 
 | Tick | Fill |
@@ -315,7 +331,7 @@ Where an empty state offers an action it is a **quiet** affordance: `--k-raised`
 
 ### Session tally
 
-Four equal columns, `8px` apart. A 10px mono eyebrow at 0.14em in `--k-ink-label`, `8px` down a 38px
+Four equal columns, `8px` apart. A 10px mono eyebrow at 0.14em in `--k-ink-secondary`, `8px` down a 38px
 Newsreader 300 figure in `--k-ink`.
 
 ## 8. Not extracted, deliberately
@@ -323,26 +339,42 @@ Newsreader 300 figure in `--k-ink`.
 These appear on the canvas and are **not** part of this system. Extracting them would turn a
 placeholder into a decision.
 
-- **The grade labels** — `Again / Hard / Good / Easy`. Drawn as a placeholder. The grade set follows
-  the scheduler, which is §4.12, which is Phase 4. The control's *geometry and states* above are
-  real; its labels and its count are not.
-- **Key assignments** — `A` / `E` / `R`; `space`, `1`–`4`, `X`. Drawn, not decided. The key cap
-  component is real; which key goes in it is open.
-- **Navigation.** Nothing on the canvas moves between screens. *Vet*'s empty state points at Ingest
-  as plain text because there was nothing else to point with. This is a PRD gap and it blocks
-  `10-screen-specifications.md`.
-- **The phone layout.** Never drawn. The *facts strip* and the four grade controls are the two things
-  that cannot survive the narrowing unchanged.
+- **The grade labels** — `Again / Hard / Good / Easy`. Drawn as a placeholder. The *count* is now
+  settled at four by [ADR 0016](adr/0016-four-grades-and-no-same-day-relearning.md); the words are
+  still a placeholder and belong to `10-screen-specifications.md`. The control's geometry and states
+  above are real.
+- **The Done control on a *mode*'s header.** Required by
+  [ADR 0026](adr/0026-review-is-the-only-screen-that-gets-a-phone-layout.md) on every viewport, and
+  never drawn — the canvas's modes have no exit affordance at all. On *Review* it has to share its
+  row with the *progress rail*.
+- **The phone layout for *Review*.** Scope is decided (ADR 0026: *Review* only); the layout itself is
+  undrawn.
+
+Three entries left this list rather than being resolved in it: **key assignments**
+([ADR 0023](adr/0023-space-is-the-forward-action-and-z-is-the-confirm.md)), **navigation**
+([ADR 0013](adr/0013-three-screens-are-places-and-two-are-modes.md)) and **whether a phone layout
+exists at all** (ADR 0026).
 
 ### States the canvas does not contain
 
 No artboard shows **hover, focus, active, disabled, loading, or error** — for any component. The one
 exception is the link hover colour in §2.
 
-This matters more here than it usually would. *Vet* and *Review* are **keyboard-driven by design** —
-one keystroke per *note* is a measured criterion — and a keyboard-driven interface with no focus
-treatment is not navigable. **A focus state is required before either screen is implemented**, and
-it is not in this document because it is not on the canvas.
+**Focus is now decided anyway**, because it blocked implementation of two keyboard-driven screens
+where the other five did not.
+[ADR 0025](adr/0025-one-focus-ring-and-the-modes-do-not-draw-it.md):
+
+| Token | Value | Rule |
+| --- | --- | --- |
+| `--k-focus` | `--k-accent` (`#b23a26`, 5.38) | 2px outline at 2px offset, `:focus-visible` only, never animated |
+
+*Vet* and *Review* hold focus on the mode container and **draw no ring** — focus cannot move within
+either screen, so a ring would mark a position that never changes. The single exception is *Vet*'s
+edit state, which rings the *judgement field* being edited, because editing is the one moment focus
+becomes a real position.
+
+**Hover, active, disabled, loading and error remain undrawn.** They want deciding against a screen
+rather than in the abstract, and they belong to `10-screen-specifications.md`.
 
 ## 9. Where this file departs from the canvas
 
@@ -361,11 +393,13 @@ Everything else in this file is the canvas's own value.
 
 ## 10. Open
 
-- **Four ink values fail WCAG AA against the ground** (§2). `--k-ink-secondary` at 3.46 carries the
-  *reading* and every empty-state body; `--k-ink-label` at 2.25 carries every eyebrow. Raising them
-  changes the settled visual direction, so it is a decision, not a correction — and it wants making
-  before implementation rather than after.
-- **No focus state exists** (§8). Blocking for two keyboard-driven screens.
-- **The spacing scale is hand-set, not systematic** (§5). Nineteen distinct gap values. Worth
-  deciding whether to regularise before the three undrawn screens are built against it, because they
-  are what will multiply it.
+The three items this section carried — the failing ink values, the missing focus state and the
+hand-set spacing — were all closed on 2026-09-06 by ADRs 0024, 0025 and 0026, and the sections above
+now carry their outcomes. What is left is drawing, not deciding:
+
+- **Five interaction states** — hover, active, disabled, loading, error (§8). Not blocking; they want
+  a screen to be decided against.
+- **The grade labels**, and **the Done control's geometry** (§8).
+- **The *Review* phone layout** (§8). Its scope is settled; its drawing is not.
+
+All three belong to `10-screen-specifications.md`.

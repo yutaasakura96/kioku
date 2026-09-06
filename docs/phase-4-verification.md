@@ -567,3 +567,113 @@ confirmed present on this version. Verbs lemmatise correctly (覚まし → 覚�
 
 **Sources:** framework, database, hosting, Nuxt, Vercel/Neon and the Sudachi measurement were each
 gathered by a separate background agent against primary docs on 2026-09-06.
+
+---
+
+## 8. `noScripts` under the Vercel preset (ADR 0020)
+
+**Round 3, 2026-09-06.** ADR 0020 chose Nuxt mainly because a route can ship zero JavaScript, and
+its revisit condition said this was untested on the deployment target. It is no longer untested.
+
+**Neither vendor documents the interaction — that belief was correct.** Vercel's Nuxt page (updated
+2026-08-26) has a `routeRules` section covering `ssr: false`, `prerender`, `isr`, redirects and
+headers, and never mentions `noScripts`. Nuxt's deploy page says nothing about route rules.
+
+**The source settles it anyway, more firmly than documentation would.**
+
+| Finding | Evidence |
+| --- | --- |
+| `noScripts` occurs in **0 files** in `nitropack@2.13.4` | The exact Nitro version Nuxt 4.5.2 pins. It is a Nuxt-side rule, declared by TypeScript augmentation of `NitroRouteRules`; Nitro has no concept of it |
+| The Vercel preset reads only `headers`, `redirect`, `isr`, `cache`/`swr`, `static`, `prerender` | `dist/presets/vercel/utils.mjs`, when generating `.vercel/output/config.json` |
+| The rule is applied **at render time, per request** | `packages/nitro-server/src/runtime/handlers/renderer.ts` at tag `v4.5.2`: `getRouteRules(event)` gates ~15 `head.push` sites — entry script, import map, payload, preload/prefetch hints, bootstrap |
+| The route-rule matcher is bundled into the serverless function | `dist/presets/vercel/runtime/vercel.mjs` imports `getRouteRulesForPath` |
+
+**Conclusion:** the preset cannot drop a rule it never reads, and the rule is evaluated inside the
+handler the preset packages verbatim. Prerendered routes upload script-free static HTML; SSR routes
+strip scripts inside the function per render. The absence is *proven*; that it therefore works is
+inference from the mechanism, and it is strong.
+
+⚠️ **The API name in the earlier recommendation was stale.** Write `routeRules.noScripts` and
+`features.noScripts` (typed `'production' | 'all' | boolean`). `experimental.noScripts` and the route
+rule `experimentalNoScripts` both still exist at v4.5.2 and are both marked deprecated. `03` must use
+the current names.
+
+⚠️ **Nothing upstream tests this combination.** `grep -i vercel` over the whole Nuxt v4.5.2 tree
+returns no paths — there is no Vercel fixture in the repo. The `noScripts` e2e test
+(`test/e2e/no-scripts.test.ts`) runs against the default preset. **Hence the first-week smoke test
+survives, at ~15 minutes:** deploy one route with `{ prerender: true, noScripts: true }` and one with
+`{ noScripts: true }` alone, `curl` both, grep for `<script`. The second exercises the runtime path.
+
+One real preset bug exists and is instructive rather than alarming:
+[nitrojs/nitro#4447](https://github.com/nitrojs/nitro/issues/4447), open — the Vercel preset
+mishandles **ISR** route rules, which are among the rules that *are* translated to platform config.
+It is evidence for the runtime/translated distinction, not against it. Zero issues in `nuxt/nuxt` or
+`nitrojs/nitro` mention `noScripts` with Vercel.
+
+---
+
+## 9. The Python driver, and what scale-to-zero does to `LISTEN` (ADR 0021, ADR 0022)
+
+**Round 3, 2026-09-06.** Two findings; the second matters more than the question that produced it.
+
+### 9.1 Neon's driver table is a SNI list, not a support list
+
+The earlier session read the wrong page: `neon.com/docs/reference/compatibility` contains **zero**
+occurrences of `psycopg`, `asyncpg`, `pg8000`, `SNI` or `driver`. The table is on
+[`connect/connection-errors`](https://neon.com/docs/connect/connection-errors) (`neon.com/sni`
+redirects there), and the sentence **above** it is load-bearing:
+
+> Clients on the list of drivers on the PostgreSQL community wiki that use your system's `libpq`
+> library should work if your `libpq` version is >= 14.
+
+Then: "Neon has tested the following drivers for SNI support" — npgsql, Postgrex, lib/pq, pgx, go-pg,
+JDBC, node-postgres, postgres.js, **asyncpg**, **pg8000**, PostgresClientKit (✗), PostgresNIO,
+postgresql-client. **Every entry is a native reimplementation of the wire protocol.** psycopg is a
+libpq wrapper, so it falls under the sentence above the table. The word "supported" appears nowhere
+on the page except per-row, about SNI. Neon is silent on *why* psycopg is absent; the structural
+reading above is ours.
+
+Corroborating, from Neon's own guides: the [Python quickstart](https://neon.com/docs/guides/python)
+installs `psycopg[binary]` and uses a plain connection string with **no** `options=endpoint%3D...`;
+the Django guide says to use "`psycopg[binary]` (psycopg v3), **not** the older `psycopg2`" and aims
+its SNI troubleshooting at psycopg2 only. `psycopg[binary]` bundles **libpq 17.2**, and libpq sets
+`sslsni=1` by default ([PostgreSQL docs](https://www.postgresql.org/docs/current/libpq-connect.html)).
+
+SNI is still required and none of the four documented workarounds is retired; only the
+password-field form carries an intent to deprecate. A libpq client needs none of them.
+
+⚠️ **Require psycopg ≥ 3.2.4** — before that version, notifications arriving between `LISTEN` and
+starting the `notifies()` generator were **silently lost**. That is exactly the worker's startup
+sequence. Since 3.2.10, mixing the generator with `add_notify_handler()` raises a runtime warning;
+pick one.
+
+Notification support, all confirmed: psycopg 3 has a blocking `notifies(timeout=...)` generator and
+works on a plain synchronous `Connection` in autocommit; asyncpg has `add_listener()` (async only);
+pg8000 exposes a `notifications` deque with no blocking API. **Not verified:** no live connection was
+made. The chain (libpq 17.2 → `sslsni=1` → Neon's stated libpq ≥ 14 rule) is documentary. One
+`psycopg.connect()` falsifies it cheaply.
+
+### 9.2 Scale-to-zero destroys the listener, and this corrects a Carrying note
+
+Pooled connections cannot `LISTEN` at all — Neon's connection-pooling page lists `LISTEN`/`NOTIFY`
+among what PgBouncer transaction mode does not support, matching PgBouncer's own feature matrix. The
+direct endpoint is therefore mandatory, as planned. On the direct endpoint Neon documents **no**
+restriction on `LISTEN`/`NOTIFY` — but it documents a lifecycle hazard, on the compatibility page:
+
+> notifications and listeners defined using NOTIFY/LISTEN commands only exist for the duration of
+> the current session and are lost when the session ends.
+
+**The Free plan cannot disable scale-to-zero**; the compute suspends after 5 minutes of inactivity.
+So the listener is torn down routinely, and notifications fired while the worker is disconnected are
+gone rather than delayed. This is what
+[ADR 0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md) is built on.
+
+⚠️ **A Carrying note in `00-status.md` asserted that a held listener keeps the compute awake and
+exhausts the free month. That is unverified.** Neon documents what *wakes* an idle compute
+(connecting, querying, API access) but never what *prevents* suspension. **Neon is silent; test it.**
+ADR 0028 is correct whichever way it resolves, which is why it did not wait for the answer.
+
+**Sources:** neon.com/docs — connect/connection-errors, reference/compatibility, guides/python,
+guides/django, connect/connection-pooling, guides/scale-to-zero-guide; postgresql.org libpq-connect;
+psycopg3 advanced/async, install, news; psycopg2 advanced, news; asyncpg API reference; pg8000 on
+PyPI; pgbouncer.org/features. Two background agents, 2026-09-06.

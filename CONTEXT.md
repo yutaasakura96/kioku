@@ -106,7 +106,8 @@ they never alter its fields.
 _Avoid_: instance, mention, hit, duplicate
 
 **Rejected**:
-A note declined at vetting. Permanent, and survives re-ingestion — a rejected term is never re-asked.
+A note declined at vetting. Reversible only within the vetting session that declined it; once that
+session ends it is permanent and survives re-ingestion — a rejected term is never re-asked.
 _Avoid_: skipped, ignored, dismissed, deleted
 
 **Grade**:
@@ -171,9 +172,11 @@ The persistent frame carrying navigation, present on Ingest, Sources and Stats a
 _Avoid_: chrome, layout, frame, nav
 
 **Mode**:
-A screen that replaces the *shell* entirely — no header, no navigation — and is left with `Esc`.
-*Vet* and *Review* are the only two, because both are keyboard-driven surfaces where a pointer
-target would cost more than it gives.
+A screen that replaces the *shell* entirely — no header, no navigation — and carries exactly one way
+out: `Esc`, and a Done control present on every viewport. *Vet* and *Review* are the only two,
+because both are keyboard-driven surfaces where a pointer target would cost more than it gives. The
+visible exit is the one thing they carry that a pointer can reach, and it exists because a phone has
+no `Esc`.
 _Avoid_: fullscreen, focus mode, overlay, modal
 
 **Progress rail**:

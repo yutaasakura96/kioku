@@ -2,8 +2,8 @@
 
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
-**Phase:** 4 — Technical documents. **In progress.** Rounds 1 and 2 of the grilling are closed;
-five design questions are asked and unanswered, and six docs are still owed.
+**Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
+are closed and the frontier is empty. **28 ADRs.** Six docs are still owed.
 **Updated:** 2026-09-06
 
 Read `CLAUDE.md` first, then this.
@@ -26,12 +26,30 @@ the tokeniser.
 | 7 | The database | [0021](adr/0021-postgres-is-forced-by-two-writers-not-chosen.md) — **Postgres**, Drizzle |
 | 8 | The host | [0022](adr/0022-the-first-deployment-is-deliberately-temporary.md) — **Vercel + Neon + a local worker** |
 
-**[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
-seven sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
-Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement). Six background agents,
-everything against primary sources. **Do not re-run this.** Re-verify only if older than ~3 months.
+**Phase 4, Round 3 — closed 2026-09-06. The frontier is empty.** Nine questions, six ADRs
+(0023–0028) plus one full log entry, and two verification sections. The five design questions left
+hanging at the end of Round 2 are answered; so are the three stack follow-ups.
 
-Five findings worth knowing without opening it:
+| # | Question | Outcome |
+| --- | --- | --- |
+| 1 | Keys, and whether vetting has an undo | [0023](adr/0023-space-is-the-forward-action-and-z-is-the-confirm.md) — `space` forward, `Z` instead of a dialog |
+| 2 | Four ink values failing WCAG AA | [0024](adr/0024-four-greys-that-pass-not-seven-that-do-not.md) — **seven greys become four** |
+| 3 | A focus state | [0025](adr/0025-one-focus-ring-and-the-modes-do-not-draw-it.md) — one token, modes draw no ring |
+| 4 | The spacing scale | Regularised to ten 4pt steps — log entry, no ADR |
+| 5 | The phone layout | [0026](adr/0026-review-is-the-only-screen-that-gets-a-phone-layout.md) — *Review* only, **and every mode gains a Done control** |
+| 6 | The note's storage shape | Deferred again, deliberately, to `04` |
+| 7 | The Python driver | [0027](adr/0027-psycopg-3-is-the-driver-and-neons-table-is-not-a-support-list.md) — psycopg 3, the objection was a misread page |
+| 8 | `noScripts` on Vercel | Verification §8 — **it survives**; ADR 0020 amended |
+| 9 | The worker's dropped listener | [0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md) — the job table is the truth |
+
+**[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
+nine sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
+Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement); **§8–9 added in
+Round 3** (`noScripts` under the Vercel preset; the Python driver and what scale-to-zero does to
+`LISTEN`). Eight background agents, everything against primary sources. **Do not re-run this.**
+Re-verify only if older than ~3 months.
+
+Seven findings worth knowing without opening it:
 
 - **SudachiPy's dictionary is memory-mapped and loads in 9 ms**, at 93–136 MB steady-state RSS —
   measured, because no published figure exists. It was never the cold-start cost anyone feared, and
@@ -44,41 +62,36 @@ Five findings worth knowing without opening it:
 - **Blog claims of an "FSRS-7" could not be corroborated.** FSRS-6 is current.
 - **Only three of seven frameworks can make a route ship zero JavaScript.** That, not taste, is why
   ADR 0020 landed where it did.
+- **`noScripts` occurs in zero files in `nitropack@2.13.4`** — the exact version Nuxt 4.5.2 pins. The
+  Vercel preset cannot drop a rule it never reads, and the rule runs inside the handler the preset
+  packages verbatim. **Neither vendor documents this and nothing upstream tests it**, so the
+  fifteen-minute smoke test survives as regression cover, not as investigation.
+- **Neon's driver table is a SNI-compatibility list for non-libpq drivers, not a support list.** An
+  earlier session read a page that contains no driver list at all. psycopg 3 is Neon's own documented
+  Python driver.
 
 ## Next
 
-**Phase 4, Round 3 — run `/grill-with-docs`.** Not `/project`'s own interview; see Carrying.
-
-**Round 3 is short and already written.** Five design questions were asked at the end of Round 2 and
-**never answered** — the session closed on the stack instead. Each has a recommendation on the table,
-recorded in full in [`06-decision-log.md`](06-decision-log.md) § Still open. Re-ask them as they
-stand; do not re-derive them.
-
-1. **Key assignments, and whether *vetting* has an undo** — one decision, not two, because ADR 0006
-   makes rejection permanent.
-2. **The four ink values failing WCAG AA** — with the measured finding that seven greys cannot all
-   pass.
-3. **A focus state** — blocking for two keyboard-driven screens.
-4. **Whether the spacing scale is regularised** — cheapest before three undrawn screens multiply it.
-5. **The phone layout** — and whether v1 has one at all.
-
-**Three stack follow-ups**, all small, all recorded in the decision log:
-
-- The *note*'s storage shape — ADR 0021 carries a recommendation, not a decision. Closes in `04`.
-- Which Python driver — ⚠️ Neon's tested list names `asyncpg` and `pg8000`, not `psycopg`.
-- ⚠️ **Whether `noScripts` survives Vercel.** Undocumented by both vendors and it is the main reason
-  ADR 0020 chose Nuxt. **One throwaway page, first week.**
-
-**Then the six documents**, in this order:
+**The grilling is over. Write the six documents**, in this order. `/grill-with-docs` has nothing
+left to ask — the frontier is empty and every question that was open has an ADR or a dated entry.
 
 | Doc | Blocked on |
 | --- | --- |
-| `03-technical-design.md` | **Unblocked.** Security baseline is mandatory |
-| `04-database-schema.md` | `03`. Also closes the note storage shape. Every entity needs columns and delete behaviour |
+| `03-technical-design.md` | **Unblocked. Start here.** Security baseline is mandatory. Carries ADR 0028's worker loop and the current `noScripts` API names |
+| `04-database-schema.md` | `03`. **Closes the note storage shape** — the one decision deliberately still open. Also needs the job table's claimed/unclaimed distinction from ADR 0028. Every entity needs columns and delete behaviour |
 | `08-authentication.md` | Mostly written already — ADR 0017 + verification §2 |
 | `09-user-flows.md` | Unblocked — ADR 0013 closed navigation |
-| `10-screen-specifications.md` | Round 3's five answers. **Belongs to Phase 4, not Phase 3** — see Carrying |
+| `10-screen-specifications.md` | **Unblocked.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout. **Belongs to Phase 4, not Phase 3** — see Carrying |
 | `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median) |
+
+**Three first-week experiments**, none blocking a document:
+
+- **The `noScripts` smoke test**, ~15 min. One route `{ prerender: true, noScripts: true }`, one
+  `{ noScripts: true }` alone; `curl` both, grep for `<script`. The second is the runtime path.
+- **One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
+  live connection falsifies it cheaply.
+- **Whether an idle `LISTEN` connection defers scale-to-zero.** Neon is silent. ADR 0028 holds either
+  way; this settles the *cost* question only.
 
 ## Blocked
 
@@ -100,6 +113,13 @@ Nothing.
 - **The initial deployment is temporary by design.** ADR 0022. The destination is EC2 or Lightsail.
   **Nothing may depend on a Vercel-only feature** — no Vercel KV, Blob or Cron — or the move stops
   being a preset change.
+- **Every *mode* now carries a visible Done control**, on every viewport — ADR 0026. This came out of
+  the phone layout (a phone has no `Esc`) but it is not a phone concession: it changes what a mode
+  *is*, and `CONTEXT.md`'s definition moved with it. ADR 0013 emptied those headers on purpose, so
+  the one control they carry was argued for, not defaulted into.
+- **The ink ramp is four greys, not seven** — ADR 0024, and `05-design-system.md` §2 carries the
+  outcome. *Vet* now reads heavier than the artboard does. **That is the decision, not drift**; do
+  not "restore" the canvas values.
 - **`10-screen-specifications.md` belongs to Phase 4**, not Phase 3. The `/project` skill's own
   phase table says Phase 3; this project overrode it deliberately. Do not let a future session move
   it back on the skill's authority.
@@ -116,8 +136,14 @@ Nothing.
   reason for an always-on worker. What stands is that a directly-connected worker needs no HTTP job
   endpoint, which keeps PRD S1's "refused at every route" literally true.
 - **Two Neon connection strings, on purpose.** Pooled for the app, direct for the worker. The pooled
-  endpoint does not support `LISTEN`/`NOTIFY`. Never leave the worker running as a permanent daemon
-  against the free tier — a held listener keeps the compute awake and exhausts the month.
+  endpoint does not support `LISTEN`/`NOTIFY` — confirmed against Neon's own list and PgBouncer's.
+- ⚠️ **This file used to claim a held listener keeps the Neon compute awake and exhausts the month.
+  That was never verified and Neon does not document it** — it says what *wakes* an idle compute,
+  never what prevents suspension (verification §9.2). What *is* documented: Free cannot disable
+  scale-to-zero, and a suspended session destroys the listener along with every notification fired
+  while the worker was away. **ADR 0028 is the answer and it holds whichever way the cost question
+  resolves** — the job table is the truth, `NOTIFY` only shortens latency, and the worker
+  re-`LISTEN`s *then* polls on every reconnect, in that order.
 - **⚠️ Two pipeline findings for `03`:** numerals come back `is_oov=True` with `normalized_form`
   rewritten to ASCII (六 → `6`), which ADR 0006's *identity key* depends on; and `tokenize()`'s
   result is not sliceable.

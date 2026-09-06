@@ -192,40 +192,90 @@ the developer's machine for now. Neon Free's non-disableable scale-to-zero decid
 rule: pooled for the app, direct for the worker, never a permanent daemon. S3 is the answer for
 blobs and is decided-but-not-built. → [ADR 0022](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 
+### [2026-09-06] Space is the forward action, and Z is the confirm
+`space` accept, `E` edit, `R` reject, `Z` undo, `Esc` leave at *vetting*; `space` reveal, `1`-`4`
+grade, `X` flag at *review*. One decision, not two: ADR 0006 makes rejection permanent, so rejection
+gets an undo instead of a confirmation dialog — PRD S3 measures one keystroke per note and a dialog
+taxes every rejection to protect a few. The undo horizon is the session, and that limit is real.
+→ [ADR 0023](adr/0023-space-is-the-forward-action-and-z-is-the-confirm.md)
+
+### [2026-09-06] Four greys that pass, not seven that do not
+The ink ramp collapses to `#1d1a16` 15.67 / `#4c463d` 8.44 / `#60584d` 6.33 / `#776d5f` 4.59, all
+meeting WCAG AA. Measured: only 3.6 lightness points separate `--k-ink-value` from the 4.5:1 floor,
+so seven greys cannot all pass and stay distinguishable. Every eyebrow moves 2.25 → 4.59 and *Vet*
+reads heavier than the artboard. → [ADR 0024](adr/0024-four-greys-that-pass-not-seven-that-do-not.md)
+
+### [2026-09-06] One focus ring, and the modes do not draw it
+`--k-focus` = the accent, 2px outline at 2px offset, `:focus-visible` only, never animated. *Vet* and
+*Review* hold focus on the container and draw nothing, because focus cannot move within either
+screen; *Vet*'s edit state is the one exception. Hover, active, disabled, loading and error stay
+undrawn deliberately. → [ADR 0025](adr/0025-one-focus-ring-and-the-modes-do-not-draw-it.md)
+
+### [2026-09-06] The spacing scale is regularised to ten 4pt steps
+
+**Decision.** `4 8 12 16 20 28 32 40 44 52`. The canvas's nineteen hand-set values snap onto it with
+no value moving more than 2px, and §5's meaning table survives intact. New values are added to the
+scale, never hand-set beside it.
+
+**Alternatives considered.** Leaving it hand-set, on the grounds that the drawing is the authority —
+rejected because three screens are still undrawn and each would multiply the irregularity. A stricter
+8pt grid — rejected because it moves values further than 2px and would break the 44/52 pair that
+makes *Vet*'s zoning read.
+
+**Reason.** This is the cheapest it will ever be. It stops being reversible once
+`10-screen-specifications.md` is written against whatever exists.
+
+**Revisit if.** A screen needs a gap the scale cannot express — in which case the step is added to
+the scale, not set beside it.
+
+### [2026-09-06] Review is the only screen that gets a phone layout
+v1 draws a phone layout for *Review* only; Ingest, Sources and Stats reflow; *Vet* says vetting needs
+a keyboard rather than degrading. Resolving *Review*'s missing `Esc` changes every *mode*: they now
+carry a persistent **Done** control on every viewport, so desktop gains a visible exit it always
+needed. `CONTEXT.md`'s definition of *mode* moved with it.
+→ [ADR 0026](adr/0026-review-is-the-only-screen-that-gets-a-phone-layout.md)
+
+### [2026-09-06] psycopg 3 is the driver, and Neon's table is not a support list
+`psycopg[binary]` >= 3.2.4 on the direct endpoint, autocommit, the blocking `notifies()` generator.
+The objection was based on the wrong page: Neon's table is a SNI-compatibility list for drivers that
+do **not** use libpq, and psycopg is covered by the sentence above it. The version floor is a reason,
+not a pin — earlier versions silently lost notifications arriving during startup.
+→ [ADR 0027](adr/0027-psycopg-3-is-the-driver-and-neons-table-is-not-a-support-list.md)
+
+### [2026-09-06] The job table is the truth, and NOTIFY is only an optimisation
+Neon Free cannot disable scale-to-zero, and a suspended compute destroys the listener — notifications
+fired while the worker is away are gone, not delayed. The worker re-`LISTEN`s then polls for
+unclaimed work on every reconnect, in that order, so correctness never depends on a notification.
+Same shape as ADR 0007's outbox, a third time.
+→ [ADR 0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md)
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
   database and the host. The brief's last open question is done.
+- ~~**Key assignments** · **colour contrast in the ink ramp** · **a focus state** · **the spacing
+  scale** · **the phone layout**.~~ **All closed 2026-09-06** in Round 3 — ADRs 0023, 0024, 0025,
+  0026 and the spacing entry above.
+- ~~**Which Python driver.**~~ **Closed 2026-09-06** — ADR 0027. The objection rested on a
+  misread page.
+- ~~**Whether `noScripts` survives Vercel.**~~ **Answered 2026-09-06** —
+  `phase-4-verification.md` §8. It survives, established from `nitropack@2.13.4`'s source rather than
+  from documentation, which neither vendor provides. ADR 0020's revisit condition is amended.
 - **The note's storage shape.** ADR 0021 carries a recommendation, not a decision: `notes.fields` as
   `jsonb` with a relational `note_field_provenance` table. The honest counter (both-as-blobs; the
-  row-lock argument is weak at one user) is recorded there. **Closes in `04-database-schema.md`.**
-- **Which Python driver.** `psycopg` was recommended, then ⚠️ Neon's SNI-tested list turned out to
-  name `asyncpg` and `pg8000` and not psycopg. Verify or take `asyncpg`.
-- **Whether `noScripts` survives Vercel.** Undocumented by both Nitro and Vercel, and it is the main
-  reason ADR 0020 chose Nuxt. **Test it with one throwaway page in the first week.** ADR 0020's
-  revisit condition depends on it.
-- **Key assignments.** `A` / `E` / `R` at *vetting*; space to reveal, `1`-`4` to grade, `X` to flag
-  during *review*. Drawn, not decided. Unblocked since ADR 0013. **Asked in Phase 4 Round 2 and not
-  yet answered** — the recommendation on the table is `space` accept, `E` edit, `R` reject, `Z` undo,
-  `Esc` leave, on the rule that space is always the default forward action. It is the same decision
-  as *whether vetting has an undo*, because ADR 0006 makes rejection permanent.
-- **Colour contrast in the ink ramp.** Four of seven greys fail WCAG AA. **Measured 2026-09-06:
-  there are only 3.6 lightness points between `--k-ink-value` and the 4.5:1 floor, so seven greys
-  cannot all pass and remain seven distinguishable greys.** The recommendation on the table is a
-  four-step AA ramp — `#1d1a16` 15.67 · `#4c463d` 8.44 · `#60584d` 6.33 · `#776d5f` 4.59 — retiring
-  `--k-ink-tertiary`, `--k-ink-aside` and `--k-ink-label`. Cost: every eyebrow moves 2.25 → 4.59 and
-  *Vet* reads heavier than the artboard. **Asked in Round 2, not yet answered.**
-- **A focus state.** No artboard draws hover, focus, active, disabled, loading or error. Blocking for
-  two keyboard-driven screens. Recommendation on the table: one `--k-focus` token = the accent, 2px
-  outline at 2px offset, `:focus-visible` only, never animated; the modes hold focus on the container
-  and draw no ring except in *Vet*'s edit state. **Asked in Round 2, not yet answered.**
-- **Whether the spacing scale gets regularised.** Nineteen hand-set values. Recommendation on the
-  table: snap to ten 4pt steps — `4 8 12 16 20 28 32 40 44 52` — no value moving more than 2px, and
-  §5's meaning table surviving intact. **Asked in Round 2, not yet answered.**
-- **The phone layout.** Not drawn. Recommendation on the table: v1 ships a phone layout for *Review*
-  only; Ingest, Sources and Stats reflow untouched; *Vet* says vetting needs a keyboard. The tension
-  to resolve is that *Review* is a *mode* left with `Esc`, and a phone has no `Esc`. **Asked in
-  Round 2, not yet answered.**
+  row-lock argument is weak at one user) is recorded there. **Deliberately deferred again in Round 3
+  — closes in `04-database-schema.md`**, where the surrounding columns and delete behaviour make the
+  choice answerable against real queries rather than in the abstract.
+
+### Carried into implementation, not decisions
+
+- **The `noScripts` smoke test**, ~15 minutes on the first deploy. Nothing upstream tests the Nuxt
+  4.5.2 + Vercel combination, so this guards a regression rather than an unknown.
+- **Whether an idle `LISTEN` connection defers Neon's scale-to-zero.** Neon is silent, and
+  `00-status.md` asserted an answer it cannot support. ADR 0028 is correct either way; the experiment
+  settles the cost question only.
+- **Five interaction states** — hover, active, disabled, loading, error — and the **Done** control's
+  geometry, both for `10-screen-specifications.md`.
 
 ## Adding an entry
 
