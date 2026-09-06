@@ -109,6 +109,35 @@ spending an interaction, which is what *vetting* has least of.
 is the cause — the dense direction is the fallback and is kept on the canvas.
 **Consequence:** four things the design needed and the PRD does not decide are now open, below.
 
+### [2026-09-06] Phase 4 owns the screen specifications, not Phase 3
+**Decision:** `10-screen-specifications.md` is written in Phase 4, alongside `09-user-flows.md`.
+Phase 3 ships `05-design-system.md` alone.
+**Alternatives considered:** Phase 3 owning it, which is what the `/project` skill's own phase table
+says — rejected on three counts. It is blocked on navigation, and closing a PRD gap is an interview,
+which is Phase 4's mode rather than Phase 3's extraction. Only two of the five screens were ever
+drawn, so Phase 3 could specify Vet and Review and would have to invent Ingest, Sources and Stats.
+And it is coupled to 09, which is already Phase 4's — splitting them means writing 10 twice.
+**Reason:** this file recorded the conflict in its own history and required it settled before either
+phase started. Extraction cannot produce a navigation model.
+**Consequence:** Phase 4 carries five docs (03, 04, 08, 09, 10, 11) rather than four. Phase 3 still
+pays into 10 by giving it the vocabulary to be written in.
+
+### [2026-09-06] The design system collapses two hand-set duplicates from the canvas
+**Decision:** `05-design-system.md` departs from the drawing in exactly two places. Rules on the app
+ground become one token, `#e2d9cd`, retiring `#e6ddd2` from that job — it differed by 4/255, or 1.21
+against 1.26 in contrast, and kept its separate role as the empty progress tick. The inline `·`
+separator becomes one value, `#ddd3c6`, retiring `#c9bfae` and `#d3c9bb`.
+**Alternatives considered:** copying all five values through, which the status file explicitly warned
+against — rejected because a token set that encodes hand-setting accidents stops being a system the
+first time someone has to choose between two of them. Collapsing the *two* rule greys into one
+across every surface — rejected: `#ece3d7` on the raised card measures 1.25 against its ground where
+`#e2d9cd` measures 1.26 against its own, so the pair is one perceived weight tuned twice, and that is
+a real distinction rather than an accident.
+**Reason:** Phase 3 extracts rather than transcribes. The test applied was whether a value carries a
+role no other value carries.
+**Revisit if:** a third surface appears, at which point the rule tokens are per-surface by rule and
+want naming that says so.
+
 ## Still open
 
 - **§4.12 — the stack.** Deliberately held shut for the whole grilling; belongs to Phase 4. Its
@@ -123,6 +152,15 @@ is the cause — the dense direction is the fallback and is kept on the canvas.
   during *review*. Drawn, not decided.
 - **The phone layout.** Not drawn. The facts strip and the four grade controls are what have to
   change.
+- **Colour contrast in the ink ramp.** Four of the seven greys fail WCAG AA against the ground —
+  `#8b8175` at 3.46 carries the *reading* and every empty-state body, `#ada393` at 2.25 carries every
+  eyebrow. Measured during Phase 3 extraction and recorded in `05-design-system.md` §10. Raising them
+  is a change to a settled visual direction, so it is a decision rather than a correction.
+- **A focus state.** No artboard draws hover, focus, active, disabled, loading or error for any
+  component. *Vet* and *Review* are keyboard-driven by design and one keystroke per *note* is a
+  measured criterion, so a focus treatment is blocking for implementation.
+- **Whether the spacing scale gets regularised.** Nineteen distinct gap values, hand-set, no 4pt or
+  8pt grid. Cheapest to settle before the three undrawn screens multiply it.
 
 ## Adding an entry
 

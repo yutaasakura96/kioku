@@ -153,3 +153,19 @@ _Avoid_: private, user data, per-user, scoped
 **Suspended**:
 A card withdrawn from scheduling without being deleted. Its history survives untouched.
 _Avoid_: paused, archived, disabled, removed
+
+**Facts strip**:
+The single horizontal row on *Vet* holding the term, its part of speech and its level, bounded by a
+rule above and below. Everything above the lower rule is context; everything under it is a judgement
+field. The zoning is what gives vetting its hierarchy without spending colour on it.
+_Avoid_: header, metadata bar, info row, chip row
+
+**Provenance marker**:
+The 7×7px square beside a level, filled for a named authority and hollow for a model estimate. The
+one visible honesty bit, and it is never placed behind a hover.
+_Avoid_: badge, indicator, icon, dot, confidence marker
+
+**Progress rail**:
+The row of per-card ticks that stands in for *Review*'s header — one tick per card in the session,
+marking graded, current and not-yet-reached. The only progress indicator in the app.
+_Avoid_: progress bar, stepper, pagination, breadcrumb

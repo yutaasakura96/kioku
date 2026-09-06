@@ -2,7 +2,7 @@
 
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
-**Phase:** 2 — Design exploration. **Complete.** Phase 3 is next.
+**Phase:** 3 — Design system. **Complete.** Phase 4 is next.
 **Updated:** 2026-09-06
 
 Read `CLAUDE.md` first, then this. No code, no stack.
@@ -50,36 +50,63 @@ is not an architectural one.
 
 **The canvas:** https://claude.ai/code/artifact/7a631237-82be-48a3-b65e-9b4ef46b8157 — page one is
 the six artboards, page two keeps the two rejected directions and the reasons. **This URL is the
-only copy.** The `.dc.html` source lived in a session scratchpad and is gone; Phase 3 reads the
-canvas back from that link, or exports PNG/PDF from it.
+only copy.** The `.dc.html` source lived in a session scratchpad and is gone. Phase 3 read the
+artboards back out of that page and they are extracted now — see below.
 
 The PRD won every collision it had with the prototype, as `CLAUDE.md` requires. Four things the
 design needed and the PRD does not decide were left open rather than invented — they are in the
 decision log's **Still open**, and navigation is the one that blocks screen specs.
 
+**Phase 3, design system** — [`05-design-system.md`](05-design-system.md). Extracted from the canvas
+by reading the six artboards' source back from the published page, not from memory or a screenshot.
+Surfaces, a seven-step ink ramp with measured contrast, two rule tokens, three type families and a
+twenty-step ramp, layout measures, geometry, and eleven components with the states that are actually
+drawn.
+
+Two hand-set duplicates were collapsed rather than copied through, and both are recorded as a
+decision: rules on the app ground became one token, and the inline separator became one value. The
+canvas's two rule greys turned out to be **one perceived weight tuned twice for two surfaces** —
+1.26 on the app ground against 1.25 on the card — so they stayed two tokens, split by surface rather
+than by chrome-versus-content.
+
+Three things the extraction surfaced that nobody had asked about are now open in the decision log:
+**four ink values fail WCAG AA**, **no artboard draws a focus state**, and the spacing scale is
+nineteen hand-set values.
+
 ## Next
 
-**Phase 3 — Design system.** Run `/project`.
+**Phase 4 — Technical documents.** Run `/project`.
 
-Extract `05-design-system.md` from the canvas: real hex codes, the type ramp, spacing, radii,
-control heights and component states, read back from the link above rather than reconstructed from
-memory. The canvas is a visual reference and never the design system doc.
+This is the big one, and it is where §4.12 finally opens. It owes six documents:
 
-**Read before extracting:**
+| Doc | Why it is triggered |
+| --- | --- |
+| `03-technical-design.md` | Tier 1. Opens §4.12. Security baseline must be answered. |
+| `04-database-schema.md` | Tier 1. Every entity needs columns and delete behaviour. |
+| `08-authentication.md` | ADR 0012 |
+| `09-user-flows.md` | Five screens |
+| `10-screen-specifications.md` | Five screens — **moved here from Phase 3**, decided 2026-09-06 |
+| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median) |
 
-- The **grade labels** are a placeholder and are the one thing on those screens that should not be
-  extracted. See the decision log's **Still open**.
-- **Two rule greys** are in use — one for screen chrome, one inside content. Decide whether that is
-  one token or two rather than copying both.
-- **Fonts are Google Fonts.** Whether the app ships them that way is a Phase 4 question, not a
-  design-system one.
+**Close navigation first.** It blocks `09` and `10` both, it is a PRD gap rather than a preference,
+and `05-design-system.md` §8 records that the canvas has nothing to offer here — *Vet*'s empty state
+points at Ingest in plain text because there was nothing else to point with.
 
-**Then close the four open questions** in the decision log — `/project`, one at a time, as usual.
-**Navigation between the five screens is the blocking one**: it is a PRD gap rather than a
-preference, and `10-screen-specifications.md` cannot be written around it.
+**Then the three §4.12-adjacent ones, in this order:** the grade set (it needs the scheduler, so it
+follows the stack), key assignments, and the phone layout.
 
-**One inconsistency to settle first:** `10-screen-specifications.md` is claimed by both Phase 3 and
-Phase 4 in this file's own history. Decide which owns it before either starts.
+**Verify before deciding, per `CLAUDE.md`:**
+
+- **Better Auth + Google OIDC is an unverified preference**, parked in ADR 0012. It gets checked
+  against real documentation in this phase before it becomes a decision.
+- Whatever scheduler is chosen — FSRS or otherwise — is checked the same way. The grade set falls
+  out of it.
+- **The three type families are Google Fonts.** Whether the app ships them from Google, self-hosts
+  them, or subsets them is a Phase 4 question. Shippori Mincho's CJK coverage is the part worth
+  checking rather than assuming.
+
+**Do not reopen** the visual direction, the palette, or the five-screen surface. The contrast
+question in the decision log is a bounded change to named ink values, not an invitation to redraw.
 
 ## Blocked
 
@@ -90,15 +117,22 @@ Nothing.
 
 ## Carrying
 
+- **The canvas link is still the only copy of the design.** `05-design-system.md` now holds every
+  value that matters, so the link is no longer load-bearing for implementation — but the six
+  artboards are, if a layout question comes up that the doc does not answer.
+- **`10-screen-specifications.md` belongs to Phase 4**, not Phase 3. The `/project` skill's own phase
+  table says Phase 3; this project overrode it deliberately, and the reason is in the decision log.
+  Do not let a future session move it back on the skill's authority.
 - **The ADRs are the decision log's long form.** `06-decision-log.md` indexes them; `adr/` holds the
   argument, the alternatives and the revisit condition. Add the ADR first, then the index line. Small
   decisions are recorded in the log in full instead — three PRD-level ones are, dated 2026-09-06.
 - **Better Auth + Google OIDC is a stated preference for identity, and it is UNVERIFIED.** Recorded
   in ADR 0012 so it isn't lost. Per `CLAUDE.md` it gets checked against real documentation in Phase 4
   before it becomes a decision. Do not treat it as decided.
-- **Phase 4 owes four Tier 2 docs**, all now triggered: 08 (auth — by ADR 0012), 09 (user flows) and
-  10 (screen specs) — by five screens — and 11 (testing plan), since the PRD's S12 requires an
-  exercised export test and S3 requires a measured median.
+- **Phase 4 owes four Tier 2 docs** — six documents in all, counting 03 and 04. All triggered:
+  08 (auth — by ADR 0012), 09 (user flows) and 10 (screen specs) — by five screens — and 11
+  (testing plan), since the PRD's S12 requires an exercised export test and S3 requires a measured
+  median.
 - **JLPT has published no official vocabulary list since the 2010 revision**, deliberately. Checked
   against jlpt.jp's own FAQ, both language editions, 2026-09-03. Recorded in ADR 0005. Do not
   re-verify; do not re-litigate.
