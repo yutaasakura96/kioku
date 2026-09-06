@@ -322,6 +322,36 @@ that tax that corrupts data rather than costing time.
 **Revisit if.** The worker is ever split into its own deploy unit with tables no TypeScript code
 reads — which is ADR 0015's second-worker condition, not a schema question.
 
+### [2026-09-06] The note's fields are a blob and its provenance is not
+`notes.fields` is one `jsonb` document; `note_field_provenance` is relational, keyed
+`(note_id, field_name)`. Split along PostgreSQL §8.14.2's line — but decided by the cross-note
+aggregation ADR 0018 committed the project to running, not by the row-lock argument ADR 0021
+correctly called weak at one reader. **This closes the last deferred question.**
+→ [ADR 0029](adr/0029-the-notes-fields-are-a-blob-and-its-provenance-is-not.md)
+
+### [2026-09-06] The owner foreign key points at Better Auth's user.id, and it restricts
+
+**Decision.** Every *personal* entity's `owner_id` is `text` referencing `auth."user".id` directly,
+with **`ON DELETE RESTRICT`**. No app-level `reader` table. Better Auth's four tables live in a
+`auth` Postgres schema and keep their own cascades.
+
+**Alternatives considered.** An app-level `reader` table with a foreign key onto `user.id` — the
+usual defence against an auth library owning an identity column. Rejected: at one row it is an
+indirection whose only job is to be indirect, it adds a join to every personal query, and the
+rename it protects against is a Drizzle migration either way, because **nothing but our own
+migration ever touches that table** (`getMigrations` does not work with the Drizzle adapter).
+
+**Reason.** ⚠️ The load-bearing half is `RESTRICT`, and it is a correction rather than a default:
+Better Auth's generated Drizzle schema wires **every** child of `user` with `onDelete: "cascade"`
+(verification §10.2). Copying that convention onto *personal* entities would make deleting one row
+destroy every *scheduling epoch* and *review log* under it — `03` §13.6's worst case, arriving as a
+copied ORM default. `RESTRICT` means the `user` row cannot be deleted while history references it,
+which is the second of ADR 0011's two independent guards. The rule is not "no cascades": Better
+Auth's own children *should* cascade, because a sign-in regenerates them.
+
+**Revisit if.** A second reader is invited, which is ADR 0012's own revisit condition — at that
+point the shared/*personal* label stops being a label and starts being enforced.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
@@ -334,11 +364,15 @@ reads — which is ADR 0015's second-worker condition, not a schema question.
 - ~~**Whether `noScripts` survives Vercel.**~~ **Answered 2026-09-06** —
   `phase-4-verification.md` §8. It survives, established from `nitropack@2.13.4`'s source rather than
   from documentation, which neither vendor provides. ADR 0020's revisit condition is amended.
-- **The note's storage shape.** ADR 0021 carries a recommendation, not a decision: `notes.fields` as
-  `jsonb` with a relational `note_field_provenance` table. The honest counter (both-as-blobs; the
-  row-lock argument is weak at one user) is recorded there. **Deliberately deferred again in Round 3
-  — closes in `04-database-schema.md`**, where the surrounding columns and delete behaviour make the
-  choice answerable against real queries rather than in the abstract.
+- ~~**The note's storage shape.**~~ **Closed 2026-09-06** — ADR 0029, in
+  `04-database-schema.md`. ADR 0021's recommendation survives, but on a different argument than the
+  one it was recommended on: the row-lock half is weak at one reader, and what decides it is that
+  ADR 0018 made the model choice a measurement, and that measurement is an aggregation across notes.
+- ~~**Whether the owner foreign key targets Better Auth's `user.id` or an app-level table.**~~
+  **Closed 2026-09-06** — directly, with `ON DELETE RESTRICT`. Entry above.
+
+**Nothing is open.** Every question the brief, the PRD or an ADR left for a later document has an
+answer or a dated entry.
 
 ### Carried into implementation, not decisions
 

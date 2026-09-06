@@ -3,7 +3,8 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
-are closed and the frontier is empty. **28 ADRs.** `03` is written; **five docs are still owed.**
+are closed and the frontier is empty. **29 ADRs.** `03` and `04` are written; **four docs are still
+owed.**
 **Updated:** 2026-09-06
 
 Read `CLAUDE.md` first, then this.
@@ -37,7 +38,7 @@ hanging at the end of Round 2 are answered; so are the three stack follow-ups.
 | 3 | A focus state | [0025](adr/0025-one-focus-ring-and-the-modes-do-not-draw-it.md) — one token, modes draw no ring |
 | 4 | The spacing scale | Regularised to ten 4pt steps — log entry, no ADR |
 | 5 | The phone layout | [0026](adr/0026-review-is-the-only-screen-that-gets-a-phone-layout.md) — *Review* only, **and every mode gains a Done control** |
-| 6 | The note's storage shape | Deferred again, deliberately, to `04` |
+| 6 | The note's storage shape | Deferred again, deliberately, to `04` — **closed there 2026-09-06**, [ADR 0029](adr/0029-the-notes-fields-are-a-blob-and-its-provenance-is-not.md) |
 | 7 | The Python driver | [0027](adr/0027-psycopg-3-is-the-driver-and-neons-table-is-not-a-support-list.md) — psycopg 3, the objection was a misread page |
 | 8 | `noScripts` on Vercel | Verification §8 — **it survives**; ADR 0020 amended |
 | 9 | The worker's dropped listener | [0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md) — the job table is the truth |
@@ -53,11 +54,29 @@ them a stack question: the dictionary version joins ADR 0010's cache key; the *s
 is language-neutral JSON owned by neither toolchain; a client-stamped *grade* is validated on
 replay; Drizzle owns every migration and the worker never issues DDL.
 
+**[`04-database-schema.md`](04-database-schema.md) — written 2026-09-06.** Eighteen tables plus the
+four Better Auth owns. **It closes the last two open questions in the project.**
+
+- **The note's storage shape** — [ADR 0029](adr/0029-the-notes-fields-are-a-blob-and-its-provenance-is-not.md).
+  `note.fields` is one `jsonb` document; `note_field_provenance` is relational. ADR 0021's
+  recommendation survives **on a different argument than the one it was made on**: the row-lock half
+  of Postgres §8.14.2 is weak at one reader, and what decides it is that ADR 0018 made the model
+  choice a *measurement*, and that measurement is an aggregation across notes that a GIN index
+  cannot serve. The cost is one derived column, `note.identity_key`.
+- **The owner foreign key** — directly at `auth."user".id`, typed `text`, **`ON DELETE RESTRICT`**.
+  Full entry in the decision log.
+
+Also in it, and worth knowing without opening it: **scheduling state lives on `scheduling_epoch`,
+not on `card`**, so a reset is an `INSERT` and the irreplaceable data is never in the path of an
+`UPDATE`; **one trigger exists in the whole schema**, making `review_log` append-only; and the
+stale-job sweep runs **in the worker**, because ADR 0022 forbids a Vercel Cron dependency.
+
 **[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
-nine sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
+**ten** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
 Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement); **§8–9 added in
 Round 3** (`noScripts` under the Vercel preset; the Python driver and what scale-to-zero does to
-`LISTEN`). Eight background agents, everything against primary sources. **Do not re-run this.**
+`LISTEN`); **§10 added while writing `04`** (Postgres 18's `uuidv7()`; Better Auth's generated
+Drizzle types and its cascades). Eight background agents, everything against primary sources. **Do not re-run this.**
 Re-verify only if older than ~3 months.
 
 Seven findings worth knowing without opening it:
@@ -83,17 +102,16 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-**The grilling is over. Write the remaining five documents**, in this order. `/grill-with-docs` has
+**The grilling is over. Write the remaining four documents**, in this order. `/grill-with-docs` has
 nothing left to ask — the frontier is empty and every question that was open has an ADR or a dated
 entry.
 
 | Doc | Blocked on |
 | --- | --- |
-| `04-database-schema.md` | **Unblocked. Start here.** `03` is written and §18 hands over a list of inputs. **Closes the note storage shape** — the one decision deliberately still open. Also needs the job table's claimed/unclaimed distinction (ADR 0028), durable per-chunk progress, the dictionary version in the cache key, no column on `elapsed_days`, and `ReviewLog` rows stored from day one. Every entity needs columns and delete behaviour |
-| `08-authentication.md` | Mostly written already — ADR 0017 + verification §2 |
+| `08-authentication.md` | **Unblocked. Start here.** Mostly written already — ADR 0017 + verification §2, and now `04` §3 and §8 supply its schema half: the `auth` Postgres schema, the `text` owner column, `RESTRICT` everywhere, and the cascade convention that had to be broken |
 | `09-user-flows.md` | Unblocked — ADR 0013 closed navigation |
 | `10-screen-specifications.md` | **Unblocked.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout. **Belongs to Phase 4, not Phase 3** — see Carrying |
-| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median) |
+| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable |
 
 **Three first-week experiments**, none blocking a document:
 
@@ -168,6 +186,21 @@ Nothing.
   This is a cost of ADR 0022's temporary shape, and part of what the move buys.
 - **Backups are `S12`'s tested export, not Neon.** Free gives six hours of instant restore and one
   snapshot; six hours is not a backup for the one thing that cannot be regenerated. `03` §13.6.
+- **⚠️ Better Auth's generated schema cascades from `user`, and ours must not.** Every child it
+  generates carries `onDelete: "cascade"` (verification §10.2). Personal entities use **`RESTRICT`**
+  instead — `04` §3 — because a copied default would let one deleted row destroy every *scheduling
+  epoch* and *review log* beneath it. Better Auth keeps its own cascades; they are correct for data a
+  sign-in regenerates. **The rule is not "no cascades" — it is that a cascade must never reach a
+  table that cannot be rebuilt.**
+- **Scheduling state lives on `scheduling_epoch`, never on `card`.** A reset is then an `INSERT`
+  rather than an `UPDATE` over the history it is meant to preserve. Do not "simplify" it back onto
+  the card at implementation time; `04` §7.4 is the argument.
+- **`note.fields` gets no index.** No v1 query reads inside it — the card browser is cut and there is
+  no field search. It is the index a future session adds on the general principle that jsonb wants a
+  GIN index. It does not; queries do (`04` §11.1).
+- **The stale-job sweep runs in the worker**, not on a schedule elsewhere. Vercel Cron is on
+  ADR 0022's forbidden list, and the worker already polls on every connect and reconnect, so it costs
+  nothing (`04` §6.4).
 - **No git remote yet.** `/setup-matt-pocock-skills` still belongs after planning.
 - **`frontend-design` and `superpowers` are off at project scope**, for different reasons.
   `CLAUDE.md` § Tooling state has both correctly.

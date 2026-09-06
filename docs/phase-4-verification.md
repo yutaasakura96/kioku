@@ -677,3 +677,52 @@ ADR 0028 is correct whichever way it resolves, which is why it did not wait for 
 guides/django, connect/connection-pooling, guides/scale-to-zero-guide; postgresql.org libpq-connect;
 psycopg3 advanced/async, install, news; psycopg2 advanced, news; asyncpg API reference; pg8000 on
 PyPI; pgbouncer.org/features. Two background agents, 2026-09-06.
+
+---
+
+## 10. Two facts the schema needed (ADR 0029, `04-database-schema.md` §3)
+
+**Checked 2026-09-06**, alongside the rest of this document. Added because
+`04-database-schema.md` rested on two claims that §1–9 did not cover, and `CLAUDE.md` does not
+permit either to be recalled from memory.
+
+### 10.1 Postgres 18 ships `uuidv7()` as a built-in
+
+PostgreSQL 18 adds **`uuidv7()`**, generating temporally sortable UUIDs, alongside a **`uuidv4()`**
+alias for the existing `gen_random_uuid()`. Both are documented in §9.14 UUID Functions and named in
+the 18 release notes. No extension is required, and Neon runs Postgres 18 (§7.2).
+
+Time-ordered keys keep inserts at the right-hand edge of the primary-key index instead of scattering
+across it, which is why `04` uses `uuidv7()` for every primary key rather than random v4.
+
+### 10.2 Better Auth's generated Drizzle schema uses `text` ids and cascades everywhere
+
+From the Better Auth CLI's own generator snapshots for the PostgreSQL/Drizzle target:
+
+```ts
+export const user = pgTable("user", { id: text("id").primaryKey(), … })
+
+export const session = pgTable("session", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  …
+})
+```
+
+Two things follow, and both are schema decisions in `04`:
+
+- **`user.id` is `text`, not `uuid`.** Better Auth mints string ids itself. Every `owner_id` in `04`
+  is therefore `text` while every other key is `uuid`.
+- ⚠️ **Every child of `user` in the generated schema carries `onDelete: "cascade"`** — `session`,
+  `account`, and each plugin table. Copying that convention onto *personal* entities would make
+  deleting one `user` row destroy every *scheduling epoch* and *review log* beneath it, which is the
+  outcome `03` §13.6 names as the worst thing an attacker could do. **`04` §3 uses `RESTRICT`
+  instead**, and lets Better Auth keep its own cascades, which are correct for data that a sign-in
+  regenerates.
+
+The generator also supports emitting into a named Postgres schema (`pgSchema("auth")`), which is what
+`04` §8 uses to keep the four tables it does not own visibly separate.
+
+**Sources:** postgresql.org/docs/18 — release-18, functions-uuid, datatype-uuid;
+github.com/better-auth/better-auth — `packages/cli/test/__snapshots__/auth-schema-pg-*.txt`,
+`docs/content/docs/adapters/drizzle.mdx`, `docs/content/docs/concepts/database.mdx`. Checked
+2026-09-06.
