@@ -11,9 +11,9 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**Phases 1–3 — complete.** Brief, PRD, design exploration, design system. The canvas link in
-[`06-decision-log.md`](06-decision-log.md) is still the only copy of the six artboards;
-[`05-design-system.md`](05-design-system.md) holds every value that matters.
+**Phases 1–3 — complete.** Brief, PRD, design exploration, design system. The canvas link at the top
+of [`05-design-system.md`](05-design-system.md) is still the only copy of the six artboards, and that
+file holds every value that matters.
 
 **Phase 4, Round 1 — closed 2026-09-06.** Nine questions, seven ADRs (0013–0019): navigation and
 rendering, session durability, where ingestion runs, the grade set, identity, the model provider,
