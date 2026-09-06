@@ -406,6 +406,46 @@ property database sessions were chosen for.
 signs in — at which point `crossSubDomainCookies` and the preview-deploy exclusion in
 `08-authentication.md` §10 are reopened together.
 
+### [2026-09-07] The landing route is Ingest, and never a decision about data
+`/` is Ingest, permanently, and it inspects nothing. `08` set `callbackURL: "/"` without saying which
+screen that names; PRD §4's one sentence about a landing screen names Ingest, and a chooser would
+have to land in a *mode* to be worth building.
+→ [ADR 0031](adr/0031-the-landing-route-is-ingest-and-never-a-decision-about-data.md)
+
+### [2026-09-07] A mode is entered from a start control, and Done is the only way out
+The shell navigates to the three *places* and never to a *mode*; *Vet* and *Review* are entered from
+a start control carrying its own count, never disabled. ⚠️ The exit must be `external`, or Nuxt
+client-renders a *place* into a hydrated page. This is also what actually closes ADR 0013's
+empty-*Vet* gap, which ADR 0013 could not.
+→ [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md)
+
+### [2026-09-07] Done in Vet ends the run and spends the undo; Done in Review spends nothing
+One control, two consequences: Done on *Vet* sets `vetting_session.ended_at` and makes every
+*rejection* permanent, so it asks once when the run holds a rejection. `Z` works up to the answer.
+⚠️ `Z` on an acceptance un-mints a *card*, which `04` §9.1 must except.
+→ [ADR 0033](adr/0033-done-in-vet-ends-the-run-and-spends-the-undo.md)
+
+### [2026-09-07] `S12`'s export is triggered from Stats, as a plain link
+
+**Decision.** `/stats` carries `<a href="/api/export">`. The route answers *notes*, *cards*, *grades*
+and every *scheduling epoch* including superseded ones as JSON, with `Content-Disposition:
+attachment`. No screen elsewhere offers it.
+
+**Alternatives considered.** *Sources* — rejected: it is scoped to one *source*, and the export is
+about everything. *Ingest* — rejected: it is the way in. A control inside *Review*'s end screen —
+rejected twice over: a *mode* has no room for an action unrelated to the *session*, and a download
+started from a client-owned screen needs machinery that a link does not.
+
+**Reason.** A link that downloads is the one write-shaped action a `noScripts` *place* can perform
+with no mechanism at all, so the export lives on a *place* for free and would cost something in a
+*mode*. And `03` §13.6 makes this the backup — Neon Free's six hours of instant restore is not a
+backup for review history — which puts it next to the numbers the reader already checks.
+
+**Revisit if.** ⚠️ The `GET` becomes a problem. `SameSite=Lax` sends the cookie on a cross-site
+top-level `GET` (verification §12.2), so a malicious link can start the download, though it cannot
+read the response. The fix is a `POST` with a form token, at which point the export stops being a
+plain link.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
@@ -429,6 +469,11 @@ signs in — at which point `crossSubDomainCookies` and the preview-deploy exclu
   `08-authentication.md`. Raised by `03` §2.2 and left open there: Better Auth's documented Nuxt fix
   is `<ClientOnly>`, which renders nothing on a route that ships no JavaScript.
 
+- ~~**What `/` is** · **how a *mode* is entered** · **what empty *Vet* does** · **what Done means
+  in *Vet***.~~ **All closed 2026-09-07** — ADRs 0031, 0032 and 0033, in `09-user-flows.md`. The
+  first was a gap `08` left when it set `callbackURL: "/"`; the middle two were the half of ADR 0013
+  it did not decide, including the empty-*Vet* gap it claimed to have closed and could not.
+
 **Nothing is open.** Every question the brief, the PRD or an ADR left for a later document has an
 answer or a dated entry.
 
@@ -444,6 +489,14 @@ answer or a dated entry.
   do, the app ships none outside the two *modes*.
 - **Five interaction states** — hover, active, disabled, loading, error — and the **Done** control's
   geometry, both for `10-screen-specifications.md`.
+- ⚠️ **`04-database-schema.md` §9.1 needs one sentence.** "There is no path" to delete a `card` must
+  except the card un-minted by `Z` inside the vetting run that minted it (ADR 0033). This is an
+  amendment to a written document, not a note for later.
+- ⚠️ **`03-technical-design.md` §8.1 describes the outbox as carrying *grades*.** It carries
+  *grades* and `S9` flags (`09` §4.9). One sentence.
+- **The `external` prop on every *mode* exit** (`09` §5.2, verification §12.1). It works in
+  development and quietly ships a hydrated *place* in production, so it belongs on the same list as
+  the `noScripts` smoke test — the same `curl`-and-grep proves both.
 
 ## Adding an entry
 

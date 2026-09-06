@@ -3,9 +3,9 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
-are closed and the frontier is empty. **30 ADRs.** `03`, `04` and `08` are written; **three docs are
-still owed.**
-**Updated:** 2026-09-06
+are closed and the frontier is empty. **33 ADRs.** `03`, `04`, `08` and `09` are written; **two docs
+are still owed.**
+**Updated:** 2026-09-07
 
 Read `CLAUDE.md` first, then this.
 
@@ -92,13 +92,49 @@ door, ships JavaScript, and is neither a *place* nor a *mode*; `/auth/refused` i
 with a message and deliberately nothing else. **`session.cookieCache` is off** because it would keep
 a revoked session alive for its window.
 
+**[`09-user-flows.md`](09-user-flows.md) — written 2026-09-07.** Nine sections. The twelve stories
+walked end to end, with the concrete path of every route, which nothing had named. **Four things it
+decided**, three of them ADRs:
+
+- **`/` is Ingest**, permanently, and it inspects nothing — [ADR 0031](adr/0031-the-landing-route-is-ingest-and-never-a-decision-about-data.md).
+  `08` set `callbackURL: "/"` without saying which screen that was. A chooser was rejected because
+  the version worth building would land the reader in a *mode*, on their first sight of the app,
+  with no navigation on the screen.
+- **A *mode* is entered from a start control carrying its own count**, present on all three *places*
+  and never disabled — [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md).
+  ⚠️ **The exit has to be `external`** or Nuxt client-renders a *place* into the already-hydrated
+  page, which is what `noScripts` exists to prevent, with no error (verification §12.1).
+- **⚠️ ADR 0013 did not close the empty-*Vet* gap and could not** — the gap is on *Vet*, ADR 0013
+  made *Vet* a mode, and a mode has no navigation. Done plus the affordance the canvas already drew
+  is what closes it. `09` §8.
+- **Done in *Vet* ends the run and spends the undo; Done in *Review* spends nothing** —
+  [ADR 0033](adr/0033-done-in-vet-ends-the-run-and-spends-the-undo.md). It asks once, only when the
+  run holds a rejection, and `Z` works up to the answer.
+- **`S12`'s export is triggered from Stats**, as a plain `<a href="/api/export">` — full entry in the
+  decision log. A link that downloads is the one write-shaped action a `noScripts` *place* can
+  perform with no mechanism at all.
+
+Also in it, and worth knowing without opening it: ***Vet* has three empty states, not one** — PRD §4
+wrote one, and "nothing to vet yet, an ingestion is running" is a normal event under `S2`, not an
+ending. **The streaming queue is visible on *Vet*, not on Ingest**, because Ingest has no client and
+no *place* auto-refreshes. **Ingest reports what the job table knows and does not diagnose a dead
+worker** — `heartbeat_at` only ticks while working, so an idle worker and an absent one look
+identical, and "queued for four minutes, not picked up" is the honest sentence. **Hard-deleting a
+*source* has no route in v1.**
+
+⚠️ **It also generates two amendments to written documents**, both in the decision log's carried
+list: `04` §9.1's "there is no path" to delete a `card` needs the `Z` exception, and `03` §8.1's
+outbox carries `S9` flags as well as *grades*.
+
 **[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
-**eleven** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
+**twelve** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
 Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement); **§8–9 added in
 Round 3** (`noScripts` under the Vercel preset; the Python driver and what scale-to-zero does to
 `LISTEN`); **§10 added while writing `04`** (Postgres 18's `uuidv7()`; Better Auth's generated
 Drizzle types and its cascades); **§11 added while writing `08`** (the cookie defaults, the OAuth
-state cookie, the server-side session read, and three route rules that would disable the gate).
+state cookie, the server-side session read, and three route rules that would disable the gate);
+**§12 added while writing `09`** (`<NuxtLink external>` as the only real mode exit; `SameSite=Lax`
+excluding cross-site `POST`).
 Everything against primary sources. **Do not re-run this.**
 Re-verify only if older than ~3 months.
 
@@ -136,9 +172,9 @@ entry.
 | Doc | Blocked on |
 | --- | --- |
 | ~~`08-authentication.md`~~ | **Written 2026-09-06.** ADR 0030 and two decision-log entries |
-| `09-user-flows.md` | **Unblocked. Start here.** ADR 0013 closed navigation, and `08` §2 adds two routes it must draw — `/auth` and `/auth/refused` |
-| `10-screen-specifications.md` | **Unblocked.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout, **and now the door and the refusal page** (`08` §11). **Belongs to Phase 4, not Phase 3** — see Carrying |
-| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen |
+| ~~`09-user-flows.md`~~ | **Written 2026-09-07.** ADRs 0031, 0032, 0033, one full log entry and verification §12 |
+| `10-screen-specifications.md` | **Unblocked. Start here.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout, the door and the refusal page (`08` §11), **and now six more from `09` §9** — the start block, the Done confirmation on *Vet*, the *progress rail*'s fourth mark, *Vet*'s three empty states, the *session*-size knob's two homes, and the *source* delete confirmation page. **Belongs to Phase 4, not Phase 3** — see Carrying |
+| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen. `09` §9 adds five more, including the `from` fallback and a `Z` that must fail on the `RESTRICT` rather than delete |
 
 **Three first-week experiments**, none blocking a document:
 
@@ -248,6 +284,23 @@ Nothing.
   still belongs after planning.
 - **`frontend-design` and `superpowers` are off at project scope**, for different reasons.
   `CLAUDE.md` § Tooling state has both correctly.
+- ⚠️ **Two amendments are owed to documents that are already written**, and they are not notes for
+  later. `04` §9.1's "there is no path" to delete a `card` must except the card un-minted by `Z`
+  inside the vetting run that minted it (ADR 0033). `03` §8.1 describes the outbox as carrying
+  *grades*; it carries *grades* and `S9` flags (`09` §4.9).
+- ⚠️ **A *mode*'s Done control must be `external`.** `<NuxtLink :to="origin" external>` or
+  `navigateTo(origin, { external: true })`. A bare `<NuxtLink>` client-renders the *place* into the
+  page that is already running and hands the reader a `noScripts` screen with a live Vue app on it,
+  with no error anywhere (`09` §5.2, verification §12.1). It is not version-specific and no upgrade
+  will flag it; the `noScripts` smoke test is the cover.
+- **ADR 0013 claimed to close the empty-*Vet* navigation gap and could not** — the gap is on *Vet*,
+  and ADR 0013 is what made *Vet* a mode. ADR 0032 closes it with two controls that mean different
+  things: Done returns to the *place* the reader came from, the quiet affordance says to go to
+  Ingest. Do not "simplify" them into one.
+- **The streaming queue is visible on *Vet*, not on Ingest.** Ingest ships no JavaScript, so it
+  cannot poll, and no *place* auto-refreshes — a meta refresh on `/` would destroy a paste in
+  progress. `S2`'s "vettable while the rest are still generating" works because the screen that has
+  to show it is the one with a client (`09` §3, §7).
 - ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it
   replaces the arrangement that stood until then, where `main` was both the default and the working
   branch. `main` is the integration branch. Neon still gets a branch per environment to match.
