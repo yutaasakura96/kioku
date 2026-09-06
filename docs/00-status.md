@@ -107,20 +107,14 @@ Nothing.
   decision-log entry, and new vocabulary lands in `CONTEXT.md` immediately.
 - **No git remote yet.** `/setup-matt-pocock-skills` still belongs after planning; choosing GitHub
   Issues as the tracker needs that remote.
-- **`frontend-design` is now off** at *project* scope — `.claude/settings.json`, committed. Settled
-  2026-09-06; it had been `true` at *user* scope and this repo had never turned it off.
-  **The reason is not the one `START-HERE.md` §1 gives.** That file bundles `frontend-design` with
-  `superpowers` in one sentence and justifies both by brainstorming seizing interviews — which is a
-  `superpowers` problem only. `brainstorming`'s description reads `You MUST use this before any
-  creative work`; `frontend-design`'s is narrow and descriptive, runs no interview and has nothing to
-  collide with. It was disabled for a different reason: its instruction is to take an aesthetic risk
-  and make opinionated choices per brief, and the visual direction is now decided and logged. From
-  Phase 5 on it would push toward re-deciding it, at the point where drift from the canvas costs most.
+- **`frontend-design` is off** at *project* scope — `.claude/settings.json`, committed 2026-09-06.
+  It is off for a reason of its own, **not** the `superpowers` one: it runs no interview and collides
+  with nothing. It is off because the visual direction is decided and logged, and its instruction is
+  to take an aesthetic risk per brief — from Phase 5 on that pushes toward re-deciding it, at the
+  point where drift from the canvas costs most. `CLAUDE.md` §Tooling state and `START-HERE.md` §1
+  both say so correctly now; earlier versions of both conflated it with `superpowers`.
   **Revisit if** a second *subject* or a screen outside the five needs a fresh direction rather than
   an extension of this one.
-- **`START-HERE.md` §1 is stale on this point** and still reads as though the brainstorming argument
-  covers both packs. It is a one-time cold-start file whose setup is long done, so it is low-priority
-  — but if it is ever used again to start cold, that sentence teaches the wrong reason.
 - **Branches:** `main` is the default and where work normally happens; `develop` exists for
   development work.
 

@@ -57,7 +57,14 @@ treat it:
   configured *after* the grilling, because the grilling produces the material the tickets are made
   from.
 - `superpowers` must stay disabled here. Its `brainstorming` skill sets no
-  `disable-model-invocation` and will seize interviews that belong to mattpocock's question banks.
+  `disable-model-invocation` and its description reads `You MUST use this before any creative work`,
+  so it will seize interviews that belong to mattpocock's question banks.
+- `frontend-design` is disabled here too, in the same committed `.claude/settings.json`, **for a
+  different reason** — the two are often conflated and the distinction matters. It runs no interview
+  and collides with nothing; it is off because the visual direction for Vet and Review is decided and
+  recorded, and a skill whose instruction is to take an aesthetic risk per brief would push toward
+  re-deciding it during implementation. Re-enable it only for a screen or *subject* that genuinely
+  needs a fresh direction rather than an extension of the existing one.
 
 ## Related, but separate
 

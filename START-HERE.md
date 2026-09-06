@@ -16,9 +16,14 @@ means it is **not** enabled here. Nothing will work without this.
 claude plugin enable mattpocock-skills --scope project
 ```
 
-**Keep `superpowers` and `frontend-design` off.** Superpowers' `brainstorming` skill sets no
-`disable-model-invocation` and will seize interviews that belong to mattpocock's question banks. The
-two packs must not share a repo.
+**Keep `superpowers` off.** Its `brainstorming` skill sets no `disable-model-invocation` and its
+description reads `You MUST use this before any creative work`, so it will seize interviews that
+belong to mattpocock's question banks. The two packs must not share a repo.
+
+**`frontend-design` is already off** in the committed `.claude/settings.json`, so there is nothing to
+do here. It is off for a reason of its own and not the one above — it runs no interview and collides
+with nothing. See `CLAUDE.md` §Tooling state. (Earlier versions of this file bundled it into the
+`superpowers` sentence, which was wrong.)
 
 **The tracker is not configured yet.** `/setup-matt-pocock-skills` writes `docs/agents/*.md` and
 picks where tickets live. It is worth running **after** the grilling, not before — the grilling
