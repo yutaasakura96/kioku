@@ -138,18 +138,53 @@ role no other value carries.
 **Revisit if:** a third surface appears, at which point the rule tokens are per-surface by rule and
 want naming that says so.
 
+### [2026-09-06] Three screens are places; Vet and Review are modes
+Ingest, Sources and Stats carry a persistent shell and are server-rendered; *Vet* and *Review*
+replace it entirely and are client-owned, left with `Esc`. Closes the navigation gap.
+→ [ADR 0013](adr/0013-three-screens-are-places-and-two-are-modes.md)
+
+### [2026-09-06] A session survives a reload
+Snapshot and *grade* outbox both persist to `localStorage`; reloading mid-*session* resumes. A
+bounded cache, not a replica — §2.2 is not reopened.
+→ [ADR 0014](adr/0014-the-session-survives-a-reload.md)
+
+### [2026-09-06] Ingestion runs in an always-on worker, driven by a job table
+Separate process, same repo, reading the database directly. Always-on because
+*time-to-first-review* is a measured number and cron lag would contaminate it.
+→ [ADR 0015](adr/0015-ingestion-runs-in-an-always-on-worker-driven-by-a-job-table.md)
+
+### [2026-09-06] Four grades, and no same-day relearning
+FSRS's canonical `1 Again / 2 Hard / 3 Good / 4 Easy`; `enable_short_term` off so a *session* stays
+a fixed twenty. Recorded as a known deviation from Anki with a real learning cost.
+→ [ADR 0016](adr/0016-four-grades-and-no-same-day-relearning.md)
+
+### [2026-09-06] Better Auth with Google OIDC, and two independent refusals
+ADR 0012's parked preference, verified and promoted. `validateUserInfo` fires on sign-in with the
+fresh provider profile; `disableSignUp` is the second refusal.
+→ [ADR 0017](adr/0017-better-auth-with-two-independent-refusals.md)
+
+### [2026-09-06] The model provider is a boundary; acceptance rate picks the winner
+No published benchmark tests Japanese structured extraction, so the choice is made cheap to change.
+Default `claude-sonnet-5`, ceiling probe `claude-opus-5`, walked **down** toward `gpt-5.6-luna` —
+starting cheap would confound *acceptance rate*, which is §5's whole instrument.
+→ [ADR 0018](adr/0018-the-model-provider-is-a-boundary-and-acceptance-rate-picks-the-winner.md)
+
+### [2026-09-06] Sudachi is the tokeniser, and it chooses the worker's language
+Only option giving dictionary form, reading *and* a normalized form — which is ADR 0006's dedup key.
+Worker is Python. `kuromoji`'s dictionary has been frozen since 2007.
+→ [ADR 0019](adr/0019-sudachi-is-the-tokeniser-and-it-chooses-the-worker-s-language.md)
+
 ## Still open
 
-- **§4.12 — the stack.** Deliberately held shut for the whole grilling; belongs to Phase 4. Its
-  inputs are now fixed by ADRs 0002, 0003, 0007, 0008, 0009 and 0010.
-- **Navigation between the five screens.** The PRD names five screens and no way to move between
-  them. Surfaced by Phase 2's empty *Vet* state, which can only point at Ingest as plain text. Not a
-  design preference — a gap. Needs closing before screen specs.
-- **The grade set.** *Review* needs labels to grade with; the PRD names none and the scheduler is
-  §4.12. Phase 2 drew `1 Again / 2 Hard / 3 Good / 4 Easy` as a placeholder and it should not be
-  extracted into the design system until the scheduler is chosen.
+- **§4.12 — the stack.** ~~Held shut for the whole grilling.~~ **Opened 2026-09-06.** Partly
+  closed: ADRs 0013–0019 settle rendering, the worker, storage, identity, the model and the
+  tokeniser. **Still owed: the framework, the host and the database** — the next session's Round 2.
+- ~~**Navigation between the five screens.**~~ **Closed** — ADR 0013.
+- ~~**The grade set.**~~ **Closed** — ADR 0016. The Phase 2 placeholder was correct and can now be
+  extracted into the design system.
 - **Key assignments.** `A` / `E` / `R` at *vetting*; space to reveal, `1`-`4` to grade, `X` to flag
-  during *review*. Drawn, not decided.
+  during *review*. Drawn, not decided. **Now unblocked** — ADR 0013 settled navigation, and `Esc`
+  is spoken for. ADR 0016 confirms `1`-`4`.
 - **The phone layout.** Not drawn. The facts strip and the four grade controls are what have to
   change.
 - **Colour contrast in the ink ramp.** Four of the seven greys fail WCAG AA against the ground —

@@ -165,6 +165,17 @@ The 7×7px square beside a level, filled for a named authority and hollow for a 
 one visible honesty bit, and it is never placed behind a hover.
 _Avoid_: badge, indicator, icon, dot, confidence marker
 
+**Shell**:
+The persistent frame carrying navigation, present on Ingest, Sources and Stats and absent from
+*Vet* and *Review*. What makes those three *places* rather than *modes*.
+_Avoid_: chrome, layout, frame, nav
+
+**Mode**:
+A screen that replaces the *shell* entirely — no header, no navigation — and is left with `Esc`.
+*Vet* and *Review* are the only two, because both are keyboard-driven surfaces where a pointer
+target would cost more than it gives.
+_Avoid_: fullscreen, focus mode, overlay, modal
+
 **Progress rail**:
 The row of per-card ticks that stands in for *Review*'s header — one tick per card in the session,
 marking graded, current and not-yet-reached. The only progress indicator in the app.
