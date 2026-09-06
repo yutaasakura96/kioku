@@ -65,6 +65,12 @@ not as a choice already made.
 
 **Doc `08-auth-and-permissions.md` is triggered** by this ADR and is written in Phase 4.
 
+> **Amended 2026-09-06.** It was written as
+> [`../08-authentication.md`](../08-authentication.md). The name changed because **there are no
+> permissions to specify** — `S1` gives every action to the one invited reader, so a permissions
+> section would be a page saying so. The shared/*personal* label that becomes a permission model at
+> two readers is in `04-database-schema.md` §4, and this ADR's revisit condition still owns it.
+
 ## Revisit if
 
 A second person is actually invited. At that point the shared/personal split stops being a label and

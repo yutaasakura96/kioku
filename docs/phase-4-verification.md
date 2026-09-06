@@ -726,3 +726,134 @@ The generator also supports emitting into a named Postgres schema (`pgSchema("au
 github.com/better-auth/better-auth — `packages/cli/test/__snapshots__/auth-schema-pg-*.txt`,
 `docs/content/docs/adapters/drizzle.mdx`, `docs/content/docs/concepts/database.mdx`. Checked
 2026-09-06.
+
+---
+
+## 11. Cookies, and the session read on a route with no client (`08-authentication.md`)
+
+**Checked 2026-09-06**, alongside the rest of this document and for the same reason §10 was added:
+`08-authentication.md` makes three decisions that §1–9 do not cover, and one of them **resolves a
+⚠️ in §2.2**. §1–9 are untouched; read this section after §2.
+
+### 11.1 The cookie defaults are `sameSite: "lax"` and `path: "/"` — §2.2's warning is answered
+
+§2.2 recorded that "the docs do not state default `sameSite` or `path`". Half of that is now wrong
+and the other half is settled from source.
+
+- **The docs do state `sameSite`.** The security reference: cookies "default to a sameSite attribute
+  of lax to prevent CSRF attacks and enable the httpOnly attribute to block client-side JavaScript
+  access."
+- **`path` is not in the prose.** It is unambiguous in `createCookieGetter`, which builds *every*
+  cookie Better Auth mints from one set of hard defaults:
+
+```ts
+attributes: {
+  secure: !!secureCookiePrefix,
+  sameSite: "lax",
+  path: "/",
+  httpOnly: true,
+  ...(crossSubdomainEnabled ? { domain } : {}),
+  ...options.advanced?.defaultCookieAttributes,
+  ...overrideAttributes,
+  ...attributes,   // advanced.cookies[name].attributes — highest priority
+}
+```
+
+Two things follow. **The merge order** is hard defaults → `advanced.defaultCookieAttributes` →
+per-call override → per-cookie `advanced.cookies[name].attributes`. And ⚠️
+**`defaultCookieAttributes` applies to every cookie, not only `session_token`** — the OAuth state
+cookie included. §11.2 is why that matters.
+
+`secure` resolves in a documented order: `advanced.useSecureCookies` if set, else the `baseURL`
+protocol, else `NODE_ENV === "production"`.
+
+### 11.2 `sameSite: "strict"` would break the Google callback, and the docs name the failure
+
+OAuth state storage is `account.storeStateStrategy`, **defaulting to `"database"`** whenever a
+database or secondary storage is configured: the payload goes to verification storage and the state
+value is persisted in a **signed cookie that is checked on the callback** (`parseGenericState`).
+
+The callback from Google is a top-level cross-site GET redirect. A `Strict` cookie is not sent on
+one, and Better Auth's own error page for `state_security_mismatch` lists the causes — among them
+"`SameSite` policy issues preventing the cookie from being sent", alongside third-party cookie
+restrictions and the signed cookie's 5-minute `maxAge`.
+
+So `lax` here is not an inherited convenience. It is the value the redirect flow requires.
+
+### 11.3 The server-side session read, and which `headers` spelling is ours
+
+Better Auth's **Nuxt** integration page:
+
+```ts
+const session = await auth.api.getSession({ headers: event.headers })
+```
+
+⚠️ The **Nitro** integration page shows `event.req.headers`. That is the h3 v2 / Nitro v3 shape;
+Nuxt 4.5.2 pins `nitropack ^2.13.4` (§8). **Use the Nuxt form.** The framework-agnostic contract is
+that `getSession` takes the incoming `Headers`, which is why no cookie forwarding is involved.
+
+Nuxt's own server documentation supplies the rest:
+
+- Server middleware "will run on **every request before any other server route**", and handlers
+  "should not return anything (nor close or respond to the request) and only inspect or extend the
+  request context or throw an error." The documented example is literally
+  `event.context.auth = { user: 123 }`.
+- `useRequestEvent()` "will return `undefined`" in the browser — so a component that reads
+  `useRequestEvent()!.context` is server-only by construction, not by convention.
+- `server/types/` is scanned for server-only types (files directly inside it; nested directories are
+  ignored).
+
+### 11.4 Three route rules that would silently disable the gate
+
+From Nuxt's hybrid-rendering reference:
+
+- **`prerender: true`** — "Prerenders routes at build time and includes them in your build as
+  **static assets**." There is no request, so no server middleware and no session.
+- **`swr` / `isr`** — cached responses; `isr` puts them in the CDN "on platforms that support this
+  (currently Netlify or Vercel)". A cached signed-in document is a document served to whoever asks
+  next.
+
+And: "route rules will be automatically applied to the deployment platform's native rules" for
+Vercel and Netlify — so an `isr` rule is not a Nuxt-local decision, it is a CDN we do not operate.
+
+### 11.5 What a `validateUserInfo` rejection actually produces
+
+Returning an error object "rejects the provisioning, triggering a **redirect to the error URL** or
+returning a **403 API error**". The redirect is the browser path; the 403 is the programmatic one.
+That page is `onAPIError.errorURL`, **default `/api/auth/error`** — Better Auth ships a styled
+default.
+
+- `source.action` is `"create-user" | "link-account" | "sign-in"`; `source.oauth?.providerId` and
+  `source.oauth?.profile` are available on the OAuth paths.
+- ⚠️ **The documented example narrows on the provider first** —
+  `if (source.oauth?.providerId !== "google") return;` — which *admits* everything from any other
+  provider. Correct for a domain check with several providers configured; a fail-open gate for an
+  allowlist.
+- On the create-user path the internal adapter lowercases before validating
+  (`email: user.email?.toLowerCase()`). **Nothing documents the same for the sign-in path**, so a
+  comparison that must hold on both is written case-insensitively at the call site.
+- ⚠️ It **fails closed** on a missing endpoint context: `assertValidUserInfo` throws
+  `APIError("FORBIDDEN", { code: "validation_context_missing" })` rather than skipping the check.
+
+### 11.6 Two configuration facts the sign-in flow needs
+
+- **The default callback URI is `/api/auth/callback/${providerName}`** — so
+  `/api/auth/callback/google`, and that is the string Google's console must hold.
+  `socialProviders.google.redirectURI` overrides it.
+- **`trustedOrigins` is derived, not only declared.** `getTrustedOrigins` merges the origin of
+  `baseURL`, anything in `options.trustedOrigins` (array or function), plugin-contributed origins,
+  and the `BETTER_AUTH_TRUSTED_ORIGINS` environment variable, and the origin-check middleware
+  validates callback URLs against the result.
+- `session.cookieCache` is **opt-in** and serves the session from a signed cookie to skip the
+  database read (§2.2, default 5 minutes when enabled).
+
+**Sources:** github.com/better-auth/better-auth —
+`docs/content/docs/reference/security.mdx`, `docs/content/docs/reference/options.mdx`,
+`docs/content/docs/concepts/cookies.mdx`, `docs/content/docs/concepts/oauth.mdx`,
+`docs/content/docs/concepts/users-accounts.mdx`, `docs/content/docs/integrations/nuxt.mdx`,
+`docs/content/docs/integrations/nitro.mdx`, `docs/content/docs/reference/errors/state_mismatch.mdx`,
+`docs/content/docs/reference/errors/state_invalid.mdx`, `packages/better-auth/src/cookies/index.ts`,
+`packages/better-auth/src/state.ts`, `packages/better-auth/src/db/internal-adapter.ts`,
+`packages/better-auth/src/context/helpers.ts`; nuxt.com/docs/4.x —
+`api/composables/use-request-event`, `guide/directory-structure/server`,
+`guide/concepts/rendering`. Checked 2026-09-06.

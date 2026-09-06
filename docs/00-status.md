@@ -3,8 +3,8 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 4 — Technical documents. **In progress.** The grilling is finished — Rounds 1, 2 and 3
-are closed and the frontier is empty. **29 ADRs.** `03` and `04` are written; **four docs are still
-owed.**
+are closed and the frontier is empty. **30 ADRs.** `03`, `04` and `08` are written; **three docs are
+still owed.**
 **Updated:** 2026-09-06
 
 Read `CLAUDE.md` first, then this.
@@ -71,13 +71,40 @@ not on `card`**, so a reset is an `INSERT` and the irreplaceable data is never i
 `UPDATE`; **one trigger exists in the whole schema**, making `review_log` append-only; and the
 stale-job sweep runs **in the worker**, because ADR 0022 forbids a Vercel Cron dependency.
 
+**[`08-authentication.md`](08-authentication.md) — written 2026-09-06.** Mostly citation, as
+expected. **Three things it actually decided**, plus [ADR 0030](adr/0030-the-session-is-read-in-server-middleware-and-a-place-never-reads-it-from-the-client.md):
+
+- **The session is read in one Nitro server middleware**, into `event.context.session` — ADR 0030.
+  `03` §2.2 left this open and it was the one real collision in the document: Better Auth's
+  documented Nuxt fix is `<ClientOnly>`, which renders **nothing** on a `noScripts` route, and all
+  three *places* are those routes. ⚠️ It also **forbids `prerender`, `swr` and `isr` on the three
+  *places*** — each is the ordinary advice for a form, a list and five numbers, and each silently
+  disables the gate.
+- **The allowlist is one environment variable**, `KIOKU_INVITED_EMAIL`. ⚠️ The load-bearing half is
+  the *shape*: a list-shaped allowlist admits everyone when the list is empty, and Better Auth's own
+  documented example narrows on the provider first, which fails open. Neither is used.
+- **`sameSite: "lax"`, `path: "/"`, written out rather than inherited.** ⚠️ `strict` **breaks
+  sign-in** — `defaultCookieAttributes` applies to the OAuth state cookie too, and a `Strict` cookie
+  is not sent on the top-level redirect back from Google.
+
+Also in it, and worth knowing without opening it: **there are six routes, not five** — `/auth` is the
+door, ships JavaScript, and is neither a *place* nor a *mode*; `/auth/refused` is a `noScripts` page
+with a message and deliberately nothing else. **`session.cookieCache` is off** because it would keep
+a revoked session alive for its window.
+
 **[`phase-4-verification.md`](phase-4-verification.md) — the facts, checked, with sources.** Now
-**ten** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
+**eleven** sections. §1–4 from Round 1 (FSRS, Better Auth, LLM pricing, tokenisers); **§5–7 added in
 Round 2** (frameworks, database, hosting + Neon + the SudachiPy measurement); **§8–9 added in
 Round 3** (`noScripts` under the Vercel preset; the Python driver and what scale-to-zero does to
 `LISTEN`); **§10 added while writing `04`** (Postgres 18's `uuidv7()`; Better Auth's generated
-Drizzle types and its cascades). Eight background agents, everything against primary sources. **Do not re-run this.**
+Drizzle types and its cascades); **§11 added while writing `08`** (the cookie defaults, the OAuth
+state cookie, the server-side session read, and three route rules that would disable the gate).
+Everything against primary sources. **Do not re-run this.**
 Re-verify only if older than ~3 months.
+
+⚠️ **§11.1 supersedes the ⚠️ in §2.2.** `sameSite` and `path` are no longer unverified: `lax` is in
+the security reference and `path: "/"` is a hard default in `createCookieGetter`. §2.2 is left as
+written because §1–9 are not edited.
 
 Seven findings worth knowing without opening it:
 
@@ -108,10 +135,10 @@ entry.
 
 | Doc | Blocked on |
 | --- | --- |
-| `08-authentication.md` | **Unblocked. Start here.** Mostly written already — ADR 0017 + verification §2, and now `04` §3 and §8 supply its schema half: the `auth` Postgres schema, the `text` owner column, `RESTRICT` everywhere, and the cascade convention that had to be broken |
-| `09-user-flows.md` | Unblocked — ADR 0013 closed navigation |
-| `10-screen-specifications.md` | **Unblocked.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout. **Belongs to Phase 4, not Phase 3** — see Carrying |
-| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable |
+| ~~`08-authentication.md`~~ | **Written 2026-09-06.** ADR 0030 and two decision-log entries |
+| `09-user-flows.md` | **Unblocked. Start here.** ADR 0013 closed navigation, and `08` §2 adds two routes it must draw — `/auth` and `/auth/refused` |
+| `10-screen-specifications.md` | **Unblocked.** Round 3 closed all five design questions. Owes: five interaction states, the grade labels, the Done control's geometry, the *Review* phone layout, **and now the door and the refusal page** (`08` §11). **Belongs to Phase 4, not Phase 3** — see Carrying |
+| `11-testing-plan.md` | PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen |
 
 **Three first-week experiments**, none blocking a document:
 
@@ -201,11 +228,25 @@ Nothing.
 - **The stale-job sweep runs in the worker**, not on a schedule elsewhere. Vercel Cron is on
   ADR 0022's forbidden list, and the worker already polls on every connect and reconnect, so it costs
   nothing (`04` §6.4).
+- ⚠️ **`prerender`, `swr` and `isr` are forbidden on Ingest, Sources and Stats.** Each is the
+  ordinary advice for a route that renders a form, a list and five numbers, and each turns a
+  session-gated document into a shared artifact — a prerendered route is a static asset with no
+  request to gate, and Nuxt maps `isr` onto Vercel's own CDN rules. ADR 0030, verification §11.4.
+  The `noScripts` smoke test's `{ prerender: true, noScripts: true }` is correct **for the test**.
+- ⚠️ **The allowlist's shape is the decision, not its location.** A list-shaped allowlist admits
+  everyone when the list is empty, and Better Auth's documented `validateUserInfo` example narrows on
+  the provider before comparing, which fails open the day a second provider exists. `08` §4.3 uses
+  neither. A missing `KIOKU_INVITED_EMAIL` stops the process.
+- **There are six routes, not five.** `/auth` is the door — it ships JavaScript and is neither a
+  *place* nor a *mode* — and `/auth/refused` carries a message and nothing else. This does not amend
+  ADR 0013, whose taxonomy is about the five screens of the app; `08` §2 adds the boundary before
+  them.
 - **No git remote yet.** `/setup-matt-pocock-skills` still belongs after planning.
 - **`frontend-design` and `superpowers` are off at project scope**, for different reasons.
   `CLAUDE.md` § Tooling state has both correctly.
-- **Branches:** `main` is the default and where work normally happens; `develop` exists. Neon gets a
-  branch per environment to match.
+- ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it
+  replaces the arrangement that stood until then, where `main` was both the default and the working
+  branch. `main` is the integration branch. Neon still gets a branch per environment to match.
 
 ## Skipped
 

@@ -352,6 +352,60 @@ Auth's own children *should* cascade, because a sign-in regenerates them.
 **Revisit if.** A second reader is invited, which is ADR 0012's own revisit condition — at that
 point the shared/*personal* label stops being a label and starts being enforced.
 
+### [2026-09-06] The session is read in server middleware, not by the client
+One Nitro middleware resolves the session on every request into `event.context.session`; the three
+*places* read it from the request event and the two *modes* read it in the browser. Better Auth's
+documented Nuxt fix, `<ClientOnly>`, renders **nothing** on a `noScripts` route — which is all three
+*places*. → [ADR 0030](adr/0030-the-session-is-read-in-server-middleware-and-a-place-never-reads-it-from-the-client.md)
+
+### [2026-09-06] The invited-account allowlist is one environment variable, and it has no empty case
+
+**Decision.** `KIOKU_INVITED_EMAIL`, a single address, read where the `betterAuth()` instance is
+constructed and compared unconditionally and case-insensitively inside `validateUserInfo`. Not a repo
+constant, not a table. The process refuses to start if it is unset.
+
+**Alternatives considered.** A repo constant — rejected because `03` §13.4 already classifies the
+reader's email as sensitive data, and **there is no git remote yet**, so the decision to commit a
+personal address is made once, permanently, before the repository has an audience. A one-row table —
+rejected as premature and as unbootstrappable: **there is no admin surface to insert the first row,
+and there must not be**, because an in-app path that adds an allowed account is self-registration
+with an extra step (ADR 0012).
+
+**Reason.** ⚠️ The load-bearing half is the *shape*, not the location. A list-shaped allowlist —
+`if (allowed.length && !allowed.includes(email))` — is the natural way to write this and it **admits
+everyone when the list is empty**. A single constant has no empty case. For the same reason the
+comparison does not narrow on the provider first, which is what Better Auth's own documented example
+does (verification §11.5) and which fails open the day a second provider is added.
+
+**Revisit if.** A second reader is invited — ADR 0017's own condition, and the point at which the
+table becomes the right shape. The trigger is the second reader, not discomfort with an environment
+variable.
+
+### [2026-09-06] The session cookie is `sameSite: "lax"` and `path: "/"`, written out rather than inherited
+
+**Decision.** `advanced.defaultCookieAttributes: { sameSite: "lax", path: "/", httpOnly: true }`.
+`useSecureCookies` is deliberately left unset, and `session.cookieCache` is deliberately off.
+
+**Alternatives considered.** `sameSite: "strict"` globally — **it breaks sign-in.**
+`defaultCookieAttributes` applies to every cookie Better Auth mints, the OAuth state cookie included,
+and a `Strict` cookie is not sent on the top-level cross-site GET redirect back from Google; Better
+Auth's own `state_security_mismatch` page names SameSite as a cause (verification §11.2). `Strict`
+scoped to `session_token` alone — rejected on a second, independent reason: the three *places* are
+server-rendered documents whose session is read on the server, so arriving from any external link
+would render the signed-out page.
+
+**Reason.** Verification §2.2 recorded both attributes as unverified defaults; §11.1 settles them
+from the security reference and from `createCookieGetter`, and these values **match** the library.
+They are still written out, because a hard default inside a source file is a weaker contract than a
+value in our own configuration — an upstream change then shows as a diff rather than as behaviour.
+`useSecureCookies` is left to resolve because production is HTTPS and the laptop is not (ADR 0022);
+`cookieCache` is off because it would keep a revoked session alive for its window, which is the
+property database sessions were chosen for.
+
+**Revisit if.** A second origin ever needs the cookie — a subdomain, or a preview deployment that
+signs in — at which point `crossSubDomainCookies` and the preview-deploy exclusion in
+`08-authentication.md` §10 are reopened together.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the
@@ -371,6 +425,10 @@ point the shared/*personal* label stops being a label and starts being enforced.
 - ~~**Whether the owner foreign key targets Better Auth's `user.id` or an app-level table.**~~
   **Closed 2026-09-06** — directly, with `ON DELETE RESTRICT`. Entry above.
 
+- ~~**How the session is read on a `noScripts` route.**~~ **Closed 2026-09-06** — ADR 0030, in
+  `08-authentication.md`. Raised by `03` §2.2 and left open there: Better Auth's documented Nuxt fix
+  is `<ClientOnly>`, which renders nothing on a route that ships no JavaScript.
+
 **Nothing is open.** Every question the brief, the PRD or an ADR left for a later document has an
 answer or a dated entry.
 
@@ -381,6 +439,9 @@ answer or a dated entry.
 - **Whether an idle `LISTEN` connection defers Neon's scale-to-zero.** Neon is silent, and
   `00-status.md` asserted an answer it cannot support. ADR 0028 is correct either way; the experiment
   settles the cost question only.
+- **Whether Better Auth's sign-in and sign-out endpoints accept a plain `<form method="post">`.**
+  Nothing was found either way, so `08-authentication.md` §2 gives the door route JavaScript. If they
+  do, the app ships none outside the two *modes*.
 - **Five interaction states** — hover, active, disabled, loading, error — and the **Done** control's
   geometry, both for `10-screen-specifications.md`.
 
