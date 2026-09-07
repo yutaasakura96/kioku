@@ -5,7 +5,7 @@ and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 4 — Technical documents. **Complete.** The grilling is finished — Rounds 1, 2 and 3 are
 closed and the frontier is empty. **39 ADRs.** `03`, `04`, `08`, `09`, `10` and `11` are all
 written. **Nothing is owed. The next thing that happens is code.**
-**Updated:** 2026-09-07
+**Updated:** 2026-09-08
 
 Read `CLAUDE.md` first, then this.
 
@@ -246,11 +246,22 @@ Seven findings worth knowing without opening it:
 repository. `/grill-with-docs` has nothing left to ask — the frontier is empty and every question
 that was open has an ADR or a dated entry.
 
-**The planned flow now applies:** `/setup-matt-pocock-skills`, which `CLAUDE.md` says comes *after*
-the grilling, because the grilling produces the material the tickets are made from. It has now
-produced it — thirty-nine ADRs, eleven documents and fourteen verification sections.
-[`START-HERE.md`](../START-HERE.md) was rewritten for this phase on 2026-09-08 and carries the prompt
-that opens it.
+**The planned flow held, and the tracker is configured as of 2026-09-08.**
+`/setup-matt-pocock-skills` ran — it comes *after* the grilling because the grilling produces the
+material the tickets are made from, and it had produced it: thirty-nine ADRs, eleven documents and
+fourteen verification sections. Three files under [`docs/agents/`](agents/) now carry the answers,
+and `CLAUDE.md` §Agent skills points at them:
+
+- **Issues are GitHub Issues** on `yutaasakura96/kioku`, via `gh`. ⚠️ **The repo is public, so the
+  issues are** — the `03` §13.1 values stay out of issue bodies exactly as they stay out of the code.
+  PRs are **not** a request surface; the flag in `issue-tracker.md` is off.
+- **The five triage labels keep their canonical names** — nothing in the repo collided.
+- **Domain docs are single-context**, which is what `CONTEXT.md` and `docs/adr/` already were. The
+  setup changed no layout; it recorded the one that exists.
+
+⚠️ **The next thing is the first ticket.** [`START-HERE.md`](../START-HERE.md) was rewritten for this
+phase on 2026-09-08 and carries the prompt that opens it, plus the four things the documents already
+constrain about ticket order.
 
 ⚠️ **`04-database-schema.md` is where schema work becomes legal, and it is written**, so the hard
 constraint `CLAUDE.md` §"Hard constraint while planning" imposed — no code, no scaffolding, no schema

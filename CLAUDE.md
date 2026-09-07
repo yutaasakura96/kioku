@@ -13,8 +13,9 @@ dev / networking / cloud terminology follow.
 and no dependency manifest yet — so there are still no commands to run — but the next thing that
 happens in this repo is **code**, not another document.
 
-⚠️ **The immediate next step is `/setup-matt-pocock-skills`**, which was deliberately deferred until
-the grilling had produced the material the tickets are made from. See §Tooling state.
+⚠️ **The tracker is configured as of 2026-09-08** — `/setup-matt-pocock-skills` ran, and issues live
+on GitHub. See §Agent skills. **The immediate next step is the first ticket**, and `START-HERE.md`
+carries the four things the documents already constrain about ticket order.
 
 ## Hard constraints
 
@@ -107,11 +108,10 @@ history.
 ## Tooling state
 
 - `mattpocock-skills` is enabled at **project** scope via the committed `.claude/settings.json`.
-  ⚠️ **The tracker is still unconfigured, and configuring it is the next action in this repo.** The
-  planned flow was `/grill-with-docs` first, then `/setup-matt-pocock-skills`, because the grilling
-  produces the material the tickets are made from. **It has produced it** — eleven documents and
-  39 ADRs — so `/setup-matt-pocock-skills` is now due. There is no `.scratch/` and no tracker pointer
-  below this line yet; when there is, it goes here.
+  **The tracker was configured on 2026-09-08** and the pointer is §Agent skills below. The planned
+  flow held: `/grill-with-docs` first, then `/setup-matt-pocock-skills`, because the grilling
+  produces the material the tickets are made from — eleven documents and 39 ADRs of it. There is
+  still no `.scratch/`, and there will not be one: issues are on GitHub, not on disk.
 - `superpowers` must stay disabled here. Its `brainstorming` skill sets no
   `disable-model-invocation` and its description reads `You MUST use this before any creative work`,
   so it will seize interviews that belong to mattpocock's question banks.
@@ -131,6 +131,24 @@ history.
 - **Branches: `develop` is where work happens; `main` is the integration branch.** The remote is
   [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku) and it is **public** — so
   `KIOKU_INVITED_EMAIL` and every other value in `03` §13.1 stays out of the repository.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku), via the `gh` CLI.
+⚠️ **The repo is public and so are the issues** — the `03` §13.1 values stay out of issue bodies for
+the same reason they stay out of the code. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five canonical roles, unrenamed: `needs-triage`, `needs-info`, `ready-for-agent`,
+`ready-for-human`, `wontfix`. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, both already written.
+See [`docs/agents/domain.md`](docs/agents/domain.md).
 
 ## Related, but separate
 
