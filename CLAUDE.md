@@ -64,9 +64,12 @@ before writing code that touches any of them.**
 twelve open questions and **all twelve are closed** — each has an ADR or a dated decision-log entry.
 Read it for the thesis (§5) and the out-of-scope list (§6); do not read §4 as an agenda.
 
-⚠️ `START-HERE.md` is **superseded.** It is the cold-start prompt for a grilling that finished on
-2026-09-07, and it still carries the "one question at a time" rule that § Working agreements replaced.
-Do not follow it. `docs/00-status.md` is the handoff now.
+`START-HERE.md` is the **cold-start handoff, rewritten 2026-09-08 for the build phase.** Read it
+when a session opens with no memory of how any of this was decided: it carries the repo's actual
+state, the prompt to open the first build session, and the four things the documents already
+constrain about ticket order. ⚠️ It replaced a version that opened the *grilling* session and carried
+the superseded "one question at a time" rule — if you are reading that one, you are reading git
+history.
 
 ## Working agreements
 

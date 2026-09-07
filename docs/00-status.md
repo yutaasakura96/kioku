@@ -248,7 +248,9 @@ that was open has an ADR or a dated entry.
 
 **The planned flow now applies:** `/setup-matt-pocock-skills`, which `CLAUDE.md` says comes *after*
 the grilling, because the grilling produces the material the tickets are made from. It has now
-produced it — thirty-nine ADRs, seven documents and fourteen verification sections.
+produced it — thirty-nine ADRs, eleven documents and fourteen verification sections.
+[`START-HERE.md`](../START-HERE.md) was rewritten for this phase on 2026-09-08 and carries the prompt
+that opens it.
 
 ⚠️ **`04-database-schema.md` is where schema work becomes legal, and it is written**, so the hard
 constraint `CLAUDE.md` §"Hard constraint while planning" imposed — no code, no scaffolding, no schema
