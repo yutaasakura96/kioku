@@ -462,6 +462,22 @@ Nothing.
   cannot poll, and no *place* auto-refreshes — a meta refresh on `/` would destroy a paste in
   progress. `S2`'s "vettable while the rest are still generating" works because the screen that has
   to show it is the one with a client (`09` §3, §7).
+- ⚠️ **npm 11.3.0 cannot resolve `nuxt@4.5.2` from scratch, and the lockfile is what makes that
+  survivable.** Measured 2026-09-09 while scaffolding #2: `npm install` crashes with
+  `Cannot read properties of null (reading 'edgesOut')` inside arborist's peer-set walk. It is an
+  upstream npm bug and not ours — a `package.json` containing nothing but `nuxt` and `vue`
+  reproduces it. **`npm ci` against the committed `package-lock.json` works on 11.3.0**, so the
+  normal path is fine; it is **adding or re-resolving a dependency** that needs **npm ≥ 12**
+  (12.0.2 verified clean). `--legacy-peer-deps` also gets past it and is the wrong answer, because
+  it turns off peer checking for the life of the project.
+- **The repo pins Node with `.tool-versions`, at `nodejs 24.11.0`.** asdf's global is 25.1.0, which
+  is *outside* Nuxt 4.5.2's `engines` (`^22.19.0 || ^24.11.0 || >=26.0.0`, `03` §2) — an odd-numbered
+  line that is not an LTS. 24.11.0 was already installed, so this cost nothing.
+- ⚠️ **`ssr: false` does not server-render the page, and `11` §6.1 is amended for it.** The response
+  is an app shell with an empty `<div id="__nuxt">`, so a *mode*'s Done control is not in the HTML —
+  measured 2026-09-09. **The `external` assertion is a browser assertion**, and it has to *click*
+  Done rather than read its `href`, because a bare `<NuxtLink>` renders the same `href`. `03` §2.1's
+  "an app shell, not a blank page" is correct; it is thinner than it sounds.
 - ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it
   replaces the arrangement that stood until then, where `main` was both the default and the working
   branch. `main` is the integration branch. Neon still gets a branch per environment to match.

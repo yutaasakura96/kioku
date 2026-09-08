@@ -1,0 +1,78 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Kioku's dependency bot. `03-technical-design.md` \u00a713.5: a bot has nothing to read until a manifest exists, so it arrives with the first one rather than afterwards. Two ecosystems \u2014 npm at the root, pip under worker/ from #7 \u2014 and one config, because both flows answer to the same six pins.",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "setup",
+  "semanticCommitScope": null,
+  "schedule": [
+    "before 9am on monday"
+  ],
+  "prConcurrentLimit": 3,
+  "packageRules": [
+    {
+      "description": "PIN 1/6 \u2014 psycopg[binary] >= 3.2.4. The floor is the lost-notification fix (`03` \u00a73.1), not a number: below it, a notification can be dropped between LISTEN and the first poll. Bumping up is routine; going below it is never a cleanup. Arrives with #7.",
+      "matchPackageNames": [
+        "psycopg"
+      ],
+      "allowedVersions": ">=3.2.4"
+    },
+    {
+      "description": "PIN 2/6 \u2014 SudachiDict-core 20260723. DO NOT BUMP. The dictionary version is part of the ingestion cache key, and an upgrade can change the identity of existing *notes* (`03` \u00a75.3, ADR 0006). It is a deliberate, reviewed data event with a re-ingestion plan, never an automated bump. Arrives with #8.",
+      "matchPackageNames": [
+        "SudachiDict-core"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "PIN 3/6 \u2014 Nuxt 4.5.2, and @nuxt/kit lockstep with it. DO NOT BUMP. `noScripts`' behaviour under the Vercel preset was verified against this exact version (verification \u00a78) and the rendering split is the reason Nuxt was chosen at all (ADR 0020). Nuxt 5 is scheduled for Q4 2026 and re-opens that question rather than inheriting the answer. @nuxt/kit rides along because `test/unit/nuxt-config.test.ts` reads nuxt.config through its loadNuxtConfig(): a kit on a different minor resolves a different Nuxt's defaults, and the guard would then be checking the wrong framework's config.",
+      "matchPackageNames": [
+        "nuxt",
+        "@nuxt/kit"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "PIN 3/6, second half \u2014 nitropack ^2.13.4. The route rule is applied at render time inside the handler the Vercel preset packages verbatim (verification \u00a78), and that was read at 2.13.4. Nitro 3 is a different renderer; it is a review, not a bump.",
+      "matchPackageNames": [
+        "nitropack"
+      ],
+      "allowedVersions": "<3.0.0"
+    },
+    {
+      "description": "PIN 4/6 \u2014 ts-fsrs 5.4.2. 6.0.0 removes `elapsed_days` (verification \u00a71.2). `04` builds no column on it so the major is survivable, but it is a data review rather than a version bump. Arrives with #12.",
+      "matchPackageNames": [
+        "ts-fsrs"
+      ],
+      "allowedVersions": "<6.0.0"
+    },
+    {
+      "description": "PIN 5/6 \u2014 drizzle-orm 0.45.2 is a SECURITY FLOOR, not a preference: the version exists because of a SQL-injection fix in sql.identifier() / sql.as() (`03` \u00a713.2). It is also what builds both test databases \u2014 0.45.2 exports ./pglite/migrator alongside ./node-postgres/migrator (ADR 0038), which is what stops the test schema forking from `04`. Below this version the ORM's own protection is what regresses. Arrives with #4.",
+      "matchPackageNames": [
+        "drizzle-orm"
+      ],
+      "allowedVersions": ">=0.45.2"
+    },
+    {
+      "description": "PIN 6/6 \u2014 @electric-sql/pglite 0.5.8. DO NOT BUMP, and this pin has a second half that lives outside any manifest: the Postgres image tag beside it. `04` defaults every primary key to uuidv7(), a Postgres 18 built-in, so a PGlite that regressed to 17 fails on the first CREATE TABLE. PGlite does not document which PostgreSQL it builds \u2014 0.5.8 = PostgreSQL 18.3 was measured (ADR 0038, verification \u00a714.1). Nothing will tell you when the two halves diverge except a uuidv7() that stops existing. Arrives with #4.",
+      "matchPackageNames": [
+        "@electric-sql/pglite"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Everything else: group the devDependencies so the weekly check is one PR to read rather than nine.",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "dev dependencies"
+    }
+  ]
+}

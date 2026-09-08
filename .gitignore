@@ -19,3 +19,24 @@ Thumbs.db
 # Logs / scratch
 *.log
 tmp/
+
+# Node
+node_modules/
+.nuxt/
+.output/
+.data/
+.vercel/
+dist/
+coverage/
+
+# Playwright — the browser tests of `11-testing-plan.md` §1
+test-results/
+playwright-report/
+
+# Python — the worker's own toolchain
+.venv/
+__pycache__/
+*.py[cod]
+
+# TypeScript incremental build info
+*.tsbuildinfo

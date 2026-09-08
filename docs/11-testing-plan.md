@@ -50,7 +50,7 @@ where the suite runs is a Phase 6 question that the plan does not depend on.
 
 | Tier | Directory | Environment | Database | What lives here |
 | --- | --- | --- | --- | --- |
-| **Unit** | `test/unit/` | plain Node, no Nuxt | none | Pure functions: the pipeline stages, the FSRS wrapper, the `from` allowlist, the grade validator, the metric arithmetic |
+| **Unit** | `test/unit/` | plain Node, no Nuxt | none | Pure functions: the pipeline stages, the FSRS wrapper, the `from` allowlist, the grade validator, the metric arithmetic. ⚠️ **And §6.1's configuration assertions**, added 2026-09-09 — they read `nuxt.config` through `loadNuxtConfig()`, which needs neither a build nor a request, so the tier is "no Nuxt runtime" rather than "no file on disk" |
 | **Schema** | `test/schema/` | plain Node | **PGlite** | Every constraint, trigger and delete rule in `04`, run by Drizzle's migrations |
 | **Nuxt runtime** | `test/nuxt/` | `// @vitest-environment nuxt` | PGlite | Components, `mountSuspended`, the outbox against a real `localStorage` |
 | **End to end** | `test/e2e/` | a built, running app | PGlite | Rendering, routing, redirects, headers, and the browser tests |
@@ -192,6 +192,28 @@ Three assertions, in `test/e2e/`, and it was always three rather than one:
 `isr` on a *place* (ADR 0030, verification §11.4). That is a config assertion, not an HTTP one: read
 `nuxt.config`'s `routeRules` and assert none of the three appears on a non-public route. It is the
 cheapest test in the suite and it guards the most dangerous single-line change in the project.
+
+⚠️ **Amended 2026-09-09, while building #2 — assertion 2 cannot be an HTTP assertion, and the
+`<a href>` alone was never enough.** Two things were measured against the built app and both change
+what the test is:
+
+- **`ssr: false` returns an app shell with an empty `<div id="__nuxt">`.** `03` §2.1 is right that
+  the server returns a real document rather than a blank page, but the *page component* is not
+  rendered server-side, so the Done control does not exist in the response. `$fetch('/vet')` cannot
+  see it and neither could the `curl` the experiment was going to use. **Assertion 2 runs in a
+  browser** — `createPage()`, which §14.3 already documents, under `setup({ browser: true })`.
+- ⚠️ **Reading the `href` does not discriminate.** A bare `<NuxtLink to="/stats">` renders
+  `href="/stats"` too; `external` changes what *clicking* it does, not what it says. So the
+  assertion clicks Done and asserts the document that arrives carries no `<script>` — under a bare
+  `<NuxtLink>` the reader never leaves the *mode*'s running application and its scripts are still
+  there. **Verified both ways on 2026-09-09**: the test passes with `external` and fails without it,
+  which is the whole point of writing it.
+
+**And assertion 4 lives in `test/unit/`**, not `test/e2e/`. It reads `nuxt.config` through
+`loadNuxtConfig()` and needs neither a build nor a request, so paying for the e2e tier to run it
+would be the cheapest test in the suite made expensive. ⚠️ `loadNuxtConfig()` resolves Nuxt's own
+defaults, so `features.noScripts` reads `false` rather than absent — the assertion is that it is
+never *enabled*, and its three enabling values are `'all'`, `'production'` and `true`.
 
 **What survives as a first-week experiment:** nothing here. The `psycopg.connect()` probe and the
 Neon scale-to-zero question stay experiments, because neither is an assertion about our code.

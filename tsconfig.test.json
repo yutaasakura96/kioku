@@ -1,0 +1,16 @@
+{
+  // `test/nuxt/` is already covered: Nuxt's generated `tsconfig.app.json`
+  // includes `../test/nuxt/**/*`, which is why `11-testing-plan.md` §1 chose
+  // Nuxt's own directory names. This covers the three tiers it does not —
+  // `test/unit/`, `test/schema/` and `test/e2e/`, which run outside Nuxt — and is a separate
+  // `tsc` pass rather than a project reference, so that a plain-Node test may
+  // import a shared source file without the two projects fighting over it.
+  "extends": "./.nuxt/tsconfig.shared.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["test/unit/**/*", "test/schema/**/*", "test/e2e/**/*", "vitest.config.ts"],
+  "exclude": []
+}
