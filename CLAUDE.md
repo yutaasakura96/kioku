@@ -123,11 +123,14 @@ history.
   needs a fresh direction rather than an extension of the existing one.
 - ⚠️ **The first commit that adds a dependency manifest owes a bot in the same commit.** `03` §13.5:
   a bot has nothing to read until a `package.json` or `requirements.txt` exists, so Renovate or
-  Dependabot is configured *with* the first one rather than afterwards. **Four pins that a routine
+  Dependabot is configured *with* the first one rather than afterwards. **Six pins that a routine
   bump must not touch** are listed there — `psycopg[binary]` ≥ 3.2.4, `SudachiDict-core` 20260723
-  (moving it can change the identity of existing *notes*), Nuxt 4.5.2 with `nitropack ^2.13.4`, and
-  `drizzle-orm` 0.45.2. ⚠️ **PGlite's version joins them** (ADR 0038): `04` defaults every primary key
-  to `uuidv7()`, a Postgres 18 built-in.
+  (moving it can change the identity of existing *notes*), Nuxt 4.5.2 with `nitropack ^2.13.4`,
+  `ts-fsrs` 5.4.2, `drizzle-orm` 0.45.2 (a security floor — `03` §13.2), and
+  `@electric-sql/pglite` 0.5.8 **with the Postgres image tag beside it**, because `04` defaults every
+  primary key to `uuidv7()`, a Postgres 18 built-in (ADR 0038). ⚠️ **Amended 2026-09-08:** this said
+  *four* and listed `drizzle-orm` in place of `ts-fsrs`, while `03` §13.5 carried neither
+  `drizzle-orm` nor PGlite. `03` §13.5 is the list; it now has all six and this line matches it.
 - **Branches: `develop` is where work happens; `main` is the integration branch.** The remote is
   [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku) and it is **public** — so
   `KIOKU_INVITED_EMAIL` and every other value in `03` §13.1 stays out of the repository.

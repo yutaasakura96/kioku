@@ -2,14 +2,21 @@
 
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
-**Phase:** 4 — Technical documents. **Complete.** The grilling is finished — Rounds 1, 2 and 3 are
-closed and the frontier is empty. **39 ADRs.** `03`, `04`, `08`, `09`, `10` and `11` are all
-written. **Nothing is owed. The next thing that happens is code.**
+**Phase:** 5 — Configure the repo. **Complete.** `CLAUDE.md`, the committed `.claude/settings.json`
+and the three `docs/agents/` files are all written; the tracker is GitHub Issues on a public remote.
+Phases 1–5 are closed. **39 ADRs**, eleven documents, an empty frontier. **Nothing is owed.**
+**Next: Phase 6 — Build.** ⚠️ **It opens with `/to-spec`, and the tracker is empty — zero issues.**
 **Updated:** 2026-09-08
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 5 — complete 2026-09-08.** `/setup-matt-pocock-skills` ran. `docs/agents/issue-tracker.md`,
+`triage-labels.md` and `domain.md` are written, `CLAUDE.md` § Agent skills points at all three, and
+`.claude/settings.json` is committed with `mattpocock-skills` on, `frontend-design` and `superpowers`
+off. **No `.mcp.json`; none is needed.** This was Phase 5 of `/project`, run out of the skill's
+numbered order because the grilling had to produce the ticket material first.
 
 **Phases 1–3 — complete.** Brief, PRD, design exploration, design system. The canvas link at the top
 of [`05-design-system.md`](05-design-system.md) is still the only copy of the six artboards, and that
@@ -242,39 +249,35 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-⚠️ **Phase 4 is finished. The next thing that happens is code**, and it is the first code in the
-repository. `/grill-with-docs` has nothing left to ask — the frontier is empty and every question
-that was open has an ADR or a dated entry.
+**Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
+`disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-**The planned flow held, and the tracker is configured as of 2026-09-08.**
-`/setup-matt-pocock-skills` ran — it comes *after* the grilling because the grilling produces the
-material the tickets are made from, and it had produced it: thirty-nine ADRs, eleven documents and
-fourteen verification sections. Three files under [`docs/agents/`](agents/) now carry the answers,
-and `CLAUDE.md` §Agent skills points at them:
+⚠️ **The next command is `/to-spec`, in a fresh window.** Not `/grill-with-docs` — the frontier is
+empty and every question that was open has an ADR or a dated entry. Not `/implement` either: the
+first milestone is a vertical slice across a repo with no code in it, which is more than one session
+of work, and that is exactly the fork the flow puts `/to-spec` on the far side of.
 
-- **Issues are GitHub Issues** on `yutaasakura96/kioku`, via `gh`. ⚠️ **The repo is public, so the
-  issues are** — the `03` §13.1 values stay out of issue bodies exactly as they stay out of the code.
-  PRs are **not** a request surface; the flag in `issue-tracker.md` is off.
-- **The five triage labels keep their canonical names** — nothing in the repo collided.
-- **Domain docs are single-context**, which is what `CONTEXT.md` and `docs/adr/` already were. The
-  setup changed no layout; it recorded the one that exists.
+**The order, and why each step exists:**
 
-⚠️ **The next thing is the first ticket.** [`START-HERE.md`](../START-HERE.md) was rewritten for this
-phase on 2026-09-08 and carries the prompt that opens it, plus the four things the documents already
-constrain about ticket order.
+1. **`/to-spec`** — synthesis, no interview. It reads the documents and publishes one spec to GitHub
+   Issues with `ready-for-agent`. ⚠️ **Scope it to ADR 0001's first milestone** — paste two pages →
+   ~30 vetted cards → studied on two consecutive days, emitting `S10`'s numbers — not to the whole
+   product. It will propose test seams and check them; `11-testing-plan.md` §8 already names five.
+2. **`/to-tickets`** — the route. Tracer-bullet tickets, each declaring its blocking edges. Every
+   ticket should be able to cite the document section it came from; **a ticket with no citation is
+   one somebody made up.**
+3. **`/clear`, then `/implement`** — one ticket per fresh window. It drives `/tdd` internally and
+   closes with `/code-review`.
 
-⚠️ **`04-database-schema.md` is where schema work becomes legal, and it is written**, so the hard
-constraint `CLAUDE.md` §"Hard constraint while planning" imposed — no code, no scaffolding, no schema
-design — has been satisfied rather than lifted. The narrower constraint that replaces it still binds:
-**do not re-open a stack decision on preference**, and **nothing may depend on a Vercel-only
-feature.**
+⚠️ **The tracker is configured but empty** — `gh issue list --state all` returns nothing as of
+2026-09-08. Step 1 is what puts the first thing in it.
 
-| Doc | Blocked on |
-| --- | --- |
-| ~~`08-authentication.md`~~ | **Written 2026-09-06.** ADR 0030 and two decision-log entries |
-| ~~`09-user-flows.md`~~ | **Written 2026-09-07.** ADRs 0031, 0032, 0033, one full log entry and verification §12 |
-| ~~`10-screen-specifications.md`~~ | **Written 2026-09-07.** ADRs 0034, 0035, 0036, four full log entries, an amendment to ADR 0025 and verification §13. **Every item `05` §8 and §10 held open, and every item `09` §9 handed forward, is closed** |
-| ~~`11-testing-plan.md`~~ | **Written 2026-09-07.** ADRs 0037, 0038, 0039, two full log entries and verification §14. Original scope, kept for the record: PRD S12 (exercised export) and S3 (measured median). `04` §14 names what the export test reconciles, and that the `review_log` trigger is itself testable. `08` §11 adds three: refusal on *sign-in* not just signup, a boot failure with the allowlist unset, and a 401 flush surfacing on the end screen. `09` §9 adds five more, including the `from` fallback and a `Z` that must fail on the `RESTRICT` rather than delete. **`10` §11 adds four**, one of which is ⚠️ **a Level A conformance test**: the key handlers must bind to the mode container and not to `document` (verification §13.4) |
+⚠️ **[`START-HERE.md`](../START-HERE.md) §4 constrains the ticket order** and a session that finds it
+late will re-order its own work: ADR 0001's vertical slice comes first, the `noScripts` smoke test is
+cheap and falsifies what the rendering split rests on, the first dependency manifest owes a bot in
+the same commit, and three experiments block nothing. ⚠️ **§1, §2 and §3 were updated 2026-09-08** to
+match: the tracker is done, `/to-spec` is the command, and re-running the setup is now forbidden
+there in writing.
 
 **Three first-week experiments**, none blocking anything:
 
@@ -295,9 +298,12 @@ Nothing.
 
 ## Carrying
 
-- **Use `/grill-with-docs`, always.** Yuta asked for this directly. It cannot be invoked by the
-  model — `disable-model-invocation: true` — so **say so in one line at the top of the phase and
-  let him type it.** Do not run `/project`'s own interview as a substitute.
+- ~~**Use `/grill-with-docs`, always.**~~ ⚠️ **Retired 2026-09-08 — the frontier is empty.** It was
+  the right default for Phases 1–4 and it produced 39 ADRs; there is now nothing left for it to ask,
+  and `CLAUDE.md` § Working agreements says do not run it and do not offer it. **What survives is the
+  half that was never about grilling:** the build commands are `disable-model-invocation: true` too,
+  so a session **says which one to type in one line and stops.** It does not substitute an interview
+  of its own — `/project`'s included.
 - **Grilling asks the whole frontier per round, not one question at a time.** This contradicts
   `CLAUDE.md` § Working agreements, which now records the substitution explicitly. **Rounds win.**
 - **Find facts yourself; never ask Yuta for them.** Rounds 1 and 2 dispatched ten background agents

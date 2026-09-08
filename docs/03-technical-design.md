@@ -617,7 +617,13 @@ and there is no `package.json` and no `requirements.txt` yet. The honest stateme
 corrected trigger: **a manual check on both manifests once they exist, and Renovate or Dependabot
 configured in the same commit that adds the first one.**
 
-**Four pins that a routine cleanup must not touch:**
+**Six pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-08, adding two.** The
+fifth is PGlite's version, which
+[ADR 0038](adr/0038-two-test-databases-split-on-the-line-adr-0019-already-drew.md) made load-bearing
+and `11-testing-plan.md` §10 handed forward rather than amending in. The sixth is `drizzle-orm`,
+which **was already being cited as a pin by two documents that read this section** — `CLAUDE.md`
+§ Tooling state listed it in place of `ts-fsrs`, and ADR 0038 calls it "the version `03` §13.5
+pins" — while this list did not carry it. §13.2 had the reason all along. Both are now here.
 
 - `psycopg[binary]` **≥ 3.2.4** — the floor is the lost-notification fix (§3.1), not a number.
 - **`SudachiDict-core` 20260723** — an upgrade can change the identity of existing notes (§5.3). It
@@ -627,6 +633,18 @@ configured in the same commit that adds the first one.**
   year, and it re-opens that question rather than inheriting the answer.
 - **`ts-fsrs` 5.4.2** — 6.0.0 removes `elapsed_days` (verification §1.2). `04` builds no column on
   it, so the major is survivable, but it is a data review rather than a version bump.
+- **`drizzle-orm` 0.45.2** — a **security floor**, not a preference: the version exists because of a
+  SQL-injection fix in `sql.identifier()` / `sql.as()` (§13.2, verification §6.4). It is also what
+  builds both test databases — 0.45.2 exports `./pglite/migrator` alongside
+  `./node-postgres/migrator` (ADR 0038, verification §14.4), which is what stops the test schema
+  forking from `04`. **Below this version the ORM's own protection is the thing that regresses**, so
+  a downgrade is never a routine cleanup.
+- ⚠️ **`@electric-sql/pglite` 0.5.8, and the Postgres image tag beside it** — ADR 0038, verification
+  §14.1. **This one is a pin in two places and neither half is optional.** `04` defaults every
+  primary key to `uuidv7()`, a Postgres 18 built-in, so a PGlite that regressed to 17 fails on the
+  first `CREATE TABLE` — and PGlite's own documentation does not state which PostgreSQL it builds,
+  which is why 0.5.8 = **PostgreSQL 18.3** had to be measured rather than read. **Nothing will tell
+  you when the two halves diverge except a `uuidv7()` that stops existing.**
 
 ### 13.6 The worst thing an attacker could do
 

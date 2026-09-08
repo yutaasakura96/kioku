@@ -28,11 +28,15 @@ done.
 | `.gitignore` | Present, and `.claude/settings.json` is committed on purpose |
 | Planning docs | `docs/00` through `docs/11`, plus `phase-4-verification.md` and 39 ADRs |
 | Code | **None.** No `package.json`, no `requirements.txt`, no stack on disk |
+| Tracker | **Configured 2026-09-08** — GitHub Issues, `docs/agents/` written. ⚠️ **Empty: zero issues** |
 
-**The one thing that is not done:** the tracker. `/setup-matt-pocock-skills` writes `docs/agents/*.md`
-and picks where tickets live. It was deferred on purpose — the grilling produces the material the
-tickets are made from, and choosing GitHub Issues needs a remote, which now exists. **Running it is
-the first action of the next session**, and §2's prompt says so.
+⚠️ **The tracker is done too, as of 2026-09-08.** `/setup-matt-pocock-skills` ran:
+`docs/agents/issue-tracker.md`, `triage-labels.md` and `domain.md` are written, tickets live in
+**GitHub Issues**, and `CLAUDE.md` § Agent skills points at all three. **Do not run it again.**
+
+**The one thing that is not done: there are no tickets.** `gh issue list --state all` returns
+nothing. The tracker is configured and empty, and filling it is the first action of the next
+session — §2's prompt says how.
 
 ⚠️ **Two things about the remote, because it is public.** `KIOKU_INVITED_EMAIL`, both Neon connection
 strings and the model provider key stay out of the repository — `03` §13.1 lists where each lives.
@@ -51,8 +55,14 @@ shape, not an oversight to fix in a ticket.
 > `CONTEXT.md`.** Do not read the rest of `docs/` yet; there are eleven documents and you want the
 > one for the thing you are building, which is what `CLAUDE.md` § Reading order is for.
 >
-> Then run `/setup-matt-pocock-skills`. It configures the tracker and picks where tickets live —
-> I have a public GitHub remote, so GitHub Issues is available.
+> Then **stop and tell me to type `/to-spec`.** The tracker is already configured — GitHub Issues,
+> `docs/agents/` — but it is empty, and `/to-spec` is what puts the first thing in it. **Scope the
+> spec to ADR 0001's first milestone**, the vertical slice: paste two pages → ~30 vetted cards →
+> studied on two consecutive days, emitting `S10`'s numbers. Not the whole product. After it lands,
+> `/to-tickets`, then `/clear` and `/implement` one ticket per window.
+>
+> ⚠️ **Do not run `/setup-matt-pocock-skills`** — it ran on 2026-09-08 and re-running it re-decides
+> a settled question.
 >
 > Rules, and most of them are about **not** doing things:
 >
@@ -79,10 +89,10 @@ shape, not an oversight to fix in a ticket.
 
 ## 3. What that session should produce
 
-Not code. **A tracker, and tickets that trace to documents.**
+Not code. **A spec, and tickets that trace to documents.**
 
-- `docs/agents/*.md` written, and the ticket location chosen and recorded in `CLAUDE.md`
-  § Tooling state — there is a marked place for the pointer.
+- ~~`docs/agents/*.md` written, and the ticket location chosen.~~ **Done 2026-09-08.**
+- **One spec on GitHub Issues**, labelled `ready-for-agent`, scoped to ADR 0001's first milestone.
 - **Tickets derived from the documents rather than invented.** Every one should be able to name the
   section it comes from; a ticket with no citation is a ticket somebody made up, and after seven
   documents that is a signal, not a coincidence.

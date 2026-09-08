@@ -336,10 +336,13 @@ Named so each is a decision rather than a gap.
 
 ## 10. What this hands forward
 
-- **Phase 6** — the four pins a routine cleanup must not touch (`03` §13.5) now have a fifth
-  neighbour: ⚠️ **PGlite's version is load-bearing.** `04` defaults every primary key to `uuidv7()`,
-  a Postgres 18 built-in, so a PGlite that regressed to 17 would fail on the first migration
-  (verification §14.1). Pin it, and pin the Postgres image tag beside it.
+- ~~**Phase 6** — the four pins a routine cleanup must not touch (`03` §13.5) now have a fifth
+  neighbour.~~ ⚠️ **Discharged 2026-09-08 — `03` §13.5 was amended and the list is now six.**
+  **PGlite's version is load-bearing:** `04` defaults every primary key to `uuidv7()`, a Postgres 18
+  built-in, so a PGlite that regressed to 17 would fail on the first migration (verification §14.1)
+  — pinned as `@electric-sql/pglite` 0.5.8 **with the Postgres image tag beside it**, which is a pin
+  in two places. `drizzle-orm` 0.45.2 was added in the same amendment as the sixth; it had been
+  cited as a pin by `CLAUDE.md` and by ADR 0038 while `03` §13.5 did not carry it.
 - **Phase 6** — `@nuxt/test-utils`' `setup({ host })` runs the e2e tier against an already-running
   server and the docs claim "a significant reduction in test execution timings" (verification §14.3).
   Worth taking once the suite is slow enough to notice, and not before.
