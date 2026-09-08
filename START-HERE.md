@@ -1,8 +1,10 @@
 # Start here — the prompt for the first build session
 
-**Rewritten 2026-09-08.** The previous version of this file opened the grilling session. That
-grilling ran three rounds, closed on 2026-09-07, and produced eleven documents and 39 ADRs. It is
-finished, and this file now opens the phase after it.
+**Rewritten 2026-09-08. §1–§3 amended 2026-09-09.** The previous version of this file opened the
+grilling session. That grilling ran three rounds, closed on 2026-09-07, and produced eleven documents
+and 39 ADRs. It is finished, and this file now opens the phase after it. ⚠️ **The amendment matters:**
+the spec and the tickets are published, so this file no longer opens a *specifying* session — it
+opens an *implementing* one.
 
 This exists so the next session can begin **cold** — no memory of the seven conversations that
 produced `docs/`. Read §1, paste §2.
@@ -28,15 +30,21 @@ done.
 | `.gitignore` | Present, and `.claude/settings.json` is committed on purpose |
 | Planning docs | `docs/00` through `docs/11`, plus `phase-4-verification.md` and 39 ADRs |
 | Code | **None.** No `package.json`, no `requirements.txt`, no stack on disk |
-| Tracker | **Configured 2026-09-08** — GitHub Issues, `docs/agents/` written. ⚠️ **Empty: zero issues** |
+| Tracker | **Configured 2026-09-08, filled 2026-09-08** — GitHub Issues. **#1 is the spec, #2–#14 are the tickets** |
+| Labels | All five canonical roles exist: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix` |
 
 ⚠️ **The tracker is done too, as of 2026-09-08.** `/setup-matt-pocock-skills` ran:
 `docs/agents/issue-tracker.md`, `triage-labels.md` and `domain.md` are written, tickets live in
 **GitHub Issues**, and `CLAUDE.md` § Agent skills points at all three. **Do not run it again.**
 
-**The one thing that is not done: there are no tickets.** `gh issue list --state all` returns
-nothing. The tracker is configured and empty, and filling it is the first action of the next
-session — §2's prompt says how.
+**The tickets exist too, as of 2026-09-08.** `/to-spec` published **#1**, scoped to ADR 0001's first
+milestone; `/to-tickets` published **#2–#14**, thirteen tracer-bullet tickets, each labelled
+`ready-for-agent`, each citing the document section it came from, each listing its blockers by real
+issue number. ⚠️ **Do not run either command again** — a second `/to-spec` publishes a duplicate spec.
+
+**The one thing that is not done is the code.** There is still no `package.json` and no stack on
+disk. **The frontier is one ticket: [#2](https://github.com/yutaasakura96/kioku/issues/2), the only
+one with no blockers** — scaffold the repo and prove the rendering split. §2's prompt says how.
 
 ⚠️ **Two things about the remote, because it is public.** `KIOKU_INVITED_EMAIL`, both Neon connection
 strings and the model provider key stay out of the repository — `03` §13.1 lists where each lives.
@@ -48,21 +56,26 @@ shape, not an oversight to fix in a ticket.
 
 ## 2. The prompt — paste this as the first message
 
-> I'm picking up **Kioku** at the start of the build phase. Planning is finished: eleven documents,
-> 39 ADRs, and an empty frontier. **Nothing is open and nothing needs deciding.**
+> I'm picking up **Kioku** at the start of the build phase. Planning **and ticketing** are both
+> finished: eleven documents, 39 ADRs, an empty frontier, and fourteen issues on the tracker.
+> **Nothing is open and nothing needs deciding.**
 >
 > **Read `docs/00-status.md` first — all of it, including § Carrying — then `CLAUDE.md`, then
 > `CONTEXT.md`.** Do not read the rest of `docs/` yet; there are eleven documents and you want the
 > one for the thing you are building, which is what `CLAUDE.md` § Reading order is for.
 >
-> Then **stop and tell me to type `/to-spec`.** The tracker is already configured — GitHub Issues,
-> `docs/agents/` — but it is empty, and `/to-spec` is what puts the first thing in it. **Scope the
-> spec to ADR 0001's first milestone**, the vertical slice: paste two pages → ~30 vetted cards →
-> studied on two consecutive days, emitting `S10`'s numbers. Not the whole product. After it lands,
-> `/to-tickets`, then `/clear` and `/implement` one ticket per window.
+> Then **read the frontier ticket with `gh issue view 2`, and issue #1 for the spec it hangs off**,
+> and **stop and tell me to type `/implement 2`.** The tracker is configured *and filled*: **#1 is
+> the spec**, scoped to ADR 0001's vertical slice — paste two pages → ~30 vetted cards → studied on
+> two consecutive days, emitting `S10`'s numbers — and **#2–#14 are the tickets**. **#2 is the only
+> one with no blockers.**
 >
-> ⚠️ **Do not run `/setup-matt-pocock-skills`** — it ran on 2026-09-08 and re-running it re-decides
-> a settled question.
+> ⚠️ **Do not run `/to-spec` or `/to-tickets`** — both ran on 2026-09-08, and a second `/to-spec`
+> publishes a duplicate spec over a tracker that is already correct. **Do not run
+> `/setup-matt-pocock-skills`** either — it ran on the same day and re-running it re-decides a
+> settled question.
+>
+> After #2 lands: `/clear`, then `/implement <n>` for the next unblocked ticket, one per window.
 >
 > Rules, and most of them are about **not** doing things:
 >
@@ -89,17 +102,18 @@ shape, not an oversight to fix in a ticket.
 
 ## 3. What that session should produce
 
-Not code. **A spec, and tickets that trace to documents.**
+**Code.** The specifying is over.
 
 - ~~`docs/agents/*.md` written, and the ticket location chosen.~~ **Done 2026-09-08.**
-- **One spec on GitHub Issues**, labelled `ready-for-agent`, scoped to ADR 0001's first milestone.
-- **Tickets derived from the documents rather than invented.** Every one should be able to name the
-  section it comes from; a ticket with no citation is a ticket somebody made up, and after seven
-  documents that is a signal, not a coincidence.
+- ~~One spec on GitHub Issues, scoped to ADR 0001's first milestone.~~ **Done 2026-09-08 — issue #1.**
+- ~~Tickets derived from the documents rather than invented, each naming its section.~~ **Done
+  2026-09-08 — #2–#14.** The rule that produced them still stands for anything added later: a ticket
+  with no citation is a ticket somebody made up.
+- **Ticket #2 implemented**: the two toolchains, the five test tiers, six stub routes with their real
+  route rules, and `11` §6.1's four `noScripts` assertions passing. ⚠️ **The dependency bot ships in
+  the same commit as the first manifest** — `03` §13.5, six pins, each with a stated reason.
 - `docs/00-status.md` updated — it is the memory, and it is the file the session after this one
   reads first.
-
-Then, and only then: scaffolding.
 
 ---
 
@@ -118,8 +132,9 @@ decided and a session that discovers them late will re-order its own work:
   in `11` §6.1 rather than a `curl`, and it falsifies the assumption the whole rendering split rests
   on. Cheap, and cheapest first.
 - **The first commit that adds a dependency manifest owes a bot in the same commit** (`03` §13.5) —
-  a bot has nothing to read until a `package.json` or `requirements.txt` exists. Five pins a routine
-  bump must not touch are listed there and in `CLAUDE.md` § Tooling state.
+  a bot has nothing to read until a `package.json` or `requirements.txt` exists. **Six** pins a
+  routine bump must not touch are listed there and in `CLAUDE.md` § Tooling state. ⚠️ **Corrected
+  2026-09-09** — this said *five*; `03` §13.5 is the list and it has six.
 - **Two experiments stay experiments** and neither blocks anything: one `psycopg.connect()` against
   the direct Neon endpoint, and whether an idle `LISTEN` defers Neon's scale-to-zero. ⚠️ A third
   joins them — **`S3`'s first real run of twenty notes**, which is an experiment rather than a test
