@@ -2,15 +2,32 @@
 
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
-**Phase:** 5 — Configure the repo. **Complete.** `CLAUDE.md`, the committed `.claude/settings.json`
-and the three `docs/agents/` files are all written; the tracker is GitHub Issues on a public remote.
-Phases 1–5 are closed. **39 ADRs**, eleven documents, an empty frontier. **Nothing is owed.**
-**Next: Phase 6 — Build.** ⚠️ **It opens with `/to-spec`, and the tracker is empty — zero issues.**
-**Updated:** 2026-09-08
+**Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
+**39 ADRs**, eleven documents, an empty frontier, and **fourteen open issues** on the tracker.
+**Nothing is owed.**
+**Next: the first ticket.** ⚠️ **The tracker holds #1 (the spec) and #2–#14 (the tickets), and the
+frontier is one ticket — #2, the only one with no blockers.**
+**Updated:** 2026-09-09
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, the spec and the route — 2026-09-08.** `/to-spec` published **issue #1**, scoped to
+ADR 0001's first milestone; `/to-tickets` published **#2–#14**, thirteen tracer-bullet tickets, every
+one labelled `ready-for-agent`, every one citing the document section it came from, every one listing
+its blockers by real issue number. The three missing triage labels — `needs-triage`, `needs-info`,
+`ready-for-human` — were created in the same session, so all five canonical roles now exist.
+
+Two decisions from that session that are invisible in the tickets themselves:
+
+- **The outbox and the `S9` flag are one ticket, #13**, not two. ADR 0039's third property — *replays
+  in order, never merges* — is only assertable across **two entry types in one stream**, so splitting
+  them would have made the property untestable in the first half. The breakdown was drafted as
+  fourteen tickets and merged to thirteen on Yuta's call.
+- **#12 (Review) is blocked by #10 (Vet mechanics), not by #11 (Vet presentation).** Review needs
+  minted *cards*, which #10 delivers; the *facts strip* and the provenance marker do not gate it.
+  Confirmed rather than assumed.
 
 **Phase 5 — complete 2026-09-08.** `/setup-matt-pocock-skills` ran. `docs/agents/issue-tracker.md`,
 `triage-labels.md` and `domain.md` are written, `CLAUDE.md` § Agent skills points at all three, and
@@ -252,32 +269,38 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/to-spec`, in a fresh window.** Not `/grill-with-docs` — the frontier is
-empty and every question that was open has an ADR or a dated entry. Not `/implement` either: the
-first milestone is a vertical slice across a repo with no code in it, which is more than one session
-of work, and that is exactly the fork the flow puts `/to-spec` on the far side of.
+⚠️ **The next command is `/implement 2`, in a fresh window.** `/to-spec` and `/to-tickets` have both
+run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is the next command, and
+neither is `/grill-with-docs`, whose frontier is empty.
 
-**The order, and why each step exists:**
+**The frontier is one ticket: [#2](https://github.com/yutaasakura96/kioku/issues/2) — "Scaffold the
+repo and prove the rendering split."** It is the only issue with no blockers. It is deliberately
+first and deliberately unglamorous: it front-loads the four `noScripts` assertions of `11` §6.1,
+because **ADR 0020's revisit condition is literally that `noScripts` proves not to survive the
+deployment target**, neither vendor documents that it does, and nothing upstream tests it. ⚠️ It also
+**owes the dependency bot in the same commit as the first manifest** (`03` §13.5, six pins).
 
-1. **`/to-spec`** — synthesis, no interview. It reads the documents and publishes one spec to GitHub
-   Issues with `ready-for-agent`. ⚠️ **Scope it to ADR 0001's first milestone** — paste two pages →
-   ~30 vetted cards → studied on two consecutive days, emitting `S10`'s numbers — not to the whole
-   product. It will propose test seams and check them; `11-testing-plan.md` §8 already names five.
-2. **`/to-tickets`** — the route. Tracer-bullet tickets, each declaring its blocking edges. Every
-   ticket should be able to cite the document section it came from; **a ticket with no citation is
-   one somebody made up.**
-3. **`/clear`, then `/implement`** — one ticket per fresh window. It drives `/tdd` internally and
-   closes with `/code-review`.
+**The dependency order, so no session re-derives it:**
 
-⚠️ **The tracker is configured but empty** — `gh issue list --state all` returns nothing as of
-2026-09-08. Step 1 is what puts the first thing in it.
+```
+#2 scaffold ──┬─→ #3 subject declaration ──┐
+              └─→ #4 schema ─→ #5 identity ─→ #6 ingest ─┐
+                                               #4,#6 ─→ #7 worker loop
+                                        #3,#7 ─→ #8 pipeline 1–5 ─→ #9 generation
+                                               #9 ─→ #10 vet mechanics ─┬─→ #11 vet presentation
+                                                                        └─→ #12 review
+                                                            #12 ─→ #13 outbox ─┐
+                                                                     #6,#13 ─→ #14 stats
+```
+
+**How the rest of the phase runs:** **`/clear`, then `/implement <n>`** — one ticket per fresh
+window. It drives `/tdd` internally and closes with `/code-review`.
 
 ⚠️ **[`START-HERE.md`](../START-HERE.md) §4 constrains the ticket order** and a session that finds it
 late will re-order its own work: ADR 0001's vertical slice comes first, the `noScripts` smoke test is
 cheap and falsifies what the rendering split rests on, the first dependency manifest owes a bot in
-the same commit, and three experiments block nothing. ⚠️ **§1, §2 and §3 were updated 2026-09-08** to
-match: the tracker is done, `/to-spec` is the command, and re-running the setup is now forbidden
-there in writing.
+the same commit, and three experiments block nothing. **The published tickets already honour all
+four.**
 
 **Three first-week experiments**, none blocking anything:
 
