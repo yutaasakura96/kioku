@@ -5,13 +5,55 @@ and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
 **40 ADRs**, eleven documents, an empty frontier, and **eleven open issues** on the tracker.
 **Nothing is owed.**
-**#2, #4 and #5 are closed.** ⚠️ **The frontier is #3 (the subject declaration) and #6 (ingest and
-sources).** There is a schema, and there is now a door: the longer chain is open two links deep.
-**Updated:** 2026-09-09
+**#2, #3, #4 and #5 are built.** ⚠️ **The frontier is [#6](https://github.com/yutaasakura96/kioku/issues/6)
+alone** — ingest and sources, the next link on the long chain. There is a schema, a door, and a
+*subject* declaration that both toolchains read.
+**Updated:** 2026-09-10
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #3 — the subject declaration, 2026-09-10.** **One file, two toolchains, and a test that
+runs one language from the other.** `subjects/jlpt-vocab.json` is ADR 0003's declaration as
+language-neutral JSON at the repository root: the six fields with their `kind` and `memory_bearing`
+flags, ADR 0006's *identity key*, the one recognition *template*, and `03` §5.1's seven stages in
+order. TypeScript reads it through `shared/subject/`, Python through `worker/subject.py`, and
+**neither restates it** — every list is derived from the file.
+
+`03` §6's seam exists twice: `validate(declaration, output) → ok | error`, in both languages, over
+one file. ⚠️ **The two answer with the same error codes in the same order by contract** — a message
+string would not have survived translation — and both suites assert the order.
+
+**Suite: 147 TypeScript passing** (was 106) **plus 47 pytest.** Typecheck, build and
+`drizzle-kit check` clean. ⚠️ **Fifteen sabotages, fifteen distinct failures**, and three of them ran
+in the language that did not contain the bug.
+
+⚠️ **`/code-review` found two real divergences after both suites were green** — `null`, and six
+whitespace characters. Both are in § Carrying, both are fixed, and both are now tested on each side.
+
+**Five things this session decided rather than transcribed**, all in `06-decision-log.md`:
+
+- **A declared field names its own roles; only ordered sets stay lists.** `kind` and `memory_bearing`
+  are flags, so neither can name a field that does not exist. `identity_key` and a *template*'s two
+  sides stay lists because they are ordered and may repeat a name — and those are exactly what
+  `checkDeclaration` guards, in both languages.
+- **The memory-bearing fields are `reading` and `meaning`** — the one *template*'s answer (`PRD` §6),
+  not the subset that is also editable. ⚠️ `reading` can never change today; encoding that would bake
+  ADR 0006's freeze rule into a flag ADR 0011 defines by what was *memorised*.
+- ⚠️ **TypeScript's derived types are still only `string`** — measured. See § Carrying.
+- ⚠️ **`null` is an absent field, and emptiness is a shared character class** — the two divergences
+  the review found. See § Carrying.
+- **The worker's toolchain is uv, Python 3.11, and Renovate needed no change.** See § Carrying.
+- **The drift test runs `node scripts/print-subject-view.ts` from pytest**, and fails rather than
+  skips when Node is missing.
+
+⚠️ **What #3 deliberately did not build: ADR 0005's authority list and its precedence order.** `04`
+§5.6 makes `level_claim.authority_key` a key into the declaration and `04` §13 says the precedence
+order is declared there too — but which publications count as *authorities* for JLPT levels is a data
+decision ADR 0005 left open, and #3's acceptance criteria do not ask for it. The keys are additive, so
+the ticket that first renders a *level* lands them without moving anything. It is named in
+`subjects/README.md`.
 
 **Phase 6, #5 — identity, 2026-09-09.** **The door, two independent refusals, and the gate.** `S1` is
 answered as far as it can be without Google: an unauthenticated request to any of the five screens is
@@ -329,12 +371,12 @@ Seven findings worth knowing without opening it:
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
-**⚠️ [#5](https://github.com/yutaasakura96/kioku/issues/5) closed 2026-09-09.** **There is a door
-now.** [#6](https://github.com/yutaasakura96/kioku/issues/6) (ingest and sources) is unblocked, and
-[#3](https://github.com/yutaasakura96/kioku/issues/3) (the subject declaration) was never blocked.
-**They are independent; either can go first.** #6 is on the longer chain — #6 → #7 → #8 — and it
-inherits the gate, so its routes are behind a session before it writes a line. #3 is a leaf that
-#8 needs.
+**⚠️ [#3](https://github.com/yutaasakura96/kioku/issues/3) built 2026-09-10.** **The frontier is
+[#6](https://github.com/yutaasakura96/kioku/issues/6) alone** — ingest and sources. Everything else
+that is unblocked is downstream of it: #7 needs #6, and #8 needs #7 as well as #3. #6 inherits the
+gate, so its routes are behind a session before it writes a line.
+
+~~**#5 closed 2026-09-09.** #6 and #3 are independent; either can go first.~~ **#3 went first.**
 
 ⚠️ **#6 also inherits a debt #5 could not pay: the e2e tier can no longer see a signed-in
 document**, because there is no way to sign in without Google. `11` §6.1 names what that took away
@@ -395,6 +437,64 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **TypeScript widens every string in an imported JSON module, so the declaration is derived and
+  still untyped.** `typeof declaration.fields[number]['name']` reads exactly like it produces a union
+  of the six field names; it produces `string`, and `const x: FieldName = 'zzz'` compiles — measured
+  2026-09-10. **Nothing in `subjects/jlpt-vocab.json` is checked by `tsc`**, which is why both
+  languages carry a `checkDeclaration` over the file's own shape as well as the `validate` seam, and
+  why `03` §6's "the guard is a test, not a convention" is the only option rather than a preference.
+  ⚠️ **A future session will reach for codegen to fix this.** It was considered and lost on what it
+  buys: TypeScript's consumers *iterate* the declaration — *Vet* renders the judgement fields,
+  *Review* renders a template — rather than naming fields, so a literal union would guard almost
+  nothing for a generator, a generated file and a diff test.
+- ⚠️ **The declaration's roles are flags, and that is load-bearing.** `kind` and `memory_bearing` sit
+  on the field, so neither can name a field that does not exist. `identity_key` and a *template*'s
+  `prompt` / `answer` stay lists because they are ordered and may repeat a name — `04` §5.3 renders
+  the key "in the order the subject declaration lists them" — and those two are what
+  `checkDeclaration` exists to guard. **Do not "regularise" the flags into parallel lists**; it would
+  re-open the drift the flags close.
+- ⚠️ **A stage key is also a Python module name.** `03` §10 puts one flat module per stage under
+  `worker/pipeline/`, named by the declaration. `extract-candidates` with a hyphen parses as JSON,
+  reads fine, and cannot be imported — invisible until #8. The drift test asserts every stage key is a
+  legal lowercase identifier, which is the only place that is checked.
+- ⚠️ **Node's ESM resolver is stricter than Vite, and `scripts/print-subject-view.ts` is where it
+  shows.** It will not extension-guess (`ERR_MODULE_NOT_FOUND`, so the import carries `.ts`) and it
+  refuses a JSON module without `with { type: 'json' }` (`ERR_IMPORT_ATTRIBUTE_MISSING`). Vite accepts
+  both forms, so **the repo's own bundler cannot tell you the import is wrong** — only the drift test
+  can, and only because it shells out to Node.
+- **The worker's toolchain is uv, `pyproject.toml` and `uv.lock`, on Python 3.11.** ⚠️ The interpreter
+  is pinned by `worker/.python-version` and **not** by `.tool-versions`, because uv reads the first
+  and not the second and two files pinning one interpreter is the drift this project spends its time
+  refusing; `.tool-versions` carries a comment pointing at it. 3.11 is the line verification §7.3
+  measured SudachiPy's 9 ms load on. ⚠️ **`03` §13.5's bot rule is satisfied without touching
+  `renovate.json`** — Renovate's `pep621` manager matches `pyproject.toml` wherever it sits, reads
+  PEP 735 `[dependency-groups]`, and maintains `uv.lock` (verified 2026-09-10). The two Python pins
+  written months ago finally have a file to attach to.
+- ⚠️ **Two cross-language divergences were found by review, not by the suites, and both are now
+  tested.** Both implementations were written, both suites were green, and the two still disagreed.
+  **`null`**: TypeScript called it `not_a_string`, Python called it `missing` — and on an *optional*
+  field that was one accepting what the other refused. It is an **absent field** in both now.
+  **Whitespace**: `trim()` and `str.strip()` differ on exactly six characters across the BMP (swept,
+  not recalled) — Python strips `U+001C`–`U+001F` and `U+0085`, JavaScript strips `U+FEFF` — and
+  ⚠️ **`U+001F` is what `04` §5.3 joins the *identity key* with.** Emptiness is now a shared character
+  class, the union of the two, written the same way on both sides. ⚠️ **It is anchored `\A…\Z` in
+  Python and `^…$` in JavaScript deliberately**: Python's `$` also matches before a trailing newline,
+  which would have been a seventh divergence. **The lesson is the general one** — "the two agree" was
+  in three documents and in neither suite until someone compared the two implementations line by line.
+- **The `validate` seam exists twice and the error *codes* are the contract, not the messages.** Both
+  languages report declared fields in declaration order and then unknown keys in the order the output
+  carried them. ⚠️ **Do not "improve" either side's error strings into prose** — the order and the
+  codes are what the two suites assert, and a message would not survive translation.
+- ⚠️ **The declaration's `validate` tests use a two-field synthetic, on purpose.** A test written
+  against `jlpt-vocab.json`'s real six would pass for the wrong reason the day the validator
+  hard-codes one of them. The real file gets its own tests — that it is internally consistent, and
+  that it names what ADR 0006, ADR 0011, `03` §5.1 and `PRD` §6 say it must.
+- ⚠️ **ADR 0005's authority list is owed and no ticket owns it.** `04` §5.6 makes
+  `level_claim.authority_key` a key into the *subject* declaration and `04` §13 puts the precedence
+  order there too. #3 did not build either: which publications count as *authorities* is a data
+  decision ADR 0005 left open, not something to invent, and #3's acceptance criteria do not ask.
+  The keys are additive. **The ticket that first renders a *level* lands them** — same shape as the
+  `05` tokens gap below.
 - ~~**Use `/grill-with-docs`, always.**~~ ⚠️ **Retired 2026-09-08 — the frontier is empty.** It was
   the right default for Phases 1–4 and it produced 39 ADRs; there is now nothing left for it to ask,
   and `CLAUDE.md` § Working agreements says do not run it and do not offer it. **What survives is the
