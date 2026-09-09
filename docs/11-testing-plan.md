@@ -235,6 +235,45 @@ never *enabled*, and its three enabling values are `'all'`, `'production'` and `
 **What survives as a first-week experiment:** nothing here. The `psycopg.connect()` probe and the
 Neon scale-to-zero question stay experiments, because neither is an assertion about our code.
 
+⚠️ **Amended 2026-09-09, while building #5 — the gate moved two of these and took one away.** `08`
+§6.3 put the three *places* and the two *modes* behind a session, so an **unauthenticated** e2e
+request to any of the five is now a `302` to `/auth` and there is no document to read. The
+assertions did not stop being true; four of them stopped being reachable from where they were
+written. Where each one is now:
+
+1. **Assertion 1 is carried by `/auth/refused`**, which is public and carries the same
+   `noScripts: true`. What the assertion can observe is that *the rule strips scripts from a
+   document Nuxt emitted*, and the refusal page differs from a *place* in nothing the renderer sees.
+   ⚠️ **What is genuinely no longer observed is the signed-in case** — that Ingest, Sources and
+   Stats ship no JavaScript *to a reader who is in*. That needs an authenticated browser, which
+   needs a session row, which needs a database in the e2e tier — scope ADR 0038 deliberately kept
+   out of the TypeScript suite. **#10 cannot be tested at all without an authenticated e2e context**,
+   so that is where the context should land and where these three routes rejoin assertion 1.
+2. ⚠️ **Assertion 2 moved to `test/nuxt/`, and got stronger rather than weaker.** The amendment
+   above concluded it had to run in a browser, and the reasoning was right up to its last step: the
+   two forms render the same `href`, so the assertion has to **click**. It does — but **a mounted
+   component can be clicked**, which was not tried. Measured 2026-09-09:
+
+   ```
+   external : <a href="/stats">Done</a>   click → event.defaultPrevented === false
+   bare     : <a href="/stats">Done</a>   click → event.defaultPrevented === true
+   ```
+
+   Identical markup, opposite in one bit. `false` is the property `external` exists for — the click
+   falls through to the browser and a real document load is what strips the *mode*'s JavaScript;
+   `true` is Vue Router intercepting it. It is now `test/nuxt/modes.test.ts`, it covers **both**
+   modes rather than iterating one, it takes milliseconds instead of a browser, and its failure
+   names the cause instead of reporting a `<script>` in a page. **Verified by sabotage both ways.**
+3. **Assertion 3 is carried by `/auth`.** If `features.noScripts` were set app-wide the door would
+   ship no JavaScript either, and the door is the one route that both needs JavaScript and is
+   public. That the *modes* carry `ssr: false` is assertion 4's job and always was.
+4. **Assertion 4 is unchanged** — it reads `nuxt.config` and never makes a request, so the gate
+   cannot reach it. It is also the assertion that still holds *which* routes carry `noScripts`, and
+   it is now the only one that does.
+
+**The e2e tier no longer opens a browser at all.** `playwright-core` stays in the manifest: #10
+brings the browser back with a session behind it.
+
 ### 6.2 The key-handler binding — not testable directly, and it does not need to be ⚠️
 
 `10` §11 calls this a Level A conformance test: the handlers must bind to the mode container, not to

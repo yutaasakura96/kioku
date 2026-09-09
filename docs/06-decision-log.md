@@ -631,6 +631,60 @@ so the correction is now held by a test rather than by a paragraph.
 
 **Revisit if.** The CLI gains a `--schema` flag, which would make the flagged form correct again.
 
+### [2026-09-09] One `overrides` entry buys the install, and `--legacy-peer-deps` does not
+**Decision.** `package.json` carries `"overrides": { "better-auth": { "vitest": "$vitest" } }`, and
+`better-auth` is pinned at **1.7.3 exactly** — a seventh pin in `03` §13.5.
+
+**Alternatives considered.** *`--legacy-peer-deps`* — rejected, and it is the one the error message
+suggests: it turns off peer checking for the life of the project, for every package, to get past one
+optional peer. *Downgrade `vitest` to 4* — rejected: the suite is on 5 and the peer is for test
+helpers this project never imports. *Leave `better-auth` uninstalled and keep generating from a
+scratch install* — that is what #4 did, and #5 needs the runtime dependency.
+
+**Reason.** `better-auth` declares `vitest` as an **optional** peer at `^2 || ^3 || ^4`. npm still
+refuses the install when the package is present in the tree at another major — measured 2026-09-09,
+`ERESOLVE` on npm 12.0.2. The override is scoped to `better-auth`'s own subtree and touches nothing
+else; the install added seven packages, with no SvelteKit and no TanStack Start among them, which is
+what `00-status.md` § Carrying predicted would arrive. The exact pin is a separate point and a
+stronger one: `08` §7 generates the four tables and remaps nothing **so the file can be regenerated
+and diffed**, and that only means something against a known version.
+
+**Revisit if.** `better-auth` widens the `vitest` peer range — then remove the override, and not
+before.
+
+### [2026-09-09] The `external` guard is a click, not a browser
+**Decision.** The assertion that a *mode*'s Done control carries `external` (ADR 0032) lives in
+`test/nuxt/modes.test.ts` as a mounted-component click, not in `test/e2e/` as a browser navigation.
+`11` §6.1 is amended.
+
+**Alternatives considered.** *Keep it in e2e and give that tier an authenticated browser* —
+rejected **for now**: it needs a session row, which needs a database in the TypeScript suite, which
+is scope ADR 0038 deliberately kept out. #10 cannot be tested at all without an authenticated e2e
+context, so the context lands there and pays for itself. *Assert the rendered markup* — rejected,
+and this is the trap: both forms render `<a href="/stats">`.
+
+**Reason.** #5 put both *modes* behind the session gate, so the browser test could no longer reach
+the control — an unauthenticated `/vet` is a `302`. Measured while fixing it: `external` and a bare
+`<NuxtLink>` produce identical markup and opposite `event.defaultPrevented` on click — `false` and
+`true`. The click was the necessary part; the browser never was. The replacement covers both modes,
+runs in milliseconds, and names the cause when it fails. **Verified by sabotage in both directions.**
+
+**Revisit if.** #10 lands an authenticated e2e context — at which point the browser assertion is
+cheap again, and `11` §6.1 lists what should rejoin it.
+
+### [2026-09-09] The auth instance imports `better-auth/minimal`
+**Decision.** `server/utils/auth.ts` imports `betterAuth` from `better-auth/minimal`. `08` §10 is
+amended, along with the `schemaName` the same block omitted.
+
+**Alternatives considered.** *The default entry point*, which is what `08` §10 wrote — it works, and
+it carries Kysely into a function that already has Drizzle.
+
+**Reason.** The package documents the default export as "full mode (with Kysely)" and points a
+`drizzleAdapter` configuration at `minimal` in its own JSDoc. `08` §10 was written before there was a
+package on disk to read. No behaviour changes.
+
+**Revisit if.** A plugin this project adopts turns out to need the full builder.
+
 
 ## Still open
 
@@ -693,9 +747,10 @@ answer or a dated entry.
   excepts the card un-minted by `Z` inside the run that minted it (ADR 0033).
 - ~~⚠️ **`03-technical-design.md` §8.1 describes the outbox as carrying *grades*.**~~
   **Applied 2026-09-07.** §8.1 now says it carries *grades* and `S9` flags (`09` §4.9).
-- **The `external` prop on every *mode* exit** (`09` §5.2, verification §12.1). It works in
-  development and quietly ships a hydrated *place* in production, so it belongs on the same list as
-  the `noScripts` smoke test — the same `curl`-and-grep proves both.
+- ~~**The `external` prop on every *mode* exit** (`09` §5.2, verification §12.1).~~ **Closed
+  2026-09-09.** It was a test from #2 and it is a better one since #5: `test/nuxt/modes.test.ts`
+  clicks Done on both *modes* and asserts the click was not intercepted. The `curl`-and-grep this
+  line imagined could never have proved it — both forms render the same `href`.
 
 ## Adding an entry
 

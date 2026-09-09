@@ -617,7 +617,8 @@ and there is no `package.json` and no `requirements.txt` yet. The honest stateme
 corrected trigger: **a manual check on both manifests once they exist, and Renovate or Dependabot
 configured in the same commit that adds the first one.**
 
-**Six pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-08, adding two.** The
+**Seven pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-09, adding `better-auth`**
+— the last bullet. ⚠️ **Amended 2026-09-08, adding two.** The
 fifth is PGlite's version, which
 [ADR 0038](adr/0038-two-test-databases-split-on-the-line-adr-0019-already-drew.md) made load-bearing
 and `11-testing-plan.md` §10 handed forward rather than amending in. The sixth is `drizzle-orm`,
@@ -645,6 +646,28 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
   first `CREATE TABLE` — and PGlite's own documentation does not state which PostgreSQL it builds,
   which is why 0.5.8 = **PostgreSQL 18.3** had to be measured rather than read. **Nothing will tell
   you when the two halves diverge except a `uuidv7()` that stops existing.**
+- ⚠️ **`better-auth` 1.7.3, exactly** — added 2026-09-09 with #5. `08` §1 names the version and
+  `08` §7 builds a practice on it: the four tables are **generated** into
+  `server/db/schema/auth.ts` and nothing in them is remapped, **precisely so the file can be
+  regenerated and diffed against what is deployed.** That only means anything against a known
+  version. A minor bump that changes a generated column changes the shape of a table this project
+  does not own, and drizzle-kit would emit the migration without anyone deciding to. **It is a
+  regenerate-and-review event, not a version bump** — the same shape as `SudachiDict-core` above,
+  for the same reason.
+
+⚠️ **One `overrides` entry, and it is not a pin.** `package.json` carries
+`"overrides": { "better-auth": { "vitest": "$vitest" } }`.
+
+`better-auth` declares `vitest` as an **optional peer** at `^2 || ^3 || ^4`, for test helpers this
+project never imports; the repo is on `vitest` 5, and npm refuses the install over a peer nothing
+uses — measured 2026-09-09, `ERESOLVE` on npm 12.0.2. The override says that peer is satisfied by
+the version already in the tree, and it is scoped to `better-auth`'s own subtree: the install added
+seven packages, with no SvelteKit and no TanStack Start among them.
+
+⚠️ **`--legacy-peer-deps` is the wrong answer, and it is the one the error message suggests.** It
+turns off peer checking **for the life of the project** — every future mismatch, in every package,
+silently — to get past one optional peer. Remove the override when `better-auth` widens the range,
+not before.
 
 ### 13.6 The worst thing an attacker could do
 

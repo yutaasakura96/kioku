@@ -473,9 +473,21 @@ spend money has no internet-facing surface.
 Not code — the settled shape, so that Phase 6 writes it rather than re-deciding it. Every value here
 is cited above.
 
+⚠️ **Amended 2026-09-09 (#5), two lines of it.** Both were written before there was a package on
+disk to read, and reading it changed them:
+
+- **The import is `better-auth/minimal`, not `better-auth`.** The default entry point is documented
+  in its own JSDoc as "full mode (with Kysely)" and points a `drizzleAdapter` configuration at
+  `minimal` instead. It is not a behavioural difference — it is declining to bundle a second query
+  builder into a function that already has Drizzle.
+- **The adapter carries `schemaName: "auth"`.** §7 already says the CLI must read the *configured*
+  adapter because that is where `schemaName` lives; the block below omitted it, which would have
+  made the generator's corrected invocation produce `public` tables anyway.
+
 ```ts
+// better-auth/minimal — the drizzleAdapter path; the default entry point carries Kysely
 betterAuth({
-  database: drizzleAdapter(db, { provider: "pg" }),
+  database: drizzleAdapter(db, { provider: "pg", schemaName: "auth" }),
 
   socialProviders: {
     google: {
@@ -536,6 +548,9 @@ away.
   an uninvited account is refused **on sign-in as well as at signup** (§3.1); the process refuses to
   start with `KIOKU_INVITED_EMAIL` unset (§4.3); and an outbox flush that 401s surfaces on the end
   screen instead of retrying silently (§5.6).
+  ⚠️ **Two of the three are written, 2026-09-09 (#5)**, and both landed in `test/unit/` rather than
+  e2e: they are assertions over `auth.options`, which Better Auth types as the exact object passed
+  in, so the configuration is a seam and needs no request. The third waits for the outbox (#13).
 - **Phase 6** — the CLI generate step of §7 (⚠️ **not** the `--adapter`/`--dialect` form), once, into Drizzle's
   migration flow (§7).
 - **Phase 6, as a review item rather than a task** — whether Better Auth's sign-in and sign-out
