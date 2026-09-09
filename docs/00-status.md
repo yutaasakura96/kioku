@@ -269,21 +269,28 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 2`, in a fresh window.** `/to-spec` and `/to-tickets` have both
-run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is the next command, and
-neither is `/grill-with-docs`, whose frontier is empty.
+⚠️ **The next command is `/implement 3` or `/implement 4`, in a fresh window.** `/to-spec` and
+`/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
+the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
-**The frontier is one ticket: [#2](https://github.com/yutaasakura96/kioku/issues/2) — "Scaffold the
-repo and prove the rendering split."** It is the only issue with no blockers. It is deliberately
-first and deliberately unglamorous: it front-loads the four `noScripts` assertions of `11` §6.1,
-because **ADR 0020's revisit condition is literally that `noScripts` proves not to survive the
-deployment target**, neither vendor documents that it does, and nothing upstream tests it. ⚠️ It also
-**owes the dependency bot in the same commit as the first manifest** (`03` §13.5, six pins).
+**⚠️ [#2](https://github.com/yutaasakura96/kioku/issues/2) closed 2026-09-09** — `86144de`, merged to
+`main`. **There is code now.** ADR 0020's revisit condition is a passing test rather than a plan, and
+each of its three guards was checked by sabotage rather than assumed: removing `external` fails
+assertion 2, dropping `/stats`'s `noScripts` fails three tests, setting `features.noScripts: 'all'`
+fails the seam test. The dependency bot arrived in the same commit as the first manifest, carrying
+all six pins of `03` §13.5. What it left behind is in § Carrying, and **two of those bullets are
+findings that amended `11` §1 and §6.1**.
+
+**The frontier is now two tickets, and they are independent:**
+[#3](https://github.com/yutaasakura96/kioku/issues/3) — the subject declaration in both languages —
+and [#4](https://github.com/yutaasakura96/kioku/issues/4) — the eighteen tables and the schema tier.
+Either can go first. #4 unblocks the longer chain (#5 → #6 → #7), so it is the one to take if only
+one gets done.
 
 **The dependency order, so no session re-derives it:**
 
 ```
-#2 scaffold ──┬─→ #3 subject declaration ──┐
+#2 scaffold ✔ ─┬─→ #3 subject declaration ──┐
               └─→ #4 schema ─→ #5 identity ─→ #6 ingest ─┐
                                                #4,#6 ─→ #7 worker loop
                                         #3,#7 ─→ #8 pipeline 1–5 ─→ #9 generation
