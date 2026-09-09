@@ -1,2 +1,6 @@
 # Nuxt 4.5.2 requires node ^22.19.0 || ^24.11.0 || >=26.0.0 (03 §2).
 nodejs 24.11.0
+
+# Python is pinned by `worker/.python-version`, which is what uv reads when it
+# builds the worker's environment (`03` §10: two ecosystems, two manifests).
+# 3.11 is the line verification §7.3 measured SudachiPy's 9 ms load on.

@@ -54,7 +54,7 @@ where the suite runs is a Phase 6 question that the plan does not depend on.
 | **Schema** | `test/schema/` | plain Node | **PGlite** | Every constraint, trigger and delete rule in `04`, run by Drizzle's migrations |
 | **Nuxt runtime** | `test/nuxt/` | `// @vitest-environment nuxt` | PGlite | Components, `mountSuspended`, the outbox against a real `localStorage` |
 | **End to end** | `test/e2e/` | a built, running app | PGlite | Rendering, routing, redirects, headers, and the browser tests |
-| **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container** | The pipeline end to end, and the three concurrency behaviours |
+| **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container**, for three tests only | The pipeline end to end, and the three concurrency behaviours. ⚠️ **And two tests that need no container at all**, added 2026-09-10 with #3: the *subject* declaration's Python view, and §7's cross-language drift test |
 
 ⚠️ **`@nuxt/test-utils/runtime` and `@nuxt/test-utils/e2e` cannot be used in the same file**
 (verification §14.3) — they need different environments. That is why `test/nuxt/` and `test/e2e/` are
@@ -351,12 +351,29 @@ erased the distinction the test exists to protect.
 | Resume | A run that fails part-way keeps partial results and re-runs **only unprocessed chunks** (PRD §5) |
 | ⚠️ The cross-language declaration | The Python view of the *subject* declaration matches the JSON file, and its field list matches TypeScript's. `03` §6 already specified this test — it is the two-toolchain tax, and it is the one test that exists in both suites by design |
 
+⚠️ **Built 2026-09-10 with [#3](https://github.com/yutaasakura96/kioku/issues/3), and the last row
+grew.** `worker/tests/test_subject_drift.py` compares **every** derived list — the field list, the
+required and *judgement* and memory-bearing subsets, the *identity key*, the *template* keys and the
+stage keys — not the field list alone, because each of them is derived by its own code on each side
+and each can diverge on its own. It gets TypeScript's answer by running
+`node scripts/print-subject-view.ts`, and it **fails rather than skips when Node is missing**: unlike
+ADR 0038's three container tests, Node is not optional in this repository. Its TypeScript half is
+`test/unit/subject-declaration.test.ts`, and `worker/tests/test_subject.py` carries the Python side of
+the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
+
 ---
 
 ## 8. What is tested at a seam, and what is only tested end to end
 
 **Seams — pure, fast, no database, `test/unit/`:**
 
+- ⚠️ **The *subject* declaration's `validate` seam**, added 2026-09-10 with #3 — `03` §6's
+  `validate(declaration, output) → ok | error`, the function every generated *note* passes through on
+  its way into the database. **It exists twice**, in `shared/subject/validate.ts` and
+  `worker/subject.py`, and the two answer with the same error codes in the same order **by contract**:
+  a message string would not have survived translation, so the codes are the thing both suites assert.
+  ⚠️ Its tests use a two-field synthetic declaration rather than `jlpt-vocab.json` — a test written
+  against the real six would pass for the wrong reason the day the validator hard-codes one of them.
 - **The pipeline stages** as functions over tokens → candidates → notes. `03` §5.1's seven stages are
   already a list of pure transformations.
 - **The FSRS wrapper.** ⚠️ Not FSRS itself — `ts-fsrs` is a dependency with its own suite. What is

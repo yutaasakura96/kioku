@@ -27,5 +27,26 @@ the two halves diverge except a `uuidv7()` that stops existing.* The TypeScript
 half is guarded by an assertion in `test/schema/schema.test.ts`; **#7 owes this
 half the same guard** in its container fixture.
 
-Not run by Vitest. Empty until
+## What is here now
+
+⚠️ **Not empty, and not all of it needs Docker.**
+[#3](https://github.com/yutaasakura96/kioku/issues/3) landed two files that need
+neither a container nor a database:
+
+| File | Asserts |
+| --- | --- |
+| `test_subject.py` | Python's view of the *subject* declaration, and its half of `03` §6's `validate` seam |
+| `test_subject_drift.py` | ⚠️ **`03` §6's cross-language drift test** — Python's derived lists against TypeScript's, by running `scripts/print-subject-view.ts` under Node. `11` §7: "the one test that exists in both suites by design" |
+
+⚠️ **The drift test fails rather than skips when Node is missing.** That is the
+opposite of ADR 0038's three container tests, and deliberately: Node is not
+optional in this repository — the app is a Nuxt app — so a machine without it is
+broken rather than merely Docker-less, and a cross-language guard that quietly
+excuses itself is not a guard.
+
+```bash
+cd worker && uv run pytest
+```
+
+Not run by Vitest. The three tests that need a container arrive with
 [#7](https://github.com/yutaasakura96/kioku/issues/7).

@@ -1,0 +1,72 @@
+{
+  "subject_id": "jlpt-vocab",
+  "name": "JLPT vocabulary",
+  "identity_key": ["term", "reading"],
+  "fields": [
+    {
+      "name": "term",
+      "kind": "lookup",
+      "required": true,
+      "memory_bearing": false,
+      "label": "TERM"
+    },
+    {
+      "name": "reading",
+      "kind": "lookup",
+      "required": true,
+      "memory_bearing": true,
+      "label": "READING"
+    },
+    {
+      "name": "part_of_speech",
+      "kind": "lookup",
+      "required": true,
+      "memory_bearing": false,
+      "label": "POS"
+    },
+    {
+      "name": "meaning",
+      "kind": "judgement",
+      "required": true,
+      "memory_bearing": true,
+      "label": "MEANING"
+    },
+    {
+      "name": "example_sentence",
+      "kind": "judgement",
+      "required": true,
+      "memory_bearing": false,
+      "label": "EXAMPLE"
+    },
+    {
+      "name": "example_gloss",
+      "kind": "judgement",
+      "required": true,
+      "memory_bearing": false,
+      "label": "GLOSS"
+    }
+  ],
+  "templates": [
+    {
+      "key": "recognition",
+      "name": "Recognition",
+      "prompt": ["term"],
+      "answer": [
+        "reading",
+        "meaning",
+        "example_sentence",
+        "example_gloss",
+        "part_of_speech"
+      ]
+    }
+  ],
+  "stages": [
+    { "key": "chunk", "title": "Accept and chunk the source" },
+    { "key": "tokenise", "title": "Tokenise" },
+    { "key": "extract_candidates", "title": "Extract candidates" },
+    { "key": "deduplicate", "title": "Deduplicate against the corpus" },
+    { "key": "filter_known", "title": "Filter known and rejected" },
+    { "key": "generate", "title": "Generate" },
+    { "key": "write_pending", "title": "Write pending notes" }
+  ]
+}

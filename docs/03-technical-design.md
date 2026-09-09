@@ -363,6 +363,25 @@ This is the two-toolchain tax ADR 0019 recorded as its own weakest point, arrivi
 in a shape that was predictable. It is not an argument to reopen ADR 0019; it is what that ADR said
 it would cost.
 
+> ⚠️ **Amended 2026-09-10, with [#3](https://github.com/yutaasakura96/kioku/issues/3), which built
+> this section.** Everything above stands. Four things it could not have known:
+>
+> - **The file is `subjects/jlpt-vocab.json`.** TypeScript's view is
+>   `shared/subject/declaration.ts` and `shared/subject/validate.ts`; Python's is `worker/subject.py`.
+>   Neither restates the declaration — every list is derived from the file.
+> - ⚠️ **"TypeScript derives its types" is weaker than it reads: an imported JSON module arrives
+>   widened.** `typeof declaration.fields[number]['name']` is `string`, not a union of the six names
+>   — measured 2026-09-10. Nothing in the declaration is checked by `tsc`, which is why both sides
+>   carry a `check_declaration` over the file's own shape as well as the `validate` seam. **"The
+>   guard is a test, not a convention" is not a preference here; it is the only option.**
+> - **The cross-language test runs one language from the other.** `worker/tests/test_subject_drift.py`
+>   runs `node scripts/print-subject-view.ts` — Node 24.11.0 strips the types and executes it — and
+>   compares every derived list, not only the field list. Each suite's own half checks its view
+>   against the file; comparing both against the file alone would never catch a divergence in the
+>   deriving code, which is the failure this section is about.
+> - ⚠️ **A stage key is also a Python module name** (§10), so the drift test asserts each one is a
+>   legal lowercase identifier. A hyphen there is invisible until #8 tries to import it.
+
 ---
 
 ## 7. The generation boundary
@@ -616,6 +635,15 @@ as the trigger. That was the wrong trigger — **a bot has nothing to read until
 and there is no `package.json` and no `requirements.txt` yet. The honest statement is a cadence and a
 corrected trigger: **a manual check on both manifests once they exist, and Renovate or Dependabot
 configured in the same commit that adds the first one.**
+
+⚠️ **Amended 2026-09-10:** the Python manifest now exists — `worker/pyproject.toml` with
+`worker/uv.lock`, added by [#3](https://github.com/yutaasakura96/kioku/issues/3), which needed a test
+runner before #7 needed a driver. **Renovate covers it with no change to `renovate.json`**: its
+`pep621` manager matches `/(^|/)pyproject\.toml$/` wherever the file sits, extracts PEP 735
+`[dependency-groups]`, and maintains `uv.lock` (verified against Renovate's own manager
+documentation). The rule this paragraph states — *a bot arrives with the first manifest, not
+afterwards* — is therefore satisfied on both sides, and the first two pins below finally have a file
+to attach to.
 
 **Seven pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-09, adding `better-auth`**
 — the last bullet. ⚠️ **Amended 2026-09-08, adding two.** The

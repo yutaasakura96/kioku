@@ -1,0 +1,33 @@
+# The worker's own manifest. `03` §10: the two ecosystems do not share one, and
+# pretending otherwise is how a two-toolchain repo starts lying about what is
+# installed.
+#
+# ⚠️ Arrived with #3 rather than #7, because #3's Python half needs a test
+# runner and `11` §1 already named it. Renovate's `pep621` manager reads this
+# file — including `[dependency-groups]` (PEP 735) — and maintains `uv.lock`,
+# with no change to `renovate.json`: its default file pattern is
+# `/(^|/)pyproject\.toml$/`, so `worker/` is matched where it sits. Verified
+# 2026-09-10 against Renovate's own manager documentation, which is `03` §13.5's
+# "a bot arrives with the first manifest" satisfied rather than deferred.
+#
+# ⚠️ This project is deliberately **not a package**. `03` §10 puts the pipeline
+# in `worker/pipeline/`, one flat module per stage named by the declaration, and
+# a `src/` layout would put a directory between that list and the declaration it
+# is supposed to mirror.
+
+[project]
+name = "kioku-worker"
+version = "0.0.0"
+description = "The Python ingestion tier — ADR 0015, ADR 0019."
+requires-python = ">=3.11"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -686,6 +686,152 @@ package on disk to read. No behaviour changes.
 **Revisit if.** A plugin this project adopts turns out to need the full builder.
 
 
+### [2026-09-10] A declared field names its own roles; only ordered sets are lists
+**Decision.** In `subjects/*.json`, `kind` (ADR 0004's `lookup` / `judgement`) and `memory_bearing`
+(ADR 0011) are **flags on the field**. `identity_key` and each *template*'s `prompt` / `answer` stay
+**lists of names**. Keys are `snake_case` throughout, the note field names included.
+
+**Alternatives considered.** *Four parallel lists* — `judgement_fields`, `memory_bearing_fields` and
+the rest beside `fields` — which is how ADR 0003 and ADR 0011 describe them in prose.
+*`camelCase` keys*, which is what the TypeScript side would have chosen for itself.
+
+**Reason.** A parallel list can name a field that does not exist; a flag cannot, and two of the four
+sets are unordered and non-overlapping, so a list buys nothing back. The two that stay lists are
+ordered and may repeat a name — `04` §5.3 renders the *identity key* "in the order the subject
+declaration lists them", and a *template* has two sides — so their drift is real and
+`checkDeclaration` checks it in both languages. On casing: `04`'s columns are `snake_case`, the field
+names are keys inside `note.fields` verbatim, and a stage key has to be a legal Python module name
+(`03` §10), so `camelCase` would have been one toolchain's convention winning a file that belongs to
+neither.
+
+**Revisit if.** A subject needs a field to carry a role that is genuinely ordered.
+
+### [2026-09-10] The memory-bearing fields are the *template*'s answer, not the editable ones
+**Decision.** `reading` and `meaning` are memory-bearing in `jlpt-vocab.json`. `part_of_speech`, the
+example sentence and the example gloss are not, and neither is `term`.
+
+**Alternatives considered.** ***`meaning` alone***, which is what the editable set argues for: ADR
+0006 freezes an accepted note's fields, `10` §4.4 lets edit reach exactly the three *judgement
+fields*, and of those only `meaning` invalidates memory — so `reading` can never change and the flag
+can never fire.
+
+**Reason.** ADR 0011 defines memory-bearing by *what was memorised*, and `PRD` §6 says the one
+*template* is "term to reading and meaning" — the reader is being tested on both. Encoding "the
+fields that are both editable and memory-bearing" would bake ADR 0006's freeze rule into a flag that
+is not about editing, and the two come apart the moment a second *template* exists or a re-ingestion
+proposes a corrected reading. A flag that is currently unreachable is cheaper than a flag that is
+quietly wrong.
+
+**Revisit if.** A second *template* lands (`PRD` §6 defers production and kanji-to-reading), which is
+when every field's answer-side membership is re-read anyway.
+
+### [2026-09-10] ⚠️ TypeScript's types are derived from the declaration and are still only `string`
+**Decision.** `shared/subject/declaration.ts` derives every type from the imported JSON —
+`SubjectDeclaration = typeof jlptVocabJson`, and the rest off that. It restates nothing. It also gains
+`checkDeclaration`, a runtime check of the file's own shape, which is the compiler substitute rather
+than a belt-and-braces extra.
+
+**Alternatives considered.** *A hand-written `interface`*, which is a restatement of the file and what
+#3's acceptance criteria refuse. *Codegen into a literal-typed module*, on the regenerate-and-diff
+pattern `08` §7 already uses for Better Auth's four tables.
+
+**Reason.** ⚠️ **Measured 2026-09-10: TypeScript widens every string in an imported JSON module.**
+`typeof declaration.fields[number]['name']` reads exactly like it should produce a union of the six
+names and it produces `string` — `const x: FieldName = 'zzz'` compiles. So a JSON import gives
+derivation without narrowing, and the only routes to a literal union are the two rejected above.
+Codegen was the real candidate and it lost on what it would have bought: TypeScript's consumers
+*iterate* the declaration — *Vet* renders the judgement fields, *Review* renders a template — rather
+than naming fields, so a union would guard almost nothing while adding a generator, a generated file
+and a diff test. `03` §6 said the guard is a test; this is that, taken literally.
+
+**Revisit if.** TypeScript code starts naming fields as literals, or a second subject makes
+`SubjectDeclaration` a union of two files' types.
+
+### [2026-09-10] The worker's toolchain is uv, on Python 3.11, and Renovate needed no change
+**Decision.** `worker/pyproject.toml` (PEP 621) with `[dependency-groups]` and `worker/uv.lock`,
+Python pinned by `worker/.python-version` at `3.11`, `[tool.uv] package = false`. First dependency:
+`pytest==9.1.1`, which `11` §1 had already named.
+
+**Alternatives considered.** *`requirements.txt`*, which is the form `03` §13.5 names in passing — it
+is a manifest and a lockfile at once only if every transitive pin is written into it by hand.
+*Poetry* and *pip-tools*, neither of which is on the machine. *Adding `python` to `.tool-versions`*
+beside `nodejs`, which is the repo's existing convention for a runtime pin.
+
+**Reason.** `worker/README.md` asks for a manifest **and** a lockfile, and `uv.lock` is one without a
+compile step. The Python pin lives in `.python-version` and not in `.tool-versions` because uv reads
+the first and not the second, and two files pinning one interpreter is exactly the drift this project
+spends its time refusing; `.tool-versions` gained a comment pointing at it instead. `3.11` is the line
+verification §7.3 measured SudachiPy's 9 ms load on. Not a package, because `03` §10 wants one flat
+module per stage under `pipeline/`, named by the declaration, and a `src/` layout puts a directory
+between that list and the thing it mirrors.
+
+⚠️ **`03` §13.5's rule — a bot arrives with the first manifest, not afterwards — is satisfied without
+touching `renovate.json`.** Verified 2026-09-10 against Renovate's own documentation: the `pep621`
+manager matches `/(^|/)pyproject\.toml$/` by default, so `worker/` is picked up where it sits, it
+extracts PEP 735 `[dependency-groups]`, and it maintains `uv.lock`. The two pins already written
+against this manifest — `psycopg[binary]` ≥ 3.2.4 and the disabled `SudachiDict-core` — are waiting
+for #7 and #8 and now have a file to attach to.
+
+**Revisit if.** `sudachipy` 0.6.11 turns out not to publish a wheel for 3.11, which is the one thing
+#8 could discover that moves the interpreter.
+
+### [2026-09-10] The drift test runs Node from pytest, over a script in `scripts/`
+**Decision.** `worker/tests/test_subject_drift.py` runs `node scripts/print-subject-view.ts` and
+compares the JSON it prints with its own derivation. The script is type-checked by
+`tsconfig.test.json`, which gained `scripts/**/*`. ⚠️ It **fails** rather than skips when Node is
+absent.
+
+**Alternatives considered.** *A plain `.mjs` reader*, which would have compared Python against a third
+view of the file rather than against TypeScript's. *Comparing both sides against the file only*, which
+is what each suite's own half already does and which cannot catch a divergence in the deriving code —
+the thing `03` §6 is actually worried about. *Skipping when Node is missing*, on the model of
+ADR 0038's three container tests.
+
+**Reason.** `03` §6 asks for "the field list compared across the two", which needs one side able to
+ask the other. Node 24.11.0 strips the types and runs the script directly — measured 2026-09-10 — so
+the question costs one subprocess and no build. It does not skip because Node is not optional here the
+way Docker is: the app is a Nuxt app, so a machine without Node is broken rather than merely lighter,
+and a cross-language guard that excuses itself on the machine where the two disagree is not a guard.
+
+⚠️ **The script's import carries `.ts` and the JSON import carries `with { type: 'json' }`, and
+neither is decoration.** Node's ESM resolver will not extension-guess (`ERR_MODULE_NOT_FOUND`) and
+refuses a JSON module without the attribute (`ERR_IMPORT_ATTRIBUTE_MISSING`); Vite would have accepted
+both forms, so the repo's own bundler cannot tell you this is wrong.
+
+**Revisit if.** Node drops or gates type stripping, in which case the script becomes `.mjs` and reads
+the built output instead.
+
+### [2026-09-10] ⚠️ Two measured cross-language divergences, and what "the same answer" costs
+**Decision.** `null` is an **absent field** in both validators, and emptiness is a **shared,
+explicitly written character class** rather than each language's own idea of whitespace. Both were
+found by review after the two implementations were written and both suites were green.
+
+**What was measured, 2026-09-10.**
+
+- **`null`.** TypeScript read it as a value of the wrong type (`not_a_string`); Python read `None` as
+  a missing field (`missing`). ⚠️ **On an *optional* field that is accept versus refuse, not two
+  spellings of one refusal** — `validate(d, { tail: null })` was `ok` in Python and an error in
+  TypeScript. JSON `null` is what a model returns when it has no answer, so this is an input `03` §7's
+  boundary actually sees.
+- **Whitespace.** `trim()` and `str.strip()` disagree on exactly six characters across the BMP, swept
+  rather than recalled: Python strips `U+001C`–`U+001F` and `U+0085`; JavaScript strips `U+FEFF`.
+  ⚠️ **`U+001F` is the character `04` §5.3 joins the *identity key* with.** A required field holding
+  only it was `empty` in Python and `ok` in TypeScript.
+- **A third, avoided by the fix rather than found in it:** Python's `$` matches before a trailing
+  newline and JavaScript's does not, so the shared class is anchored `\A…\Z` on one side and `^…$` on
+  the other **on purpose**, and `"x\n"` is in both suites' table because of it.
+
+**Alternatives considered.** *Leaving the codes to diverge*, on the grounds that both refuse — false
+for the `null` case, and the codes are what both suites assert. *Recalling ECMAScript's `WhiteSpace`
+production and writing that class* — tried, and wrong: the sweep contradicted it.
+
+**Reason.** Two implementations over one file are only worth having if they answer the same way, and
+the review found that "they agree" had been asserted in three documents and tested in neither. Both
+suites now carry the same five-character table.
+
+**Revisit if.** A third consumer of the declaration appears, which is when a shared fixture beats two
+tables that have to be kept in step by hand.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the

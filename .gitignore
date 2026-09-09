@@ -37,6 +37,7 @@ playwright-report/
 .venv/
 __pycache__/
 *.py[cod]
+.pytest_cache/
 
 # TypeScript incremental build info
 *.tsbuildinfo

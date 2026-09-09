@@ -11,6 +11,16 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["test/unit/**/*", "test/schema/**/*", "test/e2e/**/*", "vitest.config.ts"],
+  "include": [
+    "test/unit/**/*",
+    "test/schema/**/*",
+    "test/e2e/**/*",
+    // `scripts/print-subject-view.ts` is run by Node, not by a bundler — it is
+    // the TypeScript side of `03` §6's cross-language drift test
+    // (`worker/tests/test_subject_drift.py`). It is type-checked here because it
+    // is the one source file in the repository that no other pass covers.
+    "scripts/**/*",
+    "vitest.config.ts",
+  ],
   "exclude": []
 }

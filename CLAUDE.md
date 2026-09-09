@@ -121,6 +121,12 @@ history.
   recorded, and a skill whose instruction is to take an aesthetic risk per brief would push toward
   re-deciding it during implementation. Re-enable it only for a screen or *subject* that genuinely
   needs a fresh direction rather than an extension of the existing one.
+- ⚠️ **Both dependency manifests now exist, and both are covered.** `package.json` arrived with #2;
+  ⚠️ **`worker/pyproject.toml` with `worker/uv.lock` arrived with #3** rather than #7, because #3's
+  Python half needed a test runner. The worker is **uv on Python 3.11**, pinned by
+  `worker/.python-version` — not by `.tool-versions`, which uv does not read. Renovate covers the
+  Python side with **no change to `renovate.json`**: its `pep621` manager matches `pyproject.toml`
+  wherever it sits and maintains `uv.lock` (verified 2026-09-10).
 - ⚠️ **The first commit that adds a dependency manifest owes a bot in the same commit.** `03` §13.5:
   a bot has nothing to read until a `package.json` or `requirements.txt` exists, so Renovate or
   Dependabot is configured *with* the first one rather than afterwards. **Seven pins that a routine
@@ -155,6 +161,13 @@ The five canonical roles, unrenamed: `needs-triage`, `needs-info`, `ready-for-ag
 
 Single-context — `CONTEXT.md` and `docs/adr/` at the repo root, both already written.
 See [`docs/agents/domain.md`](docs/agents/domain.md).
+
+### The subject declaration
+
+⚠️ **`subjects/jlpt-vocab.json` is read by both toolchains and restated by neither** (ADR 0003,
+`03` §6). Its roles are flags on each field, its ordered sets are lists, its stage keys are also
+Python module names, and TypeScript's derived types are `string` because a JSON import arrives
+widened. `subjects/README.md` is the short version; `docs/00-status.md` § Carrying has the traps.
 
 ## Related, but separate
 
