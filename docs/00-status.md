@@ -3,15 +3,46 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**40 ADRs**, eleven documents, an empty frontier, and **twelve open issues** on the tracker.
+**40 ADRs**, eleven documents, an empty frontier, and **eleven open issues** on the tracker.
 **Nothing is owed.**
-**#2 and #4 are closed.** ⚠️ **The frontier is #3 (the subject declaration) and #5 (identity), and
-they are independent.** The schema exists, so the longer chain is unblocked at its head.
+**#2, #4 and #5 are closed.** ⚠️ **The frontier is #3 (the subject declaration) and #6 (ingest and
+sources).** There is a schema, and there is now a door: the longer chain is open two links deep.
 **Updated:** 2026-09-09
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #5 — identity, 2026-09-09.** **The door, two independent refusals, and the gate.** `S1` is
+answered as far as it can be without Google: an unauthenticated request to any of the five screens is
+a `302` to `/auth`, an unauthenticated `/api/**` is a `401`, `/api/auth/**` stays reachable because
+nothing could sign in otherwise, and `/auth/refused` carries no link, no button and no form.
+
+**One middleware resolves and a second step refuses** (ADR 0030, `08` §6.3) — `server/middleware/
+session.ts`. Nothing re-derives a session and no page reads one from the client; the door itself
+reads what the middleware already resolved, through `useRequestEvent()`, and carries it into the
+payload. **The two refusals are wired as `08` §3 specifies and neither shares a failure mode with
+the other**: `validateUserInfo` never reads `source`, so a second provider cannot walk past it, and
+`disableSignUp` is set where the only method is enabled.
+
+**Suite: 106 passing**, up from 54. ⚠️ **Ten sabotages, ten distinct failures** — narrowing
+`validateUserInfo` on `providerId` (the library's own documented example, and a fail-open gate)
+reddens three; softening `requireEnv` to `|| ''` reddens six; flipping `disableSignUp`, dropping
+`onAPIError.errorURL`, hardening `sameSite` to `strict`, enabling `cookieCache` and making the
+comparison case-sensitive each redden their own; widening the middleware's asset skip to every path
+reddens twelve; removing a *mode*'s `external` reddens exactly one, by name. Typecheck and build
+clean.
+
+**Four things this session decided rather than transcribed:**
+
+- **One `overrides` entry, not `--legacy-peer-deps`.** `better-auth`'s optional `vitest` peer is
+  `^2 || ^3 || ^4` and this repo is on 5. The override is scoped to one subtree; the flag would turn
+  off peer checking for the life of the project. `better-auth` is pinned **1.7.3 exactly** — a
+  seventh pin in `03` §13.5, because `08` §7's regenerate-and-diff practice needs a known version.
+- ⚠️ **The `external` guard is a click, not a browser** — and #5 is what forced the question, by
+  gating both *modes* out of the e2e tier's reach. `11` §6.1 is amended; see § Carrying.
+- **`better-auth/minimal`** rather than the default entry point, which carries Kysely.
+- **`08` §10 gained the `schemaName` it omitted**, which would have undone #4's correction.
 
 **Phase 6, #4 — the schema, 2026-09-09.** **Eighteen tables plus the auth library's four, in one
 migration set**, with the tier that tests them. `server/db/schema/` is `04` as Drizzle, split
@@ -294,17 +325,23 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 3` or `/implement 4`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 3` or `/implement 6`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
-**⚠️ [#4](https://github.com/yutaasakura96/kioku/issues/4) closed 2026-09-09.** **There is a schema
-now**, and the head of the longer chain is open: **[#5](https://github.com/yutaasakura96/kioku/issues/5)
-(identity) is unblocked**, and [#3](https://github.com/yutaasakura96/kioku/issues/3) (the subject
-declaration) was never blocked. **They are independent; either can go first.** #5 unblocks
-#6 → #7 and inherits a `db` handle and four auth tables already in place, so it is the one to take if
-only one gets done. ⚠️ **#5 owes the `better-auth` runtime dependency and its peer resolution** —
-#4 deliberately did not install it (§ Carrying).
+**⚠️ [#5](https://github.com/yutaasakura96/kioku/issues/5) closed 2026-09-09.** **There is a door
+now.** [#6](https://github.com/yutaasakura96/kioku/issues/6) (ingest and sources) is unblocked, and
+[#3](https://github.com/yutaasakura96/kioku/issues/3) (the subject declaration) was never blocked.
+**They are independent; either can go first.** #6 is on the longer chain — #6 → #7 → #8 — and it
+inherits the gate, so its routes are behind a session before it writes a line. #3 is a leaf that
+#8 needs.
+
+⚠️ **#6 also inherits a debt #5 could not pay: the e2e tier can no longer see a signed-in
+document**, because there is no way to sign in without Google. `11` §6.1 names what that took away
+and points at #10 to bring it back; if #6 finds it needs an authenticated request sooner, that is
+the ticket to argue it on, not this line.
+
+~~**#4 closed 2026-09-09**; the frontier is #3 and #5.~~ **#5 closed the same day.**
 
 **⚠️ [#2](https://github.com/yutaasakura96/kioku/issues/2) closed 2026-09-09** — `86144de`, merged to
 `main`. **There is code now.** ADR 0020's revisit condition is a passing test rather than a plan, and
@@ -554,12 +591,63 @@ Nothing.
   property of `TRUNCATE`, not a hole in the guard — it takes an `ACCESS EXCLUSIVE` lock and no
   application path issues one — but it is why a test reset is possible at all. ⚠️ **A future session
   that "closes the gap" by adding a truncate trigger breaks the tier's reset.**
-- ⚠️ **#4 did not install `better-auth`, and #5 owes that work.** Its optional peers pull SvelteKit
-  and TanStack Start into the resolution, which collide with `vitest` 5 / `vite` 8 on npm. **Do not
-  reach for `--legacy-peer-deps`** — it turns off peer checking for the life of the project. The four
-  auth tables were generated from the library in an isolated scratch install instead, which is what
-  `04` §8 describes anyway: the generated file is the artifact, the package is a runtime dependency,
-  and they arrive on different tickets.
+- ~~⚠️ **#4 did not install `better-auth`, and #5 owes that work.**~~ **Paid 2026-09-09**, and the
+  collision was narrower than this bullet guessed. ⚠️ **It is not SvelteKit and it is not TanStack
+  Start** — those appear in npm's error only as the reason `vite` 8 is in the tree at all. The
+  blocking edge is one line: `peerOptional vitest@"^2.0.0 || ^3.0.0 || ^4.0.0" from
+  better-auth@1.7.3`, against this repo's `vitest` 5. **npm refuses an install over an *optional*
+  peer that is present at another major**, which is the part worth remembering. The answer is one
+  `overrides` entry scoped to `better-auth`'s subtree — `"vitest": "$vitest"` — and the install adds
+  seven packages with no Svelte or TanStack among them. ⚠️ **`--legacy-peer-deps` is still the wrong
+  answer and it is what the error message suggests**: it turns off peer checking for the life of the
+  project, for every package, to get past one optional peer. `03` §13.5 carries both, plus the
+  seventh pin: `better-auth` **1.7.3 exactly**, because `08` §7 regenerates and diffs the four tables
+  and that only means something against a known version.
+- ⚠️ **A *mode*'s `external` Done control is proved by a click, not by a browser** — and #5 is what
+  forced the correction, by gating both *modes* out of the e2e tier's reach. `11` §6.1 said the
+  assertion had to run in a browser, and the reasoning was right up to its last step: the two forms
+  render the same `href`, so it has to **click**. A mounted component can be clicked.
+
+  ```
+  external : <a href="/stats">Done</a>   click → event.defaultPrevented === false
+  bare     : <a href="/stats">Done</a>   click → event.defaultPrevented === true
+  ```
+
+  Identical markup, opposite in one bit. It is `test/nuxt/modes.test.ts`, it covers both modes, and
+  it fails by name. ⚠️ **What the gate genuinely took away** is the signed-in half of assertion 1 —
+  that Ingest, Sources and Stats ship no JavaScript *to a reader who is in*. That needs a session
+  row, which needs a database in the TypeScript suite, which ADR 0038 kept out. **#10 cannot be
+  tested at all without an authenticated e2e context**; `11` §6.1 names it as the home for one.
+- ⚠️ **The middleware skips the framework's own paths by *shape*, not by a list** — `/_…`, or
+  anything with a file extension. A list would quietly grow an entry that answers with reader data.
+  Both halves of the skip matter: redirecting `/_nuxt/**` would break the two *modes*, whose
+  documents are an app shell that then fetches its own bundle, and resolving a session for each asset
+  would put a database read behind every one. It is not a hole in `S1` — what is served there is
+  static build output, identical for every reader.
+- ⚠️ **Better Auth types `auth.options` as the exact object literal passed in.** That makes the
+  configuration a real seam — `test/unit/auth-config.test.ts` reads it and needs no request — and it
+  has one trap: an option that is **absent on purpose** (`cookieCache`, `useSecureCookies`,
+  `advanced.cookies`) is not a property that reads `undefined`, it is a property the type does not
+  have, and `expect(…).toBeUndefined()` on it **does not compile**. Those four assertions read
+  through a `BetterAuthOptions`-widened view. Do not "fix" them by deleting them.
+- ⚠️ **The door reads the session from the middleware too, not from `authClient`.** `/auth` is the
+  one route with a client, so `useSession()` is exactly what a future session will reach for — and
+  `08` §6.1 is why it must not: client actions other than `useSession` do not forward cookies during
+  SSR, and the documented repairs are void on a `noScripts` route. `app/pages/auth/index.vue` reads
+  `useRequestEvent()?.context.session` on the server pass and carries **only the email** into the
+  payload. `app/utils/auth-client.ts` constructs the client **lazily**, so an SSR call gets nothing
+  rather than a subtly signed-out render.
+- ⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
+  own it.** Both pages carry the content and the structure `10` §9 names — the mark, the name, the
+  body line, the rule, the control; the statement, the body, and no rule — with no treatment, because
+  `05-design-system.md`'s tokens do not exist in the repo yet and **no ticket owns them.** The first
+  screen ticket to need them lands them. This is a gap in the tracker, not a decision.
+- **Sign-in itself is not tested, and `11` §8 already said it would not be.** The flow through
+  Google's redirect is in the end-to-end-only column and `11` §9 declines to test Better Auth's own
+  behaviour. What #5 tests is everything around it. ⚠️ The e2e app boots with a `DATABASE_URL` that
+  points at nothing, and that is load-bearing rather than lazy: an **unauthenticated** request
+  resolves to no session without touching Postgres, so the suite needs no database. The day a test
+  signs in, the failure will be a connection error rather than a silent pass.
 - **The schema tier's guards were checked by sabotage, and that is the standard now.** Eight
   deliberate breakages, eight distinct failures — the same method #2 used on the rendering split.
   ⚠️ **A green schema test proves nothing until you have seen it go red for the right reason**, which
