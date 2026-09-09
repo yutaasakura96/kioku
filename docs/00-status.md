@@ -3,15 +3,40 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**39 ADRs**, eleven documents, an empty frontier, and **fourteen open issues** on the tracker.
+**40 ADRs**, eleven documents, an empty frontier, and **twelve open issues** on the tracker.
 **Nothing is owed.**
-**Next: the first ticket.** ⚠️ **The tracker holds #1 (the spec) and #2–#14 (the tickets), and the
-frontier is one ticket — #2, the only one with no blockers.**
+**#2 and #4 are closed.** ⚠️ **The frontier is #3 (the subject declaration) and #5 (identity), and
+they are independent.** The schema exists, so the longer chain is unblocked at its head.
 **Updated:** 2026-09-09
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #4 — the schema, 2026-09-09.** **Eighteen tables plus the auth library's four, in one
+migration set**, with the tier that tests them. `server/db/schema/` is `04` as Drizzle, split
+`shared.ts` / `personal.ts` / `auth.ts` on **`04` §4's own label** rather than on filing convenience —
+the label is what decides whether an owner foreign key is `RESTRICT`. All twenty-one indexes of §11,
+all eighteen `RESTRICT`s of §9, and the one trigger of §14 are in, and `drizzle-kit check` agrees the
+migrations and the schema have not forked.
+
+**The schema tier is fifteen tests in 1.8 s**, built by the real migrations through
+`drizzle-orm/pglite/migrator`. ⚠️ **Each guard was checked by sabotage, not assumed**: dropping the
+trigger reddens three tests, flipping `review_log → card` to `CASCADE` reddens two, making the
+partial index non-unique reddens one, and flipping every `owner_id` to `CASCADE` — the copied ORM
+default `04` §3 exists to refuse — reddens exactly the test that names it. Eight sabotages, eight
+distinct failures. Suite: **54 passing**. Typecheck and build clean.
+
+**Two things this session decided rather than transcribed**, both now ADR-or-log:
+
+- **ADR 0040** — the app connects with `drizzle-orm/node-postgres` and `pg`, not
+  `@neondatabase/serverless`. `03` §4.1 settled which *string* each process gets and never which
+  client opens it. The deciding reason is ADR 0022 one step out: **do not depend on the current
+  host's shape**, or the move stops being a preset change. ⚠️ `neon-http` would also have made a
+  schema decision by accident — it has no session, so it cannot run `04` §9.1's `Z` un-mint as one
+  transaction, which is the only thing that gives the `RESTRICT` guard something to protect.
+- ⚠️ **The Better Auth generator's documented flags produce the wrong output**, and both documents
+  that prescribed them are amended. See § Carrying.
 
 **Phase 6, the spec and the route — 2026-09-08.** `/to-spec` published **issue #1**, scoped to
 ADR 0001's first milestone; `/to-tickets` published **#2–#14**, thirteen tracer-bullet tickets, every
@@ -273,6 +298,14 @@ Seven findings worth knowing without opening it:
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
+**⚠️ [#4](https://github.com/yutaasakura96/kioku/issues/4) closed 2026-09-09.** **There is a schema
+now**, and the head of the longer chain is open: **[#5](https://github.com/yutaasakura96/kioku/issues/5)
+(identity) is unblocked**, and [#3](https://github.com/yutaasakura96/kioku/issues/3) (the subject
+declaration) was never blocked. **They are independent; either can go first.** #5 unblocks
+#6 → #7 and inherits a `db` handle and four auth tables already in place, so it is the one to take if
+only one gets done. ⚠️ **#5 owes the `better-auth` runtime dependency and its peer resolution** —
+#4 deliberately did not install it (§ Carrying).
+
 **⚠️ [#2](https://github.com/yutaasakura96/kioku/issues/2) closed 2026-09-09** — `86144de`, merged to
 `main`. **There is code now.** ADR 0020's revisit condition is a passing test rather than a plan, and
 each of its three guards was checked by sabotage rather than assumed: removing `external` fails
@@ -281,17 +314,14 @@ fails the seam test. The dependency bot arrived in the same commit as the first 
 all six pins of `03` §13.5. What it left behind is in § Carrying, and **two of those bullets are
 findings that amended `11` §1 and §6.1**.
 
-**The frontier is now two tickets, and they are independent:**
-[#3](https://github.com/yutaasakura96/kioku/issues/3) — the subject declaration in both languages —
-and [#4](https://github.com/yutaasakura96/kioku/issues/4) — the eighteen tables and the schema tier.
-Either can go first. #4 unblocks the longer chain (#5 → #6 → #7), so it is the one to take if only
-one gets done.
+~~**The frontier is now two tickets** — #3 and #4.~~ **#4 closed 2026-09-09**; the frontier is
+#3 and #5, above.
 
 **The dependency order, so no session re-derives it:**
 
 ```
 #2 scaffold ✔ ─┬─→ #3 subject declaration ──┐
-              └─→ #4 schema ─→ #5 identity ─→ #6 ingest ─┐
+              └─→ #4 schema ✔ ─→ #5 identity ─→ #6 ingest ─┐
                                                #4,#6 ─→ #7 worker loop
                                         #3,#7 ─→ #8 pipeline 1–5 ─→ #9 generation
                                                #9 ─→ #10 vet mechanics ─┬─→ #11 vet presentation
@@ -485,6 +515,56 @@ Nothing.
   measured 2026-09-09. **The `external` assertion is a browser assertion**, and it has to *click*
   Done rather than read its `href`, because a bare `<NuxtLink>` renders the same `href`. `03` §2.1's
   "an app shell, not a blank page" is correct; it is thinner than it sounds.
+- ⚠️ **PIN 6/6's second half is `postgres:18.3-alpine`, and it lives in `worker/tests/README.md`
+  because there is no manifest to put it in.** `@electric-sql/pglite` 0.5.8 is PostgreSQL 18.3, and
+  `04` defaults every primary key to `uuidv7()`, a Postgres 18 built-in — so the two test databases
+  have to agree on the major or the schema tier and the worker tier are testing different things.
+  **No bot watches a tag in a README**, which is `03` §13.5's whole point. The TypeScript half is
+  now guarded by an assertion in `test/schema/schema.test.ts`; **#7 owes the container half the same
+  guard.**
+- ⚠️ **The Better Auth generator's documented flags silently drop the `auth` schema.** Measured
+  2026-09-09 while building #4. `npx auth@latest generate --adapter drizzle --dialect pg` — the form
+  `04` §8 and `08` §7 both prescribed — makes the CLI **synthesise** an adapter rather than read the
+  configured one, and the configured one is where `schemaName` lives. The output is `pgTable(...)` in
+  `public`: the four tables appear, the migration succeeds, and the schema separation is simply
+  absent. **Drop both flags and pass `--config`**, with
+  `drizzleAdapter(db, { provider: "pg", schemaName: "auth" })`. Both documents are amended, and
+  `test/schema/schema.test.ts` now asserts the four tables are in `auth` so the correction is held by
+  a test rather than a paragraph.
+- ⚠️ **`server/db/schema/auth.ts` is generated and must stay unedited.** `08` §7 keeps those four
+  tables unremapped — no `modelName`, no `fields`, no `additionalFields` — **precisely so the file
+  can be regenerated and diffed against what is deployed**, and a tidy-up costs exactly that. Two
+  things in it look wrong and are not: the `onDelete: "cascade"` on every child of `user` is correct
+  there (a sign-in regenerates a session and an account), and its `timestamp` columns are the one
+  place the generator disagrees with `04` §1's `timestamptz` convention. **The cascade rule is not
+  "no cascades"** — it is that a cascade must never reach a table that cannot be rebuilt, which is
+  why `personal.ts` uses `RESTRICT` eighteen times.
+- **The app's driver is `node-postgres`, and that is ADR 0040, not a default.** ⚠️ Two reasons, and
+  the second is the one that would be lost: `@neondatabase/serverless` is a dependency ADR 0022's
+  move has to undo, **and `drizzle-orm/neon-http` has no session at all**, so it cannot run `04`
+  §9.1's `Z` un-mint as one transaction — choosing it would have made a schema decision by accident.
+  Do not "modernise" this to a Neon driver on the grounds that the database is Neon.
+- ⚠️ **A `RESTRICT` violation does not say "violates foreign key constraint".** Postgres says
+  **"violates RESTRICT setting of foreign key constraint"**, which is a *stronger* signal and worth
+  asserting on: it distinguishes `RESTRICT` from `NO ACTION`, and `NO ACTION` is what a careless
+  migration would leave behind. Measured 2026-09-09 — the first draft of the schema tests asserted
+  the weaker string and four of them failed.
+- **`TRUNCATE` does not fire the `review_log` append-only trigger, and the schema tier depends on
+  that.** The trigger is `FOR EACH ROW BEFORE UPDATE OR DELETE`; `TRUNCATE` is neither. This is a
+  property of `TRUNCATE`, not a hole in the guard — it takes an `ACCESS EXCLUSIVE` lock and no
+  application path issues one — but it is why a test reset is possible at all. ⚠️ **A future session
+  that "closes the gap" by adding a truncate trigger breaks the tier's reset.**
+- ⚠️ **#4 did not install `better-auth`, and #5 owes that work.** Its optional peers pull SvelteKit
+  and TanStack Start into the resolution, which collide with `vitest` 5 / `vite` 8 on npm. **Do not
+  reach for `--legacy-peer-deps`** — it turns off peer checking for the life of the project. The four
+  auth tables were generated from the library in an isolated scratch install instead, which is what
+  `04` §8 describes anyway: the generated file is the artifact, the package is a runtime dependency,
+  and they arrive on different tickets.
+- **The schema tier's guards were checked by sabotage, and that is the standard now.** Eight
+  deliberate breakages, eight distinct failures — the same method #2 used on the rendering split.
+  ⚠️ **A green schema test proves nothing until you have seen it go red for the right reason**, which
+  matters more here than anywhere else in the suite: every one of these tests passes trivially
+  against a database that enforces nothing.
 - ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it
   replaces the arrangement that stood until then, where `main` was both the default and the working
   branch. `main` is the integration branch. Neon still gets a branch per environment to match.
