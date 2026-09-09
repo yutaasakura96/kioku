@@ -605,6 +605,33 @@ re-thinking rather than re-running. `11-testing-plan.md` §6.2.
 **Revisit if.** A *running* mode gains a second focusable element outside the container, which would
 change what the proxy is measuring.
 
+### [2026-09-09] The app connects with node-postgres, because the move is the point
+**Decision.** The Nuxt app reaches Postgres through `drizzle-orm/node-postgres` and `pg`, over Neon's
+pooled endpoint, string verbatim. `03` §4.1 settled *which string* each process gets; it did not
+settle which client opens it, and #4 could not be written without an answer.
+→ [ADR 0040](adr/0040-the-app-connects-with-node-postgres-because-the-move-is-the-point.md)
+
+### [2026-09-09] ⚠️ The Better Auth generator's documented flags suppress the `auth` schema
+**Decision.** The four tables are generated with `npx auth@1.7.3 generate --config <config>`, and
+**without** `--adapter drizzle --dialect pg`. Measured while building #4: those two flags make the
+CLI synthesise an adapter instead of reading the configured one, and the configured one is where
+`schemaName` lives — so they emit `pgTable(...)` in `public` and silently drop the `auth` Postgres
+schema that `04` §8 exists to create. `04` §8 and `08` §7 both prescribed the flagged form; both are
+amended.
+
+**Alternatives considered.** *Hand-write the four tables* — rejected: `08` §7 keeps them
+unremapped precisely so they can be regenerated and diffed, and a transcription is the copy that
+drifts. *Move them to `public`* — rejected: the separate schema is what makes "this project does not
+own these four tables" structural rather than a comment, and it keeps `user` out of `public`.
+
+**Reason.** A documented command that produces the wrong output silently is worse than no command,
+and this one fails in the direction nobody checks: the tables appear, the migration succeeds, and the
+`auth` schema is simply absent. `test/schema/schema.test.ts` asserts the four tables are in `auth`,
+so the correction is now held by a test rather than by a paragraph.
+
+**Revisit if.** The CLI gains a `--schema` flag, which would make the flagged form correct again.
+
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the

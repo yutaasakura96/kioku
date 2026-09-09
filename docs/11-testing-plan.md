@@ -166,6 +166,23 @@ drift.
 (verification §14.1) — the trigger raises, `RESTRICT` refuses, the partial index refuses, the
 `CHECK`s refuse. This list is not aspirational.
 
+⚠️ **Amended 2026-09-09, when the tier was built (#4).** All eleven are written and passing, in
+1.8 s against one PGlite instance reset between tests, and **each was checked by sabotage rather than
+assumed**: dropping the trigger, flipping one `RESTRICT` to `CASCADE`, making the partial index
+non-unique, removing `NULLS NOT DISTINCT`, removing the over-cap `CHECK`, widening the `rating`
+bounds, making `content_hash` unique, and flipping every `owner_id` to `CASCADE` each turn the
+matching assertion red and nothing else.
+
+**Four assertions joined the eleven**, all of them structural rather than behavioural, and each
+guarding something no other test would notice:
+
+| Test | Asserts | From |
+| --- | --- | --- |
+| The database is Postgres 18 or later | `uuidv7()` exists and returns a value | ⚠️ Half of a pin. `04` defaults every PK to it and PGlite does not document its version (ADR 0038) — **nothing else will tell you when the two halves diverge** |
+| The table inventory | Eighteen tables in `public`, and the auth library's four **in `auth`** | `04` §8. The `auth` half is what caught the generator flag correction (`04` §8 as amended) |
+| Exactly one trigger | One row in `pg_trigger`, on `review_log` | `04` §14. A second trigger is a decision someone owes an argument for |
+| The note's identity | A second `(subject_id, identity_key)` is refused, and the other reading is a different note | ADR 0006 — the `開く␟ひらく` / `開く␟あく` pair the ADR exists to keep apart |
+
 ---
 
 ## 6. The three things that were open, closed
