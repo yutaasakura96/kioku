@@ -53,7 +53,7 @@ where the suite runs is a Phase 6 question that the plan does not depend on.
 | **Unit** | `test/unit/` | plain Node, no Nuxt | none | Pure functions: the pipeline stages, the FSRS wrapper, the `from` allowlist, the grade validator, the metric arithmetic. ⚠️ **And §6.1's configuration assertions**, added 2026-09-09 — they read `nuxt.config` through `loadNuxtConfig()`, which needs neither a build nor a request, so the tier is "no Nuxt runtime" rather than "no file on disk" |
 | **Schema** | `test/schema/` | plain Node | **PGlite** | Every constraint, trigger and delete rule in `04`, run by Drizzle's migrations |
 | **Nuxt runtime** | `test/nuxt/` | `// @vitest-environment nuxt` | PGlite | Components, `mountSuspended`, the outbox against a real `localStorage` |
-| **End to end** | `test/e2e/` | a built, running app | PGlite | Rendering, routing, redirects, headers, and the browser tests |
+| **End to end** | `test/e2e/` | a built, running app | **PGlite over a socket** | Rendering, routing, redirects, headers, and the browser tests. ⚠️ **Signed in from 2026-09-11** — see §6.1 |
 | **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container**, for three tests only | The pipeline end to end, and the three concurrency behaviours. ⚠️ **And two tests that need no container at all**, added 2026-09-10 with #3: the *subject* declaration's Python view, and §7's cross-language drift test |
 
 ⚠️ **`@nuxt/test-utils/runtime` and `@nuxt/test-utils/e2e` cannot be used in the same file**
@@ -273,6 +273,34 @@ written. Where each one is now:
 
 **The e2e tier no longer opens a browser at all.** `playwright-core` stays in the manifest: #10
 brings the browser back with a session behind it.
+
+⚠️ **Amended 2026-09-11, while building #6 — the tier can sign in now, and assertion 1 is whole
+again.** `00-status.md` § Next left the door open ("if #6 finds it needs an authenticated request
+sooner, that is the ticket to argue it on"), and #6 needs one: its own acceptance criteria put the
+over-cap re-render in the end-to-end column (§8), and every route that pair touches is gated. Two
+pieces, both test-only:
+
+- **A database the built app can reach.** `@electric-sql/pglite-socket` speaks the PostgreSQL wire
+  protocol over TCP in front of an in-process PGlite, so `node-postgres` in the app under test
+  connects to it exactly as it connects to Neon (ADR 0040). ⚠️ **This is still PGlite and ADR 0038 is
+  undisturbed** — §1's table already said the e2e tier's database was PGlite; what was missing was a
+  way to reach an in-process one from another process. **Docker is still required for exactly three
+  tests, all of them in `worker/`.** The new dependency *tightens* `03` §13.5's PGlite pin: it
+  declares a peer dependency on `@electric-sql/pglite` **0.5.8 exactly**, so an accidental bump now
+  fails at install rather than at the first `CREATE TABLE`.
+- **A session row and its cookie**, written and signed in the test (`test/e2e/session.ts`). ⚠️ **No
+  endpoint mints a session** — `S1` says refused at every route, and a test-only route would be a hole
+  in the property #5 exists to establish. The signing is Better Auth's own, read off `better-call`'s
+  `signCookieValue`. It cannot pass by accident: a wrong signature, a wrong secret or a missing row
+  all resolve to no session, and the route then answers `302` to `/auth`. Sabotaged both ways on
+  2026-09-11 — a broken signature turns sixteen assertions red.
+
+⚠️ **Sign-in itself is still not tested**, and §8 and §9 are unchanged: the flow through Google's
+redirect stays in the end-to-end-only column, and this tier still declines to test Better Auth's own
+behaviour. What is new is that the routes *behind* the gate are reachable. **Assertion 1's signed-in
+half — that Ingest, Sources and Stats ship no JavaScript to a reader who is in — is asserted again on
+the three routes it is actually about**, rather than through `/auth/refused` standing in for them.
+#10 still owes the **browser**; it no longer owes the context.
 
 ### 6.2 The key-handler binding — not testable directly, and it does not need to be ⚠️
 

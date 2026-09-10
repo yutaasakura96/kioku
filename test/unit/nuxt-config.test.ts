@@ -24,7 +24,11 @@ const PUBLIC_ROUTES = ['/auth', '/auth/refused', '/api/auth/**']
 // fourth *place* — it is the door's other half (`00-status.md` § Carrying,
 // "There are six routes, not five"). What the four share is that they ship no
 // JavaScript, and that is what this list is named for.
-const SCRIPT_FREE_ROUTES = ['/', '/sources', '/stats', '/auth/refused']
+// ⚠️ `/sources/**` added 2026-09-11 by #6. `09` §1's table has carried
+// `/sources/:id` and `/sources/:id/delete` since it was written, and both are
+// *places*; the rule covers them as a pattern so the delete confirmation does
+// not arrive as a default when `S11` builds it.
+const SCRIPT_FREE_ROUTES = ['/', '/sources', '/sources/**', '/stats', '/auth/refused']
 
 const MODES = ['/vet', '/review']
 
@@ -43,7 +47,7 @@ describe('route rules', () => {
     // A subset assertion, not an exact one: #6 adds `/sources/:id` and
     // `/sources/:id/delete` with rules of their own, and a test that counts
     // route rules would fail on a correct addition.
-    for (const route of ['/', '/sources', '/stats', '/vet', '/review', '/auth', '/auth/refused'])
+    for (const route of ['/', '/sources', '/sources/**', '/stats', '/vet', '/review', '/auth', '/auth/refused'])
       expect(routeRules, `${route} has no route rule`).toHaveProperty([route])
   })
 

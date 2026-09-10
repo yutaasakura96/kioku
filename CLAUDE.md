@@ -8,14 +8,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 material and is also the app the decks are studied in. First subject is JLPT vocabulary; CS / web
 dev / networking / cloud terminology follow.
 
-**Planning is finished and there is still no code.** Phase 4 closed on 2026-09-07: eleven documents,
-**39 ADRs**, fourteen verification sections, and an empty frontier. There is no build, no test suite
-and no dependency manifest yet — so there are still no commands to run — but the next thing that
-happens in this repo is **code**, not another document.
+**Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
+documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
+code since 2026-09-09 and three more ADRs with it. ⚠️ **This paragraph said "there is still no code"
+until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant every
+session opened by being told the opposite of what it would find.
+
+**What exists now:** #2, #3, #4, #5 and #6 are built — a Nuxt app with the rendering split enforced by
+the build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains
+read, a session gate, and Ingest and Sources end to end. **The commands:**
+
+```
+npm run test        # 277 across four tiers — unit, schema, nuxt, e2e
+npm run typecheck   # nuxt typecheck, then tsc over the tests
+npm run build
+cd worker && uv run pytest   # 47
+```
+
+⚠️ **`docs/00-status.md` is the memory and this paragraph is not.** It carries what is built, what is
+next and — in § Carrying — the decisions that are invisible in the code that violates them. Read it
+before writing code; this file tells you how to work, that one tells you where the work is.
 
 ⚠️ **The tracker is configured as of 2026-09-08** — `/setup-matt-pocock-skills` ran, and issues live
-on GitHub. See §Agent skills. **The immediate next step is the first ticket**, and `START-HERE.md`
-carries the four things the documents already constrain about ticket order.
+on GitHub. See §Agent skills. `START-HERE.md` carries the four things the documents already constrain
+about ticket order.
 
 ## Hard constraints
 

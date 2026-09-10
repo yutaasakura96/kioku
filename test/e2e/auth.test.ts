@@ -91,7 +91,19 @@ describe('/auth/refused — where the empty space is the requirement', () => {
     const html = await $fetch<string>('/auth/refused')
 
     expect(html).not.toMatch(/<a[\s>]/i)
-    expect(html).not.toMatch(/\bhref=/i)
+
+    // ⚠️ **Amended 2026-09-11 by #6, and narrowed rather than dropped.** This
+    // read `not.toMatch(/\bhref=/i)` — no `href` anywhere in the document — and
+    // #6's token layer broke it by adding the one `href` a *place* has always
+    // been going to have: `<link rel="stylesheet">`. A stylesheet is not a link
+    // the reader can follow, and `10` §9.2's requirement is about where the
+    // reader can *go*, so the assertion is now every `href` that is not one.
+    //
+    // It still catches everything it was written for — an anchor, a logo that
+    // happens to be one, an `<area>`, a `<base href>` — because none of those is
+    // a stylesheet link.
+    const links = [...html.matchAll(/<[^>]*\bhref=/gi)].map(match => match[0])
+    expect(links.filter(link => !/rel="stylesheet"/i.test(link))).toEqual([])
   })
 
   it('carries no control of any kind either', async () => {

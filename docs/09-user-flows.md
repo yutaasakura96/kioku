@@ -66,7 +66,7 @@ what happens and in what order; that one says what it is made of.
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
 | `/auth/refused` | The refusal (`08` §2.1) | `noScripts: true` | Yes |
 | `/api/auth/**` | Better Auth's catch-all | Nitro | Yes |
-| `/api/source` | `POST` — submit a *source* (§4.2) | Nitro | No |
+| ⚠️ `/` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`** — see below | Nitro middleware, then the *place* | No |
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
 | `/api/export` | `GET` — `S12`'s export (§4.12) | Nitro | No |
 | `/api/vetting/**`, `/api/review/**` | The two *modes*' data and outbox endpoints | Nitro | No |
@@ -75,11 +75,31 @@ what happens and in what order; that one says what it is made of.
 (ADR 0030, `08` §6.4, verification §11.4). The four new page routes above inherit that rule; a
 prerendered `/sources/:id` is a static copy of a *source* with no request left to gate.
 
-**The three *places* have no client, so every write they perform is a form.** `/api/source` and
-`/api/source/:id/delete` are the only two, and both are `POST`-redirect-`GET`: they do the work and
-answer `303` back to a page. On a validation failure they answer `200` with the form re-rendered and
-the submitted text still in it, because a redirect would throw away a paste the reader cannot get
-back (§4.2).
+**The three *places* have no client, so every write they perform is a form.** The *source*
+submission and `/api/source/:id/delete` are the only two, and both are `POST`-redirect-`GET`: they do
+the work and answer `303` back to a page. On a validation failure they answer `200` with the form
+re-rendered and the submitted text still in it, because a redirect would throw away a paste the
+reader cannot get back (§4.2).
+
+⚠️ **Amended 2026-09-11, while building #6 — the submission is `POST /`, not `POST /api/source`.**
+The row above said the latter, and the paragraph it sits under is why it could not be: a validation
+failure is answered with **this document**, the Ingest *place*, re-rendered with the reader's text in
+it. A Nitro route handler cannot produce a Vue page. Two things were measured against the built app
+and between them they close every other option:
+
+- **Nuxt's page renderer answers `POST` with a fully rendered document** (`200`, `text/html`). So a
+  `POST` that reaches the router is served by the *place* itself — which is exactly the answer this
+  section asks for.
+- ⚠️ **Rewriting `event.node.req.url` inside a middleware does not re-route**; the request `404`s. And
+  `nitropack` 2.13.4's `localFetch` takes no context, so a rejected 120,000-character paste has no way
+  to travel to an internal render.
+
+So the submission is a middleware on `POST /` that answers `303` on success and **falls through** to
+the renderer on failure (`server/middleware/submit-source.ts`). Everything this row was *for* is
+unchanged: the write is a form, it is post-redirect-get, and its CSRF story is still that
+`SameSite=Lax` sends the cookie for a same-site `POST` and not for a cross-site one. Only the path in
+the form's `action` moved, and it moved because the only path that can render the refusal is the one
+the refusal has to appear on.
 
 ⚠️ **A same-site form `POST` carries the session cookie and a cross-site one does not**, which gives
 those two routes CSRF protection with nothing added. `SameSite=Lax` sends the cookie for same-site
@@ -180,7 +200,8 @@ step 1 of §3 again.
 **Keystrokes:** none.
 **Exit:** stay on `/`, or go to `/vet`.
 
-The form has two fields: an optional title, and the content. On submit, `POST /api/source`:
+The form has two fields: an optional title, and the content. On submit, `POST /` (⚠️ **amended
+2026-09-11** from `POST /api/source`, §1):
 
 | Case | Response | Behind it |
 | --- | --- | --- |

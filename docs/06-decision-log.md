@@ -832,6 +832,117 @@ suites now carry the same five-character table.
 **Revisit if.** A third consumer of the declaration appears, which is when a shared fixture beats two
 tables that have to be kept in step by hand.
 
+### [2026-09-11] A chunk is 1200 characters, broken at the last sentence end
+`source_chunk` boundaries are a target and hard maximum of 1200 characters — `04` §5.2's own worked
+example, and the only number about chunking anywhere — broken at the last of `。！？` or a newline at
+or before it. The deciding reason is stage 2: SudachiPy tokenises each chunk independently, and a cut
+inside a word feeds a fragment to `normalized_form`, which is half of ADR 0006's *identity key*.
+→ [ADR 0041](adr/0041-a-chunk-is-1200-characters-broken-at-the-last-sentence-end.md)
+
+### [2026-09-11] ⚠️ Character offsets are code points, because Python's `len()` is
+
+**Decision.** Every count, slice and offset in the ingest path goes through `shared/ingest/text.ts`,
+which iterates **code points**. Nothing in `shared/ingest/` or `server/utils/ingest/` uses `.length`
+or `.slice` on source text.
+
+**Reason.** `04` §1 says "character offsets are **characters, not bytes**. Japanese makes the
+distinction load-bearing" — and there is a second distinction underneath it that no document names.
+**JavaScript strings are UTF-16 and Python strings are sequences of code points**: `'𠮟'.length` is 2,
+`len('𠮟')` is 1. The app writes `char_start` / `char_end` and the worker slices `source.content` by
+them in Python, so a single character outside the BMP puts every later offset one out — silently, and
+the symptom arrives months later as an *occurrence* highlighting the wrong span. This is the same
+class of divergence #3 found between `trim()` and `str.strip()`, and it is closed the same way: one
+module, and a test that asserts the difference rather than a comment that describes it.
+
+**Revisit if** never. `Intl.Segmenter` would count *graphemes*, which is a different and wronger
+answer: the contract is with Python's `len()`, not with a reader's intuition.
+
+### [2026-09-11] The *source* submission posts to the *place* that renders its refusal
+The Ingest form's `action` is `/`, not `/api/source`: `09` §4.2 requires a refused paste to be
+answered with the Ingest document re-rendered and the text still in it, and a Nitro route handler
+cannot render a page. Measured — Nuxt's renderer answers `POST` with a full document, and a
+middleware URL rewrite does not re-route. `09` §1 and §4.2 are amended.
+→ [ADR 0042](adr/0042-the-source-submission-posts-to-the-place-that-renders-its-refusal.md)
+
+### [2026-09-11] ⚠️ A Drizzle column in a `sql` template emits a **bare** identifier
+
+**Decision.** Every correlated subquery in `server/utils/ingest/queries.ts` is built with Drizzle's
+own query builder and embedded as ``sql`${subquery}` ``. Interpolating a column into a `sql` template
+is not used anywhere a correlation depends on it.
+
+**Reason.** Measured 2026-09-10, drizzle-orm 0.45.2:
+``sql`… WHERE ${note.originIngestionId} = ${ingestion.id}` `` emits
+`WHERE "origin_ingestion_id" = "id"` — **unqualified**. Inside a subquery over `note`, `"id"` is
+`note.id`; the correlation to the outer row is gone, the SQL is still valid, and it returns a number.
+Embedding a built subquery emits `where "n"."origin_ingestion_id" = "ingestion"."id"`, which is what
+was meant.
+
+⚠️ **The worst case was not the failure — it was the pass.** The chunk count written the broken way
+came out as `WHERE "source_id" = "source_id"`, trivially true, counting every chunk in the table —
+and it **agreed with the right answer for as long as there was one *source***. That is why
+`test/schema/place-queries.test.ts` seeds a second *source* and a second *ingestion* for every count
+that has one, rather than asserting against a single fixture.
+
+**Revisit if** never; this is a property of the library, not a preference. It generalises past this
+file: **any** `sql` template that means to correlate is wrong in the same way.
+
+### [2026-09-11] The e2e tier signs in, and it is still PGlite
+
+**Decision.** `test/e2e/` boots PGlite behind `@electric-sql/pglite-socket` (**0.2.11**, exact) so the
+built app reaches it over the wire protocol with `node-postgres`, and `test/e2e/session.ts` writes a
+session row and signs its cookie. `11` §1 and §6.1 are amended.
+
+**Alternatives considered.** Waiting for #10, as `11` §6.1 planned — but #6's own criteria put the
+over-cap re-render in the end-to-end column and every route it touches is gated, so there was nothing
+to wait with. A real Postgres container — it would put Docker in the TypeScript suite, which ADR 0038
+spent its argument keeping out. A test-only endpoint that mints a session — ⚠️ **refused outright**:
+`S1` says refused at every route, and that would be a hole in the property #5 exists to establish.
+
+**Reason.** `00-status.md` § Next named this ticket as the place to argue it, and `11` §1's table
+already said the e2e tier's database was PGlite — what was missing was a way to reach an in-process
+one from another process. The forged cookie cannot pass by accident: a wrong signature, a wrong
+secret or a missing row all resolve to no session and a `302` to `/auth`, so a broken forgery turns
+sixteen assertions red rather than one green. **Sign-in itself is still not tested** (`11` §8, §9);
+what is new is that the routes behind the gate are reachable, which puts assertion 1's signed-in half
+back on the three routes it is about.
+
+**Revisit if** #10's browser context wants a different shape. The two files are test-only and nothing
+under `app/` or `server/` imports them.
+
+### [2026-09-11] A blank title is derived from the first line of the content
+
+**Decision.** `09` §4.2 makes the title optional and `04` §5.1 makes the column `not null`.
+`shared/ingest/submission.ts` bridges that with the **first non-blank line of the content**, trimmed
+and truncated to 60 code points with an ellipsis.
+
+**Alternatives considered.** A literal `Untitled` — every untitled *source* then looks like every
+other one in the runs list and in Sources. Making the field required — `09` §4.2 says optional, and a
+second required field in front of a paste is friction on the one screen `S2` says must return control
+immediately.
+
+**Reason.** The title is the link text in the runs list and in the Sources list (`10` §6.2, §7.1), so
+an empty string renders a row with nothing to click. The first line is what a person would have typed
+anyway.
+
+**Revisit if** pasted material routinely starts with a header line nobody wants as a name.
+
+### [2026-09-11] ⚠️ Still open: whether the app ships its own font files
+
+**Not a decision — a gap, recorded so it stops being invisible.** `05` §4 says "whether the app ships
+them from Google is a **Phase 4 question**, not a design-system one". Phase 4 never answered it, and
+nothing in eleven documents or forty-two ADRs chooses between a Google Fonts stylesheet, self-hosted
+`@fontsource` packages and `@nuxt/fonts`.
+
+#6 landed `05`'s tokens because it was the first screen ticket to need them
+(`00-status.md` § Carrying), and `app/assets/css/tokens.css` names the three families with `05` §4's
+own fallback stacks — `'Newsreader', Georgia, serif` and so on. **So a reader today sees the
+fallbacks**, which is within `05` §4's own spelling of the stacks and is not the drawn screen.
+
+It was left open rather than decided in passing because it is a **dependency decision with a pin
+obligation** (`03` §13.5) and #6's acceptance criteria do not ask for it. The leaning, for whoever
+takes it: self-hosting, because ADR 0022's move to EC2 or Lightsail must stay a preset change plus a
+`pg_dump`, and a third-party stylesheet is one more thing that move has to still work through.
+
 ## Still open
 
 - ~~**§4.12 — the stack.**~~ **Closed 2026-09-06** — ADRs 0020, 0021, 0022 settle the framework, the

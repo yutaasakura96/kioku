@@ -645,7 +645,8 @@ documentation). The rule this paragraph states — *a bot arrives with the first
 afterwards* — is therefore satisfied on both sides, and the first two pins below finally have a file
 to attach to.
 
-**Seven pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-09, adding `better-auth`**
+**Seven pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-11:** the PGlite entry
+gained a second package that pins it — see that bullet. It is still seven pins. ⚠️ **Amended 2026-09-09, adding `better-auth`**
 — the last bullet. ⚠️ **Amended 2026-09-08, adding two.** The
 fifth is PGlite's version, which
 [ADR 0038](adr/0038-two-test-databases-split-on-the-line-adr-0019-already-drew.md) made load-bearing
@@ -674,6 +675,13 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
   first `CREATE TABLE` — and PGlite's own documentation does not state which PostgreSQL it builds,
   which is why 0.5.8 = **PostgreSQL 18.3** had to be measured rather than read. **Nothing will tell
   you when the two halves diverge except a `uuidv7()` that stops existing.**
+
+  ⚠️ **Amended 2026-09-11 with #6, and this is the one entry that got *easier* to hold.**
+  `@electric-sql/pglite-socket` **0.2.11** joined the manifest so the end-to-end tier can sign in
+  (`11` §6.1), and it declares a peer dependency on `@electric-sql/pglite` **0.5.8 exactly**. So the
+  TypeScript half of this pin is now enforced by npm: an accidental bump fails at install rather than
+  at the first `CREATE TABLE`. **The container half is unchanged and still unenforced** — no bot
+  watches a tag in `worker/tests/README.md`, and #7 still owes it a guard.
 - ⚠️ **`better-auth` 1.7.3, exactly** — added 2026-09-09 with #5. `08` §1 names the version and
   `08` §7 builds a practice on it: the four tables are **generated** into
   `server/db/schema/auth.ts` and nothing in them is remapped, **precisely so the file can be

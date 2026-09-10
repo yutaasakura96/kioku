@@ -1,0 +1,182 @@
+/*
+ * `05-design-system.md` §§1–6, as custom properties.
+ *
+ * ⚠️ **This file was owed and no ticket owned it.** `00-status.md` § Carrying:
+ * "`10` §9's visual specification for the door and the refusal page is not
+ * built, and #5 did not own it … `05-design-system.md`'s tokens do not exist in
+ * the repo yet and **no ticket owns them.** The first screen ticket to need them
+ * lands them." #6 is that ticket, so they land here.
+ *
+ * ⚠️ **`05` is the authority, not the canvas.** `05` §9: where the two disagree,
+ * `05` wins. In particular the ink ramp is **four greys, not seven** (ADR 0024)
+ * and every one of them meets WCAG AA at 4.5:1 against `--k-ground`. *Vet* reads
+ * heavier than the artboard does; that is the decision, not drift, and the
+ * retired `--k-ink-tertiary`, `--k-ink-aside` and `--k-ink-label` are not to be
+ * restored.
+ *
+ * ⚠️ **Two tokens carry a use `05` does not yet list**, recorded in `10` §2.1 so
+ * that the next edit of `05` picks them up: `--k-key-face` is the hover face of
+ * a resting control on `--k-raised`, and `--k-ink-ground` is its active face
+ * (ADR 0035).
+ *
+ * ⚠️ **The three font families are named and their files are not shipped.**
+ * `05` §4 says "whether the app ships them from Google is a Phase 4 question,
+ * not a design-system one" — and Phase 4 never answered it. Nothing in eleven
+ * documents or 39 ADRs decides between a Google Fonts stylesheet, self-hosted
+ * `@fontsource` packages and `@nuxt/fonts`, and the choice is a dependency
+ * decision with a pin obligation (`03` §13.5) rather than something #6's
+ * acceptance criteria ask for. So the stacks below are `05` §4's own, fallbacks
+ * included, and a reader today sees the fallbacks. **The question is open and
+ * recorded in `06-decision-log.md`.**
+ */
+
+:root {
+  /* -- §1 Surfaces ------------------------------------------------------- */
+  /* Two grounds, and they are not interchangeable. `--k-raised` is 8/255
+     lighter than `--k-ground`: a lift you feel rather than see, doing its work
+     through the shadow rather than the fill. */
+  --k-ground: #f7f3ec;
+  --k-raised: #fffdf9;
+  --k-ink-ground: #1d1a16;
+  --k-key-face: #efe8de;
+
+  /* -- §2 Ink ------------------------------------------------------------ */
+  /* Four greys, ordered, all meeting AA at 4.5:1 against `--k-ground`
+     (ADR 0024). The contrast figure is in the comment because it is the reason
+     the value is what it is. */
+  --k-ink: #1d1a16; /* 15.67 — the term, the meaning, every statement */
+  --k-ink-quiet: #4c463d; /* 8.44 — one step back without leaving the answer */
+  --k-ink-value: #60584d; /* 6.33 — a fact's value */
+  --k-ink-secondary: #776d5f; /* 4.59 — everything ancillary, and eyebrows */
+
+  /* The accent is spent on exactly two things — **where you are**, and **what
+     costs you the decision**. It is never decoration and never a state. */
+  --k-accent: #b23a26; /* 5.38 */
+  --k-accent-hover: #8e2c1c; /* 7.65 — the only hover on the canvas */
+  --k-on-ink: #f7f3ec; /* 15.67 on ink */
+  --k-on-ink-quiet: #cdbfa9; /* 9.59 on ink */
+
+  /* -- §3 Rules ---------------------------------------------------------- */
+  /* Two line tokens, split by the surface they sit on rather than by whether
+     they are chrome or content. The values are tuned to the same perceived
+     weight on their different grounds — 1.26 against 1.25 — and that is the
+     only reason they are two tokens. */
+  --k-rule: #e2d9cd;
+  --k-rule-raised: #ece3d7;
+
+  /* Related fills, which are not rules. */
+  --k-tick-empty: #e6ddd2;
+  --k-border-control: #ddd3c6;
+  --k-border-dashed: #ccc1b1;
+  --k-dot: #ddd3c6;
+
+  /* -- §4 Type ----------------------------------------------------------- */
+  /* The split is load-bearing: **Mincho carries every Japanese glyph,
+     Newsreader every English one, and Plex Mono everything that is a number, a
+     key, or a label rather than language.** A screen never mixes a family into
+     a role that is not its own. */
+  --k-face-ja: 'Shippori Mincho', serif;
+  --k-face-en: 'Newsreader', Georgia, serif;
+  --k-face-mono: 'IBM Plex Mono', monospace;
+
+  /* -- §5 Layout --------------------------------------------------------- */
+  /* "Horizontal padding on every screen, without exception" — with the one
+     exception `10` §10.1 adds below, which is why this is a token at all. */
+  --k-gutter: 44px;
+
+  /* The five measures. `10` §2.2 adds no sixth: the Sources list and Stats take
+     940 (to read across), the Ingest form takes 760 (one object of attention),
+     and the door, the refusal and the delete confirmation take 560. */
+  --k-measure-read: 940px;
+  --k-measure-object: 760px;
+  --k-measure-told: 620px;
+  --k-measure-empty: 560px;
+
+  /* Ten steps on a 4pt grid. New values are added to the scale, never set by
+     hand beside it. */
+  --k-space-1: 4px;
+  --k-space-2: 8px;
+  --k-space-3: 12px;
+  --k-space-4: 16px;
+  --k-space-5: 20px;
+  --k-space-6: 28px;
+  --k-space-7: 32px;
+  --k-space-8: 40px;
+  --k-space-9: 44px;
+  --k-space-10: 52px;
+
+  /* §5 Chrome — the bar is 56px so the *shell* and *Vet* share a horizon. */
+  --k-bar-height: 56px;
+
+  /* -- §6 Geometry ------------------------------------------------------- */
+  /* Radius runs *opposite* to size: the 760px card is the sharpest thing on
+     screen at 3px and the smallest elements are the roundest. Large paper is
+     cut, not moulded. */
+  --k-radius-card: 3px;
+  --k-radius-control: 5px;
+  --k-radius-key: 4px;
+  --k-radius-tick: 3px;
+
+  /* One shadow, on one element. The tint is warm brown rather than black — a
+     neutral shadow reads grey-blue against this ground. Nothing else in the
+     system is elevated. */
+  --k-shadow-card: 0 1px 0 #e8ded1, 0 18px 44px rgb(70 52 30 / 7%);
+
+  /* -- ADR 0025 ---------------------------------------------------------- */
+  /* The focus ring, `:focus-visible` only. */
+  --k-focus: #b23a26;
+}
+
+/*
+ * ⚠️ `10` §10.1: **`--k-gutter` drops from 44px to 20px below 720px**, which
+ * makes it the one token in the system that varies — `05` §5 calls it
+ * "horizontal padding on every screen, without exception". 44px of a 375px
+ * viewport is 23% of the width spent on margin; 20px is a scale step.
+ */
+@media (width < 720px) {
+  :root {
+    --k-gutter: 20px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+ * The ground, and the two things every screen inherits.
+ * ------------------------------------------------------------------------ */
+
+html {
+  background: var(--k-ground);
+}
+
+body {
+  margin: 0;
+  background: var(--k-ground);
+  color: var(--k-ink);
+  font-family: var(--k-face-en);
+  font-size: 15px;
+  line-height: 1.5;
+
+  /* Japanese sits inside English prose throughout, and the two faces are
+     different fonts rather than different weights of one — so a `:lang(ja)`
+     rule is how a *term* gets Mincho without every template naming it. */
+  -webkit-font-smoothing: antialiased;
+}
+
+:lang(ja) {
+  font-family: var(--k-face-ja);
+}
+
+/*
+ * ADR 0025, `10` §3.3: `--k-focus`, 2px at 2px offset, **`:focus-visible` only**.
+ * Focus is the one state every control here shares, so it is written once.
+ */
+:focus-visible {
+  outline: 2px solid var(--k-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * ⚠️ **No control in v1 has a disabled state** (ADR 0032, ADR 0035, `10` §3.3).
+ * There is deliberately no `[disabled]` rule in this file: a zero on Vet is how
+ * the reader reaches the written empty state behind it, and PRD §4 makes those
+ * empty states requirements.
+ */

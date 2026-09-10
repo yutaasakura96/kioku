@@ -646,8 +646,16 @@ an absent one are identical:
 | `running` | `12 of 31 chunks` |
 | `complete` | the number of *notes* produced |
 | `complete`, zero new *notes* | the filter tally below — **a success** (PRD §5) |
-| `incomplete` | what completed, and a resume control (the quiet affordance, with its arrow) |
+| `incomplete` | what completed, and a resume control (the quiet affordance, with its arrow). ⚠️ **The control is not built** — see below |
 | `failed` | what failed. ⚠️ **The provider is never named at the reader** (`03` §11) |
+
+⚠️ **Amended 2026-09-11 — `incomplete`'s resume control is owed by #7, not by #6.** #6 built the run
+row and its five detail lines; the resume control is a **write**, a second `job` at `kind = 'resume'`
+(`04` §6.4), and what resuming *means* is `04` §6.2's `WHERE ingestion_id = $1 AND status <>
+'complete'` — the worker's query, which arrives with
+[#7](https://github.com/yutaasakura96/kioku/issues/7). A control that wrote a job no worker could act
+on would be worse than the line that says what completed. **The ticket that builds the resume path
+builds this control.**
 
 **Filter tally.** The zero-new-*notes* case (PRD §5, `09` §4.5) — candidates extracted and how many
 each filter dropped, from `ingestion.candidates_*`. **It is the *session tally* component** (`05`
@@ -702,6 +710,15 @@ condition §3.2 named for keeping the arrow.
 
 `S11`'s "where did this card come from" half, and the reason `source.content` is retained at all
 (ADR 0008).
+
+⚠️ **Amended 2026-09-11 — the readable half of this screen was built early, by #6, and the rest was
+not.** #6's acceptance criteria put "the *source* **detail** route, its *occurrence* positions and
+deletion" in `S11` and out of milestone 1, and two of its *other* criteria then needed the route to
+exist anyway: `09` §4.2's "offers to open the existing one" and §7.1's list row both link here, and a
+link to a `404` is not an offer. So `/sources/:id` today renders the title, the fact line and **the
+retained material**, in full — the part ADR 0008 kept the content *for* — and nothing else. **The
+*notes*, the *occurrence* positions and the route to §7.3's confirmation are still `S11`'s**, and the
+ticket that owns them owns this section.
 
 **Header block**, 940px: the title at 24px Newsreader 400 `--k-ink` (the "single datum given weight"
 slot — a *source* title is a heading, not a 46px screen statement), then the fact line as §7.1,
