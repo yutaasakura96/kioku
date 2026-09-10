@@ -3,16 +3,67 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**40 ADRs**, eleven documents, an empty frontier, and **eleven open issues** on the tracker.
-**Nothing is owed.**
-**#2, #3, #4 and #5 are built.** ⚠️ **The frontier is [#6](https://github.com/yutaasakura96/kioku/issues/6)
-alone** — ingest and sources, the next link on the long chain. There is a schema, a door, and a
-*subject* declaration that both toolchains read.
-**Updated:** 2026-09-10
+**42 ADRs**, eleven documents, an empty frontier, and **ten open issues** on the tracker.
+**#2, #3, #4, #5 and #6 are built.** ⚠️ **The frontier is
+[#7](https://github.com/yutaasakura96/kioku/issues/7) alone** — the worker loop. There is a schema, a
+door, a *subject* declaration both toolchains read, and now **a reader who can paste two pages of
+Japanese and get control back**: four rows in one transaction, a queued job, and a run list that
+reports what the job table knows.
+⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
+in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
+and it is the one thing this file and the tracker disagree about.
+**Updated:** 2026-09-11
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #6 — ingest and sources, 2026-09-11.** **A paste, four rows, one transaction, and control
+back before the worker has looked.** Signing in lands on Ingest (ADR 0031); the form posts, the write
+records `source` + `source_chunk` + `ingestion(queued)` + `job(queued)` **inside one transaction**,
+and the answer is a `303` — `S2`'s "returns control immediately" satisfied by the job row rather than
+by a fast worker. The run appears above the form on the way back, the Sources list renders, and
+**every figure on all three *places* is stamped `as of this page load`**.
+
+**Suite: 277 TypeScript passing** (was 147) plus 47 pytest. Typecheck, build and `drizzle-kit check`
+clean. ⚠️ **Ten sabotages, ten distinct failures** — and two of the first sabotages did *not* fail,
+which is where two of the session's findings came from.
+
+⚠️ **`/code-review` found a real bug after the suite was green, for the third ticket running.** A
+`<textarea>` bound with `:value` renders as raw children and the HTML parser eats one newline after
+the tag — so a refused paste beginning with a blank line came back one line shorter. **The comment
+above it asserted the opposite, from memory**, sitting between two claims in the same file that had
+been measured. It is in § Carrying, it is fixed, and it is tested. The review also moved the refusal
+line to where `10` §6.3 puts it, corrected `/sources/:id`'s typography to `10` §7.2, removed a
+per-chunk re-split that cost 88 ms **inside the transaction**, and covered two query functions that
+had shipped untested.
+
+**The three things measured this session are all in § Carrying**, and each one changed what got
+built: what a `sql` template does to a Drizzle column, what Nuxt's renderer does with a `POST`, and
+what JavaScript's `.length` does to a Japanese *source*.
+
+**#6 also paid two debts it did not open.**
+
+- ⚠️ **`05`'s tokens exist.** § Carrying has carried "the tokens do not exist in the repo yet and **no
+  ticket owns them** — the first screen ticket to need them lands them" since #5.
+  `app/assets/css/tokens.css` is `05` §§1–6, ADR 0024's four greys included. ⚠️ **The font *files* are
+  still not shipped and that question is genuinely open** — `05` §4 deferred it to Phase 4 and Phase 4
+  never answered; the stacks carry `05` §4's own fallbacks and `06-decision-log.md` records the gap.
+- ⚠️ **The end-to-end tier can sign in.** `11` §6.1 handed that to #10 and `00-status.md` § Next left
+  the door open for #6 to argue it. #6 argued it, because its own criteria put the over-cap re-render
+  in the end-to-end column and every route that pair touches is gated. PGlite behind a socket server,
+  a session row, and a cookie signed in the test — **no endpoint mints a session.** Assertion 1's
+  signed-in half is back on the three routes it is about.
+
+**What #6 built that its criteria put out of scope, and why:** `/sources/:id`, **readable only**. Two
+of its criteria — "offers to open the existing one" and "the Sources list renders" — both link there,
+and a link to a `404` is not an offer. It renders the title, the fact line and the retained material;
+**the *notes*, the *occurrence* positions and the delete confirmation are still `S11`'s.** `10` §7.2
+is amended to say so.
+
+**What #6 deliberately did not build:** `ingestion_chunk` rows. `04` §6.2 is per-chunk *progress*,
+and progress before anything has been claimed is a fiction — #7 opens that queue when the worker
+claims the job. `S2` names four rows and there are four.
 
 **Phase 6, #3 — the subject declaration, 2026-09-10.** **One file, two toolchains, and a test that
 runs one language from the other.** `subjects/jlpt-vocab.json` is ADR 0003's declaration as
@@ -367,21 +418,33 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 3` or `/implement 6`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 7`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
-**⚠️ [#3](https://github.com/yutaasakura96/kioku/issues/3) built 2026-09-10.** **The frontier is
-[#6](https://github.com/yutaasakura96/kioku/issues/6) alone** — ingest and sources. Everything else
-that is unblocked is downstream of it: #7 needs #6, and #8 needs #7 as well as #3. #6 inherits the
-gate, so its routes are behind a session before it writes a line.
+~~**⚠️ #3 built 2026-09-10.** The frontier is #6 alone.~~ **⚠️ [#6](https://github.com/yutaasakura96/kioku/issues/6)
+built 2026-09-11. The frontier is [#7](https://github.com/yutaasakura96/kioku/issues/7) alone** — the
+worker loop: subscribe-then-poll, claiming, and the stale sweep. It is the first ticket on the Python
+side since #3 gave it a test runner, and #8 needs it as well as #3.
+
+**#7 inherits four things from #6**, none of which needs re-deriving:
+
+- **The job rows are there and they are `queued`.** `04` §6.4's claim query has something to claim.
+- ⚠️ **`ingestion_chunk` is empty on purpose** — #6 writes the four rows `S2` names and no more.
+  Opening that queue on claim is #7's, and `04` §6.2's resume query is what it is for.
+- ⚠️ **`03` §13.5's container half of PIN 6/6 is still unguarded.** The TypeScript half is now
+  enforced by npm (`@electric-sql/pglite-socket` peer-depends on PGlite 0.5.8 exactly); **no bot
+  watches `postgres:18.3-alpine` in `worker/tests/README.md`**, and #7 owes it the same assertion
+  `test/schema/schema.test.ts` carries.
+- **The end-to-end tier can sign in now**, if #7 ever wants a request behind the gate.
 
 ~~**#5 closed 2026-09-09.** #6 and #3 are independent; either can go first.~~ **#3 went first.**
 
-⚠️ **#6 also inherits a debt #5 could not pay: the e2e tier can no longer see a signed-in
-document**, because there is no way to sign in without Google. `11` §6.1 names what that took away
-and points at #10 to bring it back; if #6 finds it needs an authenticated request sooner, that is
-the ticket to argue it on, not this line.
+~~⚠️ **#6 also inherits a debt #5 could not pay: the e2e tier can no longer see a signed-in
+document.** `11` §6.1 points at #10; if #6 finds it needs an authenticated request sooner, that is
+the ticket to argue it on.~~ ⚠️ **#6 found it needed one and argued it — paid 2026-09-11.** PGlite
+behind `@electric-sql/pglite-socket`, a session row, and a cookie signed in the test. **#10 still
+owes the browser; it no longer owes the context.** `11` §1 and §6.1 are amended.
 
 ~~**#4 closed 2026-09-09**; the frontier is #3 and #5.~~ **#5 closed the same day.**
 
@@ -399,9 +462,9 @@ findings that amended `11` §1 and §6.1**.
 **The dependency order, so no session re-derives it:**
 
 ```
-#2 scaffold ✔ ─┬─→ #3 subject declaration ──┐
-              └─→ #4 schema ✔ ─→ #5 identity ─→ #6 ingest ─┐
-                                               #4,#6 ─→ #7 worker loop
+#2 scaffold ✔ ─┬─→ #3 subject declaration ✔ ┐
+              └─→ #4 schema ✔ ─→ #5 identity ─→ #6 ingest ✔ ┐
+                                               #4,#6 ─→ #7 worker loop  ← the frontier
                                         #3,#7 ─→ #8 pipeline 1–5 ─→ #9 generation
                                                #9 ─→ #10 vet mechanics ─┬─→ #11 vet presentation
                                                                         └─→ #12 review
@@ -436,6 +499,100 @@ four.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **`@vue/compiler-ssr` renders a `value` bind on a `<textarea>` as the element's raw children, and
+  the HTML parser eats one newline after `<textarea>`.** So a refused paste beginning with a blank
+  line came back one line shorter than it went in — which is exactly the loss `09` §4.2 exists to
+  prevent, in miniature and harder to notice. `app/pages/index.vue` prepends a newline so the eaten
+  one is ours. ⚠️ **This was a comment asserting the opposite from memory** — that `:value` avoided
+  the problem — and `/code-review` caught it. It is what CLAUDE.md § Working agreements means by
+  "never verify from memory": the two claims either side of it in the same commit *were* measured, and
+  this one read exactly like them.
+- ⚠️ **A missing `owner_id` filter on `recentRuns`, `allSources` and `sourceDetail` is `04` §4, not a
+  bug**, and it was read as one during review. A *source* and an *ingestion* are **shared** — "true
+  regardless of who is asking" — and `ingestion.submitted_by` is documented on the column as "**an
+  audit line, not an owner**". `startBlockCounts` *is* filtered, because *note vettings* and *cards*
+  are personal. **Adding a filter to the first three would be a product change.** The reasoning now
+  sits on the function rather than only in `04`.
+- ⚠️ **`incomplete` owes a resume control and #6 did not build it.** `10` §6.2 and `09` §7 both give
+  that run row "a resume action (the quiet affordance, with its arrow)". The control is a **write** —
+  a second `job` at `kind = 'resume'` (`04` §6.4) — and what resuming means is `04` §6.2's resume
+  query, which is the worker's and arrives with #7. A control that wrote a job no worker could act on
+  would be worse than the line that says what completed. `10` §6.2 is amended to say so.
+- ⚠️ **Two of #6's acceptance criteria were met by changing the documents they cite**, and both are
+  disclosed rather than quietly folded in. The submission path moved to `POST /` (ADR 0042) and
+  `/sources/:id` was built readable-only although criterion 8 puts the detail route out of scope. Each
+  has an amendment in the document it contradicts. **Neither is a decision a reviewer should have to
+  reconstruct from the diff**; if either is wrong, the amendment is where to argue it.
+
+- ⚠️ **Interpolating a Drizzle column into a `sql` template emits a *bare, unqualified* identifier**,
+  and in a correlated subquery that silently binds to the inner table. Measured 2026-09-11,
+  drizzle-orm 0.45.2: ``sql`… WHERE ${note.originIngestionId} = ${ingestion.id}` `` emits
+  `WHERE "origin_ingestion_id" = "id"`, and inside a subquery over `note` that `"id"` is `note.id`.
+  Valid SQL, no error, a number comes back. The fix is to build the subquery with Drizzle and embed
+  it — ``sql`${subquery}` `` emits `where "n"."origin_ingestion_id" = "ingestion"."id"`.
+  ⚠️ **The worst case was the *pass*, not the failure:** the chunk count written the broken way came
+  out as `WHERE "source_id" = "source_id"`, trivially true, counting every chunk in the table — and it
+  **agreed with the right answer for as long as there was one *source***. That is why
+  `test/schema/place-queries.test.ts` seeds a second *source* and a second *ingestion* for every count
+  that has one. **It generalises past that file: any `sql` template meaning to correlate is wrong the
+  same way.**
+- ⚠️ **JavaScript's `.length` is UTF-16 units and Python's `len()` is code points, and `04`'s offsets
+  cross that line.** `'𠮟'.length` is 2; `len('𠮟')` is 1. The app writes `char_start` / `char_end`
+  and the worker slices `source.content` by them in Python, so **one character outside the BMP puts
+  every later offset one out** — silently, surfacing months later as an *occurrence* highlighting the
+  wrong span. Everything in the ingest path goes through `shared/ingest/text.ts`, which iterates code
+  points; nothing there uses `.length` or `.slice` on source text. Same class as #3's `trim()` /
+  `str.strip()` divergence, closed the same way. ⚠️ `Intl.Segmenter` is the wrong fix — it counts
+  *graphemes*, and the contract is with Python's `len()`.
+- ⚠️ **Nuxt's page renderer answers `POST` with a fully rendered document, and a middleware cannot
+  re-route by rewriting `event.node.req.url`.** Both measured 2026-09-11 against the built app; the
+  second `404`s. Together they are why **the *source* submission is `POST /`, not `POST /api/source`**
+  (`09` §1 and §4.2 amended): a refused paste must be answered with the Ingest document re-rendered
+  and the reader's text in it, and a Nitro route handler cannot render a page. `nitropack` 2.13.4's
+  `localFetch` takes no context either, so the paste cannot travel to an internal render. **Everything
+  the old row was for is unchanged** — form, post-redirect-get, `SameSite=Lax` CSRF.
+- ⚠️ **The three *places* read their data from `event.context`, not from a fetch.** `#5` set the idiom
+  (`app/pages/auth/index.vue` reads `useRequestEvent()?.context.session`) and #6 extended it:
+  `server/middleware/shell-data.ts` attaches a **lazy reader**. The alternative — `useAsyncData` +
+  `$fetch` against new `/api/**` read routes — was rejected on three counts, and **the middle one is
+  the trap**: `useAsyncData` serialises its result into the Nuxt payload, which is a
+  `<script type="application/json">` **on a route whose whole contract is that it emits no
+  `<script>`**. The other two: it adds routes `09` §1's table does not have, and the internal call
+  would need `useRequestFetch()` to forward the session cookie.
+- **The chunking rule was decided here, not read.** 1200 characters, breaking at the last of
+  `。！？\n` at or before the target, terminator belonging to the chunk it ends, hard break where the
+  window holds none. `04` §5.2 gave the *property* ("a function of content … stable across
+  re-ingestions") and its worked example gave the only number. ⚠️ Moving it changes
+  `source_chunk.content_hash` for every *source* ingested afterwards and therefore the first element
+  of the generation cache key — **a cost, not a corruption**: unlike a `SudachiDict` bump it cannot
+  change the identity of an existing *note*, because boundaries never reach `normalized_form`.
+- ⚠️ **`05`'s tokens now exist and the font *files* still do not.** `app/assets/css/tokens.css` is
+  `05` §§1–6 — this closes the "no ticket owns them" bullet below. **What did not close:** `05` §4
+  calls shipping the faces "a Phase 4 question" and **Phase 4 never answered it.** The stacks carry
+  `05` §4's own fallbacks, so a reader today sees Georgia rather than Newsreader. It was left open
+  rather than decided in passing because it is a dependency decision with a pin obligation
+  (`03` §13.5); the leaning and the reasoning are in `06-decision-log.md`.
+- ⚠️ **The e2e tier signs in now, and no endpoint mints a session.** PGlite behind
+  `@electric-sql/pglite-socket` 0.2.11 gives the built app a real wire-protocol database;
+  `test/e2e/session.ts` writes the row and signs the cookie with Better Auth's own scheme, read off
+  `better-call`'s `signCookieValue`. **A test-only sign-in route was refused outright** — `S1` says
+  refused at every route, and that would be a hole in the property #5 exists to establish. The forgery
+  **cannot pass by accident**: anything wrong resolves to no session and a `302`, so it fails loudly.
+  ⚠️ **Sign-in itself is still untested** and `11` §8 and §9 are unchanged.
+- ⚠️ **A guard that a sabotage cannot reach is not a tested guard, and one of #6's is not.**
+  `server/middleware/shell-data.ts` refuses to attach anything when no session resolved — defence
+  against a middleware **reordering**, since Nitro runs `server/middleware/` alphabetically and
+  `shell-data` sorts after `session` on the `h`/`e`. Sabotaged 2026-09-11 by giving it a fallback
+  owner; **the suite stayed green**, correctly, because `session.ts` has already answered `302` and
+  nothing downstream ever runs without a session. The comment in that file says so rather than
+  implying coverage. **The general lesson: two of the ten sabotages this session did not fail, and
+  both times the first question was whether the sabotage was weak — once it was** (a cross join over
+  one row is an inner join) **and once it was not.**
+- ⚠️ **`/sources/:id` exists and is only the readable half.** #6's criteria put the detail route in
+  `S11`, and two of its other criteria link there — a link to a `404` is not an offer. Title, fact
+  line, retained material. **The *notes*, the *occurrence* positions and `/sources/:id/delete` are
+  still `S11`'s**; `10` §7.2 is amended to say which half is which.
 
 - ⚠️ **TypeScript widens every string in an imported JSON module, so the declaration is derived and
   still untyped.** `typeof declaration.fields[number]['name']` reads exactly like it produces a union
@@ -737,6 +894,12 @@ Nothing.
   `useRequestEvent()?.context.session` on the server pass and carries **only the email** into the
   payload. `app/utils/auth-client.ts` constructs the client **lazily**, so an SSR call gets nothing
   rather than a subtly signed-out render.
+- ~~⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
+  own it.**~~ ⚠️ **Half-closed 2026-09-11 by #6**, which landed `05`'s tokens as the first screen
+  ticket to need them. **The door and the refusal page were not restyled** — #6 did not touch
+  `app/pages/auth/`, so those two still carry the content and structure without the treatment. What
+  changed is that the tokens are now there for whoever does. The original bullet follows.
+
 - ⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
   own it.** Both pages carry the content and the structure `10` §9 names — the mark, the name, the
   body line, the rule, the control; the statement, the body, and no rule — with no treatment, because
