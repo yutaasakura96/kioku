@@ -36,9 +36,14 @@ dependencies = [
 
 [dependency-groups]
 # `11` §1 names both: pytest 9.1.1 and testcontainers 4.15.0. ⚠️ The container is
-# needed by **twenty-three** of the tests here and by nothing in the TypeScript
-# suite — ADR 0038 said three and carries the dated amendment for why the number
-# moved. `worker/tests/README.md` has the table.
+# needed by **forty** of the tests here and by nothing in the TypeScript suite —
+# ADR 0038 said three, then twenty-three, and carries a dated amendment for each
+# move. `worker/tests/README.md` has the table.
+#
+# ⚠️ **This line has now been stale twice**, both times because the count lives
+# in four files and a ticket amended two of them. If it is wrong again, the fix
+# is not a better search — it is to stop writing the number here and point at
+# `worker/tests/README.md`, which is the one place that has to be right.
 dev = ["pytest==9.1.1", "testcontainers[postgres]==4.15.0"]
 
 [tool.uv]

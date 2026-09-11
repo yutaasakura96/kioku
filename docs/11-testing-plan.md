@@ -12,7 +12,11 @@ are what a suite exists to hold.** Mechanisms are `03`, `04`, `08`; flows are `0
 `10`. Verified facts are [`phase-4-verification.md`](phase-4-verification.md) — **§1–13 are checked
 and must not be re-run.** §14 was added while writing this document, and §14.1 is a measurement.
 
-**This is a plan, not a suite. There is still no code, and no test file.**
+~~**This is a plan, not a suite. There is still no code, and no test file.**~~ ⚠️ **True when this
+document was written on 2026-09-07 and false since 2026-09-09.** The suite is **290 TypeScript across
+four tiers plus 143 pytest**, and every row below that says "will" should be read as a claim this
+document has already been checked against. Where a count appears here it is a snapshot; **§7 carries
+the dated amendments and is the section to trust.**
 
 ---
 
@@ -28,7 +32,9 @@ and must not be re-run.** §14 was added while writing this document, and §14.1
    [ADR 0038](adr/0038-two-test-databases-split-on-the-line-adr-0019-already-drew.md). ⚠️ The premise
    inverted under measurement: **PGlite is PostgreSQL 18.3** and fails every foreign key, trigger and
    check `04` relies on, in 946 ms with no Docker (verification §14.1). Only the worker's three
-   concurrency behaviours need a container.
+   concurrency behaviours need a *second session*. ⚠️ **What needs a container has since grown to
+   forty** — SQL rather than concurrency — and the ADR carries an amendment for each move; §7 is
+   current.
 3. **The `noScripts` smoke test's home** — §6.1. It stops being a first-week experiment and becomes
    three assertions in `test/e2e/`, because `@nuxt/test-utils`' `$fetch` returns the HTML
    (verification §14.3).
@@ -54,7 +60,7 @@ where the suite runs is a Phase 6 question that the plan does not depend on.
 | **Schema** | `test/schema/` | plain Node | **PGlite** | Every constraint, trigger and delete rule in `04`, run by Drizzle's migrations |
 | **Nuxt runtime** | `test/nuxt/` | `// @vitest-environment nuxt` | PGlite | Components, `mountSuspended`, the outbox against a real `localStorage` |
 | **End to end** | `test/e2e/` | a built, running app | **PGlite over a socket** | Rendering, routing, redirects, headers, and the browser tests. ⚠️ **Signed in from 2026-09-11** — see §6.1 |
-| **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container**, for three tests only | The pipeline end to end, and the three concurrency behaviours. ⚠️ **And two tests that need no container at all**, added 2026-09-10 with #3: the *subject* declaration's Python view, and §7's cross-language drift test |
+| **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container**, for ~~three tests only~~ **forty of 143** | The pipeline end to end, and the three concurrency behaviours. ⚠️ **The count moved twice** — twenty-three with #7, forty with #8 — and ADR 0038 carries a dated amendment for each. **A hundred tests here need neither Docker nor a database**, including the whole pure pipeline |
 
 ⚠️ **`@nuxt/test-utils/runtime` and `@nuxt/test-utils/e2e` cannot be used in the same file**
 (verification §14.3) — they need different environments. That is why `test/nuxt/` and `test/e2e/` are
@@ -64,8 +70,10 @@ same three (`test/` is not auto-scanned).
 Runner: **Vitest 5.0.0**, which is what `@nuxt/test-utils` 4.2.0 documents as recommended. Python:
 **pytest 9.1.1** with **`testcontainers` 4.15.0**.
 
-⚠️ **Docker is required for exactly three tests** (ADR 0038). A laptop without it runs the whole
-TypeScript suite and gets three red worker tests, visibly and for a stated reason.
+⚠️ **Docker is required for ~~exactly three tests~~ forty** (ADR 0038, amended twice — §7). **The
+claim the number was protecting is what has not changed, and is why it is worth stating as a claim
+rather than as a number:** a laptop without Docker runs the whole TypeScript suite *and the whole
+pure pipeline*, and what goes red is the worker's database tests, visibly and for a stated reason.
 
 ---
 
@@ -365,7 +373,7 @@ erased the distinction the test exists to protect.
 **a test of the fixture's own cleanup** (below). The sentence being protected is still untouched: a
 laptop with no Docker runs the entire TypeScript suite *and* the whole pure pipeline, and what goes
 red is the worker's forty, with `worker/tests/conftest.py` printing the reason. The worker suite is
-**140 tests**, of which 100 need neither Docker nor a database.
+**143 tests**, of which 103 need neither Docker nor a database.
 
 ⚠️ **Amended 2026-09-11 with #7 — "the three tests that need Docker" is now twenty-three**, and
 ADR 0038 carries the argument. The three below are still the three it named; what joined them is
@@ -419,9 +427,9 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | --- | --- |
 | Stage order | Stages 4 and 5 run **before** stage 6 — no generation call is made for a *candidate* already known or *rejected* (ADR 0010, `S5`) |
 | ⚠️ Numerals | 六 comes back `is_oov=True` with `normalized_form` rewritten to `6`, and **the candidate is excluded before it reaches the identity key** (`03` §5.2). This is a recorded finding that will otherwise return as a bug |
-| ⚠️ Morphemes are not sliceable | Any windowing code iterates. `morphemes[:10]` raises `TypeError` (`03` §5.2) |
+| ⚠️ Morphemes are not sliceable | Any windowing code iterates. `morphemes[:10]` raises `TypeError` (`03` §5.2). ⚠️ **Built 2026-09-12 — it was a docstring until #8's review noticed this row named a test that did not exist** |
 | The cache key | All **four** parts — content-chunk hash, **dictionary version**, prompt version, model id (`03` §5.3). A key missing the dictionary version serves stale results after a SudachiDict bump |
-| `Dictionary()` once | Constructed once per process; a test that constructs it twice and measures RSS is the guard (verification §7.3) |
+| `Dictionary()` once | Constructed once per process; a test that constructs it twice and measures RSS is the guard (verification §7.3). ⚠️ **#8 first shipped `dictionary() is dictionary()` instead, which asserts that a memoised accessor memoises and cannot fail.** The real guard constructs two `Dictionary()` objects directly and asserts `ru_maxrss` grows — re-measured 2026-09-12 from a 16 MB baseline: 73.5 → 128.7 → 183.5 MB, about **55 MB per additional mapping**. Sabotaged by swapping the constructions for the accessor; it reddens |
 | Resume | A run that fails part-way keeps partial results and re-runs **only unprocessed chunks** (PRD §5) |
 | ⚠️ The part-of-speech allowlist | Built 2026-09-12 with #8 and [ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md). **Every `(pos₀, pos₁)` pair the installed dictionary declares is classified** — the allowlist and the exclusion list cover all 38 between them, so a `SudachiDict` release that adds a category fails by name rather than dropping a word class in silence |
 | ⚠️ Orthographic variants | 引っ越し / 引越し / 引越 render **one** *identity key*. This is what buys `normalized_form` its place as the term half over `dictionary_form`, which returns each surface unchanged (ADR 0006, ADR 0019) |

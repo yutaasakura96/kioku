@@ -215,10 +215,11 @@ def to_hiragana(reading: str) -> str:
 
 
 def _candidate(declaration: Declaration, token: Token, char_start: int) -> Candidate:
-    fields = {"term": token.normalized_form, "reading": reading_of(token)}
+    term = token.normalized_form
+    reading = reading_of(token)
     return Candidate(
-        term=fields["term"],
-        reading=fields["reading"],
+        term=term,
+        reading=reading,
         part_of_speech=token.part_of_speech[0],
         surface_form=token.surface,
         char_start=char_start + token.begin,
@@ -227,5 +228,5 @@ def _candidate(declaration: Declaration, token: Token, char_start: int) -> Candi
         # ⚠️ Rendered by the declaration's own function rather than joined here:
         # `04` §5.3's rule is *in the order the subject declaration lists them*,
         # and a second implementation of it is a second thing to get wrong.
-        identity_key=render_identity_key(declaration, fields),
+        identity_key=render_identity_key(declaration, {"term": term, "reading": reading}),
     )

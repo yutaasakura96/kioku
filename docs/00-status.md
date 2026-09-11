@@ -27,8 +27,26 @@ per stage named by the declaration — `chunk`, `tokenise`, `extract_candidates`
 around them is `worker/ingest.py`, and **`worker/runs.py` is untouched**: the seam really was one
 argument.
 
-**Suite: 290 TypeScript** (was 280) **plus 140 pytest** (was 86), 40 of them needing Docker.
+**Suite: 290 TypeScript** (was 280) **plus 143 pytest** (was 86), 40 of them needing Docker.
 Typecheck, build and `drizzle-kit check` clean.
+
+⚠️ **`/code-review` found two real things inside this commit, and the stale-number failure is now
+five tickets running — this time it was the count of its own container tests.** #8 amended `11` §7
+and `worker/tests/README.md` to forty and left ADR 0038, `worker/pyproject.toml` and
+**`worker/tests/conftest.py`'s no-Docker message** — the one a developer actually reads — saying
+twenty-three, while `worker/tests/README.md` claimed "ADR 0038 carries the amendment" for a number
+ADR 0038 did not carry. All four are fixed and `11` §1's own header, which still said *Docker is
+required for exactly three tests* and *there is still no code*, is fixed with them. **The count lives
+in five files; the durable fix is for four of them to point at `worker/tests/README.md` rather than
+repeat it**, and that is written down where the number is.
+
+⚠️ **And criterion 9 was not met by the test that claimed to meet it.** #8 first shipped
+`assert dictionary() is dictionary()` for *"constructed once per process, guarded by a test that
+constructs it twice and measures memory"* — an assertion that a memoised accessor memoises, which
+cannot fail, against a criterion whose whole fear is a caller that never uses the accessor. The real
+guard constructs two `Dictionary()` objects and measures `ru_maxrss`; **sabotaged by swapping them
+for the accessor, it reddens.** The `morphemes[:10]` guard `11` §7 also names as a test was likewise
+only a docstring; it is a test now.
 
 **Three decisions this session made rather than transcribed, all now ADRs:**
 

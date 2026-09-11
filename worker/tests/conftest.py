@@ -1,6 +1,6 @@
 """The container tier — ADR 0038, `11` §1 and §7.
 
-**A real Postgres 18, for the worker's twenty-three database tests.** ADR 0038
+**A real Postgres 18, for the worker's forty database tests.** ADR 0038
 split the two test databases on the line ADR 0019 already drew: PGlite in
 process for every constraint, delete rule and trigger in `04`, and a real server
 for the three behaviours PGlite cannot have — the job claim under two workers,
@@ -8,16 +8,21 @@ the stale-claim sweep, and a `LISTEN` torn down and recovered by the poll. Those
 three need a **second session**, and PGlite is single-connection.
 
 ⚠️ **ADR 0038 said "three tests and nothing else" and carries a dated amendment
-for why that is now twenty-three.** The other twenty are #7's SQL — the chunk
-queue, `04` §6.2's resume query, the settle, the drain — which need a database
-rather than a second session, and in Python that is the same container.
+for each time that moved — three, then twenty-three, now forty.** What joined the
+three is SQL rather than concurrency: #7's chunk queue, `04` §6.2's resume query,
+the settle and the drain, then #8's corpus lookup, rejected filter, *occurrence*
+append and ledger, ADR 0046's two sweep branches, and `test_scratch_cleanup.py`.
+All of it needs a database rather than a second session, and in Python that is
+the same container.
 
 ⚠️ **Without Docker these go red rather than skipping**, and that is ADR 0038's
 sentence, not an accident: *"it is the worker's three concurrency tests that go
 red — visibly and for a stated reason, rather than the whole suite refusing to
-start."* A guard that quietly excuses itself is not a guard. Everything else in
-this directory — `test_subject.py`, `test_subject_drift.py`, `test_loop.py` and
-`test_db.py` — needs neither Docker nor a database and keeps running.
+start."* A guard that quietly excuses itself is not a guard. The other 103
+tests in this directory keep running — the whole pure pipeline, plus
+`test_subject.py`, `test_subject_drift.py`, `test_loop.py` and `test_db.py`.
+:data:`NO_DOCKER` below is the message that names them, and it is the one a
+developer actually reads.
 
 ⚠️ **The schema comes from Drizzle's own migrations**, read off disk and
 replayed here. That is the same rule the TypeScript schema tier follows and it
@@ -92,18 +97,23 @@ NO_DOCKER = """\
 Docker is not available, and this test needs a real Postgres 18 container.
 
 ⚠️ Every red test below is one of the worker's database tests, and there are
-twenty-three of them — `test_jobs.py`, `test_runs.py` and `test_reconnect.py`.
+forty of them — `test_jobs.py`, `test_runs.py`, `test_reconnect.py`,
+`test_ingest.py` and `test_scratch_cleanup.py`.
+
 Three are ADR 0038's own: the job claim under two workers, the stale-claim
 sweep, and a LISTEN torn down and recovered by the poll. Those three need a
-second database session, which PGlite cannot give them. The other twenty are
-#7's SQL — the chunk queue, `04` §6.2's resume query, the settle, the drain —
-which need a database rather than a second session, and in Python that is the
-same container. ADR 0038 carries the amendment and the reason the number moved.
+second database session, which PGlite cannot give them. The rest need a database
+rather than a second session — #7's chunk queue, resume query, settle and drain,
+and #8's corpus lookup, rejected filter, *occurrence* append and ledger — and in
+Python that is the same container. ADR 0038 carries a dated amendment for each
+time the number moved.
 
-Nothing else is affected: the entire TypeScript suite still runs, and so do
-`test_subject.py`, `test_subject_drift.py`, `test_loop.py` and `test_db.py`
-here — the loop's own shape is asserted against a fake connection and needs no
-database at all. Start Docker and run `uv run pytest` again.
+Nothing else is affected: the entire TypeScript suite still runs, and so do the
+103 tests here that need neither — the whole pure pipeline
+(`test_chunk.py`, `test_tokenise.py`, `test_extract_candidates.py`,
+`test_deduplicate.py`, `test_filter_known.py`, `test_pipeline.py`), plus
+`test_subject.py`, `test_subject_drift.py`, `test_loop.py` and `test_db.py`.
+Start Docker and run `uv run pytest` again.
 
 The underlying error was: {error}
 """

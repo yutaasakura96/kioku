@@ -178,10 +178,10 @@ a.title:hover {
   background: var(--k-key-face);
 }
 
-.affordance:focus-visible {
-  outline: 2px solid var(--k-focus);
-  outline-offset: 2px;
-}
+/* ⚠️ **No `:focus-visible` here.** ADR 0025 and `10` §3.3 put the ring on one
+   global rule in `tokens.css`, whose own comment is "focus is the one state
+   every control here shares, so it is written once". A second copy would drift
+   the moment the token's offset changed. */
 
 .arrow {
   color: var(--k-accent);

@@ -24,7 +24,7 @@ at the edge of generation**. **The commands:**
 npm run test        # 290 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
-cd worker && uv run pytest   # 140, of which 40 need Docker (ADR 0038)
+cd worker && uv run pytest   # 143, of which 40 need Docker (ADR 0038)
 cd worker && uv run python . # the worker itself; needs KIOKU_WORKER_DATABASE_URL
 ```
 

@@ -82,6 +82,20 @@ TypeScript suite, and what goes red is the worker's, visibly and for a stated re
 Three of the twenty-three are still exactly those three. ⚠️ **The one thing not to do is fold the two
 harnesses together**; the 946 ms inner loop is what this decision bought.
 
+⚠️ **Amended again 2026-09-12 with [#8](https://github.com/yutaasakura96/kioku/issues/8) — twenty-three
+is now forty**, of a worker suite of 140. What joined them is the same kind of thing again: #8's SQL,
+which is the *pipeline* wired to the database — the corpus lookup, the rejected filter, the
+*occurrence* append and `04` §6.1's ledger — plus ADR 0046's two new sweep branches and one test that
+is not about the worker at all, `test_scratch_cleanup.py`, which asserts that this tier's own fixture
+cannot reach `review_log`. ⚠️ **That one is worth naming here**, because it is a failure this ADR's
+container tier created and nothing else could have caught: `TRUNCATE … CASCADE` walks
+`ingestion` → `note` → `card` → `review_log`, and PGlite's tier never runs it.
+
+**The claim worth keeping is untouched for the second time**, and the count moving twice in two
+tickets is the argument for stating it as a claim rather than as a number: a laptop with no Docker
+runs the entire TypeScript suite *and the whole pure pipeline*, and what goes red is the worker's
+forty. Three of them are still exactly the three this ADR named.
+
 ## The migrations build both, and that is what stops the schema forking
 
 `drizzle-orm` 0.45.2 — the version `03` §13.5 pins — exports **`./pglite/migrator`** alongside

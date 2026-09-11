@@ -915,7 +915,12 @@ Stated as behaviour, not SQL. If a later change makes one of these awkward, the 
 1. **The *Vet* queue** — pending notes for this owner, with their fields, provenance and level claims.
    One note per keystroke, and `S3` gives it a five-second median to live inside.
 2. **The dedup lookup** — does `(subject_id, identity_key)` exist? Once per candidate, in the worker,
-   before any spend (ADR 0010).
+   before any spend (ADR 0010). ⚠️ **Amended 2026-09-12 with #8: once per *chunk*, for all of that
+   chunk's keys at once** — `identity_key = ANY($2)` rather than a round trip each. §12's own rule is
+   that a change making one of these awkward is the wrong change, so this is disclosed rather than
+   folded in: what the line was protecting is *before any spend*, and that is untouched. What moved
+   is the number of round trips, from one per candidate to one per chunk, and the same applies to
+   query 3 beside it. A `source` of 84 chunks and 214 candidates is 168 queries rather than 428.
 3. **The rejected filter** — every `identity_key` this owner has rejected. `S5`, and it is why the
    fiftieth source is cheaper than the fifth.
 4. **The due query** — live epochs for this owner with `due <= now()`, joined to unsuspended cards,

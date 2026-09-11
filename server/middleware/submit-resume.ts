@@ -20,6 +20,12 @@
 // ⚠️ **No JavaScript.** Ingest ships none (ADR 0020, `03` §2.1), so this is a
 // form submit and a `303` — post-redirect-get, exactly like the submission, and
 // the reader's back button lands on a document rather than on a resubmission.
+//
+// ⚠️ **The three-guard preamble is duplicated from `submit-source.ts` on
+// purpose.** Extracting it would be a module and an indirection for three
+// one-line checks, and each is the kind that should be readable where it is
+// rather than inherited from somewhere else — a middleware that cannot be read
+// top to bottom is how one of them quietly stops running.
 
 import { recordResume } from '../utils/ingest/resume'
 import { useDatabase } from '../db'

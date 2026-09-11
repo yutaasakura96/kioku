@@ -126,12 +126,17 @@ def make_chunk_processor(
     them read again.
     """
     resolved = declaration if declaration is not None else load_declaration()
-    context: list[RunContext] = []
+    #: ⚠️ **A mutable default on the closure, not a `nonlocal`.** The first chunk
+    #: reads the run context and the rest reuse it; a one-element cache is the
+    #: smallest thing that expresses *read once, lazily*, and it is `dict` rather
+    #: than a bare `Optional` because rebinding one from an inner function needs
+    #: `nonlocal`, which is the thing that makes this pattern hard to read.
+    cached: dict[str, RunContext] = {}
 
     def process_chunk(connection: psycopg.Connection, chunk: Chunk) -> None:
-        if not context:
-            context.append(read_run_context(connection, job.ingestion_id))
-        run = context[0]
+        if "run" not in cached:
+            cached["run"] = read_run_context(connection, job.ingestion_id)
+        run = cached["run"]
 
         result = run_stages(
             resolved,

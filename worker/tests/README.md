@@ -4,11 +4,18 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for forty of the one hundred and forty tests here**, and
-ADR 0038 carries the amendment. ⚠️ **Amended again 2026-09-12 with #8** — the
-forty are #7's twenty-three plus the *pipeline* wired to the database, ADR 0046's
-two new sweep branches, and `test_scratch_cleanup.py`, which asserts something
-about this directory rather than about the worker (below).
+⚠️ **Docker is required for forty of the one hundred and forty-three tests here**, and
+**ADR 0038 carries a dated amendment for each time that number moved** — three,
+then twenty-three with #7, now forty with #8. The new seventeen are the
+*pipeline* wired to the database, ADR 0046's two new sweep branches, and
+`test_scratch_cleanup.py`, which asserts something about this directory rather
+than about the worker (below).
+
+⚠️ **This count lives in four files and #8 shipped it stale in two of them.**
+`docs/11-testing-plan.md` §7, ADR 0038, `worker/pyproject.toml` and
+`worker/tests/conftest.py`'s no-Docker message all name it, and `conftest.py`'s
+is the one a developer actually reads. **This file is the one that has to be
+right**; the others should be pointing here rather than repeating it.
 
 ADR 0038 said *three*, naming the three concurrency behaviours. What joined them
 is SQL that is not a concurrency behaviour — #7's chunk queue, `04` §6.2's resume
