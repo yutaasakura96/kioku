@@ -3,8 +3,8 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**46 ADRs**, eleven documents, an empty frontier, and **nine open issues** on the tracker — #8 among
-them until someone closes it, because `/implement` commits and does not touch the tracker.
+**46 ADRs**, eleven documents, an empty frontier, and **eight open issues** on the tracker — #1 the
+spec, #5, and #9–#14.
 **#2, #3, #4, #5, #6, #7 and #8 are built.** ⚠️ **The frontier is
 [#9](https://github.com/yutaasakura96/kioku/issues/9) alone** — generation, stages 6 and 7. There is
 a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two pages of
