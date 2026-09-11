@@ -3,12 +3,12 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**42 ADRs**, eleven documents, an empty frontier, and **ten open issues** on the tracker.
-**#2, #3, #4, #5 and #6 are built.** ⚠️ **The frontier is
-[#7](https://github.com/yutaasakura96/kioku/issues/7) alone** — the worker loop. There is a schema, a
-door, a *subject* declaration both toolchains read, and now **a reader who can paste two pages of
-Japanese and get control back**: four rows in one transaction, a queued job, and a run list that
-reports what the job table knows.
+**43 ADRs**, eleven documents, an empty frontier, and **ten open issues** on the tracker.
+**#2, #3, #4, #5, #6 and #7 are built.** ⚠️ **The frontier is
+[#8](https://github.com/yutaasakura96/kioku/issues/8) alone** — the pipeline, stages 1 to 5. There is
+a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two pages of
+Japanese and get control back — and now **a worker that wakes up, claims the job and opens the
+per-chunk queue**. What it cannot do is process a chunk; that is the one seam #8 plugs into.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -17,6 +17,73 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #7 — the worker loop, 2026-09-11.** **`LISTEN`, then poll, then block — and the order is
+the decision.** ADR 0028's seven steps are `worker/loop.py`, the claim and the stale sweep are
+`worker/jobs.py`, and the chunk queue #6 deliberately left shut is `worker/runs.py`. The process has
+**no listening socket, no route and no inbound surface at all** (`03` §1), it takes the **direct**
+connection string and refuses the pooled one by name, and it reconnects with a doubling backoff
+capped at thirty seconds for as long as it runs.
+
+**Suite: 280 TypeScript** (was 277) **plus 86 pytest** (was 47), 23 of them needing Docker. Typecheck, build and
+`drizzle-kit check` clean. ⚠️ **Twenty sabotages, twenty distinct failures** — poll before
+`LISTEN` reddens six, dropping `SKIP LOCKED` reddens exactly the one test written for it, polling on
+the timeout reddens two, reading the payload reddens one, sweeping on `claimed_by` instead of
+`state` reddens the finished-job test by name, and a channel typo reddens the cross-language guard.
+
+**The three tests ADR 0038 required are built and they are three of twenty-three**, which is an
+amendment rather than a slip — see § Carrying. ⚠️ **The reconnect test asks the *server* what the
+worker is subscribed to**, through `pg_listening_channels()`, at the moment the poll happens: a real
+`pg_terminate_backend`, a `NOTIFY` fired while nobody is listening, and an assertion that the
+catch-up poll found the job anyway.
+
+**Four things this session decided rather than transcribed:**
+
+- ⚠️ **PgBouncer's feature matrix separates `LISTEN` from `NOTIFY`** — `Never` and `Yes` in
+  transaction pooling — and `03` §4.1, verification §7.2 and §9.2 all said the pair. All three are
+  amended. It is what lets the app send its own wake-up from the pooled connection, which is
+  **ADR 0043**: `pg_notify` after the transaction commits, swallowing its own errors, because the row
+  is on disk before the notification exists.
+- ⚠️ **The claim is one statement, not two**, and the reason is `autocommit=True`. See § Carrying.
+- **The container tier is twenty-three tests, not three** — ADR 0038 and `11` §7 amended, with the
+  sentence they were protecting intact.
+- ⚠️ **`incomplete` is what every run settles as until #8**, and that is the true answer rather than
+  a placeholder. `10` §6.2 is amended again: the resume control moves to #8, because #7 can claim a
+  `kind = 'resume'` job and still has nothing to resume *with*.
+
+⚠️ **`/code-review` found the stale-number failure inside this very commit, for the fourth ticket
+running.** The amendment that moved ADR 0038's container count from three to twenty-three reached
+four documents and **not the two files that cite them as authority** — `worker/pyproject.toml` and
+`worker/tests/conftest.py` both still read "exactly three tests… and nothing else". That is
+CLAUDE.md's *amend the document, don't leave a note* failing in the direction nobody checks: the
+amendment was written, and then the code that quotes it was not re-read. Both fixed.
+
+It also found three things that were wrong rather than stale, all fixed and all now tested:
+
+- ⚠️ **The loop caught `OperationalError` and not `InterfaceError`**, and psycopg makes the second a
+  sibling of `DatabaseError` rather than a kind of the first. The server ending the session raises
+  one; the next statement against the object it left behind raises the other. **A worker that caught
+  only the first would survive the drop it saw and die on the one it did not** — on Neon Free, where
+  the compute suspends every five idle minutes, that is a worker that stops overnight for a reason
+  nobody could reconstruct. `worker/db.py`'s `CONNECTION_LOST` is both, and deliberately not
+  `psycopg.Error`, which would turn a query with a typo in it into an infinite reconnect.
+- ⚠️ **`finish_job`, `fail_job` and `heartbeat` matched on the job id alone.** If a run outlives the
+  five-minute heartbeat window the sweep returns it to `queued` and a second worker claims it — and
+  the first, still going, would stamp `done` over the live claim. Every write to a claimed job now
+  matches on `claimed_by` too. ADR 0015's revisit condition **is** a second worker.
+- ⚠️ **`HEARTBEAT_EVERY_SECONDS = 30` was declared and never read**, with a docstring describing
+  behaviour no code had. `04` §6.4's cadence belongs to the per-chunk loop, which is #8's; the
+  constant is gone rather than left looking implemented.
+
+And one claim asserted from memory, in the code **and** in the document it cited: *"`03` §5.1's
+seven stages are pure transformations"*. Three of the seven are not — stage 1 chunks the whole
+document and the app already did it, stage 6 is the LLM, stage 7 writes. **Stages 2 to 5 are the
+pure ones.** `11` §8 carried the same overstatement since it was written and is amended.
+
+**What #7 deliberately did not build:** the per-chunk work. `run_ingestion` takes `process_chunk` as
+an argument and #8 supplies it — `03` §5.1's seven stages are pure transformations over one chunk,
+and keeping them out of the bookkeeping is what lets them be tested with no database at all
+(`11` §8).
 
 **Phase 6, #6 — ingest and sources, 2026-09-11.** **A paste, four rows, one transaction, and control
 back before the worker has looked.** Signing in lands on Ingest (ADR 0031); the form posts, the write
@@ -422,21 +489,30 @@ Seven findings worth knowing without opening it:
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
-~~**⚠️ #3 built 2026-09-10.** The frontier is #6 alone.~~ **⚠️ [#6](https://github.com/yutaasakura96/kioku/issues/6)
-built 2026-09-11. The frontier is [#7](https://github.com/yutaasakura96/kioku/issues/7) alone** — the
-worker loop: subscribe-then-poll, claiming, and the stale sweep. It is the first ticket on the Python
-side since #3 gave it a test runner, and #8 needs it as well as #3.
+~~**⚠️ #3 built 2026-09-10.** The frontier is #6 alone.~~ ~~**⚠️ #6 built 2026-09-11.** The frontier
+is #7 alone.~~ **⚠️ [#7](https://github.com/yutaasakura96/kioku/issues/7) built 2026-09-11. The
+frontier is [#8](https://github.com/yutaasakura96/kioku/issues/8) alone** — the pipeline, stages 1 to
+5: chunk, tokenise, extract, deduplicate, filter. It needs #3 and #7 and has both.
 
-**#7 inherits four things from #6**, none of which needs re-deriving:
+**#8 inherits five things from #7**, none of which needs re-deriving:
 
-- **The job rows are there and they are `queued`.** `04` §6.4's claim query has something to claim.
-- ⚠️ **`ingestion_chunk` is empty on purpose** — #6 writes the four rows `S2` names and no more.
-  Opening that queue on claim is #7's, and `04` §6.2's resume query is what it is for.
-- ⚠️ **`03` §13.5's container half of PIN 6/6 is still unguarded.** The TypeScript half is now
-  enforced by npm (`@electric-sql/pglite-socket` peer-depends on PGlite 0.5.8 exactly); **no bot
-  watches `postgres:18.3-alpine` in `worker/tests/README.md`**, and #7 owes it the same assertion
-  `test/schema/schema.test.ts` carries.
-- **The end-to-end tier can sign in now**, if #7 ever wants a request behind the gate.
+- ⚠️ **The seam is one argument.** `worker/runs.py`'s `run_ingestion(connection, job, *,
+  process_chunk)` opens the queue, marks each chunk `running`, calls `process_chunk`, marks it
+  `complete` or `failed`, heartbeats, and settles the run. **#8 supplies `process_chunk` and needs to
+  change nothing else in the loop.**
+- **The chunk queue is open by the time #8's code runs**, with `char_start` / `char_end` already
+  joined onto each row. ⚠️ They are **code-point offsets**, so `source.content[start:end]` in Python
+  is simply correct — which is the point of § Carrying's `.length`-versus-`len()` bullet: the app was
+  made to match Python rather than the other way round, so the worker needs no special handling and
+  must not add any.
+- ⚠️ **Chunk-level retry policy is not built.** `03` §11 says bounded retries then the chunk is
+  marked `failed` and the job stays resumable; #7 marks it `failed` on the first raise and moves on,
+  which is the `attempts = 1` version of that. **`job.available_at` is the other half and nothing
+  sets it** — see § Carrying.
+- ✔ **`03` §13.5's container half of PIN 6/6 is guarded** — `worker/tests/conftest.py`'s
+  `_assert_postgres_18`, before the migrations run, so a Postgres 17 says so in one line instead of
+  failing on the first `uuidv7()`.
+- **The end-to-end tier can sign in**, if #8 ever wants a request behind the gate.
 
 ~~**#5 closed 2026-09-09.** #6 and #3 are independent; either can go first.~~ **#3 went first.**
 
@@ -464,8 +540,9 @@ findings that amended `11` §1 and §6.1**.
 ```
 #2 scaffold ✔ ─┬─→ #3 subject declaration ✔ ┐
               └─→ #4 schema ✔ ─→ #5 identity ─→ #6 ingest ✔ ┐
-                                               #4,#6 ─→ #7 worker loop  ← the frontier
-                                        #3,#7 ─→ #8 pipeline 1–5 ─→ #9 generation
+                                               #4,#6 ─→ #7 worker loop ✔
+                                        #3,#7 ─→ #8 pipeline 1–5  ← the frontier
+                                                 #8 ─→ #9 generation
                                                #9 ─→ #10 vet mechanics ─┬─→ #11 vet presentation
                                                                         └─→ #12 review
                                                             #12 ─→ #13 outbox ─┐
@@ -490,7 +567,10 @@ four.**
   is an experiment rather than a test on purpose (ADR 0037): if the median comes back at eleven
   seconds that is the project learning something, and a red suite is the wrong way to be told.
 - **One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
-  live connection falsifies it cheaply.
+  live connection falsifies it cheaply. ⚠️ **A second line settles ADR 0043's open half** in the same
+  session: `SELECT pg_notify('kioku_job','')` on the **pooled** string. PgBouncer's matrix says
+  `NOTIFY` works in transaction pooling and Neon's summary says the pair does not; the worker is
+  correct either way, but one statement says which.
 - **Whether an idle `LISTEN` connection defers scale-to-zero.** Neon is silent. ADR 0028 holds either
   way; this settles the *cost* question only.
 
@@ -499,6 +579,68 @@ four.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **On an autocommit connection, `SELECT … FOR UPDATE SKIP LOCKED` followed by an `UPDATE` hands
+  the same row to two workers.** `04` §6.4 says the two statements go "in the same transaction", and
+  the worker's connection runs `autocommit=True` — which is itself not optional (`03` §3.1: without
+  it the listening connection sits idle *in a transaction* and Neon's five-minute
+  `idle_in_transaction_session_timeout` kills it on a schedule). So there is no ambient transaction
+  to put them in, the `SELECT`'s row lock is released the moment it returns, and the window between
+  the two statements is exactly the race `SKIP LOCKED` was chosen to close. **The claim is one
+  statement** — the select is the `UPDATE`'s sub-select — which is the strongest available form of
+  "the same transaction" and the only one available at all here. `04` §6.4 is amended.
+- ⚠️ **PgBouncer's own feature matrix gives `LISTEN` = `Never` and `NOTIFY` = `Yes` in transaction
+  pooling**, and this project said "does not support `LISTEN`/`NOTIFY`" in three places. Checked
+  2026-09-11 against [pgbouncer.org/features.html](https://www.pgbouncer.org/features.html);
+  `03` §4.1, verification §7.2 and §9.2 are amended. **The mechanism is why it generalises:**
+  `LISTEN` is session state and transaction pooling gives the server connection to the next client at
+  commit; `NOTIFY` is a statement whose effect the *server* delivers at commit, and it does not care
+  who carried it. This is what let ADR 0043 put the wake-up in the app instead of in a trigger.
+  ⚠️ **Still unverified against Neon**, whose own page names the pair — and the design is correct
+  either way, which is the only reason it was allowed to ship unverified. The falsifying experiment
+  is one statement and it is in § Next.
+- ⚠️ **The `LISTEN` channel is a cross-language constant and a mismatch is completely silent.**
+  `kioku_job` lives in `server/utils/ingest/notify.ts` and in `worker/loop.py`; get them out of step
+  and nothing raises, nothing logs, and the worker simply never wakes — it drains only on connect, so
+  every run waits for a reconnect. `09` §7 then reports that honestly as "queued 4m, not yet picked
+  up", which reads exactly like *the worker is not running*. Guarded the way `03` §6's declaration
+  is: `test/unit/job-channel.test.ts` reads the Python file and asserts the two spellings agree.
+- ⚠️ **ADR 0038's "three tests and nothing else" is now twenty-three, and the number was the wrong
+  thing to have written down.** What the ADR was protecting is *a laptop with no Docker runs the
+  entire TypeScript suite*, and that is untouched. What moved is that #7 writes SQL which is not a
+  concurrency behaviour — the chunk queue, the resume query, the settle, the drain — and testing
+  Python's SQL needs a database, which in Python means the container. The alternative was testing a
+  **copy** of those queries from the TypeScript tier, which is `04` §13's drift argument aimed at the
+  tier that exists to prevent drift. ADR 0038 and `11` §7 carry dated amendments.
+- ⚠️ **`worker/tests/README.md` asserted that the container tests *skip* without Docker. They go
+  red.** ADR 0038: *"it is the worker's three concurrency tests that go red — visibly and for a
+  stated reason, rather than the whole suite refusing to start"*, and `11` §7 and #7's own acceptance
+  criteria both say red. The sentence was written with #3 as a contrast for the drift test — *"that
+  is the opposite of ADR 0038's three container tests"* — and the contrast did not exist: **nothing
+  in that directory skips.** Corrected in place. It is the same failure mode as #6's `<textarea>`
+  comment: a confident sentence about a decision, written next to the decision, without reading it.
+- ⚠️ **Nothing sets `job.available_at` forward, and the loop has no branch that would notice if it
+  did.** `04` §6.4 calls it backoff — "a retry sets it forward rather than sleeping in the worker" —
+  but `03` §3.1 step 6 forbids the timeout branch from issuing a query, so a job deferred into the
+  future has nothing scheduled to come back for it: it waits for the next notification or the next
+  reconnect. Today that costs nothing, because the only writer sets `now()`. **The ticket that
+  introduces chunk-level retries owns the question**, and it is a genuine one — a timer branch that
+  polls is exactly the keepalive `03` §3.1 refused, so the answer is probably a shorter block timeout
+  when and only when the drain saw a future-dated row, which is still not a query on expiry.
+  ⚠️ **`attempts` has no ceiling either**, and the two gaps are one gap: a job that reliably kills
+  the worker is swept back to `queued` and re-claimed immediately, forever, with `attempts` counting
+  up and nothing reading it. Today nothing can produce such a job — the handler is bookkeeping — and
+  the ticket that makes a job able to fail owns both halves.
+- ⚠️ **Every ingestion settles `incomplete` until #8 lands a chunk processor**, and that is the true
+  answer rather than a placeholder: the queue is open, nothing was processed, and every chunk is
+  still there. The run row says `0 of 31 chunks · 0 notes so far`. ⚠️ The two other readings would
+  both be lies — `running` claims a worker is on it, `failed` claims something broke — and `04` §6.1
+  is explicit that **`incomplete` is `S2`'s resumable state, not an error.**
+- ⚠️ **`recordSource`'s `jobKind` parameter said "#7 writes `resume`" and #7 does not.** A resume
+  enqueues a second `job` against an *ingestion* that already exists (`04` §6.2) and writes no
+  `source`, no chunks and no `ingestion` — which is everything else that function does. The parameter
+  is reachable only from `test/schema/ingest.test.ts`, where it drives `04` §6.4's `CHECK` through the
+  production path instead of by raw SQL. The comment is corrected on the field.
 
 - ⚠️ **`@vue/compiler-ssr` renders a `value` bind on a `<textarea>` as the element's raw children, and
   the HTML parser eats one newline after `<textarea>`.** So a refused paste beginning with a blank
