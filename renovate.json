@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "description": "Kioku's dependency bot. `03-technical-design.md` \u00a713.5: a bot has nothing to read until a manifest exists, so it arrives with the first one rather than afterwards. Two ecosystems \u2014 npm at the root, pip under worker/ from #7 \u2014 and one config, because both flows answer to the same six pins.",
+  "description": "Kioku's dependency bot. `03-technical-design.md` \u00a713.5: a bot has nothing to read until a manifest exists, so it arrives with the first one rather than afterwards. Two ecosystems \u2014 npm at the root, and PEP 621 under worker/ since #3 (its `pep621` manager matches `pyproject.toml` where it sits and maintains `uv.lock`, so no rule was needed) \u2014 and one config, because both flows answer to the same six pins.",
   "extends": [
     "config:recommended",
     ":dependencyDashboard"
@@ -14,7 +14,7 @@
   "prConcurrentLimit": 3,
   "packageRules": [
     {
-      "description": "PIN 1/6 \u2014 psycopg[binary] >= 3.2.4. The floor is the lost-notification fix (`03` \u00a73.1), not a number: below it, a notification can be dropped between LISTEN and the first poll. Bumping up is routine; going below it is never a cleanup. Arrives with #7.",
+      "description": "PIN 1/6 \u2014 psycopg[binary] >= 3.2.4. The floor is the lost-notification fix (`03` \u00a73.1), not a number: below it, a notification can be dropped between LISTEN and the first poll. Bumping up is routine; going below it is never a cleanup. Arrived with #7, 2026-09-11: `worker/pyproject.toml` carries the same floor and `worker/loop.py` is the code it protects.",
       "matchPackageNames": [
         "psycopg"
       ],
@@ -57,7 +57,7 @@
       "allowedVersions": ">=0.45.2"
     },
     {
-      "description": "PIN 6/6 \u2014 @electric-sql/pglite 0.5.8. DO NOT BUMP, and this pin has a second half that lives outside any manifest: the Postgres image tag beside it. `04` defaults every primary key to uuidv7(), a Postgres 18 built-in, so a PGlite that regressed to 17 fails on the first CREATE TABLE. PGlite does not document which PostgreSQL it builds \u2014 0.5.8 = PostgreSQL 18.3 was measured (ADR 0038, verification \u00a714.1). Nothing will tell you when the two halves diverge except a uuidv7() that stops existing. Arrives with #4.",
+      "description": "PIN 6/6 \u2014 @electric-sql/pglite 0.5.8. DO NOT BUMP, and this pin has a second half that lives outside any manifest: the Postgres image tag beside it. `04` defaults every primary key to uuidv7(), a Postgres 18 built-in, so a PGlite that regressed to 17 fails on the first CREATE TABLE. PGlite does not document which PostgreSQL it builds \u2014 0.5.8 = PostgreSQL 18.3 was measured (ADR 0038, verification \u00a714.1). Nothing will tell you when the two halves diverge except a uuidv7() that stops existing, so both halves are asserted instead: test/schema/schema.test.ts for PGlite and worker/tests/conftest.py's POSTGRES_IMAGE for the container (#4 and #7).",
       "matchPackageNames": [
         "@electric-sql/pglite"
       ],

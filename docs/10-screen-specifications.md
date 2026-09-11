@@ -657,6 +657,21 @@ row and its five detail lines; the resume control is a **write**, a second `job`
 on would be worse than the line that says what completed. **The ticket that builds the resume path
 builds this control.**
 
+⚠️ **Amended again 2026-09-11, by #7, and it moved to
+[#8](https://github.com/yutaasakura96/kioku/issues/8).** #7 built the worker's half in full: a
+`kind = 'resume'` job is claimed like any other, the chunk queue is opened idempotently, and `04`
+§6.2's query is `worker/runs.py`'s `incomplete_chunks`. What #7 did **not** build is a *chunk
+processor* — stages 1–5 are #8 and generation is #9 — so a resume today re-settles the run and
+changes nothing a reader would see. **The test above is the same test and it still fails:** the
+control would write a job no worker could act *usefully* on, and a button that visibly does nothing
+is the version of this that costs trust rather than a line.
+
+⚠️ **The state itself is reachable today, and by every run.** With no chunk processor the worker
+opens the queue, processes nothing and settles `incomplete` — which is the truthful answer rather
+than a placeholder: nothing completed and every chunk is still there. So this detail line is the one
+a reader sees for *every* ingestion until #8, with `what completed` reading zero. That is the
+project's actual state showing through the screen, which is what `09` §7 asks this row to do.
+
 **Filter tally.** The zero-new-*notes* case (PRD §5, `09` §4.5) — candidates extracted and how many
 each filter dropped, from `ingestion.candidates_*`. **It is the *session tally* component** (`05`
 §7), one column per stage, wrapping to a second row of the same grid past four. The figure drops

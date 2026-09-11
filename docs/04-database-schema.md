@@ -362,6 +362,12 @@ case, ADR 0015, `03` §5.4).
 **Resume is `WHERE ingestion_id = $1 AND status <> 'complete'`.** That is the whole mechanism, and it
 is why there is no queue service: once this record exists, it *is* the queue (ADR 0015).
 
+⚠️ **These rows are written when a worker claims the job, not when the reader submits** — #6 writes
+the four rows `S2` names and stops, because progress recorded before anything has been claimed is a
+fiction. `worker/runs.py`'s `open_chunk_queue` opens the queue, and it is idempotent (`ON CONFLICT DO
+NOTHING`) because a resume claims the same *ingestion* a second time and must not reset what the
+first run paid for (`03` §5.4).
+
 **Example:** `(ingestion 019bd3…, chunk 0, 'complete', 1, null, 09:12Z, 09:13Z)` beside
 `(ingestion 019bd3…, chunk 3, 'failed', 3, 'provider 429 after 3 attempts', 09:14Z, null)` — the
 second is what a resume picks up, and the first is the money already spent that a discard would throw
@@ -426,6 +432,11 @@ The sequence:
    condition is a second worker, which is when it starts mattering.
 2. In the same transaction, `UPDATE` to `state='claimed'` with `claimed_by`, `claimed_at` and
    `heartbeat_at`. **The row lock is held for the length of that update, not the length of the job.**
+   ⚠️ **Built 2026-09-11 with #7 as one statement** — the select is the `UPDATE`'s sub-select —
+   because that is the strongest available form of "the same transaction" and the only one available
+   at all on the worker's connection: it runs `autocommit=True` (`03` §3.1), where a separate
+   `SELECT … FOR UPDATE` releases its lock before the `UPDATE` is issued and hands the same row to
+   two workers. `worker/jobs.py`.
 3. The worker refreshes `heartbeat_at` every 30 seconds while working.
 4. **A job in `claimed` whose `heartbeat_at` is older than 5 minutes is reclaimable** and is returned
    to `queued` by the next worker to look. This is what "the laptop closed mid-job" resolves to: the

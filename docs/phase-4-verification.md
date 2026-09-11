@@ -512,8 +512,10 @@ metadata; ABI tags are the only evidence.
 ### 7.2 Neon
 
 - **Two endpoints.** Pooled = `-pooler` in the endpoint hostname; direct = the same string without
-  it. **Pooled runs PgBouncer in transaction mode and does not support `LISTEN`/`NOTIFY`**, `SET`,
-  `PREPARE`, `WITH HOLD CURSOR`, `LOAD`, or session-level advisory locks. Neon's own guidance:
+  it. **Pooled runs PgBouncer in transaction mode and does not support `LISTEN`**, `SET`,
+  `PREPARE`, `WITH HOLD CURSOR`, `LOAD`, or session-level advisory locks. ⚠️ **Amended 2026-09-11
+  with #7: this said `LISTEN`/`NOTIFY` and PgBouncer's own matrix separates them** — `LISTEN` is
+  `Never` in transaction pooling, `NOTIFY` is `Yes`. See §9.2. Neon's own guidance:
   direct for migrations, long-running queries, `pg_dump`, logical replication; pooled for
   connection-per-request.
 - **Connection limits:** direct is bounded by `max_connections` (0.25 CU → 104, 7 reserved,
@@ -657,12 +659,24 @@ made. The chain (libpq 17.2 → `sslsni=1` → Neon's stated libpq ≥ 14 rule) 
 ### 9.2 Scale-to-zero destroys the listener, and this corrects a Carrying note
 
 Pooled connections cannot `LISTEN` at all — Neon's connection-pooling page lists `LISTEN`/`NOTIFY`
-among what PgBouncer transaction mode does not support, matching PgBouncer's own feature matrix. The
+among what PgBouncer transaction mode does not support. The
 direct endpoint is therefore mandatory, as planned. On the direct endpoint Neon documents **no**
 restriction on `LISTEN`/`NOTIFY` — but it documents a lifecycle hazard, on the compatibility page:
 
 > notifications and listeners defined using NOTIFY/LISTEN commands only exist for the duration of
 > the current session and are lost when the session ends.
+
+⚠️ **Amended 2026-09-11 with #7 — Neon's page summarises PgBouncer's matrix and the matrix is
+finer-grained than the summary.** Read directly
+([pgbouncer.org/features.html](https://www.pgbouncer.org/features.html), checked 2026-09-11), the
+*SQL feature map for pooling modes* gives **`LISTEN` — Never** under transaction pooling and
+**`NOTIFY` — Yes**. The mechanism is the difference between session state and a statement: `LISTEN`
+subscribes *this session*, and transaction pooling returns the server connection to the pool at
+commit, so the subscription would belong to whoever gets it next; `NOTIFY`'s effect is delivered by
+the server at commit and is indifferent to which client connection carried the statement. **The
+direct endpoint is still mandatory for the worker** — that is the `LISTEN` half and it is unchanged —
+but the *app* can send its own wake-up on the pooled string, which is [ADR 0043](adr/0043-the-app-sends-the-wake-up-after-the-transaction-that-earned-it.md).
+⚠️ **Still not verified against Neon**, whose own wording names the pair; ADR 0028 holds either way.
 
 **The Free plan cannot disable scale-to-zero**; the compute suspends after 5 minutes of inactivity.
 So the listener is torn down routinely, and notifications fired while the worker is disconnected are

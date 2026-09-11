@@ -18,6 +18,7 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 
+import { JOB_CHANNEL } from '../../server/utils/ingest/notify'
 import { recordSource } from '../../server/utils/ingest/record'
 import { CHUNK_TARGET_CHARACTERS } from '../../shared/ingest/chunk'
 import { freshDatabase, reset } from './harness'
@@ -98,6 +99,22 @@ describe('the four rows, in one transaction', () => {
       claimed_at: null,
       requested_by: ownerId,
     })
+  })
+
+  it('⚠️ wakes a listening worker, after the transaction and not inside it', async () => {
+    // ADR 0043. The four rows are the requirement; this is the optimisation
+    // ADR 0028 describes, and the order is what keeps the second from being
+    // able to cost the first anything.
+    const woken: string[] = []
+    await client.listen(JOB_CHANNEL, payload => void woken.push(payload))
+
+    const written = await recordSource(db, submission())
+
+    expect(woken).toEqual([''])
+    // ⚠️ The payload is empty and stays empty: the worker never reads it, so
+    // sending the id would create a dependency on receiving it (ADR 0028).
+    expect(woken[0]).not.toContain(written.jobId)
+    await client.unlisten(JOB_CHANNEL)
   })
 
   it('⚠️ writes no ingestion_chunk rows — that queue is the worker\'s to open', async () => {

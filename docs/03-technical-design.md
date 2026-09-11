@@ -238,10 +238,21 @@ branch gets its own compute, which also scales to zero.
 | The Nuxt app | **pooled** (`-pooler` in the hostname) | Connection-per-request. PgBouncer transaction mode, `max_client_conn=10000` |
 | The Python worker | **direct** | **The pooled endpoint cannot `LISTEN` at all** |
 
-This is not a tuning preference. PgBouncer in transaction mode does not support `LISTEN`/`NOTIFY`,
+This is not a tuning preference. PgBouncer in transaction mode does not support `LISTEN`,
 `SET`, `PREPARE`, `WITH HOLD CURSOR`, `LOAD`, or session-level advisory locks — confirmed against
 both Neon's and PgBouncer's own lists (verification §7.2, §9.2). A worker on the pooled string does
 not run slowly; it silently never wakes.
+
+⚠️ **Amended 2026-09-11 with #7 — this line said `LISTEN`/`NOTIFY`, and the two are not the same
+here.** PgBouncer's own feature matrix gives `LISTEN` **Never** in transaction pooling and `NOTIFY`
+**Yes** (checked 2026-09-11 against [pgbouncer.org/features.html](https://www.pgbouncer.org/features.html));
+Neon's page names the pair because it is summarising that matrix. The asymmetry has a mechanism:
+`LISTEN` is session state, and transaction pooling hands the server connection to someone else at
+commit, so a subscription made through it belongs to the next client; `NOTIFY` is a statement whose
+effect the server delivers at commit, and it does not care who carried it. **This is what lets the
+app send the wake-up from its pooled connection** (ADR 0043) instead of needing a trigger to send one
+for it. ⚠️ Nothing has been run against Neon, and the design holds either way — a notification that
+never arrives costs latency and never work (ADR 0028).
 
 The direct endpoint is bounded by `max_connections` — 104 at 0.25 CU, 7 reserved, **97 usable**.
 One worker uses one.

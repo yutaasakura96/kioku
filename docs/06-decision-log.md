@@ -1009,6 +1009,55 @@ answer or a dated entry.
   clicks Done on both *modes* and asserts the click was not intercepted. The `curl`-and-grep this
   line imagined could never have proved it — both forms render the same `href`.
 
+### [2026-09-11] The app sends the wake-up, after the transaction that earned it
+
+ADR 0028 settled that `NOTIFY` is an optimisation and never the transport; it did not say who sends
+it, and nothing did until #7 needed something to wake up. `recordSource` issues
+`SELECT pg_notify('kioku_job', '')` **after** its transaction commits and swallows any error —
+the row is on disk before the notification exists, so the optimisation cannot cost the write
+anything. A trigger on `job` was the robust alternative and was rejected: it would be a second
+trigger in a schema whose §14 has one, and `test/schema/schema.test.ts` asserts that count on
+purpose.
+→ [ADR 0043](adr/0043-the-app-sends-the-wake-up-after-the-transaction-that-earned-it.md)
+
+### [2026-09-11] ⚠️ PgBouncer's matrix separates `LISTEN` from `NOTIFY`, and three documents did not
+
+**Decision** — a correction, applied in place. `03` §4.1, `phase-4-verification.md` §7.2 and §9.2 all
+say the pooled endpoint "does not support `LISTEN`/`NOTIFY`". PgBouncer's own feature matrix, checked
+2026-09-11, says `LISTEN` is **Never** in transaction pooling and `NOTIFY` is **Yes**. Neon's page is
+a summary of that matrix, not the mechanism.
+
+**Reason** it matters: it is the difference between the app being able to send a wake-up on its
+pooled connection and needing a trigger to send one for it — which is ADR 0043's whole question. The
+asymmetry has a mechanism behind it rather than being an exception to memorise: `LISTEN` is session
+state, and transaction pooling gives the server connection to someone else at commit; `NOTIFY` is a
+statement whose effect the server delivers at commit and which does not care who carried it.
+
+**⚠️ What is still not verified:** nothing has been run against Neon, whose summary names the pair.
+The worker's correctness does not depend on the answer (ADR 0028), and `notifyJobQueued` catches.
+
+**Revisit if** a live Neon connection is ever made — the one-line experiment `00-status.md` § Next
+already carries, `SELECT pg_notify('kioku_job','')` on the pooled string, settles it.
+
+### [2026-09-11] ⚠️ The worker's database tests are more than ADR 0038's three
+
+**Decision** — ADR 0038 and `11` §7 say Docker is required for "three tests and nothing else",
+naming the three concurrency behaviours. #7 also writes SQL that is not a concurrency behaviour — the
+chunk queue, `04` §6.2's resume query, the settle — and testing Python's SQL needs a database, which
+in Python means the container. The count is now twenty-three and the three are still the ones the
+ADR names.
+
+**Alternatives considered:** testing that SQL from the TypeScript schema tier against PGlite. It
+would be testing a *copy* of the worker's queries, which is `04` §13's drift argument pointed at the
+tier that exists to prevent it.
+
+**Reason:** the invariant ADR 0038 was defending is untouched and is the one worth keeping —
+**a laptop without Docker runs the entire TypeScript suite**, and what goes red is the worker's,
+visibly and for a stated reason (`worker/tests/conftest.py` prints it).
+
+**Revisit if** the worker tier grows slow enough that the container stops being worth its 946 ms —
+at which point the split to re-argue is per-file, not per-tier.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

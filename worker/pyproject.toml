@@ -20,10 +20,22 @@ name = "kioku-worker"
 version = "0.0.0"
 description = "The Python ingestion tier — ADR 0015, ADR 0019."
 requires-python = ">=3.11"
-dependencies = []
+# ⚠️ **`psycopg[binary]` >= 3.2.4 is a floor with a reason, not a version.**
+# Before 3.2.4 a notification arriving between `LISTEN` and the start of the
+# `notifies()` generator was silently lost (ADR 0027, verification §9.1) — which
+# is exactly `03` §3.1 steps 2 through 4. `renovate.json` carries the same floor
+# as PIN 1/6, so a cleanup that sees only a number cannot relax it.
+#
+# `[binary]` bundles libpq 17.2, which sets `sslsni=1` by default — the chain
+# ADR 0027 rests on for Neon's direct endpoint (verification §9.1).
+dependencies = ["psycopg[binary]>=3.2.4"]
 
 [dependency-groups]
-dev = ["pytest==9.1.1"]
+# `11` §1 names both: pytest 9.1.1 and testcontainers 4.15.0. ⚠️ The container is
+# needed by **twenty-three** of the tests here and by nothing in the TypeScript
+# suite — ADR 0038 said three and carries the dated amendment for why the number
+# moved. `worker/tests/README.md` has the table.
+dev = ["pytest==9.1.1", "testcontainers[postgres]==4.15.0"]
 
 [tool.uv]
 package = false

@@ -40,7 +40,33 @@ manager documentation.
 | Module | Owns |
 | --- | --- |
 | `subject.py` | Python's view of the *subject* declaration, and its half of `03` §6's `validate` seam. ⚠️ **Nothing in it restates the declaration** — the field list and the seven stages live in `subjects/jlpt-vocab.json` and nowhere else |
+| `db.py` | The one connection. The **direct** string, `autocommit=True`, and a refusal for the pooled one |
+| `loop.py` | `03` §3.1's seven steps: `LISTEN`, then poll, then block. And the backoff |
+| `jobs.py` | `04` §6.4 — the claim, the heartbeat, the stale sweep |
+| `runs.py` | The chunk queue, `04` §6.2's resume query, and what a claimed job turns into |
+| `__main__.py` | The process: signals, JSON logging, and wiring the four together |
 | `pipeline/` | One module per stage. Empty until [#8](https://github.com/yutaasakura96/kioku/issues/8) |
 
-The worker loop itself — `LISTEN` then poll, claiming, the stale sweep — arrives
-with [#7](https://github.com/yutaasakura96/kioku/issues/7).
+```bash
+cd worker && uv run python .
+```
+
+⚠️ **It needs `KIOKU_WORKER_DATABASE_URL`** — Neon's **direct** string, the one
+*without* `-pooler` in the hostname. On the pooled endpoint PgBouncer's
+transaction mode does not support `LISTEN` at all, so a worker pointed there
+would start, claim nothing and **never wake** (`03` §4.1); `db.refuse_pooled`
+turns that into a startup error rather than an afternoon. `Ctrl-C` stops it —
+the block timeout in `loop.py` is what makes that land within a few seconds.
+
+⚠️ **There is no pipeline yet.** #7 is the loop, the claim and the sweep. A
+claimed job today has its `ingestion_chunk` queue opened and the run settles
+**`incomplete`** — `04` §6.1's resumable state, and the true one: nothing
+completed and every chunk is still there. Stages 1–5 arrive with
+[#8](https://github.com/yutaasakura96/kioku/issues/8) as `run_ingestion`'s
+`process_chunk` argument, which is the only seam they need.
+
+⚠️ **The worker has no inbound surface at all** — no socket, no route, no API
+key of its own to verify (`03` §1). That is ADR 0015's second and now
+load-bearing argument: with no HTTP job endpoint, `S1`'s *refused at every
+route* is literally true. The whole attack surface is the Nuxt app and the whole
+**spend** surface is this laptop.

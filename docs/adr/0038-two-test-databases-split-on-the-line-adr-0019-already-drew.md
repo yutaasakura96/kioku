@@ -69,6 +69,19 @@ costs nothing extra**, because the two suites were never going to be one suite.
 laptop with no Docker can run the entire TypeScript suite, and it is the worker's three concurrency
 tests that go red — visibly and for a stated reason, rather than the whole suite refusing to start.
 
+⚠️ **Amended 2026-09-11 with #7 — the number moved and the sentence it was protecting did not.**
+The worker tier now needs the container for **twenty-three** tests, not three. The extra ones are not
+concurrency behaviours: they are the SQL #7 writes — `04` §6.2's chunk queue and resume query, the
+settle, the drain — and testing Python's SQL needs a database, which in Python means a container.
+The alternative was testing a *copy* of those queries from the TypeScript tier against PGlite, which
+is this ADR's own drift argument aimed at the tier that exists to prevent drift.
+
+**What is unchanged is the claim worth keeping:** a laptop with no Docker still runs the entire
+TypeScript suite, and what goes red is the worker's, visibly and for a stated reason —
+`worker/tests/conftest.py` prints which three behaviours ADR 0038 named and what to do about it.
+Three of the twenty-three are still exactly those three. ⚠️ **The one thing not to do is fold the two
+harnesses together**; the 946 ms inner loop is what this decision bought.
+
 ## The migrations build both, and that is what stops the schema forking
 
 `drizzle-orm` 0.45.2 — the version `03` §13.5 pins — exports **`./pglite/migrator`** alongside

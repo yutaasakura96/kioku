@@ -355,9 +355,16 @@ erased the distinction the test exists to protect.
 
 ---
 
-## 7. The worker, and the three tests that need Docker
+## 7. The worker, and the tests that need Docker
 
 `worker/tests/`, pytest, a real Postgres 18 container (ADR 0038).
+
+⚠️ **Amended 2026-09-11 with #7 — "the three tests that need Docker" is now twenty-three**, and
+ADR 0038 carries the argument. The three below are still the three it named; what joined them is
+#7's own SQL — the chunk queue, `04` §6.2's resume query, the settle and the drain — which is not a
+concurrency behaviour but is still SQL, and testing Python's SQL needs a database. **The sentence
+that was being protected is untouched:** a laptop with no Docker runs the entire TypeScript suite,
+and what goes red is the worker's, with `worker/tests/conftest.py` printing the reason.
 
 **The three that need a second session:**
 
@@ -366,6 +373,24 @@ erased the distinction the test exists to protect.
 | The job claim | Two workers claim **different** rows. `FOR UPDATE SKIP LOCKED` with the row lock held for the length of the `UPDATE`, **not the length of the job** | `04` §6.4, `03` §3.2 |
 | The stale-claim sweep | A job in `claimed` with `heartbeat_at` older than five minutes returns to `queued` at the next worker's poll. ⚠️ **The sweep runs in the worker**, not on a schedule elsewhere — ADR 0022 forbids Vercel Cron | `04` §6.4 |
 | The reconnect | The connection drops, notifications fire while nobody is listening, the worker reconnects — and **`LISTEN` happens before the poll**. Polling first leaves a window where a notification lands unheard | ADR 0028 |
+
+**And what #7 added beside them — a database, but no second session** (`worker/tests/`, built
+2026-09-11):
+
+| Test | Asserts |
+| --- | --- |
+| The chunk queue | Claiming opens `ingestion_chunk`, one `pending` row per *chunk*, and **opening it twice adds nothing** — a resume must not reset what the first run paid for (`03` §5.4). ⚠️ Seeded with a second *source*, because a correlation written the wrong way passes for exactly as long as there is one row to be wrong about |
+| The resume query | `04` §6.2's `<> 'complete'`, which includes a `failed` chunk. `= 'pending'` silently abandons money already spent |
+| The settle | `complete` only when nothing is left, `incomplete` otherwise, and `completed_at` stamped only in the first case. ⚠️ **`failed` is not reachable from it** — `04` §6.1 calls `incomplete` "`S2`'s resumable state, not an error" |
+| The drain | Sweeps **before** it claims (`04` §6.4), empties the queue rather than taking one job, fails a bad job without stopping the queue — and ⚠️ **never turns a dropped connection into a failed job**, which is `03` §3.1 step 7's business |
+| `started_at` | A resume does not move it. It is one endpoint of *time-to-first-review* (`03` §12), and resetting it would flatter the number |
+
+**And two that need neither Docker nor a database**, which is why they are not in the count:
+
+| Test | Asserts |
+| --- | --- |
+| The loop's shape | `03` §3.1's seven steps against a fake connection: `LISTEN` before the poll, a notification drains, the timeout branch issues **no query**, reconnect resumes at `LISTEN`, the backoff doubles to a 30 s cap and resets after a working connection. ⚠️ **The payload is never read** is enforced by a notification whose `payload` property *raises* |
+| The connection string | The direct string is taken verbatim (ADR 0027) and the **pooled one is refused by name** — `03` §4.1's "it silently never wakes", turned into a startup error |
 
 **And the pipeline, which needs no second session but does need Python:**
 
@@ -402,8 +427,13 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   a message string would not have survived translation, so the codes are the thing both suites assert.
   ⚠️ Its tests use a two-field synthetic declaration rather than `jlpt-vocab.json` — a test written
   against the real six would pass for the wrong reason the day the validator hard-codes one of them.
-- **The pipeline stages** as functions over tokens → candidates → notes. `03` §5.1's seven stages are
-  already a list of pure transformations.
+- **The pipeline stages** as functions over tokens → candidates → notes. ⚠️ **Amended 2026-09-11 with
+  #7 — this said "`03` §5.1's seven stages are already a list of pure transformations" and three of
+  the seven are not.** Stage 1 is *accept and chunk the source*, whole-document and already done by
+  the app (#6); stage 6 is the **LLM**; stage 7 **writes** the pending notes, streamed as produced.
+  **Stages 2 to 5 are the pure ones** — tokenise, extract, deduplicate, filter — and they are what
+  this line is for. Stage 6's seam is the cache key (§7) and stage 7's is the durable bookkeeping
+  around it (`worker/runs.py`), neither of which is a pure function over tokens.
 - **The FSRS wrapper.** ⚠️ Not FSRS itself — `ts-fsrs` is a dependency with its own suite. What is
   ours is the mapping to and from `scheduling_epoch`, and ⚠️ that **`enable_short_term` is off** and
   `enable_fuzz` is on (ADR 0016). A test that asserts grade 1 schedules **at least one day out**

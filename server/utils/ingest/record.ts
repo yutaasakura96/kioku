@@ -19,6 +19,11 @@
  * ⚠️ **`ingestion_chunk` is deliberately not written here.** `04` §6.2 is
  * per-chunk *progress*, and progress before anything has been claimed is a
  * fiction. #7 opens that queue when the worker claims the job.
+ *
+ * ⚠️ **The `NOTIFY` is outside the transaction and cannot fail the write**
+ * (ADR 0043). It is the optimisation ADR 0028 describes, and the thing that
+ * makes it safe to treat as one is that the row it is about is already on disk
+ * when it is sent.
  */
 
 import { createHash } from 'node:crypto'
@@ -27,6 +32,7 @@ import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 
 import * as schema from '../../db/schema'
 import { chunkBoundaries } from '../../../shared/ingest/chunk'
+import { notifyJobQueued } from './notify'
 
 /**
  * Both drivers, one signature. The app is `drizzle-orm/node-postgres` (ADR 0040)
@@ -46,7 +52,17 @@ export interface SourceSubmission {
   characterCount: number
   /** ⚠️ An audit line, **not an owner** — `04` §4. */
   submittedBy: string
-  /** `04` §6.4's `job.kind`. A submission is always `ingest`; #7 writes `resume`. */
+  /**
+   * `04` §6.4's `job.kind`. **A submission is always `ingest`**, and this
+   * parameter exists so `test/schema/ingest.test.ts` can drive the `CHECK` from
+   * the same path production uses rather than by raw SQL.
+   *
+   * ⚠️ **Corrected 2026-09-11 by #7 — this said "#7 writes `resume`" and #7 does
+   * not.** A resume enqueues a second `job` against an *ingestion* that already
+   * exists (`04` §6.2); it writes no `source`, no chunks and no `ingestion`,
+   * which is every other thing this function does. Nothing in the repository
+   * passes a `jobKind` but that test.
+   */
   jobKind?: 'ingest' | 'resume'
 }
 
@@ -84,7 +100,7 @@ export async function recordSource(
     sha256(characters.slice(boundary.charStart, boundary.charEnd).join('')),
   )
 
-  return db.transaction(async (tx) => {
+  const written = await db.transaction(async (tx) => {
     // ⚠️ Inside the transaction and **before** the insert, so the new *source*
     // cannot find itself. `04` §5.1 indexes `content_hash` and leaves it
     // deliberately not unique: PRD §5 wants detection, not prevention.
@@ -149,6 +165,12 @@ export async function recordSource(
       duplicateOf,
     }
   })
+
+  // ADR 0028: the wake-up, and only that. The four rows are committed above; if
+  // this never reaches a worker the run starts at the next connect instead.
+  await notifyJobQueued(db)
+
+  return written
 }
 
 /**
