@@ -3,20 +3,76 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**43 ADRs**, eleven documents, an empty frontier, and **ten open issues** on the tracker.
-**#2, #3, #4, #5, #6 and #7 are built.** ⚠️ **The frontier is
-[#8](https://github.com/yutaasakura96/kioku/issues/8) alone** — the pipeline, stages 1 to 5. There is
+**46 ADRs**, eleven documents, an empty frontier, and **nine open issues** on the tracker — #8 among
+them until someone closes it, because `/implement` commits and does not touch the tracker.
+**#2, #3, #4, #5, #6, #7 and #8 are built.** ⚠️ **The frontier is
+[#9](https://github.com/yutaasakura96/kioku/issues/9) alone** — generation, stages 6 and 7. There is
 a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two pages of
-Japanese and get control back — and now **a worker that wakes up, claims the job and opens the
-per-chunk queue**. What it cannot do is process a chunk; that is the one seam #8 plugs into.
+Japanese and get control back, a worker that wakes up and claims the job — and now **a pipeline that
+turns that paste into *candidates*, deduplicates them against the corpus and drops what the reader
+has already rejected**. What it cannot do is produce a *note*: nothing has ever called a model.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
-**Updated:** 2026-09-11
+**Updated:** 2026-09-12
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #8 — the pipeline, stages 1 to 5, 2026-09-12.** **A pasted *source* now becomes
+*candidates*, and stops one stage short of spending anything.** `worker/pipeline/` is one flat module
+per stage named by the declaration — `chunk`, `tokenise`, `extract_candidates`, `deduplicate`,
+`filter_known` — every one of them pure, with the corpus arriving as two plain collections. The SQL
+around them is `worker/ingest.py`, and **`worker/runs.py` is untouched**: the seam really was one
+argument.
+
+**Suite: 290 TypeScript** (was 280) **plus 140 pytest** (was 86), 40 of them needing Docker.
+Typecheck, build and `drizzle-kit check` clean.
+
+**Three decisions this session made rather than transcribed, all now ADRs:**
+
+- ⚠️ **[ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md) — what counts
+  as a *candidate*.** No document said. `03` §5.1 named the stage and gave one exclusion (numerals),
+  and `04` §6.1's `(214, 106, 71, 9)` implied heavy filtering without describing it. The line is
+  **content words**: eleven `(pos₀, pos₁)` pairs kept, twenty-seven dropped, enumerated from the
+  installed dictionary so the two sets cover all thirty-eight — and a test asserts they do, so a
+  `SudachiDict` release that adds a category fails by name rather than dropping a word class in
+  silence. **代名詞 is the most arguable exclusion** and the ADR says so.
+- ⚠️ **[ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+  — the reading is written in the word's own script.** `04` §5.3's three worked keys are all
+  hiragana; `reading_form()` answers in katakana. Nothing had noticed because **until #8 every
+  *identity key* in the repository was a test literal written by hand.** The rule is hiragana except
+  for a word written wholly in katakana, because コーヒー's reading is こーひー under a mechanical
+  conversion — and `reading` is not only half of a key, it is on the answer side of the card.
+- ⚠️ **[ADR 0046](adr/0046-a-job-gives-up-after-five-abandonments-and-the-retry-after-the-first-is-deferred.md)
+  — the two gaps § Carrying named as one gap, closed.** `available_at` is finally the backoff `04`
+  §6.4 always called it and `attempts` finally has a ceiling. The first retry stays immediate,
+  because `11` §7 tests that a closed laptop's job lands in the same drain that noticed it.
+
+**And two readings recorded in the decision log rather than as ADRs:** `04` §6.1's four candidate
+counters are four disjoint buckets counted per *chunk* (the table gave the columns and one example
+and never said what separated them), and a resume is one `job` row written only from `incomplete`.
+
+⚠️ **`10` §6.2's resume control is built**, after three tickets each moved it on for a good reason.
+#6 had no resume query; #7 had the query and no chunk processor, so a resume re-settled the run and
+changed nothing a reader would see. It is a form `POST /` with a hidden field, answered `303` — a
+`GET` that wrote a job would be actioned by a prefetch or a back button, and there is no JavaScript
+here to intercept anything.
+
+⚠️ **The test fixture could destroy `review_log`, and now cannot.** `worker/tests/conftest.py`'s
+cleanup was `TRUNCATE job, ingestion_chunk, ingestion, source_chunk, source CASCADE`, with a comment
+explaining that `review_log` "is not among them and must not be". Measured: the cascade reaches it
+through `note.origin_ingestion_id` → `note` → `card` → `review_log`, and a row written before the
+statement was gone after it. **`CASCADE` was not decorative either** — without it Postgres refuses
+the statement outright, *Table "note" references "ingestion"* — so the one keyword that made the
+cleanup run was the one that let it walk to the irreplaceable data. It is ordered `DELETE`s now,
+which `04` §9's `RESTRICT` stops two tables short, and `test_scratch_cleanup.py` is the guard the
+comment was standing in for.
+
+**What #8 does not do:** stage 6. `generate` is a parameter defaulted to `None`, so a run today does
+every stage that shrinks the work, writes `04` §6.1's ledger, and spends nothing. That is ADR 0010's
+ordering made literal rather than a placeholder.
 
 **Phase 6, #7 — the worker loop, 2026-09-11.** **`LISTEN`, then poll, then block — and the order is
 the decision.** ADR 0028's seven steps are `worker/loop.py`, the claim and the stale sweep are
@@ -485,14 +541,44 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 7`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 9`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
+⚠️ **This line was stale for one commit and it is the fourth stale number in a row.** `07513ff`'s
+subject is *"record #7 as built and move the frontier to #8"* and it updated the strikethroughs
+around this sentence without updating the sentence, which then sent the next session at a ticket
+that was already built. Corrected 2026-09-12. **The pattern is the finding**: every ticket so far has
+shipped one number that was true when it was written and false when it was read.
+
 ~~**⚠️ #3 built 2026-09-10.** The frontier is #6 alone.~~ ~~**⚠️ #6 built 2026-09-11.** The frontier
-is #7 alone.~~ **⚠️ [#7](https://github.com/yutaasakura96/kioku/issues/7) built 2026-09-11. The
-frontier is [#8](https://github.com/yutaasakura96/kioku/issues/8) alone** — the pipeline, stages 1 to
-5: chunk, tokenise, extract, deduplicate, filter. It needs #3 and #7 and has both.
+is #7 alone.~~ ~~**⚠️ #7 built 2026-09-11.** The frontier is #8 alone.~~
+**⚠️ [#8](https://github.com/yutaasakura96/kioku/issues/8) built 2026-09-12. The frontier is
+[#9](https://github.com/yutaasakura96/kioku/issues/9) alone** — generation and *pending notes*,
+stages 6 and 7. It needs #8 and has it.
+
+**#9 inherits six things from #8**, none of which needs re-deriving:
+
+- ⚠️ **The seam is one parameter, again.** `ingest.make_chunk_processor(job, *, generate=None)`
+  already runs stages 1 to 5 and calls `generate(connection, group)` once per surviving group. #9
+  supplies `generate` and wires it in `__main__.py`; nothing else in `runs.py` or `ingest.py` has to
+  move. `worker/tests/test_ingest.py`'s `Recorder` is the shape of what it replaces.
+- **A `Group` carries every sighting**, not just the first. `group.sightings` is what stage 7's
+  *occurrences* are written from once the *note* exists — `ingest.append_occurrences` already does
+  exactly that for the corpus-hit case and is the function to reuse.
+- ⚠️ **Cross-chunk duplicates are closed by the streaming write, not by stage 4.** A *chunk* is
+  tokenised independently, so a word in chunks 1 and 3 is two groups. `03` §5.1 stage 7 says *notes*
+  are written **as produced, not at the end**; that is what makes chunk 3's sighting an
+  `already_known` rather than a second generation. **If #9 batches the writes to the end of a run, it
+  pays twice for every word that spans chunks.**
+- **The cache key is four parts and three of them exist.** `04` §6.3's row is
+  `(content_hash, dictionary_version, prompt_version, model_id)`; `source_chunk.content_hash` is
+  written by #6 and `pipeline.tokenise.DICTIONARY_VERSION` is read from the installed package. #9
+  brings the other two.
+- **`is_oov` is already on every *candidate***, carried rather than consumed, because `04` §5.4 keeps
+  it on `note_field_provenance` to tell a looked-up reading from a generated one (ADR 0019).
+- ⚠️ **A job can now fail for good** (ADR 0046), which matters more to #9 than it did to #8: the
+  handler is about to start making network calls.
 
 **#8 inherits five things from #7**, none of which needs re-deriving:
 
@@ -566,6 +652,17 @@ four.**
 - ⚠️ **`S3`'s first real run of twenty notes**, with a written-down expectation. **New here**, and it
   is an experiment rather than a test on purpose (ADR 0037): if the median comes back at eleven
   seconds that is the project learning something, and a red suite is the wrong way to be told.
+  ⚠️ **It is now also the instrument for two decisions** — ADR 0044's candidate allowlist and
+  ADR 0045's reading script. Both were decided with no real *source* to look at, and the rejected set
+  is the evidence: a filter the allowlist should have made shows up as a cluster of rejections
+  sharing a part of speech.
+- ⚠️ **Nothing comes back for a future-dated `job`, and ADR 0046 made that reachable.** The sweep now
+  sets `available_at` forward from the second abandonment, and `03` §3.1 step 6 forbids the timeout
+  branch from issuing a query — so a deferred job waits for the next notification or reconnect.
+  § Carrying's own sketch of the fix is *a shorter block timeout when and only when the drain saw a
+  future-dated row*, which only helps if something then queries; that is the step that would amend
+  step 6, and ADR 0028 and `tests/test_loop.py` both pin it. **The cap is thirty minutes so the gap
+  stays small rather than closed.** The ticket that wants it closed owns the amendment.
 - **One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
   live connection falsifies it cheaply. ⚠️ **A second line settles ADR 0043's open half** in the same
   session: `SELECT pg_notify('kioku_job','')` on the **pooled** string. PgBouncer's matrix says
@@ -579,6 +676,75 @@ four.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **`TRUNCATE … CASCADE` does not stop at the tables you name, and `worker/tests/conftest.py`'s
+  cleanup reached `review_log`.** Measured 2026-09-12: `TRUNCATE job, ingestion_chunk, ingestion,
+  source_chunk, source CASCADE` follows `note.origin_ingestion_id` → `note` → `card` → `review_log`,
+  and a grade written before the statement was gone after it. The comment above that line said
+  `review_log` "is not among them and must not be" — true, and beside the point. ⚠️ **`CASCADE` was
+  not decorative either**: without it Postgres refuses the statement outright — *cannot truncate a
+  table referenced in a foreign key constraint … Table "note" references "ingestion"* — so the one
+  keyword that made the cleanup run was the one that let it walk this far. It is ordered `DELETE`s
+  now, which is what `04` §9's rules actually apply to: the `RESTRICT` on `card.note_id` refuses two
+  tables short, and `review_log`'s `BEFORE DELETE` trigger fires. **A comment was standing in for a
+  guard for a day; `test_scratch_cleanup.py` is the guard.**
+- ⚠️ **A committed `review_log` row can never be deleted, so a test that writes one poisons every
+  later test in the session.** `04` §7.5's trigger refuses the `DELETE`, which refuses
+  `scheduling_epoch`, which refuses `card`, which refuses `note` — and `note` is in the fixture's
+  cleanup list. `test_scratch_cleanup.py` runs its whole assertion inside a transaction it rolls back
+  (`psycopg.Rollback`, with an inner savepoint for the refusal it expects). **The one table worth
+  protecting is the one a test cannot clean up after.**
+- ⚠️ **`normalized_form` is the term half of ADR 0006's *identity key*, not `dictionary_form`**, and
+  the reason is measurable: 引越し and 引越 both normalise to 引っ越し while `dictionary_form` returns
+  each surface unchanged, and ひらいた normalises to 開く where `dictionary_form` stops at ひらく
+  (2026-09-12, SudachiPy 0.6.11). Keyed on the lemma, one word becomes three *notes*. `03` §16 is the
+  sentence that reconciles ADR 0006's prose — *keys a note on (dictionary-form term, reading)* — with
+  the field that does it. **And the same field rewrites 六 to `6`**, which is why the numeral rule is
+  not optional: the field that buys the deduplication is the field that writes a digit where a word
+  should be.
+- ⚠️ **The four `ingestion.candidates_*` columns are four disjoint buckets counted per *chunk*, and
+  `04` §6.1 never said so.** Extracted counts **sightings**; deduplicated is the sightings folded
+  within one chunk; already-known and rejected are groups. A rejected word matches both of the last
+  two filters — `04` §7.2 keys a rejection on `note_id` — and is counted **once**, under rejected,
+  because `03` §11 shows the reader *which* filter removed the work. `04` §6.1 is amended and the
+  decision log carries the reading in full.
+- ⚠️ **A word in two *chunks* is two groups, and stage 4 cannot see across a chunk.** Tokenisation is
+  per chunk (`03` §5.1), so #8 alone would ask for the same word twice. **`03` §5.1 stage 7's
+  streamed write is what closes it** — once chunk 1's *note* exists, chunk 2's sighting is an
+  `already_known`. So the streaming is not only `S2`'s time-to-first-review; it is also what keeps a
+  long *source* from being generated twice. **#9 must not batch its writes to the end of a run.**
+- ⚠️ **The reading is a field on the card, not only half of a key.** That is what decided ADR 0045:
+  a mechanical katakana→hiragana conversion gives コーヒー the reading こーひー, which is fine in a key
+  nobody sees and wrong on the answer side of a *review*. The rule looks at the **term** rather than
+  the surface, and ひらがな is the case that proves it has to — its normalized form is 平仮名.
+- ⚠️ **`worker/pipeline/` module names are the declaration's stage keys and a test asserts the
+  correspondence for the five that exist.** It asserts five rather than seven on purpose: stages 6
+  and 7 are #9's and have no module, and an assertion over all seven would have to be deleted and
+  rewritten the day they arrive.
+- ⚠️ **`SudachiPy`'s `MorphemeList` is still not sliceable and the finding is now closed in one
+  place.** `morphemes[:3]` raises `TypeError: argument 'idx': 'slice' object cannot be interpreted as
+  an integer` (re-measured 2026-09-12, 0.6.11). `pipeline/tokenise.py` iterates it once into plain
+  dataclasses, so nothing downstream can rediscover it.
+- ⚠️ **`SudachiDict-core` 20260723 declares 1,558 part-of-speech tuples over 16 top-level classes**,
+  enumerated with `Dictionary().pos_matcher` rather than read from documentation. ADR 0044's
+  allowlist is 11 of the 38 distinct `(pos₀, pos₁)` pairs and its exclusion list is the other 27, and
+  a test asserts the two cover the dictionary exactly — **so a dictionary bump that adds a category
+  fails by name** instead of silently dropping a word class. That test is a second reason PIN 2/6
+  must not move.
+- ⚠️ **`readBody` caches on the event, so two middlewares can both read one form post.**
+  `submit-resume.ts` reads the body before `submit-source.ts` does, which is the one thing that could
+  have made the resume control quietly break the submission it sits in front of. It is asserted
+  rather than assumed: the over-cap e2e test posts 100,001 characters with no `resume` field and
+  expects them back inside the textarea.
+- ⚠️ **The `POST /` handlers are ordered by filename and there are two of them now.** `session` on
+  the `e`, `shell-data` on the `h`, then `submit-resume` before `submit-source` on the `r`. It is the
+  same mechanism `shell-data.ts` documents and it fails the same way — closed: a reordering makes the
+  resume control read `undefined` for the session and fall through without writing.
+- ⚠️ **`CANDIDATE_PART_OF_SPEECH` excludes 代名詞, and that is the most arguable line in the
+  repository's Japanese.** これ / それ / あなた are genuinely N5 vocabulary and are also in every
+  *source*. ADR 0044 says so in its own text and names the first real run as the instrument. Changing
+  it does **not** change the identity of an existing *note* — unlike a dictionary bump or the
+  rendering rule — so it is cheap to change and it does not re-ask about words already rejected.
 
 - ⚠️ **On an autocommit connection, `SELECT … FOR UPDATE SKIP LOCKED` followed by an `UPDATE` hands
   the same row to two workers.** `04` §6.4 says the two statements go "in the same transaction", and
@@ -619,6 +785,14 @@ Nothing.
   is the opposite of ADR 0038's three container tests"* — and the contrast did not exist: **nothing
   in that directory skips.** Corrected in place. It is the same failure mode as #6's `<textarea>`
   comment: a confident sentence about a decision, written next to the decision, without reading it.
+- ~~⚠️ **Nothing sets `job.available_at` forward, and the loop has no branch that would notice if it
+  did.**~~ **Half paid 2026-09-12 by #8 — [ADR 0046](adr/0046-a-job-gives-up-after-five-abandonments-and-the-retry-after-the-first-is-deferred.md).**
+  The sweep now sets `available_at` forward from the second abandonment and gives up on a job at five,
+  so the **infinite re-claim is closed**. ⚠️ **The other half is open and is in § Next**: nothing is
+  scheduled to come back for a future-dated job, so the cap is thirty minutes rather than hours and a
+  deferred job waits for the next notification or reconnect. The original text, which is still the
+  best statement of the problem:
+
 - ⚠️ **Nothing sets `job.available_at` forward, and the loop has no branch that would notice if it
   did.** `04` §6.4 calls it backoff — "a retry sets it forward rather than sleeping in the worker" —
   but `03` §3.1 step 6 forbids the timeout branch from issuing a query, so a job deferred into the
@@ -631,7 +805,12 @@ Nothing.
   the worker is swept back to `queued` and re-claimed immediately, forever, with `attempts` counting
   up and nothing reading it. Today nothing can produce such a job — the handler is bookkeeping — and
   the ticket that makes a job able to fail owns both halves.
-- ⚠️ **Every ingestion settles `incomplete` until #8 lands a chunk processor**, and that is the true
+- ~~⚠️ **Every ingestion settles `incomplete` until #8 lands a chunk processor**~~ — **#8 landed it
+  2026-09-12**, so a run that reads its whole *source* settles `complete` and `incomplete` goes back
+  to meaning a run that stopped part-way. `10` §6.2 is amended. Kept because the reasoning is the
+  reason `failed` is still not reachable from `settle_run`:
+
+- ⚠️ **Every ingestion settles `incomplete` until #8 lands a chunk processor**, and that was the true
   answer rather than a placeholder: the queue is open, nothing was processed, and every chunk is
   still there. The run row says `0 of 31 chunks · 0 notes so far`. ⚠️ The two other readings would
   both be lies — `running` claims a worker is on it, `failed` claims something broke — and `04` §6.1
@@ -656,7 +835,14 @@ Nothing.
   audit line, not an owner**". `startBlockCounts` *is* filtered, because *note vettings* and *cards*
   are personal. **Adding a filter to the first three would be a product change.** The reasoning now
   sits on the function rather than only in `04`.
-- ⚠️ **`incomplete` owes a resume control and #6 did not build it.** `10` §6.2 and `09` §7 both give
+- ~~⚠️ **`incomplete` owes a resume control and #6 did not build it.**~~ **Paid 2026-09-12 by #8**,
+  after #6 moved it to #7 and #7 moved it to #8 — each time correctly, because the control is only
+  worth shipping once a resume does something. `server/utils/ingest/resume.ts` writes one `job` row
+  at `kind = 'resume'` and refuses any status but `incomplete`; `server/middleware/submit-resume.ts`
+  answers the form; `app/components/RunRow.vue` draws it. `10` §6.2 carries the geometry. The
+  original, kept because three tickets deferred on its argument:
+
+- ⚠️ **`incomplete` owed a resume control and #6 did not build it.** `10` §6.2 and `09` §7 both give
   that run row "a resume action (the quiet affordance, with its arrow)". The control is a **write** —
   a second `job` at `kind = 'resume'` (`04` §6.4) — and what resuming means is `04` §6.2's resume
   query, which is the worker's and arrives with #7. A control that wrote a job no worker could act on

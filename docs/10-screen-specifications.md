@@ -646,7 +646,7 @@ an absent one are identical:
 | `running` | `12 of 31 chunks` |
 | `complete` | the number of *notes* produced |
 | `complete`, zero new *notes* | the filter tally below — **a success** (PRD §5) |
-| `incomplete` | what completed, and a resume control (the quiet affordance, with its arrow). ⚠️ **The control is not built** — see below |
+| `incomplete` | what completed, and a resume control (the quiet affordance, with its arrow). ⚠️ **Built 2026-09-12 by #8** — see below |
 | `failed` | what failed. ⚠️ **The provider is never named at the reader** (`03` §11) |
 
 ⚠️ **Amended 2026-09-11 — `incomplete`'s resume control is owed by #7, not by #6.** #6 built the run
@@ -666,11 +666,33 @@ changes nothing a reader would see. **The test above is the same test and it sti
 control would write a job no worker could act *usefully* on, and a button that visibly does nothing
 is the version of this that costs trust rather than a line.
 
-⚠️ **The state itself is reachable today, and by every run.** With no chunk processor the worker
-opens the queue, processes nothing and settles `incomplete` — which is the truthful answer rather
-than a placeholder: nothing completed and every chunk is still there. So this detail line is the one
-a reader sees for *every* ingestion until #8, with `what completed` reading zero. That is the
-project's actual state showing through the screen, which is what `09` §7 asks this row to do.
+~~⚠️ **The state itself is reachable today, and by every run.**~~ **That stopped being true on
+2026-09-12.** With no chunk processor every run settled `incomplete`; with stages 1 to 5 a run that
+reads its whole *source* settles `complete`, and `incomplete` goes back to meaning what `04` §6.1
+says it means — a run that stopped part-way, with chunks still to do.
+
+⚠️ **Built 2026-09-12 by [#8](https://github.com/yutaasakura96/kioku/issues/8), and this is the
+fourth and last amendment to this row.** The test the three refusals kept failing is the one that
+passes now: a resume re-runs the chunks that did not complete, and the number in the line beside the
+control moves.
+
+| | Treatment |
+| --- | --- |
+| Shape | `05` §7's quiet affordance, **with its accent arrow** — `--k-raised` face, `1px --k-border-control`, `--k-radius-control` |
+| Scale | `7px 14px` padding, label at **14px**, because it sits inside a run row rather than being the whole screen — the same step-down the tally's figure takes from 38px to 24px |
+| Label | `Resume`, then the `--k-accent` arrow |
+| Placement | Below the detail line, `12px` down, above the filter tally |
+
+⚠️ **It is a form, not a link**, and the method is the whole of the protection: a `GET` that wrote a
+job would be actioned by a prefetch, a crawler or a back button, and this route ships no JavaScript
+to intercept anything (ADR 0020). It posts a hidden `resume` field to `POST /` — the same path as the
+submission, told apart by the field, because a second path would add a row to `09` §1's route table,
+a second write surface and a second CSRF story to save one `if`. The answer is a `303` to `/`.
+
+⚠️ **There is no confirmation and no flash message.** `09` §7 makes the run list the thing that says
+where a run is, read fresh on every request; the next render tells the truth whichever way the write
+went, and a message would be a second, staler account of the same fact with no client to hold it. A
+resume of a run that is no longer resumable writes nothing and still lands on `/`.
 
 **Filter tally.** The zero-new-*notes* case (PRD §5, `09` §4.5) — candidates extracted and how many
 each filter dropped, from `ingestion.candidates_*`. **It is the *session tally* component** (`05`

@@ -8,14 +8,21 @@
 // and "the worker is down" would be a guess dressed as a status. A template is
 // where that guess would be added; a tested function is where it is refused.
 //
-// ⚠️ **`incomplete` owes a resume control and does not have one.** `10` §6.2 and
-// `09` §7 both give that row "a resume action (the quiet affordance, with its
-// arrow)". It is not built here because the control is a *write* — a second
-// `job`, at `kind = 'resume'` (`04` §6.4) — and what resuming means is
-// `04` §6.2's `WHERE ingestion_id = $1 AND status <> 'complete'`, which is the
-// worker's query and arrives with **#7**. A control that wrote a job no worker
-// could act on would be worse than the row that says what completed. The row
-// says what completed.
+// ⚠️ **`incomplete` has its resume control, and #8 is the ticket that could
+// honestly build it.** `10` §6.2 and `09` §7 both give that row "a resume action
+// (the quiet affordance, with its arrow)". It waited through three tickets for a
+// good reason each time: the control is a *write* — a second `job` at
+// `kind = 'resume'` (`04` §6.4) — and what resuming *means* is `04` §6.2's
+// `WHERE ingestion_id = $1 AND status <> 'complete'`, which is the worker's
+// query. #6 had no such query; #7 had the query and no *chunk processor*, so a
+// resume re-settled the run and changed nothing a reader would see. **#8 has the
+// stages**, so the chunks that did not complete are re-run and the number in the
+// line beside this control moves.
+//
+// ⚠️ **It is a form, not a link.** A `GET` that writes a job would be actioned
+// by a prefetch, a crawler or a back button; there is no JavaScript here to
+// intercept anything (ADR 0020), so the method is the whole of the protection.
+// `server/middleware/submit-resume.ts` answers it with a `303`.
 //
 // ⚠️ **The filter tally is the zero-new-*notes* case and it is a success**
 // (PRD §5, `09` §4.5). It is `05` §7's *session tally* component, one column per
@@ -78,6 +85,19 @@ const tally = computed(() => {
       <span class="detail">{{ detail }}</span>
     </p>
 
+    <!-- `10` §6.2: *what completed, and a resume control*. The line above says
+      what completed; this is the rest of the row. -->
+    <form v-if="run.status === 'incomplete'" method="post" action="/" class="resume">
+      <input type="hidden" name="resume" :value="run.ingestionId">
+      <button type="submit" class="affordance">
+        <span>Resume</span>
+        <!-- ⚠️ **With its arrow**, which `05` §7 spends the accent on: this is a
+          way onward, and `10` §6.2 asks for it by name. The start block is the
+          one place the arrow is dropped, and that is its own decision. -->
+        <span class="arrow" aria-hidden="true">→</span>
+      </button>
+    </form>
+
     <dl v-if="tally" class="tally">
       <div v-for="column in tally" :key="column.label">
         <dt>{{ column.label }}</dt>
@@ -131,6 +151,40 @@ a.title:hover {
 
 .dot {
   color: var(--k-dot);
+}
+
+/* `05` §7's quiet affordance, at the scale of a row rather than of a screen:
+   the geometry is the same and the type steps down from 17px to 14px, the way
+   the tally's figure steps from 38px to 24px for the same reason (`10` §6.2). */
+.resume {
+  margin: var(--k-space-3) 0 0;
+}
+
+.affordance {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--k-space-3);
+  padding: 7px 14px;
+  background: var(--k-raised);
+  border: 1px solid var(--k-border-control);
+  border-radius: var(--k-radius-control);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--k-ink);
+  cursor: pointer;
+}
+
+.affordance:hover {
+  background: var(--k-key-face);
+}
+
+.affordance:focus-visible {
+  outline: 2px solid var(--k-focus);
+  outline-offset: 2px;
+}
+
+.arrow {
+  color: var(--k-accent);
 }
 
 /* `05` §7's *session tally*: equal columns 8px apart, a 10px mono eyebrow at

@@ -220,6 +220,17 @@ refactor (`03` §5.3).
 
 ⚠️ **Numerals never reach this column.** `is_oov=True` rewrites `normalized_form` to ASCII — 六
 becomes `6` — so numerals are excluded at candidate extraction, before the key is built (`03` §5.2).
+[ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md) is that rule, and it
+excludes on the **part of speech** as well as on the flag: a plain `6` is `is_oov=False` and would
+otherwise walk through.
+
+⚠️ **Added 2026-09-12, [ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+— the reading is written in the word's own script**, and the examples above were the only statement
+of it. Hiragana for a word written with kanji or kana; katakana kept for a word that is itself
+katakana, so 図書館 reads としょかん and コーヒー reads コーヒー. SudachiPy's `reading_form()` answers in
+katakana throughout, and until #8 every *identity key* in the repository was a test literal written
+by hand — which is why nothing had noticed. It is part of the rendering rule, and therefore part of
+the identity.
 
 **Example:**
 
@@ -340,6 +351,31 @@ One run turning one source into pending notes, and **the spend ledger `S10` repo
 | `candidates_deduplicated` | `integer` | yes | — | …and **by which filter** |
 | `candidates_already_known` | `integer` | yes | — | |
 | `candidates_rejected` | `integer` | yes | — | |
+
+⚠️ **Amended 2026-09-12 with [#8](https://github.com/yutaasakura96/kioku/issues/8), which is the
+first code to write these four.** The table gave the columns and the example below gives one set of
+values; what separates them was never stated, and three of them could each have meant two things.
+**Four disjoint buckets, of which the first is the total:**
+
+| Column | Counts |
+| --- | --- |
+| `candidates_extracted` | **Sightings**, not distinct words. 図書館 twice in a *chunk* is 2 |
+| `candidates_deduplicated` | Sightings folded into a word already seen **in the same chunk** — the ones that become extra *occurrences* rather than extra *notes* |
+| `candidates_already_known` | Words whose ADR 0006 *identity key* the corpus already carries (§5.3) |
+| `candidates_rejected` | Words this reader has rejected (§7.2) |
+
+So `extracted − deduplicated − already_known − rejected` is what reached stage 6, and the example's
+`214, 106, 71, 9` leaves 28 generated. ⚠️ **A rejected word matches both of the last two filters** —
+§7.2 keys a rejection on `note_id`, so it necessarily has a `note` — and it is counted **once**, under
+`rejected`. `03` §11 shows the reader *which* filter removed the work, and a ledger that adds to more
+than was extracted answers nothing.
+
+⚠️ **Each chunk adds its own numbers to the row**, rather than assigning them: a resume re-runs only
+the chunks that are not `complete` (§6.2), so an assignment would report the resume's slice as the
+whole document. The consequence is that a word appearing in two *chunks* is counted in both —
+tokenisation is per chunk (`03` §5.1), so stage 4 cannot see across one. **Stage 7's streamed write is
+what closes that**: once chunk 1's *note* exists, chunk 2's sighting of it is an `already_known`
+rather than a second generation.
 | `worker_environment` | `text` | no | `'laptop'` | `CHECK (worker_environment IN ('laptop','server'))`. ⚠️ `03` §12: early *time-to-first-review* figures are not comparable across ADR 0022's move, **recorded on the number rather than only in a paragraph** |
 
 **Example:** `(…, source 019bd3…, '朝日新聞 2026-09-01 社説', 'jlpt-vocab', 'complete', 09:12Z, 09:12Z, 09:15Z, 'usr_7f…', 'claude-sonnet-5', 'v3', '20260723', 18400, 6200, 41300, 2026-08-01, 214, 106, 71, 9, 'laptop')`
@@ -441,6 +477,25 @@ The sequence:
 4. **A job in `claimed` whose `heartbeat_at` is older than 5 minutes is reclaimable** and is returned
    to `queued` by the next worker to look. This is what "the laptop closed mid-job" resolves to: the
    claim is still visible, it is visibly stale, and a timed rule releases it.
+5. ⚠️ **Added 2026-09-12 with [#8](https://github.com/yutaasakura96/kioku/issues/8) —
+   [ADR 0046](adr/0046-a-job-gives-up-after-five-abandonments-and-the-retry-after-the-first-is-deferred.md):
+   step 4 has a second branch, and `available_at` is finally used as the backoff this table has
+   always called it.** At `attempts >= 5` the sweep marks the job `failed` instead of requeueing it,
+   keeping `claimed_by` as the record of which run of the worker was holding it. Below that it
+   requeues, and sets `available_at` forward — immediately on the first abandonment, because
+   §6.4 puts the sweep at the top of the poll so a closed laptop's job lands in the same drain that
+   noticed it, and then doubling from one minute to a thirty-minute cap.
+
+   ⚠️ **This is about a job that kills the *worker*, not one that raises.** A raise is already
+   terminal — the drain fails the job on the first one. A process that dies leaves nothing behind to
+   mark anything, so before #8 such a job was swept, re-claimed and re-killed forever, with `attempts`
+   counting up and nothing reading it. #7's handler was bookkeeping; #8's loads a 68 MB dictionary
+   and tokenises up to 100,000 characters.
+
+   ⚠️ **Nothing is scheduled to come back for a future-dated job** — `03` §3.1 step 6 forbids the
+   timeout branch from issuing a query — so a deferred job waits for the next notification or the next
+   reconnect. That is why the cap is thirty minutes and not hours, and the remaining half is named in
+   `00-status.md` § Next rather than papered over.
 
 ⚠️ **The stale-claim sweep runs in the worker, not on a schedule elsewhere.** ADR 0022 forbids
 depending on a Vercel-only feature, and Vercel Cron is named in that list. The sweep is a query the

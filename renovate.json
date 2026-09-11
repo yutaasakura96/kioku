@@ -21,7 +21,7 @@
       "allowedVersions": ">=3.2.4"
     },
     {
-      "description": "PIN 2/6 \u2014 SudachiDict-core 20260723. DO NOT BUMP. The dictionary version is part of the ingestion cache key, and an upgrade can change the identity of existing *notes* (`03` \u00a75.3, ADR 0006). It is a deliberate, reviewed data event with a re-ingestion plan, never an automated bump. Arrives with #8.",
+      "description": "PIN 2/6 \u2014 SudachiDict-core 20260723. DO NOT BUMP. The dictionary version is part of the ingestion cache key, and an upgrade can change the identity of existing *notes* (`03` \u00a75.3, ADR 0006). It is a deliberate, reviewed data event with a re-ingestion plan, never an automated bump. Arrived with #8, 2026-09-12: `worker/pyproject.toml` pins it exactly and `worker/pipeline/tokenise.py` reads the version out of the installed package rather than restating it, so the value in the cache key and in `note_field_provenance` cannot drift from the dictionary that produced the tokens. ADR 0044 and ADR 0045 both rest on this taxonomy.",
       "matchPackageNames": [
         "SudachiDict-core"
       ],

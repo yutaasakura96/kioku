@@ -359,6 +359,14 @@ erased the distinction the test exists to protect.
 
 `worker/tests/`, pytest, a real Postgres 18 container (ADR 0038).
 
+⚠️ **Amended again 2026-09-12 with #8 — twenty-three is now forty**, and the reason has not changed:
+#8's SQL is the *pipeline* wired to the database — the corpus lookup, the rejected filter, the
+*occurrence* append and `04` §6.1's ledger — plus ADR 0046's two new sweep branches and, new in kind,
+**a test of the fixture's own cleanup** (below). The sentence being protected is still untouched: a
+laptop with no Docker runs the entire TypeScript suite *and* the whole pure pipeline, and what goes
+red is the worker's forty, with `worker/tests/conftest.py` printing the reason. The worker suite is
+**140 tests**, of which 100 need neither Docker nor a database.
+
 ⚠️ **Amended 2026-09-11 with #7 — "the three tests that need Docker" is now twenty-three**, and
 ADR 0038 carries the argument. The three below are still the three it named; what joined them is
 #7's own SQL — the chunk queue, `04` §6.2's resume query, the settle and the drain — which is not a
@@ -392,6 +400,19 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | The loop's shape | `03` §3.1's seven steps against a fake connection: `LISTEN` before the poll, a notification drains, the timeout branch issues **no query**, reconnect resumes at `LISTEN`, the backoff doubles to a 30 s cap and resets after a working connection. ⚠️ **The payload is never read** is enforced by a notification whose `payload` property *raises* |
 | The connection string | The direct string is taken verbatim (ADR 0027) and the **pooled one is refused by name** — `03` §4.1's "it silently never wakes", turned into a startup error |
 
+**And what #8 added beside them** (`worker/tests/test_ingest.py`, `test_scratch_cleanup.py`,
+`test_jobs.py`, built 2026-09-12):
+
+| Test | Asserts |
+| --- | --- |
+| The corpus lookup | `04` §12's second query, narrowed to one *chunk*'s keys. A word the corpus has is not generated and **its `occurrence` is appended at every position it appeared**, across chunks — ⚠️ seeded so the second position is in the *second* chunk, because a `char_start` that never left the chunk agrees with the right answer for chunk 0 |
+| The rejected filter | `04` §12's third query, and ⚠️ **that it is scoped to the owner** — a second reader's rejection does not filter this run. `note_vetting` is *personal* (ADR 0012), and with one reader a missing filter passes every test that does not have a second one |
+| Re-ingestion | `04` §5.5's `UNIQUE (note_id, source_id, char_start)`: a resume appends no *occurrence* it already has |
+| The ledger | `04` §6.1's four counters accumulate across chunks, and `dictionary_version` is stamped by the worker rather than at submit |
+| A chunk that cannot be read | An `ingestion_chunk` pointing past the end of its *source* fails **that chunk** and leaves the run `incomplete` — `03` §5.4's partial results, from the failure end |
+| ⚠️ The fixture's own cleanup | That it **cannot reach `review_log`**. `TRUNCATE … CASCADE` did, through `note.origin_ingestion_id` → `note` → `card` → `review_log`, and `CASCADE` was not optional — without it Postgres refuses the statement. Ordered `DELETE`s stop at `04` §9's `RESTRICT` two tables short |
+| ADR 0046's two branches | A second abandonment defers the retry; the fifth gives up on the job, keeps `claimed_by`, and is never swept again |
+
 **And the pipeline, which needs no second session but does need Python:**
 
 | Test | Asserts |
@@ -402,6 +423,11 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | The cache key | All **four** parts — content-chunk hash, **dictionary version**, prompt version, model id (`03` §5.3). A key missing the dictionary version serves stale results after a SudachiDict bump |
 | `Dictionary()` once | Constructed once per process; a test that constructs it twice and measures RSS is the guard (verification §7.3) |
 | Resume | A run that fails part-way keeps partial results and re-runs **only unprocessed chunks** (PRD §5) |
+| ⚠️ The part-of-speech allowlist | Built 2026-09-12 with #8 and [ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md). **Every `(pos₀, pos₁)` pair the installed dictionary declares is classified** — the allowlist and the exclusion list cover all 38 between them, so a `SudachiDict` release that adds a category fails by name rather than dropping a word class in silence |
+| ⚠️ Orthographic variants | 引っ越し / 引越し / 引越 render **one** *identity key*. This is what buys `normalized_form` its place as the term half over `dictionary_form`, which returns each surface unchanged (ADR 0006, ADR 0019) |
+| ⚠️ The reading's script | `04` §5.3's keys are hiragana and `reading_form()` answers in katakana; a word written wholly in katakana keeps it ([ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)). ひらがな is the deciding case — its *normalized form* is 平仮名 |
+| The identity key's rendering | `04` §5.3's rule as a function: NFC, joined by U+001F, **in declaration order rather than in the order the fields arrived**, and a missing key field raises rather than keying around it |
+| A stage key is a module name | `03` §10, for the five stages that are built. Stages 6 and 7 have no module yet, which is why it asserts the five rather than the seven |
 | ⚠️ The cross-language declaration | The Python view of the *subject* declaration matches the JSON file, and its field list matches TypeScript's. `03` §6 already specified this test — it is the two-toolchain tax, and it is the one test that exists in both suites by design |
 
 ⚠️ **Built 2026-09-10 with [#3](https://github.com/yutaasakura96/kioku/issues/3), and the last row

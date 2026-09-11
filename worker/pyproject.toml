@@ -28,7 +28,11 @@ requires-python = ">=3.11"
 #
 # `[binary]` bundles libpq 17.2, which sets `sslsni=1` by default — the chain
 # ADR 0027 rests on for Neon's direct endpoint (verification §9.1).
-dependencies = ["psycopg[binary]>=3.2.4"]
+dependencies = [
+    "psycopg[binary]>=3.2.4",
+    "sudachidict-core==20260723",
+    "sudachipy==0.6.11",
+]
 
 [dependency-groups]
 # `11` §1 names both: pytest 9.1.1 and testcontainers 4.15.0. ⚠️ The container is

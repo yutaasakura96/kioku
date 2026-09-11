@@ -4,11 +4,17 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for twenty-three of the eighty-six tests here**, and
-ADR 0038 carries the amendment. It said *three*, naming the three concurrency
-behaviours; #7 also writes SQL that is not a concurrency behaviour — the chunk
-queue, `04` §6.2's resume query, the settle, the drain — and testing Python's
-SQL needs a database, which in Python means a container. **The sentence that was
+⚠️ **Docker is required for forty of the one hundred and forty tests here**, and
+ADR 0038 carries the amendment. ⚠️ **Amended again 2026-09-12 with #8** — the
+forty are #7's twenty-three plus the *pipeline* wired to the database, ADR 0046's
+two new sweep branches, and `test_scratch_cleanup.py`, which asserts something
+about this directory rather than about the worker (below).
+
+ADR 0038 said *three*, naming the three concurrency behaviours. What joined them
+is SQL that is not a concurrency behaviour — #7's chunk queue, `04` §6.2's resume
+query, the settle and the drain, then #8's corpus lookup, rejected filter,
+*occurrence* append and ledger — and testing Python's SQL needs a database, which
+in Python means a container. **The sentence that was
 being protected is untouched:** a laptop without Docker runs the whole TypeScript
 suite and gets the worker's database tests red, visibly and for a stated reason —
 `conftest.py` prints it. Do not "simplify" the two harnesses into one
@@ -38,12 +44,12 @@ existing.* The TypeScript half is guarded by an assertion in
 ⚠️ **It runs before the migrations, not as a test.** Applying `0000_schema.sql`
 to a Postgres 17 fails on the first `CREATE TABLE` with `function uuidv7() does
 not exist`, which is true and tells nobody what happened; the fixture says it in
-one line instead. It is a precondition of all twenty-three rather than a
-behaviour of its own, which is also why it did not become a twenty-fourth test.
+one line instead. It is a precondition of all forty rather than a
+behaviour of its own, which is also why it never became a test of its own.
 
 ## What is here now
 
-⚠️ **Four of the seven files need neither a container nor a database**, and the
+⚠️ **Ten of the fifteen files need neither a container nor a database**, and the
 table below says which. `test_subject_drift.py` is `03` §6's cross-language drift
 test — `11` §7: "the one test that exists in both suites by design".
 
@@ -76,3 +82,11 @@ Not run by Vitest, and the whole file list is now:
 | `test_jobs.py` | **yes** | `04` §6.4 — the claim under two workers, `SKIP LOCKED` skipping rather than waiting, and the stale sweep |
 | `test_runs.py` | **yes** | The chunk queue, `04` §6.2's resume query, the settle, and the drain |
 | `test_reconnect.py` | **yes** | ADR 0028's ordering, asked of the **server** through `pg_listening_channels()` |
+| `test_chunk.py` | no | Reading a *chunk* back out of its *source* by **code point**, and a range past the end refused rather than clamped |
+| `test_tokenise.py` | no | C split mode keeping 図書館 whole, one `Dictionary()` per process, and the pinned dictionary version |
+| `test_extract_candidates.py` | no | ADR 0044's allowlist, the numeral rule, ADR 0045's script rule, and ⚠️ **that every part of speech the installed dictionary declares is classified** |
+| `test_deduplicate.py` | no | Repeats folded into one group carrying every sighting; `04` §6.1's first two counters |
+| `test_filter_known.py` | no | `04` §6.1's other two, each candidate counted **once** though a rejected word matches both filters |
+| `test_pipeline.py` | no | ⚠️ `11` §7's **stage-order test**: no generation is asked for a word already known or rejected. Needs no database, because ADR 0010's ordering is a property of the stages |
+| `test_ingest.py` | **yes** | The stages against real SQL — the corpus lookup, the owner-scoped rejected filter, *occurrence* idempotence, and the ledger |
+| `test_scratch_cleanup.py` | **yes** | ⚠️ **That the `connection` fixture's own cleanup cannot reach `review_log`.** It could, until #8: `TRUNCATE … CASCADE` walked `ingestion` → `note` → `card` → `review_log`, and `CASCADE` was not optional — without it Postgres refuses the statement outright |

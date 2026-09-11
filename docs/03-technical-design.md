@@ -310,6 +310,21 @@ document size.
 
 Both were measured, both are in verification §7.3, and both will otherwise be rediscovered as bugs.
 
+⚠️ **Both are answered as of 2026-09-12, by [#8](https://github.com/yutaasakura96/kioku/issues/8),
+and both were re-measured against `SudachiPy` 0.6.11 while answering them.** The numeral rule is
+[ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md), which excludes on the
+**part of speech** as well as on `is_oov` — a plain `6` is `is_oov=False` and would otherwise walk
+through. The slicing finding is closed in `worker/pipeline/tokenise.py`, which iterates the
+`MorphemeList` once into a list of plain dataclasses, so nothing downstream can rediscover it
+(`morphemes[:3]` still raises `TypeError: argument 'idx': 'slice' object cannot be interpreted as an
+integer`).
+
+⚠️ **A third measurement joined them, and it is what makes the first one matter.** `normalized_form`
+earns its place as the term half of ADR 0006's key because it is the only one of the three forms that
+collapses orthographic variants: 引越し and 引越 both normalise to 引っ越し, and ひらいた to 開く, while
+`dictionary_form` returns each surface unchanged. So the field that buys the deduplication is the
+same field that writes a digit where a word should be.
+
 - ⚠️ **Numerals come back `is_oov=True` with `normalized_form` rewritten to ASCII** — 六 becomes
   `6`. ADR 0006 puts `normalized_form` in the *identity key*, so a numeral-heavy *source* keys
   strangely and, worse, keys *consistently* strangely, which is how it survives review. **The
@@ -347,6 +362,12 @@ spent.
 
 Per-chunk progress is therefore durable in the database rather than in process memory — and once
 that record exists, it *is* the queue. That is why there is no queue service.
+
+⚠️ **The reader's end of this arrived 2026-09-12 with #8.** `10` §6.2's resume control had been owed
+by three tickets in a row, each time for a good reason: #6 had no resume query, #7 had the query and
+no chunk processor. `server/utils/ingest/resume.ts` writes **one** `job` row at `kind = 'resume'` and
+nothing else — no `source`, no chunks, no `ingestion` — which is the shortest expression of the
+sentence above.
 
 ---
 
@@ -669,6 +690,13 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
 - `psycopg[binary]` **≥ 3.2.4** — the floor is the lost-notification fix (§3.1), not a number.
 - **`SudachiDict-core` 20260723** — an upgrade can change the identity of existing notes (§5.3). It
   is a deliberate, reviewed data event with a re-ingestion plan, never an automated bump.
+  ⚠️ **Amended 2026-09-12 with #8, which is the commit that gave this pin a file to live in.**
+  `worker/pyproject.toml` carries `sudachidict-core==20260723` and `sudachipy==0.6.11`, and
+  `worker/pipeline/tokenise.py` reads the version from the installed package rather than restating
+  it — a literal would be a second place for the number to be wrong, and its failure mode is cached
+  results served against a different tokenisation of the same text. Two decisions now also rest on
+  this exact release's part-of-speech taxonomy: ADR 0044's allowlist is enumerated from it, and
+  ADR 0045's script rule is measured against it.
 - **Nuxt 4.5.2 with `nitropack ^2.13.4`** — verification §8 established `noScripts`' behaviour
   against those exact versions. ⚠️ **Nuxt 5 is scheduled for Q4 2026**, inside the project's first
   year, and it re-opens that question rather than inheriting the answer.

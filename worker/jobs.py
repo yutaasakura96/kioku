@@ -29,6 +29,34 @@ from db import CONNECTION_LOST
 #: `04` §6.4 step 4. Five minutes, and the number is the document's.
 STALE_AFTER = "5 minutes"
 
+#: ⚠️ **The ceiling `attempts` did not have until #8** (`00-status.md` § Carrying).
+#:
+#: A job that *kills the worker* — rather than raising, which `drain` already
+#: turns into a `failed` job — leaves its claim behind. The sweep then returns it
+#: to `queued`, the next poll claims it, and it kills the worker again: an
+#: infinite loop with `attempts` counting up and nothing reading it. #7 could not
+#: produce such a job because its handler was bookkeeping. #8's handler loads a
+#: 68 MB dictionary and tokenises up to 100,000 characters, which is the first
+#: work in this project that can take the process down with it.
+#:
+#: Five, because the failure this protects against is not transient and four
+#: retries is already generous for one that is. ⚠️ It is a **sweep-time** rule:
+#: `drain`'s own `fail_job` is terminal on the first raise and stays that way.
+MAX_ATTEMPTS = 5
+
+#: ⚠️ `04` §6.4 calls `available_at` backoff — *"a retry sets it forward rather
+#: than sleeping in the worker"* — and until #8 nothing ever set it forward.
+#:
+#: Doubling from a minute, capped at thirty. ⚠️ **The cap matters more than the
+#: base**: nothing in this loop is scheduled to come back for a future-dated job
+#: (`03` §3.1 step 6 forbids the timeout branch from issuing a query), so the
+#: deferral is collected by the next notification or the next reconnect. A long
+#: cap would turn "deferred" into "forgotten until the reader submits something
+#: else". **The remaining half of this is open and named** — `00-status.md`
+#: § Next carries it.
+FIRST_RETRY_DELAY = "1 minute"
+MAX_RETRY_DELAY = "30 minutes"
+
 
 @dataclass(frozen=True)
 class ClaimedJob:
@@ -95,26 +123,85 @@ def claim_next_job(connection: psycopg.Connection, *, owner: str) -> ClaimedJob 
     return ClaimedJob(id=row[0], kind=row[1], ingestion_id=row[2], attempts=row[3], claimed_by=row[4])
 
 
+#: ⚠️ Never source text and never the provider's name (`03` §13.4, `03` §11) —
+#: this column is read straight onto the run row (`10` §6.2).
+ABANDONED = (
+    "abandoned after {attempts} attempts: the worker stopped before finishing it "
+    "each time. Resubmitting will not help until the cause is found."
+)
+
+
 def sweep_stale_claims(
-    connection: psycopg.Connection, *, stale_after: str = STALE_AFTER
+    connection: psycopg.Connection,
+    *,
+    stale_after: str = STALE_AFTER,
+    max_attempts: int = MAX_ATTEMPTS,
 ) -> int:
-    """Return every visibly abandoned claim to the queue. Answers how many.
+    """Return every visibly abandoned claim to the queue, or give up on it.
+    Answers how many rows it touched.
 
     ⚠️ **Matched on `state = 'claimed'`, never on `claimed_by IS NOT NULL`.**
     A finished job keeps its owner forever — it is the audit line of who ran it —
     so a sweep written the second way resurrects every completed run the first
     time it is asked to look.
+
+    ⚠️ **Two branches in one statement, and #8 added the second.** A claim goes
+    stale for two different reasons and they are indistinguishable from here: the
+    laptop closed mid-job, or the job killed the worker. The first deserves the
+    retry this sweep exists for; the second, repeated, is the infinite re-claim
+    loop `00-status.md` § Carrying names. `attempts` is what separates them **over
+    time** rather than in the moment, which is why the ceiling lives here and not
+    in `drain`.
+
+    ⚠️ **The retry is deferred, not immediate** — `04` §6.4's own words for
+    `available_at`. Without it a job that kills the worker is re-claimed by the
+    very next poll, so the ceiling would be reached in seconds and a *transient*
+    failure would be spent through just as fast.
+
+    ⚠️ **A given-up job keeps `claimed_by`**, for the same reason a finished one
+    does: it is the record of which run of the worker was holding it, and it is
+    the only thing left pointing at the machine that died.
     """
     result = connection.execute(
         """
         UPDATE job SET
-          state = 'queued',
-          claimed_by = NULL,
-          claimed_at = NULL,
+          state = CASE WHEN attempts >= %(max_attempts)s THEN 'failed' ELSE 'queued' END,
+          last_error = CASE WHEN attempts >= %(max_attempts)s THEN %(abandoned)s
+                            ELSE last_error END,
+          finished_at = CASE WHEN attempts >= %(max_attempts)s THEN now()
+                             ELSE finished_at END,
+          -- ⚠️ **The first retry is immediate, and that is a documented
+          -- property rather than an oversight.** `04` §6.4 puts the sweep at the
+          -- top of the poll so that a job abandoned by a closed laptop *lands in
+          -- the very same drain that noticed it*, and `11` §7 tests exactly
+          -- that. `attempts` is 1 after a single claim, so the deferral starts
+          -- at the second sweep — the point at which "the laptop closed" has
+          -- stopped being the likely story.
+          --
+          -- ⚠️ `least(…)` and not a bare `power`: the doubling is unbounded, and
+          -- the thing that collects a deferred job is the next notification or
+          -- the next reconnect, so an hour-long deferral is indistinguishable
+          -- from losing the job.
+          available_at = CASE
+            WHEN attempts >= %(max_attempts)s THEN available_at
+            WHEN attempts <= 1 THEN now()
+            ELSE now() + least(
+              %(first_delay)s::interval * power(2, attempts - 2),
+              %(max_delay)s::interval
+            )
+          END,
+          claimed_by = CASE WHEN attempts >= %(max_attempts)s THEN claimed_by ELSE NULL END,
+          claimed_at = CASE WHEN attempts >= %(max_attempts)s THEN claimed_at ELSE NULL END,
           heartbeat_at = NULL
         WHERE state = 'claimed' AND heartbeat_at < now() - %(stale_after)s::interval;
         """,
-        {"stale_after": stale_after},
+        {
+            "stale_after": stale_after,
+            "max_attempts": max_attempts,
+            "abandoned": ABANDONED.format(attempts=max_attempts),
+            "first_delay": FIRST_RETRY_DELAY,
+            "max_delay": MAX_RETRY_DELAY,
+        },
     )
     return result.rowcount
 

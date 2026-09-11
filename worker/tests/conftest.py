@@ -49,11 +49,44 @@ MIGRATIONS = REPO_ROOT / "server" / "db" / "migrations"
 #: asserted, and :func:`_assert_postgres_18` is the assertion.
 POSTGRES_IMAGE = "postgres:18.3-alpine"
 
-#: The tables these tests write. `review_log` is not among them and must not be:
-#: it is guarded by a `BEFORE DELETE` trigger (`04` §7.5) that `TRUNCATE` walks
-#: straight past, so a cleanup that reached it would be the one statement in the
-#: repository able to destroy the irreplaceable data.
-SCRATCH_TABLES = ("job", "ingestion_chunk", "ingestion", "source_chunk", "source")
+#: The tables these tests write, **children first**, emptied with `DELETE`.
+#:
+#: ⚠️ **This was `TRUNCATE … CASCADE` until #8, and the comment above it claimed
+#: a protection it did not have.** It said `review_log` "is not among them and
+#: must not be", which was true and beside the point: `CASCADE` does not stop at
+#: the tables you name. Measured 2026-09-11 against the container —
+#: `TRUNCATE job, ingestion_chunk, ingestion, source_chunk, source CASCADE`
+#: reaches `review_log` through `note.origin_ingestion_id` → `note` → `card` →
+#: `review_log`, and a row written before it was gone after it. And `CASCADE` was
+#: not decorative: without it Postgres refuses the statement outright —
+#: *cannot truncate a table referenced in a foreign key constraint … Table "note"
+#: references "ingestion"*. So the one keyword that made the cleanup run was also
+#: the one that let it walk to the irreplaceable data.
+#:
+#: **`DELETE` is what the schema's own rules apply to.** `04` §9's delete
+#: behaviour is real for a `DELETE` and ignored by a `TRUNCATE`: the `RESTRICT`
+#: on `card.note_id` refuses, and `review_log`'s `BEFORE DELETE` trigger (`04`
+#: §7.5) fires. A test that leaves a `card` behind now fails loudly here instead
+#: of quietly taking the review history with it.
+#:
+#: :func:`test_the_scratch_cleanup_cannot_reach_review_log` is the guard, because
+#: a comment could not be one — which is the whole lesson of the paragraph this
+#: one replaced.
+SCRATCH_TABLES = (
+    "occurrence",
+    "note_vetting",
+    "note_field_provenance",
+    "level_claim",
+    "ingestion_chunk",
+    "job",
+    "ingestion",
+    "source_chunk",
+    "source",
+    # Last: every child of `note` above it is gone by now, and `card` is not in
+    # this list on purpose — a `card` still standing means `04` §9's `RESTRICT`
+    # refuses, which is the failure this ordering exists to produce.
+    "note",
+)
 
 NO_DOCKER = """\
 Docker is not available, and this test needs a real Postgres 18 container.
@@ -112,7 +145,8 @@ def connection(postgres_dsn: str):
     differently from the real one would be testing a different thing.
     """
     with psycopg.connect(postgres_dsn, autocommit=True) as conn:
-        conn.execute(f"TRUNCATE {', '.join(SCRATCH_TABLES)} CASCADE;")
+        for table in SCRATCH_TABLES:
+            conn.execute(f"DELETE FROM {table};")
         yield conn
 
 

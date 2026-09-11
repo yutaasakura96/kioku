@@ -10,6 +10,7 @@ suites by design (`11` §7).
 """
 
 import json
+import unicodedata
 
 import pytest
 
@@ -22,6 +23,7 @@ from subject import (
     judgement_field_names,
     load_declaration,
     memory_bearing_field_names,
+    render_identity_key,
     required_field_names,
     stage_keys,
     validate,
@@ -269,3 +271,69 @@ class TestCheckDeclaration:
             stages=[{"key": "one", "title": "One"}, {"key": "one", "title": "Again"}]
         )
         assert errors(check_declaration(patched)) == [ValidationError("one", "duplicate_stage")]
+
+
+# --- ADR 0006's identity key, rendered ---------------------------------------
+
+#: `04` §5.3 joins the key with U+001F. ⚠️ **Spelled `chr(31)` rather than
+#: written**: the character is invisible in an editor, so a literal would make
+#: every expected value in this section unreviewable — and #3 already found this
+#: exact character to be the one `str.strip()` and `trim()` disagree about.
+UNIT_SEPARATOR = chr(31)
+
+
+def test_the_identity_key_is_the_declared_fields_joined_by_the_unit_separator() -> None:
+    """`04` §5.3's worked example, which the schema tier already seeds by hand.
+
+    `test/schema/harness.ts` inserts `'図書館␟としょかん'` as a literal; this is the
+    function that has to produce the same string, or the two tiers are describing
+    different notes.
+    """
+    key = render_identity_key(
+        load_declaration(),
+        {"term": "図書館", "reading": "としょかん", "meaning": "library"},
+    )
+
+    assert key == "図書館" + UNIT_SEPARATOR + "としょかん"
+
+
+def test_the_key_is_rendered_in_declaration_order_not_output_order() -> None:
+    """`04` §5.3: *in the order the subject declaration lists them*.
+
+    A dict preserves insertion order in Python, so a renderer that iterated the
+    output would pass every test written with the fields in declared order and
+    key differently the first time a generator emitted them in another.
+    """
+    key = render_identity_key(load_declaration(), {"reading": "としょかん", "term": "図書館"})
+
+    assert key == "図書館" + UNIT_SEPARATOR + "としょかん"
+
+
+def test_values_are_nfc_normalised_before_they_are_joined() -> None:
+    """`04` §5.3, and the same rule `shared/ingest/text.ts` applies to `content`.
+
+    ⚠️ Decomposed kana is what some PDF extractions and some macOS filenames
+    carry: だ as た + U+3099. Without this one word keys two ways and ADR 0006's
+    `UNIQUE (subject_id, identity_key)` never fires.
+    """
+    composed = render_identity_key(load_declaration(), {"term": "大学", "reading": "だいがく"})
+    decomposed = render_identity_key(
+        load_declaration(),
+        {
+            "term": unicodedata.normalize("NFD", "大学"),
+            "reading": unicodedata.normalize("NFD", "だいがく"),
+        },
+    )
+
+    assert decomposed == composed
+    assert composed == "大学" + UNIT_SEPARATOR + "だいがく"
+
+
+def test_a_missing_identity_field_is_refused_rather_than_keyed_around() -> None:
+    """A note with half a key has no identity and `04` §5.3 has no spelling for
+    one. `check_declaration` already refuses an *optional* field in the key; this
+    is that rule at render time, where the value rather than the declaration is
+    what is missing.
+    """
+    with pytest.raises(KeyError):
+        render_identity_key(load_declaration(), {"term": "図書館"})

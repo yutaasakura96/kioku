@@ -1058,6 +1058,70 @@ visibly and for a stated reason (`worker/tests/conftest.py` prints it).
 **Revisit if** the worker tier grows slow enough that the container stops being worth its 946 ms —
 at which point the split to re-argue is per-file, not per-tier.
 
+### [2026-09-12] A candidate is a content word, and a numeral is not one
+Stage 3 keeps eleven `(pos₀, pos₁)` pairs and drops the other twenty-seven, enumerated from the
+installed dictionary so the two sets cover it exactly. No document named the rule; `04` §6.1's
+`(…, 214, 106, 71, 9, …)` implied it. → [ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md)
+
+### [2026-09-12] The reading half of the identity key is written in the word's own script
+Hiragana, except for a word written wholly in katakana, which keeps it. `04` §5.3's three worked keys
+are all hiragana and SudachiPy answers in katakana; コーヒー's reading is a field on the card, not only
+half of a key. → [ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+
+### [2026-09-12] A job gives up after five abandonments, and every retry after the first is deferred
+The stale sweep gained a second branch. `04` §6.4 called `available_at` backoff and nothing ever set
+it forward; `attempts` was counted and never read. #8's handler is the first that can take the
+process down with it. → [ADR 0046](adr/0046-a-job-gives-up-after-five-abandonments-and-the-retry-after-the-first-is-deferred.md)
+
+### [2026-09-12] `04` §6.1's four candidate counters are four disjoint buckets, per chunk
+No ADR — it is a reading of an existing table rather than a new decision, recorded in full because the
+table did not say it.
+
+**Decision** — `candidates_extracted` counts **sightings**, not distinct words. `candidates_deduplicated`
+is the sightings folded into a group already seen *in the same chunk*. `candidates_already_known` is
+the groups whose ADR 0006 key the corpus already carries. `candidates_rejected` is the groups this
+reader has rejected. The four are disjoint and the first is the total, so
+`extracted − deduplicated − already_known − rejected` is what reached stage 6. Each chunk adds its
+own numbers to the row (`coalesce(…, 0) + …`), because a resume re-runs only the chunks that are not
+`complete`.
+
+**Alternatives considered:** counting distinct words rather than sightings — rejected because
+`04` §6.1's own example, `(214, 106, 71, 9)`, only adds up as sightings; and counting a rejected
+candidate under *both* `already_known` and `rejected`, which every rejected key qualifies for since
+`04` §7.2 keys a rejection on `note_id` — rejected because `03` §11 shows the reader *which* filter
+removed the work, and a ledger that adds up to more than was extracted answers nothing.
+
+**Reason:** `04` §6.1 gives the four columns and one worked example and never says what separates
+them. Three filters, three numbers, and a total is the only reading under which the example's
+arithmetic works.
+
+**Revisit if** the tally on a real run reads wrong to the person looking at it — `10` §6.2 renders all
+four as the *session tally*, so the screen is the test.
+
+### [2026-09-12] A resume is one job row, and only from `incomplete`
+No ADR — the decision was made three times already and each time it was *not yet*; this is the
+recording of it finally being *yes*.
+
+**Decision** — `recordResume` writes a single `job` at `kind = 'resume'` and nothing else: no
+`source`, no `source_chunk`, no `ingestion`. It refuses any status but `incomplete`, and refuses a
+second one while a `queued` or `claimed` job for that *ingestion* already exists. The control is a
+form `POST /` carrying a hidden `resume` field, answered `303`.
+
+**Alternatives considered:** a second write path at `POST /api/resume` — rejected because it adds a
+row to `09` §1's route table, a second write surface and a second CSRF story to save one `if`; and
+reporting the refusal to the reader — rejected because `09` §7 makes the run list the thing that says
+where a run is, read fresh on every request, and a flash message would be a second, staler account of
+the same fact with no client to hold it.
+
+**Reason:** ADR 0015 — once the per-chunk record exists it **is** the queue — so resuming is
+enqueueing a second visit rather than reconstructing anything. `10` §6.2 moved this control from #6
+to #7 to #8 because a control that wrote a job no worker could act *usefully* on is worse than the
+line that says what completed. #8 is the first ticket where a resume does something.
+
+**Revisit if** a reader wants to resume a `failed` *ingestion*. `settle_run` cannot produce `failed`,
+so one today means a run that could never be started — but ADR 0046's new `failed` **job** sits beside
+an `incomplete` *ingestion*, and that pairing has not been seen on a screen yet.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

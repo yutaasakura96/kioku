@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field as dataclass_field
 from pathlib import Path
 from typing import Any
@@ -120,6 +121,57 @@ def stage_keys(declaration: Declaration) -> list[str]:
     ⚠️ These are also the module names under ``worker/pipeline/`` (`03` §10).
     """
     return [stage["key"] for stage in declaration["stages"]]
+
+
+#: ADR 0006's key is rendered by joining its fields with U+001F — `04` §5.3.
+#:
+#: ⚠️ **`chr(31)` rather than a literal**, for the same reason the tests spell it
+#: that way: the character is invisible, and #3 found it to be the single
+#: character `str.strip()` strips and JavaScript's `trim()` does not. A value
+#: carrying one would be trimmed on one side of the repository and not the other;
+#: `_BLANK` above is the union that closes that, and this is the constant it is
+#: protecting.
+IDENTITY_KEY_SEPARATOR = chr(31)
+
+
+def identity_key_field_names(declaration: Declaration) -> list[str]:
+    """The fields ADR 0006 keys a *note* on, in declaration order."""
+    return list(declaration["identity_key"])
+
+
+def render_identity_key(declaration: Declaration, fields: dict[str, Any]) -> str:
+    """`04` §5.3's rendering rule: NFC, joined by U+001F, in declared order.
+
+    ⚠️ **The rendering rule is part of the identity.** `04` §5.3 says so in as
+    many words, and the consequence is the sharp one: changing this function
+    changes the identity of every *note* that already exists. It is the same
+    class of event as a `SudachiDict` bump — a reviewed data event with a
+    re-ingestion plan, never a refactor (`03` §5.3).
+
+    ⚠️ **Declaration order, not output order.** A dict preserves insertion order
+    in Python, so iterating ``fields`` would agree with this for as long as every
+    producer happened to emit the fields in the declared order, and disagree
+    silently the first time one did not.
+
+    ⚠️ **A missing field raises.** Half a key is not a key, and `check_declaration`
+    already refuses a declaration whose key names an *optional* field — this is
+    the same rule one layer down, where it is the value rather than the
+    declaration that is absent. Returning something for an absent field is how
+    two different notes end up sharing an identity.
+    """
+    return IDENTITY_KEY_SEPARATOR.join(
+        unicodedata.normalize("NFC", _identity_value(fields, name))
+        for name in identity_key_field_names(declaration)
+    )
+
+
+def _identity_value(fields: dict[str, Any], name: str) -> str:
+    if name not in fields or fields[name] is None:
+        raise KeyError(f"{name!r} is part of the identity key and is not present")
+    value = fields[name]
+    if not isinstance(value, str):
+        raise TypeError(f"{name!r} is part of the identity key and is not a string")
+    return value
 
 
 def _is_string_list(value: Any) -> bool:

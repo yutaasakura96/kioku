@@ -14,6 +14,7 @@ import psycopg
 import pytest
 
 from jobs import (
+    MAX_ATTEMPTS,
     STALE_AFTER,
     claim_next_job,
     fail_job,
@@ -281,3 +282,106 @@ def test_a_heartbeat_from_a_worker_that_lost_the_claim_does_nothing(connection):
     heartbeat(connection, abandoned)
 
     assert sweep_stale_claims(connection) == 1, "the stale worker's beat hid a dead claim"
+
+
+# ---------------------------------------------------------------------------
+# #8: a ceiling on `attempts`, and `available_at` finally used as backoff
+# ---------------------------------------------------------------------------
+
+
+def go_stale(connection, job_id: str) -> None:
+    connection.execute(
+        "UPDATE job SET heartbeat_at = now() - interval '6 minutes' WHERE id = %s;", (job_id,)
+    )
+
+
+def job_row(connection, job_id: str):
+    return connection.execute(
+        """
+        SELECT state, attempts, available_at > now(), claimed_by, last_error
+        FROM job WHERE id = %s;
+        """,
+        (job_id,),
+    ).fetchone()
+
+
+def test_the_first_stale_sweep_does_not_defer_the_retry(connection):
+    """⚠️ `04` §6.4 puts the sweep at the top of the poll precisely so a job
+    abandoned by a closed laptop *lands in the very same drain that noticed it*,
+    and `11` §7 tests that. The backoff added in #8 must not take that away, so
+    it starts at the **second** sweep — one claim is `attempts = 1`, and "the
+    laptop closed" is still the likely story.
+    """
+    job_id = queue_job(connection)
+    claim_next_job(connection, owner="the-laptop-that-closed")
+    go_stale(connection, job_id)
+
+    sweep_stale_claims(connection)
+
+    assert job_row(connection, job_id)[:3] == ("queued", 1, False)
+
+
+def test_a_second_abandonment_sets_available_at_forward(connection):
+    """`04` §6.4 calls `available_at` backoff — *a retry sets it forward rather
+    than sleeping in the worker* — and until #8 nothing ever set it forward.
+
+    ⚠️ Without this, a job that kills the worker is re-claimed by the very next
+    poll, so the ceiling below would be spent in seconds and a **transient**
+    failure would be burned through just as fast.
+    """
+    job_id = queue_job(connection)
+    for _ in range(2):
+        claim_next_job(connection, owner="a-worker-that-died")
+        go_stale(connection, job_id)
+        sweep_stale_claims(connection)
+
+    assert job_row(connection, job_id)[:3] == ("queued", 2, True)
+    assert claim_next_job(connection, owner="the-next-worker") is None
+
+
+def test_a_job_that_keeps_killing_the_worker_is_given_up_on(connection):
+    """⚠️ The infinite re-claim loop `00-status.md` § Carrying names, closed.
+
+    A job that *raises* is already terminal — `drain` calls `fail_job` on the
+    first one. This is the other kind: a job that takes the **process** down, so
+    nothing ever gets to mark it anything. The claim goes stale, the sweep
+    returns it, the next poll claims it, and it happens again — with `attempts`
+    counting up and, until #8, nothing reading it.
+
+    #8 is where it stopped being hypothetical: the handler now loads a 68 MB
+    dictionary and tokenises up to 100,000 characters.
+    """
+    job_id = queue_job(connection)
+    for _ in range(MAX_ATTEMPTS):
+        connection.execute(
+            "UPDATE job SET available_at = now() WHERE id = %s;", (job_id,)
+        )
+        claim_next_job(connection, owner="a-worker-that-died")
+        go_stale(connection, job_id)
+        sweep_stale_claims(connection)
+
+    state, attempts, _, claimed_by, last_error = job_row(connection, job_id)
+    assert (state, attempts) == ("failed", MAX_ATTEMPTS)
+    assert claim_next_job(connection, owner="the-next-worker") is None
+
+    # ⚠️ The owner survives, for the same reason a finished job's does: it is the
+    # only thing left pointing at the machine that died.
+    assert claimed_by == "a-worker-that-died"
+    # ⚠️ `03` §13.4 and `03` §11: no source text, and no provider named. `10`
+    # §6.2 reads this column straight onto the run row.
+    assert "abandoned after 5 attempts" in last_error
+
+
+def test_a_given_up_job_is_not_swept_back_into_the_queue(connection):
+    """`failed` is terminal. A sweep matched on `state = 'claimed'` cannot see it
+    — which is the same property that stops a finished job being resurrected.
+    """
+    job_id = queue_job(connection)
+    for _ in range(MAX_ATTEMPTS):
+        connection.execute("UPDATE job SET available_at = now() WHERE id = %s;", (job_id,))
+        claim_next_job(connection, owner="a-worker-that-died")
+        go_stale(connection, job_id)
+        sweep_stale_claims(connection)
+
+    assert sweep_stale_claims(connection) == 0
+    assert job_row(connection, job_id)[0] == "failed"

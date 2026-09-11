@@ -296,3 +296,68 @@ async function newestSourceId(): Promise<string> {
   expect(id, 'the Sources list rendered no source link').toBeDefined()
   return id!
 }
+
+describe('⚠️ the resume control — `10` §6.2, owed since #6 and buildable at #8', () => {
+  async function theRun(): Promise<string> {
+    const result = await database.client.query<{ id: string }>(
+      'SELECT id FROM ingestion ORDER BY submitted_at LIMIT 1;',
+    )
+    return result.rows[0]!.id
+  }
+
+  async function setStatus(status: string): Promise<void> {
+    const id = await theRun()
+    await database.client.exec(`UPDATE ingestion SET status = '${status}' WHERE id = '${id}';`)
+    await database.client.exec(`UPDATE job SET state = 'done', finished_at = now() WHERE ingestion_id = '${id}';`)
+  }
+
+  it('is absent on a run that is not incomplete', async () => {
+    await setStatus('complete')
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).not.toContain('name="resume"')
+  })
+
+  it('⚠️ is a form and not a link', async () => {
+    // A `GET` that writes a job would be actioned by a prefetch, a crawler or a
+    // back button — and there is no JavaScript here to intercept anything
+    // (ADR 0020), so the method **is** the protection.
+    await setStatus('incomplete')
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).toContain('name="resume"')
+    expect(html).toContain('Resume')
+    expect(html).toMatch(/<form[^<>]*method="post"[^<>]*>\s*<input type="hidden" name="resume"/)
+    expect(html).not.toContain('<script')
+  })
+
+  it('writes a queued resume job and answers 303', async () => {
+    await setStatus('incomplete')
+    const id = await theRun()
+
+    const response = await asReader('/', form({ resume: id }))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+
+    const rows = await database.client.query<{ kind: string, state: string }>(
+      `SELECT kind, state FROM job WHERE ingestion_id = $1 ORDER BY created_at;`,
+      [id],
+    )
+    expect(rows.rows.at(-1)).toEqual({ kind: 'resume', state: 'queued' })
+  })
+
+  it('⚠️ a resume for a run that is not resumable writes nothing and still lands on /', async () => {
+    // `09` §7: the run list is what says where a run is, read fresh on every
+    // request. There is no flash message, and no client to hold one — the next
+    // render tells the truth whichever way the write went.
+    await setStatus('complete')
+    const id = await theRun()
+    const before = await count('job')
+
+    const response = await asReader('/', form({ resume: id }))
+
+    expect(response.status).toBe(303)
+    expect(await count('job')).toBe(before)
+  })
+})

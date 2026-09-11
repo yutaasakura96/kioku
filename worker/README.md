@@ -45,7 +45,8 @@ manager documentation.
 | `jobs.py` | `04` §6.4 — the claim, the heartbeat, the stale sweep |
 | `runs.py` | The chunk queue, `04` §6.2's resume query, and what a claimed job turns into |
 | `__main__.py` | The process: signals, JSON logging, and wiring the four together |
-| `pipeline/` | One module per stage. Empty until [#8](https://github.com/yutaasakura96/kioku/issues/8) |
+| `pipeline/` | One module per stage, **named by the declaration** — `chunk`, `tokenise`, `extract_candidates`, `deduplicate`, `filter_known`. ⚠️ **Pure**: no database, no clock, and the corpus arrives as two plain collections (`11` §8) |
+| `ingest.py` | The stages wired to the database — the corpus lookup, the rejected filter, the *occurrence* append and `04` §6.1's ledger. This is `run_ingestion`'s `process_chunk` |
 
 ```bash
 cd worker && uv run python .
@@ -58,12 +59,25 @@ would start, claim nothing and **never wake** (`03` §4.1); `db.refuse_pooled`
 turns that into a startup error rather than an afternoon. `Ctrl-C` stops it —
 the block timeout in `loop.py` is what makes that land within a few seconds.
 
-⚠️ **There is no pipeline yet.** #7 is the loop, the claim and the sweep. A
-claimed job today has its `ingestion_chunk` queue opened and the run settles
-**`incomplete`** — `04` §6.1's resumable state, and the true one: nothing
-completed and every chunk is still there. Stages 1–5 arrive with
-[#8](https://github.com/yutaasakura96/kioku/issues/8) as `run_ingestion`'s
-`process_chunk` argument, which is the only seam they need.
+⚠️ **Stages 1 to 5 are wired in; stage 6 is not.** A claimed job reads its
+*source*, tokenises every *chunk*, extracts *candidates*, deduplicates against
+the corpus, appends *occurrences* for what the corpus already had, filters what
+the reader has rejected, and writes `04` §6.1's ledger — **and spends nothing**,
+because generation is [#9](https://github.com/yutaasakura96/kioku/issues/9).
+That is ADR 0010's ordering made literal rather than a placeholder: every stage
+that shrinks the work runs before the one that costs money, so the one that costs
+money can be missing and the rest is still true.
+
+⚠️ **The dictionary is constructed exactly once per process** (`03` §3.4), lazily,
+on the first *chunk*. A second `Dictionary()` costs the same load **and its own
+memory mapping** — 76 MB to 148 MB to 220 MB — and the mistake looks like ordinary
+per-job setup. Nothing outside `pipeline/tokenise.py` may call it.
+
+⚠️ **`SudachiDict-core` is pinned at `20260723` and moving it is a data event.**
+It can change the identity of *notes* that already exist (`03` §5.3), and two
+decisions rest on this release's part-of-speech taxonomy: ADR 0044's candidate
+allowlist is enumerated from it and ADR 0045's script rule is measured against
+it. It is PIN 2/6 in `renovate.json`, disabled there rather than bounded.
 
 ⚠️ **The worker has no inbound surface at all** — no socket, no route, no API
 key of its own to verify (`03` §1). That is ADR 0015's second and now

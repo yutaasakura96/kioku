@@ -10,20 +10,21 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and four more ADRs with it. ⚠️ **This paragraph said "there is still no code"
+code since 2026-09-09 and **seven more ADRs** with it. ⚠️ **This paragraph said "there is still no code"
 until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant every
 session opened by being told the opposite of what it would find.
 
-**What exists now:** #2, #3, #4, #5, #6 and #7 are built — a Nuxt app with the rendering split
+**What exists now:** #2, #3, #4, #5, #6, #7 and #8 are built — a Nuxt app with the rendering split
 enforced by the build, eighteen tables plus four the auth library owns, a *subject* declaration both
-toolchains read, a session gate, Ingest and Sources end to end, and **a Python worker that subscribes,
-polls, claims and sweeps**. **The commands:**
+toolchains read, a session gate, Ingest and Sources end to end, a Python worker that subscribes,
+polls, claims and sweeps, and **a pipeline that turns a pasted *source* into *candidates* and stops
+at the edge of generation**. **The commands:**
 
 ```
-npm run test        # 280 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 290 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
-cd worker && uv run pytest   # 86, of which 23 need Docker (ADR 0038)
+cd worker && uv run pytest   # 140, of which 40 need Docker (ADR 0038)
 cd worker && uv run python . # the worker itself; needs KIOKU_WORKER_DATABASE_URL
 ```
 
