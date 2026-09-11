@@ -61,16 +61,24 @@ def test_a_stage_key_is_also_a_module_name() -> None:
     """`03` §10: *one module per stage, named by the declaration*, and
     `00-status.md` § Carrying keeps it as a trap worth naming.
 
-    ⚠️ Stages 6 and 7 are #9's and have no module yet, so this asserts the
-    correspondence for the five that are built rather than for all seven — the
-    assertion that would otherwise have to be deleted and rewritten the moment
-    #9 lands.
+    ⚠️ **All seven as of #9**, which is the assertion this one said it was
+    waiting for: it asserted the first five while stages 6 and 7 had no module,
+    and `generate.py` and `write_pending.py` are those modules. A `stages` entry
+    added to the declaration with no module now fails here by name.
     """
-    built = stage_keys(DECLARATION)[:5]
+    declared = stage_keys(DECLARATION)
     modules = {path.stem for path in (Path(__file__).parent.parent / "pipeline").glob("*.py")}
 
-    assert set(built) <= modules
-    assert built == ["chunk", "tokenise", "extract_candidates", "deduplicate", "filter_known"]
+    assert set(declared) <= modules
+    assert declared == [
+        "chunk",
+        "tokenise",
+        "extract_candidates",
+        "deduplicate",
+        "filter_known",
+        "generate",
+        "write_pending",
+    ]
 
 
 def test_a_chunk_of_japanese_becomes_the_words_in_it() -> None:

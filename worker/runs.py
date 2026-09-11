@@ -9,12 +9,17 @@ judgement call about what a half-finished run got through.
 per-chunk *progress*, and progress before anything has been claimed is a
 fiction: `S2` names four rows on submit and #6 wrote exactly four.
 
-⚠️ **The per-chunk work is not here.** `run_ingestion` takes it as an argument
-and #8 supplies it — stages 1 to 5, then generation. With no processor the queue
-is opened, nothing runs, and the *ingestion* settles `incomplete`, which is the
-true answer rather than a placeholder: nothing completed, and every chunk is
-still there to be picked up. `04` §6.1 is explicit that **`incomplete` is `S2`'s
-resumable state, not an error**.
+⚠️ **The per-chunk work is not here.** `run_ingestion` takes it as an argument;
+#8 supplied stages 1 to 5 and #9 added generation behind the same argument. With
+no processor the queue is opened, nothing runs, and the *ingestion* settles
+`incomplete`, which is the true answer rather than a placeholder: nothing
+completed, and every chunk is still there to be picked up. `04` §6.1 is explicit
+that **`incomplete` is `S2`'s resumable state, not an error**.
+
+⚠️ **#9 changed one line of this module**, and it is the one in `04` §6.2's
+resume query: the *chunk*'s `content_hash` now comes back on the row, because it
+is the first element of the generation cache key (`04` §6.3) and this query is
+already joined to the table that holds it.
 """
 
 from __future__ import annotations
@@ -43,6 +48,11 @@ class Chunk:
     ordinal: int
     char_start: int
     char_end: int
+    #: ⚠️ **The first element of `04` §6.3's four-tuple**, carried on the row
+    #: rather than recomputed: `shared/ingest/chunk.ts` decided where this chunk
+    #: begins and `server/utils/ingest/record.ts` hashed it, and a second answer
+    #: here would be a cache that silently misses (`pipeline/chunk.py`).
+    content_hash: str
     status: str
     attempts: int
 
@@ -101,7 +111,8 @@ def incomplete_chunks(connection: psycopg.Connection, ingestion_id: str) -> list
     """
     rows = connection.execute(
         """
-        SELECT ic.source_chunk_id, sc.ordinal, sc.char_start, sc.char_end, ic.status, ic.attempts
+        SELECT ic.source_chunk_id, sc.ordinal, sc.char_start, sc.char_end,
+               sc.content_hash, ic.status, ic.attempts
         FROM ingestion_chunk ic
         JOIN source_chunk sc ON sc.id = ic.source_chunk_id
         WHERE ic.ingestion_id = %s AND ic.status <> 'complete'
@@ -155,8 +166,8 @@ def run_ingestion(
 ) -> None:
     """Open the queue, work it with whatever processor was supplied, settle.
 
-    ⚠️ **`process_chunk` is #8's half of this function.** What belongs *here* is
-    the durable bookkeeping — the chunk's status, its attempt, the heartbeat and
+    ⚠️ **`process_chunk` is #8's and #9's half of this function.** What belongs
+    *here* is the durable bookkeeping — the chunk's status, its attempt, the heartbeat and
     the settle — and keeping it apart from the work is what lets the per-chunk
     stages be tested with no database at all (`11` §8).
 

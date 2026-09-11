@@ -1122,6 +1122,61 @@ line that says what completed. #8 is the first ticket where a resume does someth
 so one today means a run that could never be started — but ADR 0046's new `failed` **job** sits beside
 an `incomplete` *ingestion*, and that pairing has not been seen on a screen yet.
 
+### [2026-09-12] Generation is one request per chunk, and notes are written as each chunk returns
+`03` §5.1 called stage 6 *the LLM, per surviving note* and `04` §6.3 keys the cache on the *chunk*'s
+hash with a `{"notes": […]}` array under it. Both cannot be true, and the cache is the half that
+could not be wrong. The chunk is the unit of the request, of the key and of the streamed write.
+→ [ADR 0047](adr/0047-generation-is-one-request-per-chunk-and-notes-are-written-as-each-chunk-returns.md)
+
+### [2026-09-12] Provenance kind is decided by who produced the value
+`note_field_provenance.kind` records the mechanism, not the declaration's label for the field: the
+tokeniser's three fields are `lookup`, the model's three are `generated`, and `judgement` is
+**unreachable in v1** because nothing hands the model a sense inventory to choose among.
+→ [ADR 0048](adr/0048-provenance-kind-is-decided-by-who-produced-the-value.md)
+
+### [2026-09-12] The price table is a list of dated tables, and the newest effective one wins
+No ADR — `03` §7 and `04` §6.1 had already decided it; what was open was the shape.
+
+**Decision** — `worker/prices.py` holds `PRICE_TABLES`, a tuple of `(effective_date, prices)`, and
+`current_prices()` returns the newest entry effective on or before the run. **A price change is a new
+entry, never an edit to an existing one**, and `ingestion.price_table_effective_date` stamps which
+one a figure was computed with. The seven models are ADR 0018's own table, so the ledger and the
+argument that walks the model quote the same numbers. A model id the table does not carry raises
+`UnpricedModel`.
+
+**Alternatives considered:** one mutable table edited in place — rejected because editing it rewrites
+history: every `ingestion` already stamped with that date would now cite a table saying something
+else. And defaulting an unknown model to zero — rejected because ADR 0018 walks the model, so an
+unrecognised id is the *expected* shape of a mistake, and a free *ingestion* in the ledger `S10`
+reports from is worse than no number.
+
+**Reason:** `03` §7 — *the price table is configuration with an effective date, not a constant.*
+`S10` reports cost per *ingestion*; published prices change, and a hard-coded table begins lying
+silently on the day they do.
+
+**Revisit if** a provider publishes an actual effective date for a price change, at which point the
+entry's date should be theirs rather than the date the figures were read.
+
+### [2026-09-12] The worker refuses to start without a provider key
+No ADR — it is `db.require_direct_url`'s shape applied to the second secret `03` §13.1 names.
+
+**Decision** — `provider.require_provider` raises `MisconfiguredWorker` when `ANTHROPIC_API_KEY` is
+unset, and `__main__` reports it and exits `1` before anything is claimed. `KIOKU_WORKER_ENVIRONMENT`
+is validated at the same moment and refuses anything but `laptop` or `server`.
+
+**Alternatives considered:** keeping #8's behaviour, where a missing generator meant the run did
+every stage that shrinks the work and spent nothing. That was the true state of the project until #9;
+after it, such a run reads its whole *source*, settles `complete`, and reports a *source* that made
+no *notes* — which `03` §11 renders to the reader as a **success**. PRD §5's zero-new-notes case
+arriving as a lie is worse than a worker that will not start.
+
+**Reason:** the failure is silent in the one direction that costs the reader their trust in the
+ledger. `03` §13.1 already puts both secrets on the laptop; this makes both of them startup
+conditions.
+
+**Revisit if** a second *subject* has no generation stage at all, in which case the key becomes
+conditional on the declaration rather than on the process.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

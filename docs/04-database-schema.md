@@ -271,6 +271,31 @@ permit two provenance rows for one field, which is not a state that means anythi
 `(019bd3…, 'reading', 'lookup', null, null, '20260723', false, …)` and
 `(019bd3…, 'example_sentence', 'generated', 'claude-sonnet-5', 'v3', null, null, …)`.
 
+⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9), which is the
+first code to write this column —
+[ADR 0048](adr/0048-provenance-kind-is-decided-by-who-produced-the-value.md).** The `CHECK` gives
+four values and the example gives two of them; what decides which one to write was never stated, and
+the *subject* declaration has its own two-valued `kind` that looks like a mapping and is not one.
+
+**`kind` records the mechanism that produced the value, not the declaration's label for the field:**
+
+| `kind` | Written when | Carries |
+| --- | --- | --- |
+| `lookup` | Read out of a **dictionary** — SudachiPy, for `term`, `reading` and `part_of_speech` | `dictionary_version`, `is_oov` |
+| `generated` | The model wrote it, with no dictionary behind it | `model_id`, `prompt_version` |
+| `judgement` | The model **chose** among senses a dictionary supplied | `model_id`, `prompt_version` |
+| `human` | The reader wrote it — *Vet*'s edit, which is #10's | neither |
+
+⚠️ **`judgement` is unreachable in v1 and that is a fact about v1 rather than a gap.** SudachiPy
+supplies no glosses, so there is no sense inventory for the model to choose among; ADR 0004's *"which
+dictionary sense applies here"* describes the system this becomes when one is wired in, and on that
+day `meaning` becomes `judgement` with nothing else moving. A `judgement` row written today would
+claim a choice was made among alternatives that never existed, and §12's eighth query would be
+grouping over a distinction with no mechanism behind it.
+
+⚠️ **`dictionary_version` and `model_id` are therefore mutually exclusive on a row**, which makes the
+column readable in `\d` and a row carrying both a sign that something wrote it by hand.
+
 ### 5.5 `occurrence`
 
 ADR 0006: a collision appends an occurrence and **never alters the note's fields.**
@@ -380,6 +405,24 @@ rather than a second generation.
 
 **Example:** `(…, source 019bd3…, '朝日新聞 2026-09-01 社説', 'jlpt-vocab', 'complete', 09:12Z, 09:12Z, 09:15Z, 'usr_7f…', 'claude-sonnet-5', 'v3', '20260723', 18400, 6200, 41300, 2026-08-01, 214, 106, 71, 9, 'laptop')`
 
+⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9), which is the
+first code to write the spend half.** Three things the table left open:
+
+- **The spend columns accumulate**, exactly like the four candidate counters beside them, and for the
+  same reason: a resume re-runs only the chunks that are not `complete` (§6.2), so an assignment
+  would report the resume's slice as the whole document — and here that means under-reporting money
+  actually spent.
+- ⚠️ **A cache hit adds nothing to them.** `input_tokens` and `output_tokens` come *from the API
+  response* (`03` §7); a hit has no response of its own, only a record of one somebody already paid
+  for (§6.3). A run that re-ingests an identical *source* therefore leaves all three spend columns
+  `NULL`, which is `03` §11's *no LLM spend — the cache key covers it*, as a row.
+- **`worker_environment` is stamped by the worker rather than left at its default.** The app writes
+  the row at submit, when no worker has claimed it and nothing true can be said about where it will
+  run; the run is the thing that knows which side of ADR 0022's move it was on. A value that is
+  neither `laptop` nor `server` is refused at the worker's startup rather than silently becoming
+  `laptop`, which would put server figures in the laptop's column — the one comparison `03` §12 says
+  must not be made.
+
 ### 6.2 `ingestion_chunk`
 
 **Per-chunk progress, durable, so a resume is a query rather than a judgement call** (`S2`'s failure
@@ -437,6 +480,25 @@ a different tokenisation of the same text.
 
 **This is the only table in the schema that is safe to truncate.** Doing so costs money on the next
 re-ingestion and nothing else. §10.
+
+⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9), which is the
+first code to read and write this table.** The key is the *chunk*'s content, which cannot change; the
+set of *candidates* a run asks about **can**, and only ever downward, because stages 4 and 5 shrink as
+the corpus grows (`S5`). So:
+
+- **A hit may answer more than a run needs**, and the extra notes are ignored. The second ingestion of
+  a *source* asks about fewer words than the first and the stored answer still covers them.
+- ⚠️ **A hit that does not answer every surviving candidate is treated as a miss**, and the chunk is
+  paid for again. Served as a hit, the unanswered candidate would never be generated and never be
+  seen — and the chunk would still be marked `complete`, so no resume would come back for it. **That
+  is the one cache case that loses a *note* in silence**, and it is why the decision is made against
+  the survivor set rather than on the key alone.
+- **A response that no longer validates is also a miss**, not an error: ADR 0003 makes declaration
+  fields additive, so a stored answer from before a field was added is an answer to an older
+  question. The cost of being wrong here is money; the cost of trusting it is a *note*.
+- **A response that failed validation is never stored.** `03` §7's *a failure is an error rather than
+  a stored row* pointed at this table: a bad answer written here would be served back forever and the
+  chunk could never succeed.
 
 ### 6.4 `job`
 

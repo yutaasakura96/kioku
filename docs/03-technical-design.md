@@ -306,6 +306,28 @@ price is paid to generate notes that are discarded a moment later — and `S5` s
 degrade into "wait for the whole document", which would put *time-to-first-review* at the mercy of
 document size.
 
+> ⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9), which built
+> stages 6 and 7 —
+> [ADR 0047](adr/0047-generation-is-one-request-per-chunk-and-notes-are-written-as-each-chunk-returns.md).**
+> Stage 6's row above says *the LLM, per surviving note*, and that reads as one request per word.
+> **It is one request per *chunk*, carrying that chunk's text and all of its surviving candidates**,
+> because §5.3's cache key is the *chunk*'s content hash and `04` §6.3 stores a `{"notes": […]}`
+> array under it — one request per candidate would put every candidate in a chunk under one
+> four-tuple. What the row's phrase is about is **scaling**, which is untouched: stage 6 still scales
+> with new notes only, and that is ADR 0010's whole argument.
+>
+> **Stage 7 writes one chunk's notes as that chunk returns**, which is what the "streamed" in its row
+> means in practice and is as fine-grained as it goes: writing each note as it streamed would mean
+> parsing incomplete JSON, and ADR 0018 already records that only Gemini documents streamed
+> structured output as valid partial JSON. A 31-chunk *source* puts its first notes in the queue
+> after one request rather than after thirty-one, which is what `S2` asks for.
+>
+> ⚠️ **And that per-chunk write is what closes the cross-chunk duplicate.** Tokenisation is per
+> chunk, so a word in chunks 1 and 3 is two groups and stage 4 cannot see across one; because chunk
+> 1's *note* exists by the time chunk 3 is deduplicated, chunk 3's sighting is an `already_known`
+> rather than a second thing to pay for. **A run that batched its writes to the end would pay twice
+> for every word that spans chunks.**
+
 ### 5.2 Two findings that shape stage 2, and neither is optional
 
 Both were measured, both are in verification §7.3, and both will otherwise be rediscovered as bugs.
@@ -440,6 +462,28 @@ Design consequences the boundary has to carry:
   because the provider documents constrained decoding, and not trusted because Drizzle typed the
   column (§2.3).
 
+> ⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9), which built
+> this section.** Everything above stands. Five things it could not have known:
+>
+> - **The boundary is `worker/provider.py` and it is the only module in the repository that imports
+>   an SDK.** `Provider` is two members — a `model_id` and a `generate` — so every test in the
+>   repository passes a stand-in, and `11` §7's *generation tests use recorded fixtures and never
+>   call a provider* is enforced rather than asked for.
+> - ⚠️ **The unit is the *chunk*, not the note** — ADR 0047, and §5.1 carries the amendment.
+> - ⚠️ **The model is asked only for the *judgement* fields**, and echoes the *identity key* fields
+>   back purely so a returned note can be matched to the group that asked for it. `term`, `reading`
+>   and `part_of_speech` are the tokeniser's (ADR 0004); a model free to write `term` would be free
+>   to change `note.identity_key` (ADR 0006). **The echo is matched, never merged.**
+> - ⚠️ **`thinking` is not set on the request, and the omission is the decision.** ADR 0018 walks the
+>   model across two vendors and seven ids; every one of them accepts the parameter being absent
+>   while several reject one setting or another of it, so a thinking configuration here would be a
+>   walk that stops at the first 400. Nothing about `S10`'s figures depends on it — the token counts
+>   come from the response either way.
+> - **The bounded retries of §11 are the SDK client's own `max_retries`**, which covers 429 and 5xx
+>   with backoff. Past the bound the exception reaches `runs.py`, which marks the *chunk* `failed`
+>   and settles the run `incomplete` — and **the provider is still never named at the reader**, so
+>   nothing the boundary raises carries its name into `ingestion_chunk.last_error`.
+
 ---
 
 ## 8. The review tier
@@ -532,6 +576,14 @@ kioku/
   docs/           this file and its siblings
   nuxt.config.ts
 ```
+
+> ⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9).** `pipeline/`
+> now holds all seven stages, and `worker/tests/test_pipeline.py` asserts the correspondence for all
+> seven rather than for the five that existed. **Two of the seven are not pure and never were**
+> (§5.1): `generate.py` builds a request and validates an answer, and `write_pending.py` **writes**.
+> Stages 2 to 5 are the pure ones, which is what `11` §8 means by the seam. Beside `pipeline/` the
+> worker gained `provider.py` — ADR 0018's boundary, the only module that imports an SDK — and
+> `prices.py`, which is §7's price table as configuration with an effective date.
 
 `subjects/` sits at the root rather than under either side, because it belongs to neither (§6).
 `worker/` carries its own dependency manifest and its own lockfile — the two ecosystems do not
@@ -677,7 +729,11 @@ documentation). The rule this paragraph states — *a bot arrives with the first
 afterwards* — is therefore satisfied on both sides, and the first two pins below finally have a file
 to attach to.
 
-**Seven pins that a routine cleanup must not touch.** ⚠️ **Amended 2026-09-11:** the PGlite entry
+**Seven pins that a routine cleanup must not touch**, and one entry below that is deliberately *not*
+one. ⚠️ **Amended 2026-09-12 with #9:** `anthropic` joined `worker/pyproject.toml` as a floor, and it
+is listed for the opposite reason to everything else here — to say that bumping it is safe, and that
+the thing which is **not** safe to move is the model id, which lives in no manifest at all.
+⚠️ **Amended 2026-09-11:** the PGlite entry
 gained a second package that pins it — see that bullet. It is still seven pins. ⚠️ **Amended 2026-09-09, adding `better-auth`**
 — the last bullet. ⚠️ **Amended 2026-09-08, adding two.** The
 fifth is PGlite's version, which
@@ -721,6 +777,15 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
   TypeScript half of this pin is now enforced by npm: an accidental bump fails at install rather than
   at the first `CREATE TABLE`. **The container half is unchanged and still unenforced** — no bot
   watches a tag in `worker/tests/README.md`, and #7 still owes it a guard.
+- ⚠️ **`anthropic` — a floor and deliberately *not* a pin**, added 2026-09-12 with #9, which resolved
+  **1.5.0**. It is named here because the list is what a future session reads to know what a routine
+  bump may touch, and the answer for this one is *anything Renovate likes*: bumping the SDK cannot
+  change the identity of a *note*, cannot move a security floor and cannot fork a test database. What
+  **is** load-bearing is not in any manifest — the **model id**, which ADR 0018 walks and
+  `worker/prices.py` prices, and which is an environment variable precisely so that moving it is a
+  measurement rather than a release. ⚠️ **The SDK is in the *worker*'s manifest and must never enter
+  the app's**; §13.1's *the app tier never holds the model provider key* is guarded by
+  `test/unit/no-provider-key-in-the-app.test.ts`, which reads `package.json` as well as the source.
 - ⚠️ **`better-auth` 1.7.3, exactly** — added 2026-09-09 with #5. `08` §1 names the version and
   `08` §7 builds a practice on it: the four tables are **generated** into
   `server/db/schema/auth.ts` and nothing in them is remapped, **precisely so the file can be

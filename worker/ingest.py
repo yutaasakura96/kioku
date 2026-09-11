@@ -6,30 +6,83 @@ argument precisely so that the work can live somewhere else. **This is somewhere
 else**, and `worker/pipeline/` is somewhere else again: the stages there are pure
 functions over candidates (`11` §8), and everything that knows a query is here.
 
-⚠️ **#8 changes nothing in `runs.py`.** The seam was one argument and it still
-is; what arrived is a `process_chunk` to pass to it.
+⚠️ **#8 changed nothing in `runs.py`.** The seam was one argument and it still
+is; what arrived is a `process_chunk` to pass to it. #9 added `sc.content_hash`
+to that module's resume query and nothing else.
 
-⚠️ **Stage 6 does not exist yet.** ``generate`` is #9's hook, defaulted to
-``None`` — a run with no generator does every stage that shrinks the work,
-writes the ledger, and spends nothing, which is exactly the state ADR 0010
-describes as the point of the ordering.
+⚠️ **Stage 6 and stage 7 arrived with #9**, and the shape of the hook changed
+with them: ``generate`` is called **once per chunk with all of its survivors**,
+not once per group. `04` §6.3 keys the cache on the *chunk*'s `content_hash`, so
+one call per candidate would put every candidate in a chunk under one four-tuple
+— see :func:`make_generator` and ADR 0047.
+
+⚠️ **The writes stage 7 does are not here.** `pipeline/write_pending.py` owns
+them, because `03` §10 asks for one module per stage named by the declaration.
+What is still here is the SQL that is *around* the stages — the corpus lookup,
+the rejected filter, `04` §6.1's two ledgers, and `04` §6.3's cache.
 """
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass
-from typing import AbstractSet, Callable, Mapping, Optional
+from typing import AbstractSet, Any, Callable, Mapping, Optional, Sequence
 
 import psycopg
 
+import prices
+from db import MisconfiguredWorker
 from jobs import ClaimedJob
 from pipeline import Corpus, StageResult, chunk_text, run_stages
 from pipeline.deduplicate import Group
+from pipeline.generate import (
+    PROMPT_VERSION,
+    GenerationRefused,
+    notes_for_cached,
+    notes_from,
+    request_for,
+)
+from pipeline.tokenise import DICTIONARY_VERSION
+from pipeline.write_pending import (
+    Destination,
+    Provenance,
+    append_occurrences,
+    write_pending_notes,
+)
+from provider import Generation, Provider, ProviderRefused
 from runs import Chunk
 from subject import Declaration, load_declaration
 
-#: Stage 6, when there is one. #9 replaces the default.
-Generate = Callable[[psycopg.Connection, Group], None]
+#: `03` §12, `04` §6.1: early *time-to-first-review* figures are not comparable
+#: across ADR 0022's move, **recorded on the number rather than only in a
+#: paragraph**. The column's `CHECK` is the same two words.
+WORKER_ENVIRONMENT_ENV = "KIOKU_WORKER_ENVIRONMENT"
+WORKER_ENVIRONMENTS = ("laptop", "server")
+
+
+@dataclass(frozen=True)
+class ChunkContext:
+    """Everything stage 6 needs about the *chunk* it is being asked to pay for.
+
+    ⚠️ **`text` is on it because the prompt carries the passage**, and `04` §6.3
+    keying the cache on `chunk.content_hash` is only sound because it does: the
+    hash has to cover the request, or a hit answers a question that was never
+    asked (`pipeline/generate.build_prompt`).
+    """
+
+    declaration: Declaration
+    ingestion_id: str
+    run: "RunContext"
+    chunk: Chunk
+    text: str
+
+
+#: Stage 6 and stage 7, as one hook — **once per chunk, with that chunk's whole
+#: surviving set** (ADR 0047). :func:`make_generator` is the one this repository
+#: ships; the tests pass their own, which is how `11` §7's *generation tests use
+#: recorded fixtures and never call a provider* is enforced rather than asked for.
+Generate = Callable[[psycopg.Connection, ChunkContext, tuple[Group, ...]], None]
 
 
 @dataclass(frozen=True)
@@ -138,20 +191,36 @@ def make_chunk_processor(
             cached["run"] = read_run_context(connection, job.ingestion_id)
         run = cached["run"]
 
+        text = chunk_text(run.content, chunk.char_start, chunk.char_end)
+
         result = run_stages(
             resolved,
-            chunk_text(run.content, chunk.char_start, chunk.char_end),
+            text,
             char_start=chunk.char_start,
             corpus=DatabaseCorpus(
                 connection, subject_id=run.subject_id, owner_id=run.owner_id
             ),
         )
 
-        append_occurrences(connection, job.ingestion_id, run, chunk, result)
+        append_corpus_occurrences(connection, job.ingestion_id, run, chunk, result)
 
-        if generate is not None:
-            for group in result.survivors:
-                generate(connection, group)
+        # ⚠️ **Not called for an empty survivor set**, and that is ADR 0010 at
+        # its most literal: a *chunk* whose every word the corpus already carries
+        # costs one lookup and nothing else. It is also `S5` — the fiftieth
+        # *source* asks about fewer *notes* than the fifth — arriving as a branch
+        # that is taken more and more often.
+        if generate is not None and result.survivors:
+            generate(
+                connection,
+                ChunkContext(
+                    declaration=resolved,
+                    ingestion_id=job.ingestion_id,
+                    run=run,
+                    chunk=chunk,
+                    text=text,
+                ),
+                result.survivors,
+            )
 
         # ⚠️ **Last**, and after the work rather than before it. A chunk that
         # raises part-way is marked `failed` by `runs.py` and retried, and the
@@ -189,7 +258,7 @@ def read_run_context(connection: psycopg.Connection, ingestion_id: str) -> RunCo
     )
 
 
-def append_occurrences(
+def append_corpus_occurrences(
     connection: psycopg.Connection,
     ingestion_id: str,
     run: RunContext,
@@ -198,42 +267,26 @@ def append_occurrences(
 ) -> None:
     """ADR 0006: *on a key match the second sighting appends an occurrence.*
 
-    ⚠️ **Every sighting, including the first**, and including the sightings of a
-    *note* this reader has rejected. An *occurrence* is **shared** data — a fact
-    about the material (`04` §4) — while a rejection is a claim about the reader
-    (ADR 0012); dropping the position because of the decision would confuse the
-    two, and `04` §5.5 calls the table append-only with no `UPDATE` path.
+    ⚠️ **Only for words the corpus already had.** A *note* this run is about to
+    create does not exist until stage 7 writes it, and its occurrences are
+    written there, from the same `sightings` tuple and through the same function
+    — `pipeline.write_pending.append_occurrences`. Two copies of `04` §5.5's
+    insert would be two places for its unique constraint to be spelled wrong.
 
-    ⚠️ **Only for words the corpus already has.** An occurrence needs a
-    `note_id`, and the *notes* a run is about to create do not exist until stage
-    7 writes them (#9). Their occurrences are written there, from the same
-    `sightings` tuple.
-
-    ⚠️ `ON CONFLICT DO NOTHING` is `04` §5.5's
-    `UNIQUE (note_id, source_id, char_start)` — *re-running a source appends
-    nothing it already has*, which is what makes a resume idempotent in the one
-    place idempotence is cheap.
+    ⚠️ **Every sighting, including the sightings of a *note* this reader has
+    rejected.** An *occurrence* is **shared** data — a fact about the material
+    (`04` §4) — while a rejection is a claim about the reader (ADR 0012);
+    dropping the position because of the decision would confuse the two.
     """
     for group in result.collisions:
-        for sighting in group.sightings:
-            connection.execute(
-                """
-                INSERT INTO occurrence
-                  (note_id, source_id, source_chunk_id, char_start, char_end,
-                   surface_form, ingestion_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING;
-                """,
-                (
-                    group.note_id,
-                    run.source_id,
-                    chunk.source_chunk_id,
-                    sighting.char_start,
-                    sighting.char_end,
-                    sighting.surface_form,
-                    ingestion_id,
-                ),
-            )
+        append_occurrences(
+            connection,
+            note_id=group.note_id,
+            sightings=group.sightings,
+            source_id=run.source_id,
+            source_chunk_id=chunk.source_chunk_id,
+            ingestion_id=ingestion_id,
+        )
 
 
 def record_candidate_ledger(
@@ -269,3 +322,278 @@ def record_candidate_ledger(
             "rejected": result.rejected,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 6, wired — `04` §6.3's cache, the provider, and `04` §6.1's spend half
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CacheKey:
+    """`04` §6.3's four-tuple, written out rather than hashed into one column.
+
+    ⚠️ **All four, and the dictionary version is the one that is easy to leave
+    out** (`03` §5.3). A SudachiDict upgrade changes tokenisation, which changes
+    candidate extraction, which changes `normalized_form` — which is half of
+    ADR 0006's *identity key*. Without it a bump silently serves results computed
+    against a different tokenisation of the same text.
+    """
+
+    content_hash: str
+    dictionary_version: str
+    prompt_version: str
+    model_id: str
+
+
+def make_generator(provider: Provider, *, worker_environment: str | None = None) -> Generate:
+    """Stage 6 and stage 7, bound to one provider — `03` §5.1, §7, ADR 0018.
+
+    ⚠️ **The order is cache, provider, ledger, validate, cache-store, write**,
+    and each step is where it is for a reason:
+
+    - **The cache first**, because ADR 0010 says the point of the key is that a
+      re-ingestion of the same *chunk* costs nothing, and `03` §11 promises the
+      reader exactly that for an identical *source* resubmitted.
+    - **The spend ledger before the validation, and on the failing path too**,
+      because the money is gone whether or not the answer was usable and `S10`
+      reports from a row that has to be true rather than flattering. A refusal or
+      a truncation is a 200 that was billed; `ProviderRefused` carries what it
+      cost precisely so this function can record it before re-raising.
+    - **The cache store after the validation**, because a stored answer that does
+      not validate would be served back forever and the chunk could never
+      succeed. `03` §7's *a failure is an error rather than a stored row* is
+      about `note`; this is the same sentence pointed at `generation_cache`.
+    - **The write last**, and per chunk, which is `03` §5.1 stage 7's *streamed:
+      written as produced, not at the end*.
+    """
+    environment = (
+        resolve_worker_environment() if worker_environment is None else worker_environment
+    )
+
+    def generate(
+        connection: psycopg.Connection, context: ChunkContext, groups: Sequence[Group]
+    ) -> None:
+        key = CacheKey(
+            content_hash=context.chunk.content_hash,
+            dictionary_version=DICTIONARY_VERSION,
+            prompt_version=PROMPT_VERSION,
+            model_id=provider.model_id,
+        )
+
+        cached = read_generation_cache(connection, key)
+        notes = None if cached is None else notes_for_cached(context.declaration, groups, cached)
+
+        # ⚠️ **Stamped on a hit as well as on a miss.** These three say *what
+        # made these notes*, not *what this run paid*, and a fully-cached
+        # re-ingestion that produced *notes* with no model named on the row would
+        # read as though nothing had happened (`04` §6.1, `09` §7).
+        stamp_run_generation(
+            connection, context.ingestion_id, model_id=provider.model_id, environment=environment
+        )
+
+        if notes is None:
+            try:
+                generation = provider.generate(
+                    request_for(context.declaration, context.text, groups)
+                )
+            except ProviderRefused as refused:
+                if refused.spent is not None:
+                    record_spend(connection, context.ingestion_id, refused.spent)
+                raise
+            record_spend(connection, context.ingestion_id, generation)
+            notes = notes_from(context.declaration, groups, generation.payload)
+            write_generation_cache(connection, key, generation)
+
+        write_pending_notes(
+            connection,
+            notes,
+            to=Destination(
+                declaration=context.declaration,
+                subject_id=context.run.subject_id,
+                owner_id=context.run.owner_id,
+                source_id=context.run.source_id,
+                source_chunk_id=context.chunk.source_chunk_id,
+                ingestion_id=context.ingestion_id,
+                provenance=Provenance(
+                    model_id=provider.model_id,
+                    prompt_version=PROMPT_VERSION,
+                    dictionary_version=DICTIONARY_VERSION,
+                ),
+            ),
+        )
+
+    return generate
+
+
+def read_generation_cache(
+    connection: psycopg.Connection, key: CacheKey
+) -> Optional[dict[str, Any]]:
+    """`04` §12's seventh query — the four-tuple, and nothing else.
+
+    ⚠️ **A composite primary key is also the lookup index**, so there is no
+    second index to keep in step (`04` §6.3, §11).
+    """
+    row = connection.execute(
+        """
+        SELECT response FROM generation_cache
+        WHERE content_hash = %s AND dictionary_version = %s
+          AND prompt_version = %s AND model_id = %s;
+        """,
+        (key.content_hash, key.dictionary_version, key.prompt_version, key.model_id),
+    ).fetchone()
+    return None if row is None else row[0]
+
+
+def write_generation_cache(
+    connection: psycopg.Connection, key: CacheKey, generation: Generation
+) -> None:
+    """The response as returned, under the four-tuple it was computed for.
+
+    ⚠️ **An upsert, and `DO NOTHING` was wrong here.** Reaching this at all means
+    the read a moment ago was a miss — and a miss is not only *no row*: a row
+    that did not answer every survivor is treated as one (`04` §6.3), because
+    serving it would lose a *note*. With `DO NOTHING` that narrower row would
+    survive the write, be read as a miss again on the next run, and **the chunk
+    would re-pay forever**, which is exactly the bill `03` §11 promises an
+    identical *source* does not get. The newer answer is the one known to cover
+    more, so it replaces.
+
+    ⚠️ `created_at` moves with it, and should: the row now says what the *stored*
+    response cost, which is the question `04` §6.3's two token columns are asked.
+    """
+    connection.execute(
+        """
+        INSERT INTO generation_cache
+          (content_hash, dictionary_version, prompt_version, model_id,
+           response, input_tokens, output_tokens)
+        VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s)
+        ON CONFLICT (content_hash, dictionary_version, prompt_version, model_id)
+        DO UPDATE SET
+          response = EXCLUDED.response,
+          input_tokens = EXCLUDED.input_tokens,
+          output_tokens = EXCLUDED.output_tokens,
+          created_at = now();
+        """,
+        (
+            key.content_hash,
+            key.dictionary_version,
+            key.prompt_version,
+            key.model_id,
+            json.dumps(generation.payload, ensure_ascii=False),
+            generation.input_tokens,
+            generation.output_tokens,
+        ),
+    )
+
+
+def stamp_run_generation(
+    connection: psycopg.Connection,
+    ingestion_id: str,
+    *,
+    model_id: str,
+    environment: str,
+) -> None:
+    """Which model and which prompt made this run's *notes* — `04` §6.1.
+
+    ⚠️ **Separate from :func:`record_spend`, because they answer different
+    questions.** These three say *what produced these notes*; the token counts
+    and the cost say *what this run paid*. A re-ingestion served entirely from
+    `04` §6.3's cache produces *notes* and pays nothing, and a row with the
+    second half empty and the first half filled is the honest description of
+    that. Collapsed into one write, such a run would name no model at all and
+    `09` §7 would render it as though nothing had happened.
+
+    ⚠️ **`worker_environment` is on the row rather than only in a paragraph**
+    (`03` §12): early *time-to-first-review* figures are not comparable across
+    ADR 0022's move, and the run is the thing that knows which side of it this
+    was. The app writes the row at submit, when no worker has claimed it and
+    nothing true can be said about where it will run.
+    """
+    connection.execute(
+        """
+        UPDATE ingestion SET
+          model_id = %(model_id)s,
+          prompt_version = %(prompt_version)s,
+          worker_environment = %(environment)s
+        WHERE id = %(id)s;
+        """,
+        {
+            "id": ingestion_id,
+            "model_id": model_id,
+            "prompt_version": PROMPT_VERSION,
+            "environment": environment,
+        },
+    )
+
+
+def record_spend(
+    connection: psycopg.Connection, ingestion_id: str, generation: Generation
+) -> None:
+    """`04` §6.1's spend half — **from the API response, never estimated**.
+
+    ⚠️ **Accumulated, like the four candidate counters beside it.** A resume
+    re-runs only the chunks that are not `complete` (`04` §6.2), so an assignment
+    would report the resume's slice as the whole document — and here that means
+    under-reporting money actually spent.
+
+    ⚠️ **A cache hit never reaches this function.** It spent nothing, and
+    `04` §6.1 says these numbers come from the API response; a hit has no
+    response of its own, only a record of one somebody already paid for.
+
+    ⚠️ **A *refused* answer does reach it.** A declined or truncated response is
+    a 200 that was billed, and `ProviderRefused` carries what it cost so that
+    this is called before the exception continues. A ledger that dropped those
+    tokens would make a *source* that failed half its chunks look cheaper than
+    one that succeeded, which is the one direction `S10` must not be wrong in.
+
+    ⚠️ **`price_table_effective_date` is stamped beside the cost**, because
+    `03` §7 makes the price table configuration rather than a constant and a
+    figure whose table cannot be identified is a figure that starts lying
+    silently when prices change.
+    """
+    table = prices.current_prices()
+    cost = prices.cost_micro_usd(
+        generation.model_id,
+        input_tokens=generation.input_tokens,
+        output_tokens=generation.output_tokens,
+        table=table,
+    )
+    connection.execute(
+        """
+        UPDATE ingestion SET
+          price_table_effective_date = %(effective_date)s,
+          input_tokens = coalesce(input_tokens, 0) + %(input_tokens)s,
+          output_tokens = coalesce(output_tokens, 0) + %(output_tokens)s,
+          cost_micro_usd = coalesce(cost_micro_usd, 0) + %(cost)s
+        WHERE id = %(id)s;
+        """,
+        {
+            "id": ingestion_id,
+            "effective_date": table.effective_date,
+            "input_tokens": generation.input_tokens,
+            "output_tokens": generation.output_tokens,
+            "cost": cost,
+        },
+    )
+
+
+def resolve_worker_environment(environ: dict[str, str] | None = None) -> str:
+    """`04` §6.1's `worker_environment`, from the environment or `laptop`.
+
+    ⚠️ **Refused rather than defaulted when it is set to something else.** The
+    column carries a two-value `CHECK` and the whole point of the field is that
+    a number can be told which side of ADR 0022's move it came from; a typo that
+    silently became `laptop` would put server figures in the laptop's column,
+    which is the one comparison `03` §12 says must not be made.
+    """
+    resolved = os.environ if environ is None else environ
+    value = resolved.get(WORKER_ENVIRONMENT_ENV, "").strip() or WORKER_ENVIRONMENTS[0]
+    if value not in WORKER_ENVIRONMENTS:
+        raise MisconfiguredWorker(
+            f"{WORKER_ENVIRONMENT_ENV} is {value!r}; `04` §6.1 allows "
+            f"{' or '.join(WORKER_ENVIRONMENTS)}. `03` §12: early "
+            "time-to-first-review figures are not comparable across ADR 0022's "
+            "move, and this is what records which side a number came from."
+        )
+    return value

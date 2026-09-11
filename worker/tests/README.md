@@ -4,23 +4,25 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for forty of the one hundred and forty-three tests here**, and
-**ADR 0038 carries a dated amendment for each time that number moved** — three,
-then twenty-three with #7, now forty with #8. The new seventeen are the
-*pipeline* wired to the database, ADR 0046's two new sweep branches, and
-`test_scratch_cleanup.py`, which asserts something about this directory rather
-than about the worker (below).
+⚠️ **Docker is required for fifty-nine of the one hundred and ninety-nine tests
+here**, and **ADR 0038 carries a dated amendment for each time that number
+moved** — three, then twenty-three with #7, forty with #8, now fifty-nine with
+#9. The new nineteen are stages 6 and 7 against real SQL: `04` §6.3's cache, the
+spend ledger, and the four writes one *pending note* is.
 
-⚠️ **This count lives in four files and #8 shipped it stale in two of them.**
+⚠️ **This is the one file that carries the number.** #8 shipped it stale in two
+of the four files that repeated it, and said so: *"the durable fix is for four of
+them to point at `worker/tests/README.md` rather than repeat it."* #9 did that —
 `docs/11-testing-plan.md` §7, ADR 0038, `worker/pyproject.toml` and
-`worker/tests/conftest.py`'s no-Docker message all name it, and `conftest.py`'s
-is the one a developer actually reads. **This file is the one that has to be
-right**; the others should be pointing here rather than repeating it.
+`worker/tests/conftest.py` now point here, and `conftest.py`'s no-Docker message
+names the **files** rather than a count, because the files are what a developer
+is looking at when they read it.
 
 ADR 0038 said *three*, naming the three concurrency behaviours. What joined them
 is SQL that is not a concurrency behaviour — #7's chunk queue, `04` §6.2's resume
 query, the settle and the drain, then #8's corpus lookup, rejected filter,
-*occurrence* append and ledger — and testing Python's SQL needs a database, which
+*occurrence* append and ledger, then #9's generation cache, spend ledger and
+*pending note* writes — and testing Python's SQL needs a database, which
 in Python means a container. **The sentence that was
 being protected is untouched:** a laptop without Docker runs the whole TypeScript
 suite and gets the worker's database tests red, visibly and for a stated reason —
@@ -51,14 +53,18 @@ existing.* The TypeScript half is guarded by an assertion in
 ⚠️ **It runs before the migrations, not as a test.** Applying `0000_schema.sql`
 to a Postgres 17 fails on the first `CREATE TABLE` with `function uuidv7() does
 not exist`, which is true and tells nobody what happened; the fixture says it in
-one line instead. It is a precondition of all forty rather than a
+one line instead. It is a precondition of every test in this tier rather than a
 behaviour of its own, which is also why it never became a test of its own.
 
 ## What is here now
 
-⚠️ **Ten of the fifteen files need neither a container nor a database**, and the
-table below says which. `test_subject_drift.py` is `03` §6's cross-language drift
-test — `11` §7: "the one test that exists in both suites by design".
+⚠️ **Thirteen of the nineteen files need neither a container nor a database**,
+and the table below says which. ⚠️ `seed.py` is not a test file at all — it is
+the four rows `S2` names on submit, shared by `test_ingest.py` and
+`test_generation.py` so that `04`'s column list has one place to go stale.
+
+`test_subject_drift.py` is `03` §6's cross-language drift test — `11` §7: "the
+one test that exists in both suites by design".
 
 ⚠️ **The drift test fails rather than skips when Node is missing**, and Node is
 not optional in this repository — the app is a Nuxt app — so a machine without it
@@ -94,6 +100,10 @@ Not run by Vitest, and the whole file list is now:
 | `test_extract_candidates.py` | no | ADR 0044's allowlist, the numeral rule, ADR 0045's script rule, and ⚠️ **that every part of speech the installed dictionary declares is classified** |
 | `test_deduplicate.py` | no | Repeats folded into one group carrying every sighting; `04` §6.1's first two counters |
 | `test_filter_known.py` | no | `04` §6.1's other two, each candidate counted **once** though a rejected word matches both filters |
-| `test_pipeline.py` | no | ⚠️ `11` §7's **stage-order test**: no generation is asked for a word already known or rejected. Needs no database, because ADR 0010's ordering is a property of the stages |
+| `test_pipeline.py` | no | ⚠️ `11` §7's **stage-order test**: no generation is asked for a word already known or rejected. Needs no database, because ADR 0010's ordering is a property of the stages. Also that **every** stage key is a module name, all seven of them since #9 |
+| `test_prices.py` | no | `03` §7's price table as configuration with an effective date, and an unpriced model refused rather than costed at zero |
+| `test_generate.py` | no | Stage 6's request and its answer — what the model is asked, what the declaration boundary refuses, and what `04` §6.3's cache may serve. ⚠️ **From `fixtures/generation-response.json`; it cannot reach a provider** |
+| `test_provider.py` | no | ADR 0018's boundary — the startup refusal without a key, the model id as a variable, streaming with the declaration as the output schema, a refusal or a truncation not parsed as an answer, and ⚠️ **that an SDK exception never reaches the run row**: `03` §11's *the provider is not named at the reader*, which `runs.py` could only promise and this module has to keep |
 | `test_ingest.py` | **yes** | The stages against real SQL — the corpus lookup, the owner-scoped rejected filter, *occurrence* idempotence, and the ledger |
+| `test_generation.py` | **yes** | Stages 6 and 7 against real SQL — `04` §6.3's four-part key, a cache hit spending nothing, `04` §6.1's spend ledger, and the four writes one *pending note* is. ⚠️ **The provider is a stand-in that answers from the prompt**, so a prompt that failed to list a *candidate* fails the test |
 | `test_scratch_cleanup.py` | **yes** | ⚠️ **That the `connection` fixture's own cleanup cannot reach `review_log`.** It could, until #8: `TRUNCATE … CASCADE` walked `ingestion` → `note` → `card` → `review_log`, and `CASCADE` was not optional — without it Postgres refuses the statement outright |

@@ -13,10 +13,15 @@ are what a suite exists to hold.** Mechanisms are `03`, `04`, `08`; flows are `0
 and must not be re-run.** §14 was added while writing this document, and §14.1 is a measurement.
 
 ~~**This is a plan, not a suite. There is still no code, and no test file.**~~ ⚠️ **True when this
-document was written on 2026-09-07 and false since 2026-09-09.** The suite is **290 TypeScript across
-four tiers plus 143 pytest**, and every row below that says "will" should be read as a claim this
-document has already been checked against. Where a count appears here it is a snapshot; **§7 carries
-the dated amendments and is the section to trust.**
+document was written on 2026-09-07 and false since 2026-09-09.** Every row below that says "will"
+should be read as a claim this document has already been checked against.
+
+⚠️ **The counts are no longer written in this document, and #9 is why.** A snapshot here with a
+"trust §7 instead" note beside it **is** the leave-a-note-for-later that `CLAUDE.md` § Working
+agreements forbids, and it went stale the moment #9 amended §7 above it. The two places that have to
+be right are the suites themselves: `npm run test` for the TypeScript tiers and
+[`worker/tests/README.md`](../worker/tests/README.md) for the worker, which carries its total, its
+Docker count and a per-file table.
 
 ---
 
@@ -367,6 +372,40 @@ erased the distinction the test exists to protect.
 
 `worker/tests/`, pytest, a real Postgres 18 container (ADR 0038).
 
+⚠️ **Amended 2026-09-12 with #9, and the number is no longer written in this section.** It has been
+amended three times — three, twenty-three, forty — and shipped stale twice, because it lived in four
+files. **[`worker/tests/README.md`](../worker/tests/README.md) carries the count and the per-file
+table, and it is the only file that does.** What is amended here is the *list of what is tested*,
+which is this document's job; the arithmetic is not.
+
+**And what #9 added** (`worker/tests/test_generate.py`, `test_prices.py`, `test_provider.py`,
+`test_generation.py`, built 2026-09-12):
+
+| Test | Container | Asserts |
+| --- | --- | --- |
+| What the model is asked | no | Only the *judgement* fields are in the output schema — `part_of_speech` is absent, because a model free to write a looked-up field is free to disagree with the dictionary (ADR 0004). ⚠️ **The passage is in the prompt**, which is what makes `04` §6.3's key sound |
+| ⚠️ The declaration boundary | no | An unknown field, an empty required one and a non-string one are each refused on arrival — *not trusted because the provider documents constrained decoding, and not trusted because Drizzle typed the column* (`03` §7, §2.3) |
+| ⚠️ Matching, not position | no | 開く is both ひらく and あく in one *chunk*, and the answers come back in the wrong order. Matched on the rendered *identity key*, each lands on its own group; matched on position or on the term, they swap |
+| A model that "corrects" the term | no | Refused rather than merged. Changing `term` changes `note.identity_key` (ADR 0006, `04` §5.3) |
+| A missing or unasked-for note | no | Both are errors and the *chunk* fails. Half a chunk is not a unit anything resumes from (`03` §5.4) |
+| ⚠️ What the cache may serve | no | A hit answering **more** than the run needs is used; one answering **less** is a miss and is paid for again — the one cache case that would otherwise lose a *note* in silence (`04` §6.3) |
+| The price table | no | Configuration with an effective date (`03` §7): the newest effective table wins, a new price is a new entry rather than an edit, and an **unpriced model raises** rather than costing zero |
+| ADR 0018's boundary | no | The startup refusal with no key, the model id as an environment variable, streaming with the declaration as the output schema, and a refusal or a truncation **not parsed as an answer**. ⚠️ Nothing here reaches the network |
+| ⚠️ The provider is not named at the reader | no | `03` §11. A 429 and a dropped connection each arrive at `runs.py` as this module's own exception, carrying a status and the word *provider* — never the vendor, its URL or a request id, all of which `APIError.__str__` carries and `ingestion_chunk.last_error` would render (`10` §6.2). **`runs.py` had a comment promising this and no way to keep it** |
+| The four-part key | **yes** | Changing **any one** of content hash, dictionary version, prompt version or model id misses. A key missing the dictionary version serves results computed against a different tokenisation |
+| Re-ingestion spends nothing | **yes** | `03` §11's *identical source resubmitted: no LLM spend*. ⚠️ And the hit adds **nothing** to `04` §6.1's spend columns — it had no response of its own |
+| A refused answer is never cached | **yes** | It would be served back forever and the chunk could never succeed (`03` §7) |
+| Provenance, per field | **yes** | ADR 0004 and ADR 0048 — the tokeniser's three are `lookup` with the dictionary version and `is_oov`, the model's three are `generated` with the model and prompt. Six rows, one per declared field |
+| A *pending note* is four writes | **yes** | `note`, its provenance, `note_vetting` at `pending`, and one *occurrence* per sighting — and **a run whose reader was deleted writes the first, third omitted**, because `note_vetting.owner_id` is `NOT NULL` |
+| ⚠️ The streamed write | **yes** | 図書館 is in both *chunks* and is generated **once**: chunk 0's *note* exists by the time chunk 1 is deduplicated, so chunk 1's sighting is an `already_known`. **A run that batched its writes to the end would pay twice** |
+| Failure part-way | **yes** | One *chunk* refused: the other keeps its *notes*, the run settles `incomplete`, and **a resume re-runs only the chunk that failed** (`03` §5.4, PRD §5) |
+| Zero new notes is a success | **yes** | Every word already in the corpus: the run is `complete`, the provider is **never asked**, and the four counters say by which filter (PRD §5, `03` §11) |
+| The spend ledger | **yes** | Tokens from the response, cost from the dated table, `price_table_effective_date` and `worker_environment` on the row — all accumulated across chunks (`04` §6.1, `03` §12) |
+
+⚠️ **No test asserts a threshold on *acceptance rate* or on output quality**, and the absence is
+deliberate (ADR 0037, ADR 0018): the number has to be free to fall, because a number that cannot fall
+is not a measurement. What is asserted is that the figures are **recorded**.
+
 ⚠️ **Amended again 2026-09-12 with #8 — twenty-three is now forty**, and the reason has not changed:
 #8's SQL is the *pipeline* wired to the database — the corpus lookup, the rejected filter, the
 *occurrence* append and `04` §6.1's ledger — plus ADR 0046's two new sweep branches and, new in kind,
@@ -428,14 +467,14 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | Stage order | Stages 4 and 5 run **before** stage 6 — no generation call is made for a *candidate* already known or *rejected* (ADR 0010, `S5`) |
 | ⚠️ Numerals | 六 comes back `is_oov=True` with `normalized_form` rewritten to `6`, and **the candidate is excluded before it reaches the identity key** (`03` §5.2). This is a recorded finding that will otherwise return as a bug |
 | ⚠️ Morphemes are not sliceable | Any windowing code iterates. `morphemes[:10]` raises `TypeError` (`03` §5.2). ⚠️ **Built 2026-09-12 — it was a docstring until #8's review noticed this row named a test that did not exist** |
-| The cache key | All **four** parts — content-chunk hash, **dictionary version**, prompt version, model id (`03` §5.3). A key missing the dictionary version serves stale results after a SudachiDict bump |
+| The cache key | All **four** parts — content-chunk hash, **dictionary version**, prompt version, model id (`03` §5.3). A key missing the dictionary version serves stale results after a SudachiDict bump. ⚠️ **Built 2026-09-12 with #9**, and it needs the container: the key is a composite primary key, so the test is a query |
 | `Dictionary()` once | Constructed once per process; a test that constructs it twice and measures RSS is the guard (verification §7.3). ⚠️ **#8 first shipped `dictionary() is dictionary()` instead, which asserts that a memoised accessor memoises and cannot fail.** The real guard constructs two `Dictionary()` objects directly and asserts `ru_maxrss` grows — re-measured 2026-09-12 from a 16 MB baseline: 73.5 → 128.7 → 183.5 MB, about **55 MB per additional mapping**. Sabotaged by swapping the constructions for the accessor; it reddens |
-| Resume | A run that fails part-way keeps partial results and re-runs **only unprocessed chunks** (PRD §5) |
+| Resume | A run that fails part-way keeps partial results and re-runs **only unprocessed chunks** (PRD §5). ⚠️ **With a *chunk* that actually failed, since #9** — #8 could only fail a chunk by pointing it past the end of its *source*; a provider that refuses one word is the real shape of it (`03` §11) |
 | ⚠️ The part-of-speech allowlist | Built 2026-09-12 with #8 and [ADR 0044](adr/0044-a-candidate-is-a-content-word-and-a-numeral-is-not-one.md). **Every `(pos₀, pos₁)` pair the installed dictionary declares is classified** — the allowlist and the exclusion list cover all 38 between them, so a `SudachiDict` release that adds a category fails by name rather than dropping a word class in silence |
 | ⚠️ Orthographic variants | 引っ越し / 引越し / 引越 render **one** *identity key*. This is what buys `normalized_form` its place as the term half over `dictionary_form`, which returns each surface unchanged (ADR 0006, ADR 0019) |
 | ⚠️ The reading's script | `04` §5.3's keys are hiragana and `reading_form()` answers in katakana; a word written wholly in katakana keeps it ([ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)). ひらがな is the deciding case — its *normalized form* is 平仮名 |
 | The identity key's rendering | `04` §5.3's rule as a function: NFC, joined by U+001F, **in declaration order rather than in the order the fields arrived**, and a missing key field raises rather than keying around it |
-| A stage key is a module name | `03` §10, for the five stages that are built. Stages 6 and 7 have no module yet, which is why it asserts the five rather than the seven |
+| A stage key is a module name | `03` §10. ⚠️ **All seven since #9**, which is the assertion this row said it was waiting for: `generate.py` and `write_pending.py` are stages 6 and 7's modules, and a `stages` entry with no module now fails by name |
 | ⚠️ The cross-language declaration | The Python view of the *subject* declaration matches the JSON file, and its field list matches TypeScript's. `03` §6 already specified this test — it is the two-toolchain tax, and it is the one test that exists in both suites by design |
 
 ⚠️ **Built 2026-09-10 with [#3](https://github.com/yutaasakura96/kioku/issues/3), and the last row

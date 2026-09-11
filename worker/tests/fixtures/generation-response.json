@@ -1,0 +1,19 @@
+{
+  "_recorded": "A response shaped exactly as `output_schema` constrains it. It is a fixture, not a transcript: `11` §7 requires generation tests to use recorded fixtures and never call a provider, and nothing in this repository has ever held a key. `_recorded` itself is stripped by `tests/test_generate.py` before use — the real contract has `additionalProperties: false`.",
+  "notes": [
+    {
+      "term": "図書館",
+      "reading": "としょかん",
+      "meaning": "library",
+      "example_sentence": "駅の近くに図書館があります。",
+      "example_gloss": "There is a library near the station."
+    },
+    {
+      "term": "近く",
+      "reading": "ちかく",
+      "meaning": "nearby, vicinity",
+      "example_sentence": "駅の近くに住んでいます。",
+      "example_gloss": "I live near the station."
+    }
+  ]
+}

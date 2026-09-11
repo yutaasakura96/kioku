@@ -45,12 +45,24 @@ manager documentation.
 | `jobs.py` | `04` §6.4 — the claim, the heartbeat, the stale sweep |
 | `runs.py` | The chunk queue, `04` §6.2's resume query, and what a claimed job turns into |
 | `__main__.py` | The process: signals, JSON logging, and wiring the four together |
-| `pipeline/` | One module per stage, **named by the declaration** — `chunk`, `tokenise`, `extract_candidates`, `deduplicate`, `filter_known`. ⚠️ **Pure**: no database, no clock, and the corpus arrives as two plain collections (`11` §8) |
-| `ingest.py` | The stages wired to the database — the corpus lookup, the rejected filter, the *occurrence* append and `04` §6.1's ledger. This is `run_ingestion`'s `process_chunk` |
+| `pipeline/` | One module per stage, **named by the declaration** — all seven since #9. ⚠️ **Stages 2 to 5 are the pure ones** (`11` §8): no database, no clock, and the corpus arrives as two plain collections. `generate.py` builds a request and validates an answer, and `write_pending.py` **writes** — `03` §5.1 always said so |
+| `provider.py` | ADR 0018's boundary, and **the only module here that imports an SDK**. Streaming, never batch; the model id is an environment variable because the walk is the point |
+| `prices.py` | `03` §7's price table as **configuration with an effective date**, and the arithmetic `S10` reports. A price change is a new entry, never an edit |
+| `ingest.py` | The stages wired to the database — the corpus lookup, the rejected filter, the *occurrence* append, `04` §6.3's cache and `04` §6.1's two ledgers. This is `run_ingestion`'s `process_chunk` |
 
 ```bash
 cd worker && uv run python .
 ```
+
+⚠️ **It needs `ANTHROPIC_API_KEY` too, and refuses to start without it** (`03`
+§13.1). Until #9 a worker with no generator did every stage that shrinks the work
+and spent nothing, which was the true state of the project; after #9 such a run
+would read its whole *source*, settle `complete` and report a *source* that made
+no *notes* — which `03` §11 renders to the reader as a **success**. Two optional
+variables ride beside it: `KIOKU_MODEL_ID`, because ADR 0018 walks the model, and
+`KIOKU_WORKER_ENVIRONMENT` (`laptop` or `server`), because `03` §12 says early
+*time-to-first-review* figures are not comparable across ADR 0022's move and
+records that on the number rather than in a paragraph.
 
 ⚠️ **It needs `KIOKU_WORKER_DATABASE_URL`** — Neon's **direct** string, the one
 *without* `-pooler` in the hostname. On the pooled endpoint PgBouncer's
@@ -59,14 +71,21 @@ would start, claim nothing and **never wake** (`03` §4.1); `db.refuse_pooled`
 turns that into a startup error rather than an afternoon. `Ctrl-C` stops it —
 the block timeout in `loop.py` is what makes that land within a few seconds.
 
-⚠️ **Stages 1 to 5 are wired in; stage 6 is not.** A claimed job reads its
+⚠️ **All seven stages are wired in as of
+[#9](https://github.com/yutaasakura96/kioku/issues/9).** A claimed job reads its
 *source*, tokenises every *chunk*, extracts *candidates*, deduplicates against
 the corpus, appends *occurrences* for what the corpus already had, filters what
-the reader has rejected, and writes `04` §6.1's ledger — **and spends nothing**,
-because generation is [#9](https://github.com/yutaasakura96/kioku/issues/9).
-That is ADR 0010's ordering made literal rather than a placeholder: every stage
-that shrinks the work runs before the one that costs money, so the one that costs
-money can be missing and the rest is still true.
+the reader has rejected, **asks a model about what is left, writes the *pending
+notes* that come back, and records what they cost**. ADR 0010's ordering is still
+what the order of those clauses is: every stage that shrinks the work runs before
+the one that spends.
+
+⚠️ **Generation is one request per *chunk***, not one per word
+([ADR 0047](../docs/adr/0047-generation-is-one-request-per-chunk-and-notes-are-written-as-each-chunk-returns.md)),
+and that chunk's *notes* are written the moment it returns. The streamed write is
+`S2`'s time-to-first-review **and** what keeps a long *source* from being
+generated twice: chunk 1's *note* exists by the time chunk 3 is deduplicated, so
+chunk 3's sighting of the same word is an `already_known`.
 
 ⚠️ **The dictionary is constructed exactly once per process** (`03` §3.4), lazily,
 on the first *chunk*. A second `Dictionary()` costs the same load **and its own

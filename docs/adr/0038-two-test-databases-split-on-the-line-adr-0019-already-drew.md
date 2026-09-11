@@ -94,7 +94,15 @@ container tier created and nothing else could have caught: `TRUNCATE … CASCADE
 **The claim worth keeping is untouched for the second time**, and the count moving twice in two
 tickets is the argument for stating it as a claim rather than as a number: a laptop with no Docker
 runs the entire TypeScript suite *and the whole pure pipeline*, and what goes red is the worker's
-forty. Three of them are still exactly the three this ADR named.
+database files. Three of them are still exactly the three this ADR named.
+
+⚠️ **Amended a third time 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9), and
+the number is gone from this ADR rather than moved again.** #9 added stages 6 and 7 against real SQL
+— `04` §6.3's cache, `04` §6.1's spend half, and the four writes one *pending note* is — which is the
+same kind of thing for the third time. **The count now lives in `worker/tests/README.md` and in no
+other file**, which is what #8's own finding asked for after shipping it stale in two of the four
+places that repeated it. What this ADR decides was never the number; it is *which* two databases
+exist and where the line between them is, and that has not moved once.
 
 ## The migrations build both, and that is what stops the schema forking
 

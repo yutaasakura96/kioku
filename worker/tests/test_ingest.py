@@ -20,87 +20,30 @@ from ingest import make_chunk_processor
 from jobs import drain
 from pipeline.tokenise import DICTIONARY_VERSION
 from runs import run_ingestion
+from seed import LIBRARY, OWNER, ledger, make_run, seed_note
 
-#: Two sentences, two chunks: [0, 14) and [14, 24). 図書館 appears in both.
-CONTENT = "駅の近くに図書館があります。図書館は六時に開く。"
-CHUNKS = ((0, 14), (14, 24))
-LIBRARY = "図書館" + chr(31) + "としょかん"
-OWNER = "usr_ingest"
-
-
-def make_run(connection: psycopg.Connection, *, owner: str | None = OWNER) -> str:
-    connection.execute(
-        """
-        INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
-        VALUES (%s, 'Reader', 'ingest@example.test', true, now(), now())
-        ON CONFLICT (id) DO NOTHING;
-        """,
-        (owner or OWNER,),
-    )
-    source_id = connection.execute(
-        """
-        INSERT INTO source (subject_id, title, content, content_hash, char_count)
-        VALUES ('jlpt-vocab', '社説', %s, 'hash-ingest', %s) RETURNING id;
-        """,
-        (CONTENT, len(CONTENT)),
-    ).fetchone()[0]
-    for ordinal, (start, end) in enumerate(CHUNKS):
-        connection.execute(
-            """
-            INSERT INTO source_chunk (source_id, ordinal, char_start, char_end, content_hash)
-            VALUES (%s, %s, %s, %s, %s);
-            """,
-            (source_id, ordinal, start, end, f"chunk-{ordinal}"),
-        )
-    ingestion_id = connection.execute(
-        """
-        INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_by)
-        VALUES (%s, '社説', 'jlpt-vocab', 'queued', %s) RETURNING id;
-        """,
-        (source_id, owner),
-    ).fetchone()[0]
-    connection.execute(
-        "INSERT INTO job (kind, ingestion_id, state) VALUES ('ingest', %s, 'queued');",
-        (ingestion_id,),
-    )
-    return ingestion_id
-
-
-def seed_note(connection: psycopg.Connection, identity_key: str, *, rejected_by=None) -> str:
-    note_id = connection.execute(
-        """
-        INSERT INTO note (subject_id, identity_key, fields)
-        VALUES ('jlpt-vocab', %s, '{}'::jsonb) RETURNING id;
-        """,
-        (identity_key,),
-    ).fetchone()[0]
-    if rejected_by is not None:
-        connection.execute(
-            """
-            INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
-            VALUES (%s, 'Other', %s, true, now(), now()) ON CONFLICT (id) DO NOTHING;
-            """,
-            (rejected_by, f"{rejected_by}@example.test"),
-        )
-        connection.execute(
-            "INSERT INTO note_vetting (note_id, owner_id, state) VALUES (%s, %s, 'rejected');",
-            (note_id, rejected_by),
-        )
-    return note_id
-
-
+# ⚠️ **The seed is `tests/seed.py`**, shared with `test_generation.py` rather
+# than copied into it: a second copy of the four rows `S2` names on submit is a
+# second place for `04`'s column list to go stale.
 class Recorder:
     """Stage 6, as a thing that can be asked whether it was called.
 
     ⚠️ It spends nothing and writes nothing, which is `11` §7's stage-order test
     in its strongest form: the assertion is about the **absence** of a call.
+
+    ⚠️ **One call per *chunk*, with that chunk's whole surviving set** (ADR 0047).
+    It was one call per group until #9, which `04` §6.3's cache key could not
+    have survived: the four-tuple is the *chunk*'s content hash, so every
+    candidate in a chunk would have shared one row.
     """
 
     def __init__(self) -> None:
         self.terms: list[str] = []
+        self.calls: list[tuple[str, ...]] = []
 
-    def __call__(self, connection: psycopg.Connection, group) -> None:
-        self.terms.append(group.candidate.term)
+    def __call__(self, connection: psycopg.Connection, context, groups) -> None:
+        self.calls.append(tuple(group.candidate.term for group in groups))
+        self.terms.extend(group.candidate.term for group in groups)
 
 
 def run(connection: psycopg.Connection, *, generate=None) -> int:
@@ -111,17 +54,6 @@ def run(connection: psycopg.Connection, *, generate=None) -> int:
             conn, job, process_chunk=make_chunk_processor(job, generate=generate)
         ),
     )
-
-
-def ledger(connection: psycopg.Connection, ingestion_id: str):
-    return connection.execute(
-        """
-        SELECT status, dictionary_version, candidates_extracted, candidates_deduplicated,
-               candidates_already_known, candidates_rejected
-        FROM ingestion WHERE id = %s;
-        """,
-        (ingestion_id,),
-    ).fetchone()
 
 
 # ---------------------------------------------------------------------------

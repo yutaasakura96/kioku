@@ -4,16 +4,20 @@ One flat module per *stage*, **named by the declaration**: `subjects/jlpt-vocab.
 `stages` keys are these module names (`03` §10), and `tests/test_pipeline.py`
 asserts the two lists are the same list rather than trusting that they are.
 
-⚠️ **Stages 6 and 7 are #9's** — *generate* and *write pending notes*. #8 runs 1
-to 5 and stops at the edge of generation, which is ADR 0010's ordering made
-literal: everything that shrinks the work happens before anything that spends.
-:func:`run_stages` is where that edge is, and it is why the function returns
-*survivors* rather than notes.
+⚠️ **Stages 6 and 7 arrived with #9** — `generate.py` and `write_pending.py`, so
+the seven modules and the seven stage keys are now the same seven, and
+`tests/test_pipeline.py` asserts all of them rather than the first five.
 
-⚠️ **Nothing here touches the database.** `11` §8 names stages 2 to 5 as the
+⚠️ **Stages 2 to 5 are the pure ones, and only those.** `11` §8 names them as the
 seam — pure functions over tokens → candidates — and the corpus arrives as two
-plain collections that the caller looked up. `worker/ingest.py` is the caller,
-and it is where the SQL lives.
+plain collections that the caller looked up. `03` §5.1 never claimed more: stage
+1 is the app's, **stage 6 is the LLM** (though what lives in `generate.py` is
+still pure — it builds a request and reads an answer, and `worker/provider.py` is
+what turns one into the other), and **stage 7 writes**.
+
+:func:`run_stages` runs 2 to 5 and returns *survivors* rather than notes, which
+is where ADR 0010's edge is: everything that shrinks the work happens before
+anything that spends. `worker/ingest.py` is what carries a survivor across it.
 """
 
 from __future__ import annotations

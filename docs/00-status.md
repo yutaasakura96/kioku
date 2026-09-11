@@ -3,14 +3,16 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**46 ADRs**, eleven documents, an empty frontier, and **eight open issues** on the tracker — #1 the
-spec, #5, and #9–#14.
-**#2, #3, #4, #5, #6, #7 and #8 are built.** ⚠️ **The frontier is
-[#9](https://github.com/yutaasakura96/kioku/issues/9) alone** — generation, stages 6 and 7. There is
-a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two pages of
-Japanese and get control back, a worker that wakes up and claims the job — and now **a pipeline that
-turns that paste into *candidates*, deduplicates them against the corpus and drops what the reader
-has already rejected**. What it cannot do is produce a *note*: nothing has ever called a model.
+**48 ADRs**, eleven documents, an empty frontier, and **nine open issues** on the tracker — #1 the
+spec, #5, #9 (which closes when this work merges), #10–#14, and **#15, which #9 found and did not
+fix**.
+**#2, #3, #4, #5, #6, #7, #8 and #9 are built.** ⚠️ **The frontier is
+[#10](https://github.com/yutaasakura96/kioku/issues/10) alone** — *Vet*'s mechanics. There is a
+schema, a door, a *subject* declaration both toolchains read, a reader who can paste two pages of
+Japanese and get control back, a worker that wakes up and claims the job, a pipeline that turns that
+paste into *candidates* — and now **a model that turns those candidates into *pending notes*, written
+as each *chunk* returns, with what they cost on the row.** What it cannot do is show them to anybody:
+nothing renders a *Vet* queue.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -19,6 +21,118 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #9 — generation and pending notes, 2026-09-12.** **A pasted *source* now becomes
+*pending notes*, and the money is on the row.** `worker/provider.py` is ADR 0018's boundary and the
+only module in the repository that imports an SDK; `worker/pipeline/generate.py` and
+`write_pending.py` are stages 6 and 7, so the seven modules and the seven stage keys are finally the
+same seven; `worker/prices.py` is `03` §7's price table as configuration with an effective date. The
+worker **refuses to start without a key**, which is `db.require_direct_url`'s shape applied to the
+second secret `03` §13.1 names.
+
+**Suite: 293 TypeScript** (was 290) **plus 199 pytest** (was 143), 59 of them needing Docker.
+Typecheck, build and `drizzle-kit check` clean.
+
+⚠️ **The two documents disagreed about what stage 6 even is, and the cache settled it.** `03` §5.1
+says *the LLM, per surviving note*; `04` §6.3 keys `generation_cache` on the *chunk*'s content hash
+and stores a `{"notes": […]}` array under it. One request per candidate would put every candidate in
+a chunk under **one** four-tuple — 214 candidates across 84 chunks writing and overwriting 84 rows,
+each holding whichever word finished last. That is
+[ADR 0047](adr/0047-generation-is-one-request-per-chunk-and-notes-are-written-as-each-chunk-returns.md):
+**the chunk is the unit of the request, of the key and of the streamed write**, `03` §5.1's phrase is
+about scaling, and the chunk's text is in the prompt because otherwise the key would cover text the
+request never saw.
+
+⚠️ **And the streamed write is what closed § Carrying's cross-chunk duplicate**, which is the same
+decision seen from the other end: 図書館 is in both of the test *source*'s chunks and is generated
+**once**, because chunk 0's *note* exists by the time chunk 1 is deduplicated. A run that batched its
+writes to the end of the run would pay twice for every word that spans chunks, and there is a test
+that reddens if it does.
+
+**Two more decisions this session made rather than transcribed:**
+
+- ⚠️ **[ADR 0048](adr/0048-provenance-kind-is-decided-by-who-produced-the-value.md) — provenance
+  `kind` is decided by who produced the value.** `04` §5.4's `CHECK` gives four values and one worked
+  pair; the declaration has its own two-valued `kind` that looks like a mapping and is not one.
+  `lookup` is a named authority, `generated` is the model with no authority behind it, `judgement` is
+  the model **choosing** among an authority's answers, and `human` is the reader. ⚠️ **`judgement` is
+  unreachable in v1** — nothing hands the model a sense inventory — and two of four empty is the
+  honest state rather than a gap.
+- **The price table is a list of dated tables and the newest effective one wins**, recorded in the
+  decision log rather than as an ADR. A price change is a **new entry**, never an edit: editing one
+  rewrites history, because every `ingestion` already stamped with that date would then cite a table
+  saying something else. An unpriced model raises rather than costing zero — ADR 0018 walks the
+  model, so an unrecognised id is the *expected* shape of a mistake, and a free *ingestion* in the
+  ledger `S10` reports from is worse than no number.
+
+⚠️ **#9 found a defect it deliberately did not fix, and it is
+[#15](https://github.com/yutaasakura96/kioku/issues/15).** `reading_of` reads the **surface's**
+reading, so あります keys as `有る␟あり` while ある keys as `有る␟ある` — one word, two *notes*, which
+is exactly what ADR 0006 exists to prevent, arriving through the half of the key that § Carrying's
+`normalized_form` finding did not cover. It is worse than a key problem: ADR 0045 makes `reading` a
+field on the answer side of the *card*, so 開いた would produce a card reading ひらい. **It is #8's
+`reading_of` and the fix is a decision, not a patch** — re-tokenising the normalized form is verified
+to give the right answer for 有る, 開く, 引っ越し, ひらがな and コーヒー, and **collapses 開く/ひらく
+and 開く/あく into one**, which is the pair `04` §5.3 gives as the reason the key has two halves. The
+issue carries both candidate rules and the measurement behind each.
+
+⚠️ **The test fixture was serving one test's answers to the next one.** `generation_cache` is keyed on
+content rather than on any row a test owns, and it was not in `conftest.py`'s cleanup list — so six of
+#9's tests went green for the wrong reason before they went red for the right one: every assertion
+about *what the provider was asked* had silently become an assertion about the previous test. It is
+in `SCRATCH_TABLES` now, first and alone, because it references nothing and `04` §10 calls it the one
+table safe to truncate.
+
+⚠️ **The container count is no longer written in four files, which is what #8's own finding asked
+for.** It has moved three times — three, twenty-three, forty, now fifty-four — and shipped stale
+twice. `worker/tests/README.md` carries it; `docs/11-testing-plan.md` §7, ADR 0038,
+`worker/pyproject.toml` and `worker/tests/conftest.py` now point there, and `conftest.py`'s no-Docker
+message names the **files** rather than a count, because the files are what a developer is looking at
+when they read it. **This is the first ticket in five that did not ship a stale number**, and the
+reason is that it stopped keeping one.
+
+⚠️ **`/code-review` found four things that were wrong rather than stale, and two of them were
+tests passing for the wrong reason.**
+
+- ⚠️ **Every "the cache saved us" test was actually watching stage 5.** Re-ingesting an identical
+  *source* asks the provider nothing — but that is the **corpus filter**, not `04` §6.3: the first
+  run's *notes* are already there, so nothing survives to be generated and the cache is never
+  consulted. Two tests asserted `calls == []` and credited ADR 0010's cache in their own docstrings.
+  `forget_the_corpus` now empties the *notes* and leaves the cache standing, which is the only state
+  in which the cache is the thing doing the work — and it is a real state, because `04` §10 calls
+  `generation_cache` the one table safe to truncate *because* the corpus is what cannot be rebuilt.
+- ⚠️ **`write_generation_cache` used `ON CONFLICT DO NOTHING`, which would have made a chunk re-pay
+  for ever.** A cached row that does not answer every survivor is treated as a miss — so the run pays
+  again, and then could not store what it had paid for, because the narrow row held the key. The next
+  run would read the same narrow row, miss again, and pay again. It is an upsert now, and the test is
+  a **third** run rather than a second.
+- ⚠️ **A refused or truncated answer dropped its tokens on the floor.** Both are a 200 that was
+  billed; `ProviderRefused` now carries what the call cost and `make_generator` records it before
+  re-raising. A ledger that lost them would make a *source* that failed half its chunks look
+  **cheaper** than one that succeeded, which is the one direction `S10` must not be wrong in.
+- ⚠️ **`03` §11's *the provider is not named at the reader* was a comment `runs.py` could not keep.**
+  `runs.py` writes `str(error)` into `ingestion_chunk.last_error` and `10` §6.2 renders it, so an SDK
+  exception allowed through would put the vendor, its URL and a request id on a screen. Every
+  `anthropic.APIError` is translated at the boundary now, and the `stop_reason` check became an
+  **allowlist of one** — `anthropic` 1.5.0 already carries seven, `model_context_window_exceeded`
+  among them, and a denylist would have let a future one fall through to `json.loads` and surface as
+  *the answer is not JSON*.
+
+And three smaller ones: writing provenance only for a *note* this call created would have lost six
+rows for ever if a process died between the two writes (it is unconditional now, with the conflict
+clause deciding); a fully-cached run named no model at all, so *what made these notes* is now stamped
+separately from *what this run paid*; and two comments in `prices.py` said things that were not true
+of the file they were in.
+
+⚠️ **The review also caught two vocabulary breaches, which is new.** The prompt said *"flashcard
+fields"* — `CONTEXT.md` puts `flashcard` on *Card*'s `_Avoid_` list, and this stage does not make
+*cards* at all — and ADR 0048 called a dictionary an *authority*, a word `CONTEXT.md` scopes to what a
+*level claim* cites. Both are the same failure as a stale number: a word that is load-bearing
+somewhere else, reused casually here.
+
+**What #9 does not do:** show a *note* to anybody. `note_vetting` rows are written at `pending` and
+`04` §12's first query has nothing rendering it — that is
+[#10](https://github.com/yutaasakura96/kioku/issues/10).
 
 **Phase 6, #8 — the pipeline, stages 1 to 5, 2026-09-12.** **A pasted *source* now becomes
 *candidates*, and stops one stage short of spending anything.** `worker/pipeline/` is one flat module
@@ -559,7 +673,7 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 9`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 10`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
@@ -571,11 +685,35 @@ shipped one number that was true when it was written and false when it was read.
 
 ~~**⚠️ #3 built 2026-09-10.** The frontier is #6 alone.~~ ~~**⚠️ #6 built 2026-09-11.** The frontier
 is #7 alone.~~ ~~**⚠️ #7 built 2026-09-11.** The frontier is #8 alone.~~
-**⚠️ [#8](https://github.com/yutaasakura96/kioku/issues/8) built 2026-09-12. The frontier is
-[#9](https://github.com/yutaasakura96/kioku/issues/9) alone** — generation and *pending notes*,
-stages 6 and 7. It needs #8 and has it.
+~~**⚠️ [#8](https://github.com/yutaasakura96/kioku/issues/8) built 2026-09-12. The frontier is
+[#9](https://github.com/yutaasakura96/kioku/issues/9) alone.**~~
+**⚠️ [#9](https://github.com/yutaasakura96/kioku/issues/9) built 2026-09-12. The frontier is
+[#10](https://github.com/yutaasakura96/kioku/issues/10) alone** — *Vet*'s mechanics. It needs #9 and
+has it: `note_vetting` rows exist at `pending`, and `04` §12's first query has nothing rendering it.
 
-**#9 inherits six things from #8**, none of which needs re-deriving:
+**#10 inherits five things from #9**, none of which needs re-deriving:
+
+- ⚠️ **A *pending note* is already four rows and #10 reads all four.** `note`, six
+  `note_field_provenance` rows, a `note_vetting` at `pending`, and one `occurrence` per sighting.
+  `S4`'s *foreground the judgement fields* is a join onto the second of those, and ADR 0048 says what
+  its `kind` column means.
+- ⚠️ **`judgement` is unreachable in `note_field_provenance.kind` and `human` is #10's** (ADR 0048).
+  An edit writes `human` with no model and no dictionary; nothing else in the pipeline can produce
+  one.
+- **Rejecting a *note* already shrinks the next run.** `DatabaseCorpus.rejected` is `04` §12's third
+  query and it is owner-scoped and tested; `S5` is satisfied the moment #10 writes a `rejected` row.
+- ⚠️ **[#15](https://github.com/yutaasakura96/kioku/issues/15) is in front of #10 on the screen, not
+  behind it.** The reading is on the answer side of the recognition *template* (`10` §5), so the
+  first *card* #10 mints from an inflected word shows it. Fixing it changes the identity of existing
+  *notes*, which is why it is its own ticket rather than a patch inside one.
+- **The end-to-end tier can sign in** — #6 paid that, and every *Vet* route is gated.
+
+~~**#9 inherited six things from #8**, none of which needed re-deriving:~~ **All six held.** The
+seam really was one parameter, the `Group` really did carry every sighting, the streamed write really
+did close the cross-chunk duplicate, three of the four key parts really did already exist, `is_oov`
+really was already on every *candidate*, and ADR 0046's ceiling really did matter the moment the
+handler started making network calls. Kept because each is still the shortest statement of a thing
+#10 may need:
 
 - ⚠️ **The seam is one parameter, again.** `ingest.make_chunk_processor(job, *, generate=None)`
   already runs stages 1 to 5 and calls `generate(connection, group)` once per surviving group. #9
@@ -645,9 +783,9 @@ findings that amended `11` §1 and §6.1**.
 #2 scaffold ✔ ─┬─→ #3 subject declaration ✔ ┐
               └─→ #4 schema ✔ ─→ #5 identity ─→ #6 ingest ✔ ┐
                                                #4,#6 ─→ #7 worker loop ✔
-                                        #3,#7 ─→ #8 pipeline 1–5  ← the frontier
-                                                 #8 ─→ #9 generation
-                                               #9 ─→ #10 vet mechanics ─┬─→ #11 vet presentation
+                                        #3,#7 ─→ #8 pipeline 1–5 ✔
+                                                 #8 ─→ #9 generation ✔
+                                  #9 ─→ #10 vet mechanics ← the frontier ─┬─→ #11 vet presentation
                                                                         └─→ #12 review
                                                             #12 ─→ #13 outbox ─┐
                                                                      #6,#13 ─→ #14 stats
@@ -695,6 +833,47 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **The reading half of ADR 0006's *identity key* is the *surface*'s reading, so one word becomes
+  several *notes*** — [#15](https://github.com/yutaasakura96/kioku/issues/15), found by #9 and
+  deliberately not fixed in it. Measured 2026-09-12: あります gives `normalized_form` 有る with
+  `reading_form` アリ, so it keys `有る␟あり`, while ある keys `有る␟ある`; 開いた keys `開く␟ひらい`
+  beside `開く␟ひらく`. **§ Carrying's `normalized_form` finding fixed the term half and left the
+  reading half on the surface**, and every inflecting word class — verbs and i-adjectives — is
+  affected. ⚠️ **It is worse than a key problem**: ADR 0045 makes `reading` a field on the answer side
+  of the *card* (`10` §5), so the first *card* #10 mints from an inflected word shows ひらい. The fix
+  is a decision rather than a patch — re-tokenising `normalized_form` gives the right answer for
+  有る, 開く, 引っ越し, ひらがな and コーヒー **and collapses 開く/ひらく into 開く/あく**, which is
+  the pair `04` §5.3 gives as the reason the key has two halves at all; the alternative needs
+  `WordInfo.dictionary_form_word_id`, which SudachiPy 0.6.11 emits a `DeprecationWarning` for and
+  exposes no public lexicon accessor to resolve. **It changes the identity of existing *notes***,
+  which is `03` §5.3's reviewed-data-event class.
+- ⚠️ **A test fixture that does not clean a content-keyed table serves one test's answers to the
+  next.** `generation_cache` is keyed on `(content_hash, dictionary_version, prompt_version,
+  model_id)` — nothing a test owns — and it was not in `conftest.py`'s `SCRATCH_TABLES`. Six of #9's
+  tests went **green for the wrong reason** before they went red for the right one: every assertion
+  about *what the provider was asked* had quietly become an assertion about the previous test, and
+  the one that failed first failed on a `UniqueViolation` rather than on the thing it was about.
+  It is in the list now, first and alone, because it references nothing and `04` §10 calls it the one
+  table safe to truncate. **The class is wider than this table**: a cleanup list built from "what
+  this test wrote" misses anything keyed on content.
+- ⚠️ **`03` §5.1 and `04` §6.3 disagreed about what stage 6 is, and only one of them could be
+  wrong** — closed 2026-09-12 as
+  [ADR 0047](adr/0047-generation-is-one-request-per-chunk-and-notes-are-written-as-each-chunk-returns.md).
+  *The LLM, per surviving note* against a cache keyed on the *chunk*'s content hash holding a
+  `{"notes": […]}` array: per-candidate requests would put every candidate in a chunk under one
+  four-tuple. **The chunk is the unit**, and the chunk's text is in the prompt, because a key that
+  does not cover the request is a hit answering a question nobody asked.
+- ⚠️ **A cached generation can answer *more* than a run needs and never less, and the asymmetry is
+  load-bearing.** The key is the chunk's content, which cannot change; the survivor set shrinks as
+  the corpus grows (`S5`). So extra notes in a hit are ignored — and **a hit that misses a survivor
+  is treated as a miss**, because serving it would lose a *note* in silence: the chunk would still be
+  marked `complete`, so no resume would ever come back for it. The same rule makes a stored response
+  that no longer validates a miss rather than an error.
+- ⚠️ **`note_field_provenance.kind` has four values and v1 can produce two** (ADR 0048). `judgement`
+  means the model **chose** among an authority's answers, and v1 hands it no sense inventory, so
+  nothing writes one; `human` is *Vet*'s edit and is #10's. **Two of four empty is the honest state**
+  — a `judgement` row today would claim a choice among alternatives that never existed, and `04`
+  §12's eighth query would be grouping over a distinction with no mechanism behind it.
 - ⚠️ **`TRUNCATE … CASCADE` does not stop at the tables you name, and `worker/tests/conftest.py`'s
   cleanup reached `review_log`.** Measured 2026-09-12: `TRUNCATE job, ingestion_chunk, ingestion,
   source_chunk, source CASCADE` follows `note.origin_ingestion_id` → `note` → `card` → `review_log`,
@@ -736,9 +915,11 @@ Nothing.
   nobody sees and wrong on the answer side of a *review*. The rule looks at the **term** rather than
   the surface, and ひらがな is the case that proves it has to — its normalized form is 平仮名.
 - ⚠️ **`worker/pipeline/` module names are the declaration's stage keys and a test asserts the
-  correspondence for the five that exist.** It asserts five rather than seven on purpose: stages 6
-  and 7 are #9's and have no module, and an assertion over all seven would have to be deleted and
-  rewritten the day they arrive.
+  correspondence — all seven since #9.** It asserted five while stages 6 and 7 had no module, and
+  `generate.py` and `write_pending.py` are those modules. ⚠️ **Two of the seven are not pure**, and
+  `03` §5.1 never said they were: `generate.py` is still a pure function over a declaration and a
+  chunk (the socket is `provider.py`), but **`write_pending.py` writes**. Stages 2 to 5 are the pure
+  ones, which is what `11` §8 means by the seam.
 - ⚠️ **`SudachiPy`'s `MorphemeList` is still not sliceable and the finding is now closed in one
   place.** `morphemes[:3]` raises `TypeError: argument 'idx': 'slice' object cannot be interpreted as
   an integer` (re-measured 2026-09-12, 0.6.11). `pipeline/tokenise.py` iterates it once into plain
