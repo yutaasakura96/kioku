@@ -121,6 +121,16 @@ that produced them, so every way it can be wrong is a bug rather than a fact abo
 | Tokens and cost | From the API response, **never estimated** (`04` §6.1); `worker_environment` is on the row | ADR 0018's price table has an effective date; a hard-coded constant lies silently |
 | **The suppression boundary** | **Nineteen suppresses, twenty reports**, with raw counts and a line saying why | ⚠️ The only branch in `S10`, and off by default in every naive implementation |
 
+⚠️ **Amended 2026-09-12 by #14 — three things this table left to the implementation, all now
+decided and all now tested.** *Time-to-first-review* is per *source* and this table gives it one
+figure: it is the **median across *sources***, with an unstudied *source* excluded
+([ADR 0057](adr/0057-time-to-first-review-is-a-median-over-the-sources-that-have-one.md)). A
+suppressed column shows `have / possible` — the evidence behind the withheld figure — for **all
+four**, medians included
+([ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-as-a-pair.md)). And the
+*acceptance rate* half of the arithmetic is **imported from `shared/metrics/acceptance.ts`, never
+re-derived** — the counts are the query's, the rate is not (§8, `00-status.md` § Carrying).
+
 ⚠️ **What is not asserted, and this is the decision:** that the median is under 5 seconds, or that
 *acceptance rate* clears any floor. ADR 0018 walks the model **down** until *acceptance rate*
 degrades — the number has to be free to fall, and a test that fails when it falls turns the
@@ -579,6 +589,16 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   other three numbers and **the suppression boundary** stay #14's — the boundary governs all four
   ratios at once and belongs where they are rendered together. ⚠️ **What is not at this seam is the
   query**: these are counts, and where they come from is `note_vetting`.
+  ⚠️ **The other half landed 2026-09-12 with #14** — `shared/metrics/stats.ts` and
+  `test/unit/stats-metrics.test.ts`: the median (⚠️ *mean of the middle two* on an even count),
+  *false-accept rate* (⚠️ **unclamped** — a second flag on the same *card* is a second row, so it can
+  exceed one), the cost conversion (⚠️ **null in, null out** — never estimated) and
+  `ratiosSuppressed`, asserted at **nineteen and twenty**. ⚠️ **Every ratio is computed whether or
+  not it will be shown**: suppression is a fact about the screen, and computing conditionally would
+  put `S10`'s only branch inside the seam and make the boundary unobservable from the one place it is
+  cheap to observe (ADR 0058). The rows behind it are `test/schema/stats.test.ts` and the grid is
+  `test/nuxt/stats-figures.test.ts`; `test/e2e/stats.test.ts` is the only place the three meet, and
+  it crosses the boundary **by one decision** rather than with two fixtures.
 
 **End to end only, because there is no seam to hold them:**
 

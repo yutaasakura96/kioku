@@ -10,11 +10,11 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **seventeen more ADRs** with it. ⚠️ **This paragraph said "there is still no
+code since 2026-09-09 and **nineteen more ADRs** with it. ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
-**What exists now:** #2 through #13 are built — a Nuxt app with the rendering split enforced by the
+**What exists now:** #2 through #14 are built — a Nuxt app with the rendering split enforced by the
 build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
@@ -23,15 +23,19 @@ so, a bounded *session* of those *cards* that ends — composed due-first and sn
 four *grades* under a *progress rail* that knows its own length — and, since 2026-09-12, **a
 *session* that survives the network**: an outbox in `localStorage` carrying two kinds of entry, so
 every answer is durable before the screen moves and the stream replays in order when the connection
-returns, and `X`, which suspends a bad *card* and leaves its *review* history standing. What no
-**number** does yet is get read — Stats is five figures nothing computes, and that is #14's.
+returns, and `X`, which suspends a bad *card* and leaves its *review* history standing. And, since
+2026-09-12, **the numbers get read**: `/stats` computes all six, suppresses the four ratios under
+twenty vetted *notes* and says why (ADR 0057, ADR 0058). ⚠️ **The ticket frontier is empty** — what
+is left is unticketed, and `docs/00-status.md` § Next names all of it.
 ⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.** A flagged *note* does not
 reappear on `/vet` until the re-vetting ticket, which owns four decisions rather than a query
-(ADR 0056).
+(ADR 0056). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
+`/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
+route that does not exist.
 **The commands:**
 
 ```
-npm run test        # 622 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 693 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

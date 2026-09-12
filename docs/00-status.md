@@ -3,20 +3,21 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**56 ADRs**, eleven documents, an empty frontier, and **four open issues** on the tracker — #1 the
-spec, #5, #14, and **#15, which #9 found and did not fix** (#13 closes when this work merges), plus
+**58 ADRs**, eleven documents, an empty frontier, and **three open issues** on the tracker — #1 the
+spec, #5, and **#15, which #9 found and did not fix** (#13 and #14 close when this work merges), plus
 **the re-vetting ticket #13 hands on and nobody has opened yet** (§ Next).
-**#2 through #13 are built.** ⚠️ **The frontier is
-[#14](https://github.com/yutaasakura96/kioku/issues/14) alone** — *Stats: six figures and the
-suppression boundary*.
+**#2 through #14 are built.** ⚠️ **The ticket frontier is empty**: every ticket `/to-tickets`
+published is built, and what is owed is **unticketed** — the re-vetting ticket (§ Next) and
+`S12`'s export, which issue #1 puts outside milestone 1.
 There is a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two
 pages of Japanese and get control back, a worker that wakes up and claims the job, a pipeline that
 turns that paste into *pending notes* one *chunk* at a time, a reader who can see one, judge it in a
 keystroke, and mint a *card* by doing so — whose fields are frozen by a guard rather than by nobody
-having asked — a bounded *session* of those *cards* that ends, and, since 2026-09-12, **a *session*
-that survives the network**: every answer is durable before the screen moves, the stream replays in
-order when the connection returns, and `X` suspends a bad *card* without costing the record. What
-**no number** does yet is get read: Stats is five figures nothing computes, and that is #14's.
+having asked — a bounded *session* of those *cards* that ends, a *session* that survives the network,
+and, since 2026-09-12, **numbers that get read**: `/stats` computes all six, suppresses the four
+ratios under twenty vetted *notes* and says why. ⚠️ **What is left is not code.** ADR 0037 makes
+`S3`'s median and `S10`'s ratios answerable by **a person, after twenty *notes***, and the three
+first-week experiments have still not been run (§ Next).
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -25,6 +26,59 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #14 — Stats: six figures and the suppression boundary, 2026-09-12.** **The numbers get
+read.** `/stats` carries *acceptance rate*, *false-accept rate*, median *seconds-per-note*,
+*time-to-first-review*, the *notes vetted* count and the spend ledger — six figures, **each a query
+over rows written by the code that produced them**, with no metrics table added (`04` §13). With it
+the milestone closes on the code: paste → *vet* → *review* on two consecutive days → six figures.
+
+**Suite: 693 TypeScript** (was 622) **plus 200 pytest.** Typecheck and build clean.
+
+**The arithmetic is a seam and the rows are a seam, and neither is the screen.**
+`shared/metrics/stats.ts` holds the median (⚠️ *mean of the middle two* on an even count),
+*false-accept rate* (⚠️ **unclamped** — a second flag on the same *card* is a second row, so a corpus
+the reader keeps finding faults in reads above 100%, which is the corpus `S9` exists to report), the
+micro-USD conversion (⚠️ **null in, null out** — `11` §3's *never estimated*, because ADR 0018's
+price table has an effective date and a constant lies silently) and `ratiosSuppressed`.
+⚠️ ***Acceptance rate* is imported from `shared/metrics/acceptance.ts` and re-derived nowhere** —
+§ Carrying named that as the failure that "looks entirely reasonable in a diff", and it would have
+been the same mistake in a second TypeScript module. `server/utils/stats/queries.ts` is the other
+seam: five sequential reads plus the ledger, owner-scoped where `04` §4 says personal and unfiltered
+where it says shared.
+
+**⚠️ Two decisions the documents left open, both now argued.**
+[ADR 0057](adr/0057-time-to-first-review-is-a-median-over-the-sources-that-have-one.md): the
+criterion is per *source* and `10` §8.1 gives it one slot, so the figure is the **median across
+*sources***, with an unstudied *source* **excluded** rather than counted as a long one — a mean would
+let one *source* studied a week later push the number past the criterion's own ten-minute boundary
+while every *source* the reader used came back in eight minutes.
+[ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-as-a-pair.md): a suppressed ratio
+shows `have / possible`, for **all four** — `10` §8.2 decided the pair for the two percentages and
+said nothing about the two medians, where a median has no pair and a bare sample count drops the half
+that matters. `10` §8.2, `11` §3 and §8, and `09` §4.10 are all amended in this commit.
+
+**The boundary is tested at nineteen and twenty, three times, and once by crossing it.**
+`test/unit/stats-metrics.test.ts` asserts `ratiosSuppressed` at both; `test/nuxt/stats-figures.test.ts`
+mounts the grid at both; and `test/e2e/stats.test.ts` seeds nineteen decisions, reads the document,
+**rejects one more *note***, and reads it again. ⚠️ **That last arrangement is the one that catches a
+boundary evaluated once at boot**, which is what a naive implementation with a `computed` outside the
+render would be. Sabotaged to red four ways: the median's even branch, `<` to `<=` on the boundary,
+`count(*)` to `count(distinct card_id)` on the flags, and `min` to `max` on the first *review*.
+⚠️ **One sabotage did not fail and it was the sabotage that was weak** — grouping the duration query
+by `source.submitted_at` instead of `source.id` still separates two *sources* with different submit
+instants. The near-miss `11` §3 actually names (*the first grade of any card*) is a differently
+shaped function, not a one-line edit, and the test catches it by asserting **two** durations.
+
+⚠️ **No threshold is asserted anywhere in the suite** (ADR 0037, ADR 0018). Nothing says the median
+is under five seconds or that *acceptance rate* clears a floor; ADR 0018 walks the model *down* until
+it degrades, so the number has to be free to fall. **Do not add one later "to be safe".**
+
+⚠️ **`S12`'s export is not built and that is scope, not an omission.** `10` §8.4 puts
+`<a href="/api/export">` on this screen; issue #1's own out-of-scope list puts `S12` outside
+milestone 1 — "a `MUST` for v1 and not part of the loop" — with the route, its
+`Content-Disposition` and the test that reads it back all owed together. A link to a route that does
+not exist is not an offer, so the link is absent and `app/pages/stats.vue` says why.
 
 **Phase 6, #13 — the outbox, and the `S9` flag, 2026-09-12.** **A *session* answered underground
 loses nothing.** Every answer is written to `localStorage` before the screen paints the next *card*,
@@ -1063,9 +1117,14 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 14`, in a fresh window.** `/to-spec` and
-`/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
-the next command, and neither is `/grill-with-docs`, whose frontier is empty.
+~~⚠️ **The next command is `/implement 14`, in a fresh window.**~~ ⚠️ **#14 is built. There is no
+next `/implement`, because there is no next ticket** — and the thing to do instead is **not a
+command**. `/to-spec` and `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are
+the tickets, all built — and `/grill-with-docs` is retired with an empty frontier. ⚠️ **What the
+milestone is now waiting on is the three first-week experiments** (below): they are `S3`'s and
+`S10`'s answers, ADR 0037 makes them a person's job rather than the suite's, and they are in #14's
+own closing criteria. **The two tickets that need opening first are named below**: re-vetting a
+flagged *note*, and `S12`'s export.
 
 ⚠️ **This line was stale for one commit and it is the fourth stale number in a row.** `07513ff`'s
 subject is *"record #7 as built and move the frontier to #8"* and it updated the strikethroughs
@@ -1087,11 +1146,17 @@ edit path*.~~
 ~~**⚠️ [#12](https://github.com/yutaasakura96/kioku/issues/12) built 2026-09-12. The frontier is
 [#13](https://github.com/yutaasakura96/kioku/issues/13) alone** — *the outbox, and the `S9`
 flag*.~~
-**⚠️ [#13](https://github.com/yutaasakura96/kioku/issues/13) built 2026-09-12. The frontier is
+~~**⚠️ [#13](https://github.com/yutaasakura96/kioku/issues/13) built 2026-09-12. The frontier is
 [#14](https://github.com/yutaasakura96/kioku/issues/14) alone** — *Stats: six figures and the
-suppression boundary*.
-**Both of these lines were written in the same commit as the work they describe**, which is the whole
-of the fix for the pattern above — twice now.
+suppression boundary*.~~
+**⚠️ [#14](https://github.com/yutaasakura96/kioku/issues/14) built 2026-09-12. The ticket frontier is
+empty.** Every ticket `/to-tickets` published is built. What is owed is **unticketed and named
+below**: the re-vetting ticket, `S12`'s export, and ⚠️ **the three first-week experiments, which are
+not code and which #14's own closing criteria list** — the first real run of twenty *notes* with a
+written-down expectation beforehand, one direct `psycopg.connect()` against the real endpoint, and
+whether an idle subscription defers the host's scale-to-zero.
+**All three of these lines were written in the same commit as the work they describe**, which is the
+whole of the fix for the pattern above — three times now.
 
 ~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
 ticket.**~~ **All three of its remaining items are closed** — the contradiction in
@@ -1110,8 +1175,23 @@ invalidates what was memorised, and nothing writes one today); and `card_flag.re
 ⚠️ **Until it ships, `note_vetting.flagged_at` is written and still nothing reads it** — which is
 #10's own carried bullet, one step further along.
 
-⚠️ **#14 inherits four things, and the first two are arithmetic that will look reasonable and be
-wrong:**
+⚠️ **A second ticket is owed and nobody has opened it either: `S12`'s export.** Issue #1's
+out-of-scope list puts it outside milestone 1 — "a `MUST` for v1 and **not part of the loop**" — and
+#14 therefore did not build it, so `10` §8.4's `<a href="/api/export">` is **absent from `/stats`**
+rather than pointing at a route that does not exist. It arrives as one ticket with three parts,
+because `S12` itself says an untested export is a belief: the `GET /api/export` route answering
+*notes*, *cards*, *grades* and **every *scheduling epoch* including superseded ones** as JSON with
+`Content-Disposition: attachment` (`09` §4.12); the link and its aside on `/stats` (`10` §8.4); and
+the test that reads it back and reconciles counts (`11` §4). ⚠️ **`09` §4.12 also carries the one
+thing not to rediscover**: `SameSite=Lax` sends the session cookie on a cross-site top-level `GET`,
+so a malicious link can start the download and cannot read it — an accepted nuisance at one reader,
+written down rather than found.
+
+~~⚠️ **#14 inherits four things, and the first two are arithmetic that will look reasonable and be
+wrong:**~~ **All four held.** Positions really did have to be counted rather than rows, `size` really
+was a count rather than an intention, `acceptance.ts` really was the thing not to re-derive, and the
+boundary really was the only branch. Kept because each is still the shortest statement of a thing the
+re-vetting ticket may need:
 
 - ⚠️ **A *session* can hold more `review_log` rows than it has positions**
   ([ADR 0055](adr/0055-later-wins-is-a-second-row-because-review-log-cannot-be-rewritten.md)). PRD
@@ -1295,11 +1375,13 @@ findings that amended `11` §1 and §6.1**.
                                   #9 ─→ #10 vet mechanics ✔ ─┬─→ #11 vet presentation ✔
                                                              └─→ #12 review ✔
                                                             #12 ─→ #13 outbox ✔ ─┐
-                                                             #6,#13 ─→ #14 stats ← the frontier
+                                                             #6,#13 ─→ #14 stats ✔  ← empty
 ```
 
 **How the rest of the phase runs:** **`/clear`, then `/implement <n>`** — one ticket per fresh
-window. It drives `/tdd` internally and closes with `/code-review`.
+window. It drives `/tdd` internally and closes with `/code-review`. ⚠️ **It ran thirteen times and
+there is no fourteenth until a ticket exists**: the two owed above have to be opened before this
+sentence has an argument again, and the three experiments below are not `/implement`'s work at all.
 
 ⚠️ **[`START-HERE.md`](../START-HERE.md) §4 constrains the ticket order** and a session that finds it
 late will re-order its own work: ADR 0001's vertical slice comes first, the `noScripts` smoke test is
@@ -1339,6 +1421,44 @@ four.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **A negative assertion over a whole HTML document is almost never an assertion about the
+  screen.** Measured 2026-09-12 while writing `test/e2e/stats.test.ts`: `expect(document).not
+  .toContain('%')` — meant as *the ratios are suppressed* — fails on a document that suppresses them
+  correctly, because the *shell* renders `href="/vet?from=%2Fstats"` and the inlined tokens carry
+  `rgb(70 52 30 / 7%)`. The same shape **passes** for the opposite reason: had the encoded `%`
+  not been there, the assertion would have been satisfied by any document with no percent sign in it,
+  including one that failed to render the grid at all. ⚠️ **The fix is to name the thing that must be
+  absent** — the test asserts `not.toContain('74%')`, which is what fourteen of nineteen would have
+  rendered as. **The class is wider than this file**: a `not.toContain` over markup is an assertion
+  about a haystack, and the same tier's `not.toContain('<script')` only escapes it because that
+  needle cannot occur innocently.
+- ⚠️ **Two joined tables that share a column name turn § Carrying's bare-identifier finding from a
+  wrong answer into a wrong table.** The measured drizzle-orm 0.45.2 behaviour is below — a column
+  interpolated into a `sql` template emits an **unqualified** identifier. On `/stats`'s duration
+  query that matters more than it did on Ingest's counts, because `source` **and** `ingestion` both
+  have a `submitted_at`: interpolating `reviewLog.receivedAt` into a `min()` is safe, because only
+  `review_log` has a `received_at`, and interpolating `source.submittedAt` would not be —
+  `"submitted_at"` unqualified is whichever one the planner resolves it to.
+  `server/utils/stats/queries.ts` selects that column through the query builder and says so at the
+  line. **The rule to carry: interpolate a column into `sql` only in a single-table query, or check
+  that the name is unique across every table in the join.**
+- ⚠️ **Suppression is a fact about the screen, not about the arithmetic, and building it the other
+  way makes it untestable** ([ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-as-a-pair.md)).
+  `shared/metrics/stats.ts` computes all four ratios whether or not they will be shown;
+  `app/components/StatsFigures.vue` is the only file that reads `suppressed`, which is what keeps
+  `S10`'s only branch to one `if`. The obvious alternative — return `null` below twenty — moves the
+  branch into the seam, and `11` §3 wants it asserted at **nineteen and twenty**, which is exactly
+  what a seam that has already thrown the value away cannot show.
+- ⚠️ ***Time-to-first-review* joins through `note.origin_ingestion_id`, and `occurrence` is the wrong
+  link even though the schema calls `occurrence` the positional one** (ADR 0057).
+  `server/utils/ingest/queries.ts` says "**the *occurrence* is the positional link**" and it is right
+  about *where a note appears*; this metric is about *what a source generated*, which `CONTEXT.md`
+  states in those words — *the first card **generated from** it*. Joining through `occurrence` lets a
+  *source* inherit a *review* of a *card* some earlier *source* already paid for, which flatters the
+  number and can date it before the paste. ⚠️ **And it is `received_at`, never `reviewed_at`**: `03`
+  §12 wants both instants on the same clock, and the client stamp gives a **negative** duration on a
+  laptop an hour fast.
 
 - ⚠️ **A retry is not a second event, and every append-only table has to be told which it is
   looking at.** `11` §3's *a second flag on the same card is a second row* and ADR 0007's *the outbox
@@ -1426,6 +1546,11 @@ Nothing.
   wrong under the other reading.
 
 - ⚠️ **The *acceptance rate* arithmetic is a pure module and Stats must not re-derive it in SQL.**
+  ⚠️ **Held 2026-09-12 by #14**, and the bullet was one word too narrow: `shared/metrics/stats.ts`
+  **imports** `acceptanceRate` and `notesGenerated`, and a second copy in TypeScript would have been
+  the same failure as a copy in SQL, with a shorter fuse and a prettier diff. The counts are
+  `server/utils/stats/queries.ts`'s; the rate is still #11's. The original follows, because the SQL
+  shape is the one that looks most reasonable:
   `shared/metrics/acceptance.ts`, added 2026-09-12 by #11, holds the numerator rule (`S6`: an edited
   accept is an **edit**) and the denominator rule (*notes generated*, which includes every *pending
   note*). ⚠️ **Both of the ways to get it wrong bias the number the same direction — up** — and

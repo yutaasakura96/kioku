@@ -906,6 +906,16 @@ Plex Mono `--k-ink-secondary` line beneath the figure reading `laptop`. Figures 
 laptop are not comparable across ADR 0022's move, and putting it on the row rather than in a
 paragraph is what stops a future session averaging across the boundary.
 
+⚠️ **Amended 2026-09-12 by #14: the criterion is per *source* and this table gives it one slot, and
+nothing here said which scalar.** It is the **median across *sources***, and a *source* whose *cards*
+have never been reviewed is **excluded** rather than counted as a long one —
+[ADR 0057](adr/0057-time-to-first-review-is-a-median-over-the-sources-that-have-one.md). A mean would
+let one *source* pasted on a Friday and studied on Wednesday push the figure past the criterion's own
+ten-minute boundary while every *source* the reader actually used came back in eight minutes. ⚠️ The
+line beneath the figure carries **every** environment behind the measured durations, joined with
+`·` — two names mean the figure already spans ADR 0022's move, which is the state the line exists to
+make visible.
+
 ### 8.2 The suppressed state — under twenty vetted *notes*
 
 PRD §4 and `S10`: raw counts, ratios suppressed, **and a line saying why**. This is the state Stats is
@@ -916,6 +926,26 @@ percentage** — `4 / 17`, in the same 38px Newsreader 300. Not hidden, not dash
 see the numbers accumulating toward the threshold. Beneath the grid, `20px` down, a 13px Newsreader
 italic aside in `--k-ink-secondary`: `Ratios appear at twenty vetted notes. A rate over seventeen is
 noise.`
+
+⚠️ **Amended 2026-09-12 by #14: what the pair is, for all four.** Two of the four columns are
+percentages with an obvious numerator and denominator; the other two are **medians**, and a median
+has no pair. The rule is `have / possible` — **how much evidence stands behind the figure being
+withheld** ([ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-as-a-pair.md)):
+
+| Column | `have` | `possible` |
+| --- | --- | --- |
+| `ACCEPTANCE RATE` | unedited accepts | *notes generated* |
+| `FALSE-ACCEPT RATE` | flags | accepted *notes* |
+| `SECONDS PER NOTE` | unedited accepts carrying a `seconds_to_vet` stamp | unedited accepts |
+| `TIME TO FIRST REVIEW` | *sources* with a first *review* | *sources* ingested |
+
+For the two percentages this is exactly the `4 / 17` above. For the two medians it answers the
+question the suppressed state is for — *how thin is this* — and **it is also what makes ADR 0057's
+exclusion visible**: a median over the two *sources* the reader studied, out of five they pasted,
+reads `2 / 5`.
+
+⚠️ `NOTES VETTED` is **never** suppressed. It is the count the boundary is measured on, and how the
+reader watches it approach twenty.
 
 ### 8.3 The ledger
 

@@ -397,7 +397,18 @@ make Stats the landing route.
 
 ⚠️ ***Time-to-first-review* carries `worker_environment` on the number itself** (`04` §6.1). Figures
 measured against a laptop are not comparable across ADR 0022's move, and recording that on the row
-rather than in a paragraph is what stops a future session averaging across the boundary.
+rather than in a paragraph is what stops a future session averaging across the boundary. ⚠️ **Amended
+2026-09-12 by #14:** the criterion is per *source* and the screen has one slot, so the figure is the
+**median across *sources***, with an unstudied *source* excluded
+([ADR 0057](adr/0057-time-to-first-review-is-a-median-over-the-sources-that-have-one.md)) — and the
+line beneath it names **every** environment behind the measured durations, not one of them.
+
+⚠️ **Amended 2026-09-12 by #14: the link from a *source* to its *cards* is
+`note.origin_ingestion_id`, not `occurrence`.** `CONTEXT.md` says *the first card **generated from**
+it*, and an *occurrence* is a sighting of a *note* some earlier *source* already paid to generate —
+so the *occurrence* join would let a *source* inherit a *review* of a *card* that existed before it
+was pasted. And it is `review_log.received_at`, never `reviewed_at`: `03` §12 wants both instants on
+the same clock, and on a laptop an hour fast the client stamp gives a **negative** duration.
 
 ### 4.11 `S11` — Find out where a card came from, and get rid of it
 

@@ -4,6 +4,7 @@
 // for the same reason as `session.d.ts` (`08` §6.2).
 
 import type { RunRow, SourceDetail, SourceRow, StartBlockCounts } from '../utils/ingest/queries'
+import type { StatsData } from '../utils/stats/queries'
 
 /**
  * A lazy reader over the *places*' data. Every member is a function: a `POST /`
@@ -20,6 +21,13 @@ interface PlaceReader {
   sourceTitle: (id: string) => Promise<string | null>
   /** One *source*, readable — `10` §7.2's first half. */
   sourceDetail: (id: string) => Promise<SourceDetail | null>
+  /**
+   * `S10`'s six figures and the spend ledger — `10` §8.
+   *
+   * ⚠️ **Lazy like the rest of this reader.** Stats is five sequential reads
+   * and a ledger; the other two *places* must pay for none of it.
+   */
+  stats: () => Promise<StatsData>
 }
 
 /**

@@ -1359,6 +1359,22 @@ cannot be mistaken for anything.
 **Revisit if** a second screen needs browser storage and the reactive wrapper starts paying for
 itself — at which point the decision is the dependency, not the naming.
 
+### [2026-09-12] Time-to-first-review is a median over the sources that have one
+
+The criterion is defined per *source* and `10` §8.1 gives it one slot; it is the **median** across
+*sources*, and a *source* whose *cards* have never been reviewed is **excluded** rather than counted
+as a long one. A mean would let one *source* studied a week later push the figure past the
+criterion's own ten-minute boundary while every *source* the reader used came back in eight minutes.
+→ [ADR 0057](adr/0057-time-to-first-review-is-a-median-over-the-sources-that-have-one.md)
+
+### [2026-09-12] A suppressed ratio shows the evidence behind it, as a pair
+
+Below twenty vetted *notes* each of `S10`'s four ratios shows `have / possible` — the two raw counts
+the withheld figure would have been computed from — including the two that are medians, where a
+sample count alone would drop the half that matters. ⚠️ Every ratio is computed whether or not it
+will be shown; suppression is a fact about the screen, not about the arithmetic.
+→ [ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-as-a-pair.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

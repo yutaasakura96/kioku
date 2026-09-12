@@ -27,6 +27,7 @@ import {
   sourceTitle,
   startBlockCounts,
 } from '../utils/ingest/queries'
+import { statsData } from '../utils/stats/queries'
 import { useDatabase } from '../db'
 
 /** The three *places* — `10` §3, ADR 0013. */
@@ -70,5 +71,6 @@ export default defineEventHandler((event) => {
     sources: () => allSources(db),
     sourceTitle: (id: string) => sourceTitle(db, id),
     sourceDetail: (id: string) => sourceDetail(db, id),
+    stats: () => statsData(db, ownerId),
   }
 })
