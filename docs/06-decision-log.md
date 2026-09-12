@@ -1271,6 +1271,52 @@ and `note_vetting` is personal, so **any** acceptance freezes the fields — the
 rule would let a second reader rewrite the first reader's *cards* under them.
 → [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md)
 
+### [2026-09-12] The end screen's four figures are the four grades
+`10` §5.6 asks for the *session tally*'s four equal columns and never says which four. They are the
+*grade* distribution — `FORGOT` · `HARD` · `GOOD` · `EASY` — because it is the only set of four the
+run actually produces, and because the *progress rail* above already says how long the run was.
+→ [ADR 0053](adr/0053-the-end-screens-four-figures-are-the-four-grades.md)
+
+### [2026-09-12] `review_session.size` is what was composed, not what the knob asked for
+
+**Decision:** the knob is a **cap**. A reader with seven *cards* available and a *session* size of
+twenty gets `review_session.size = 7` and seven rows of `review_session_card`, not twenty of one and
+seven of the other.
+
+**Alternatives considered:** storing the requested size and letting the membership be shorter. It
+reads more faithfully — the column would then mean *what the reader asked for* — and it is what a
+naive reading of `04` §7.6's "the one knob" suggests.
+
+**Reason:** `04` §14 makes the *progress rail*'s length `review_session.size` and the rail is the
+only progress indicator in the application. Thirteen ticks that can never fill would be it promising
+work that does not exist, on the one screen whose whole thesis is that the reader can see the end
+(`S7`). `04` §7.7's `size` rows of membership is the same statement from the other side. The
+requested size is not lost either — it is the number in the knob, which is client state on the screen
+that offers it (`10` §5.8).
+
+**Revisit if** a daily new-*card* cap arrives (`L4`), which would make *asked for* and *composed*
+differ routinely rather than only at the bottom of a queue — at which point the difference is worth a
+column rather than a paragraph.
+
+### [2026-09-12] A card's first scheduling epoch is minted by the grade, not by the composition
+
+**Decision:** `resumeOrCompose` writes `review_session` and `review_session_card` and **no**
+`scheduling_epoch`. The first epoch is written by the first *grade*, inside the same transaction as
+its `review_log` row.
+
+**Alternatives considered:** minting the epoch when the *card* is composed into a *session* — which
+is the literal reading of § Carrying's "the first epoch belongs to the *session* that first schedules
+the *card*", and would make the due query uniform by giving every *card* an epoch.
+
+**Reason:** a composed *session* can be abandoned, so composition is not scheduling — an epoch minted
+there would be a *card* carrying a memory state for a review that never happened, and
+`scheduling_epoch.card_id` is `RESTRICT` (`04` §9), so it would also put a *card* the reader never
+answered out of ADR 0033's reach. The rule generalises: **the epoch is written by the thing that
+produces a `review_log` row, and by nothing else.**
+
+**Revisit if** a *card* ever needs a scheduling state before it is answered — a per-*card* deferral,
+or a burial — at which point an epoch with `reps = 0` is a real state rather than a placeholder.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

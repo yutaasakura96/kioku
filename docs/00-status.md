@@ -3,17 +3,20 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**52 ADRs**, eleven documents, an empty frontier, and **seven open issues** on the tracker — #1 the
-spec, #5, #11 (which closes when this work merges), #12–#14, and **#15, which #9 found and did not
-fix**.
-**#2 through #11 are built.** ⚠️ **The frontier is
-[#12](https://github.com/yutaasakura96/kioku/issues/12) alone** — *review*. There is a schema, a
-door, a *subject* declaration both toolchains read, a reader who can paste two pages of Japanese and
-get control back, a worker that wakes up and claims the job, a pipeline that turns that paste into
-*pending notes* one *chunk* at a time, and a reader who can see one, judge it in a keystroke, and
-mint a *card* by doing so — **whose fields are now frozen by a guard rather than by nobody having
-asked.** What nothing does yet is **review** one: `card` rows exist with no *scheduling epoch* under
-them, which is #12's.
+**53 ADRs**, eleven documents, an empty frontier, and **five open issues** on the tracker — #1 the
+spec, #5, #13, #14, and **#15, which #9 found and did not fix** (#12 closes when this work merges).
+⚠️ **This said *seven* and counted #11 among them until 2026-09-12** — #11 closed on the tracker the
+moment `f4bfa47` merged, which is the same sentence that predicted it. It was the fifth stale number
+in a row and § Next names the pattern.
+**#2 through #12 are built.** ⚠️ **The frontier is
+[#13](https://github.com/yutaasakura96/kioku/issues/13) alone** — *the outbox, and the `S9` flag*.
+There is a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two
+pages of Japanese and get control back, a worker that wakes up and claims the job, a pipeline that
+turns that paste into *pending notes* one *chunk* at a time, a reader who can see one, judge it in a
+keystroke, and mint a *card* by doing so — whose fields are frozen by a guard rather than by nobody
+having asked — and, since 2026-09-12, **a bounded *session* of those *cards* that ends.** What
+nothing does yet is **survive the network**: a *grade* is posted as it is given rather than queued,
+so a tunnel loses it, and `X` has no key. Both are #13's.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -22,6 +25,80 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #12 — the session composer, the snapshot and four grades, 2026-09-12.** **A *card* can be
+reviewed.** `/review` composes a bounded *session* due-first, snapshots it server-side, prefetches it
+whole, and takes four *grades* under a *progress rail* that knows its own length. `ts-fsrs` 5.4.2 is
+in the manifest and `shared/review/scheduler.ts` is the only file that imports it.
+
+**Suite: 549 TypeScript** (was 412) **plus 200 pytest.** Typecheck and build clean.
+⚠️ **`CLAUDE.md`'s command block said 293** — written at #6 and never touched since, the sixth
+consecutive stale number. It says 549 now.
+
+**The two seams `11` §8 named are built and both went red under sabotage.**
+`shared/review/compose.ts` is `compose(due, new, size) → ordered card ids` — due-first, most-overdue
+first, new *cards* filling the remainder, a *card* once (`04` §7.7). ⚠️ **Queue ordering, new-*card*
+introduction and daily caps are the app's job and explicitly not the scheduler's** (`03` §8,
+verification §1.4), which is why the ordering lives in a pure function rather than in the `ORDER BY`
+that also has to have it: in the schema tier a wrong order reads as a fixture problem.
+`shared/review/scheduler.ts` is the FSRS wrapper — the mapping to and from `scheduling_epoch` and
+`review_log`, and the configuration. **Turning `enable_short_term` back on reddens six of its
+eighteen tests**, which is the point: the regression it guards is invisible for months and then
+arrives as a worse retention curve.
+
+⚠️ **The first *scheduling epoch* is minted by the *grade*, not by the composition** — and the
+literal reading of § Carrying's own sentence would have put it at compose time. A composed *session*
+can be abandoned, so composition is not scheduling: an epoch written there is a memory state for a
+review that never happened, and `scheduling_epoch.card_id` is `RESTRICT`, so it would also put a
+*card* the reader never answered out of ADR 0033's reach. **The rule that generalises is: the epoch
+is written by the thing that produces a `review_log` row, and by nothing else.** Recorded in
+`06-decision-log.md`.
+
+⚠️ **`review_session.size` is what was composed, not what the knob asked for.** The knob is a cap. A
+reader with seven *cards* and a size of twenty gets a rail of seven, because `04` §14 makes the
+rail's length `review_session.size` and thirteen ticks that can never fill would be the only progress
+indicator in the app promising work that does not exist. Also in the decision log.
+
+⚠️ **`10` §5.6 asks for four figures and never says which four**, so #12 chose them and wrote down
+why: they are the *grade* distribution
+([ADR 0053](adr/0053-the-end-screens-four-figures-are-the-four-grades.md)). Every *card* ends as
+exactly one of four values, so the distribution is a partition of the run rather than a selection
+from it; the rail above already says how long the run was, so a `REVIEWED` column would restate it in
+38px type; and a ratio would be the first one shipped outside `S10`'s suppression boundary, which is
+#14's. `SessionTally.vue` is `10` §11's "one component with a column count, not two".
+
+⚠️ **`/code-review` found the criterion that the code claimed and did not have.** #12's thirteenth
+criterion is *a note edited mid-session shows the old text* (PRD §5), and the file comment said the
+mechanism was the prefetch — while every *grade* was answered with a fresh snapshot that the client
+installed **wholesale**, and `snapshotOf` reads `note.fields` live because `04` §7.7 snapshots
+membership and nothing else. So an edit would have reached the remaining positions on the next
+*grade*. `shared/review/snapshot.ts`'s `mergeGrades` is the fix and the seam: **an answer moves the
+*grades* and never the words.** ⚠️ **It is unreachable today and that is the reason it is built** —
+an accepted *note*'s fields are frozen against every writer (ADR 0052) and a *card* exists only for
+an accepted *note*, so **the freeze is currently doing the prefetch's job**, and the day `S9`'s
+re-vetting lifts it the rule has to be already true.
+
+⚠️ **Three things `10` §5 draws that #12 deliberately does not.** `X` — the `S9` flag — has no key
+and no legend line, because it writes four rows in one transaction and rides the outbox, both #13's,
+and **a legend naming a key that does nothing is worse than no legend**. `03` §8.2's grade validator
+(future-skew, before-snapshot) is #13's named seam, so the *grade* endpoint records
+`clock_skew_seconds` rather than judging it. And the *session* resumes from the **server** rather
+than from `localStorage` — ADR 0014's storage is the outbox ticket's. What #12 *did* build from that
+neighbourhood: `10` §5.3's flagged tick, because the rail's vocabulary is four states and a component
+that knew three is a thing #13 would have to rediscover; and `10` §5.6's unsent-grades notice with
+its `/auth` link, because a *grade* that does not land has to be surfaced rather than swallowed
+(`09` §4.8) even before there is a queue to retry it from.
+
+⚠️ **CONTEXT.md puts *rating* on *Grade*'s `_Avoid_` list, and the first draft used it throughout.**
+Caught by review. The application says *grade* everywhere it speaks for itself; `rating` survives in
+exactly two places and both are quotations — `review_log.rating`, which is `04` §7.5's column, and
+`ts-fsrs`'s own `Rating`.
+
+⚠️ **The lockfile carries 140 lines that are not this change.** npm 11.3.0 normalises metadata the
+committed lockfile was written without — `libc` arrays dropped from ~25 rollup entries,
+`devOptional` rewritten to `dev` on ~20 esbuild ones. It is disclosed rather than reverted: a revert
+is a lockfile the next `npm install` on this machine rewrites again, and the one line that matters is
+`ts-fsrs` 5.4.2.
 
 **Phase 6, #11 — the freeze, the contradiction, and the arithmetic, 2026-09-12.** **#11 was three
 things, and one of them was a contradiction rather than work.** #10 could not render a *mode*
@@ -902,7 +979,7 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 12`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 13`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
@@ -921,8 +998,12 @@ is #7 alone.~~ ~~**⚠️ #7 built 2026-09-11.** The frontier is #8 alone.~~
 ~~**⚠️ [#10](https://github.com/yutaasakura96/kioku/issues/10) built 2026-09-12. The frontier is
 [#11](https://github.com/yutaasakura96/kioku/issues/11) alone** — *the note as presented, and the
 edit path*.~~
-**⚠️ [#11](https://github.com/yutaasakura96/kioku/issues/11) built 2026-09-12. The frontier is
-[#12](https://github.com/yutaasakura96/kioku/issues/12) alone** — *review*.
+~~**⚠️ [#11](https://github.com/yutaasakura96/kioku/issues/11) built 2026-09-12. The frontier is
+[#12](https://github.com/yutaasakura96/kioku/issues/12) alone** — *review*.~~
+**⚠️ [#12](https://github.com/yutaasakura96/kioku/issues/12) built 2026-09-12. The frontier is
+[#13](https://github.com/yutaasakura96/kioku/issues/13) alone** — *the outbox, and the `S9` flag*.
+**This line was written in the same commit as the work it describes**, which is the whole of the fix
+for the pattern above.
 
 ~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
 ticket.**~~ **All three of its remaining items are closed** — the contradiction in
@@ -930,7 +1011,43 @@ ticket.**~~ **All three of its remaining items are closed** — the contradictio
 freeze in [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md),
 and the arithmetic in `shared/metrics/acceptance.ts`. See § Done.
 
-⚠️ **#12 inherits four things, and the first is the one that costs if it is missed:**
+⚠️ **#13 inherits five things, and the first two are what #12 left it on purpose:**
+
+- ⚠️ **`X` has no key, no legend line and no handler — and the rail already has its mark.** `10`
+  §5.1 puts `X — flag` in the footer in both faces and #12 draws neither, because the keystroke
+  writes four rows in one transaction (`04` §7.8) and rides the same outbox as a *grade*. What is
+  built is `10` §5.3's **flagged tick** in `ProgressRail.vue` — 2px rather than 6px, the graded fill,
+  *height and not colour* because ADR 0024 left this palette no grey to spare. So #13 supplies the
+  key and the transaction and changes nothing in the rail.
+- ⚠️ **A *grade* is posted as it is given, and `apply()` is the shape the outbox slots into.**
+  `app/pages/review.vue` already paints on the keystroke and never waits (`S8`): the *grade* goes
+  into a local `given` map, the next *card* renders from the snapshot the client holds, and the
+  request is chained behind the last one so two answers cannot land out of order. **What is missing
+  is only durability** — a failed request increments `unsent` and the end screen says so (`09`
+  §4.8), which is the surfacing rule already met and the retry not built. `03` §8.2's validator is
+  #13's named seam (`11` §8) and the *grade* endpoint currently **records** `clock_skew_seconds`
+  without judging it.
+- ⚠️ **`mergeGrades` is the rule the outbox must not break.** `shared/review/snapshot.ts`: a server
+  answer moves the *grades* and never the words, because `snapshotOf` reads `note.fields` live and
+  the run is meant to be prefetched as a unit (PRD §5). A replay that installs a fresh snapshot
+  wholesale reintroduces exactly the defect review caught in #12 — and `localStorage` (ADR 0014)
+  makes it reachable in a second way, because a resumed run would then be reading the database's
+  text over the snapshot's.
+- ⚠️ **A committed `review_log` row cannot be deleted, and the e2e tier is where that bites.**
+  `04` §7.5's trigger refuses the `DELETE`, so `test/e2e/review.test.ts` cannot clean up between its
+  two runs and gives each one **its own *card*** instead. § Carrying has carried this since #8 as a
+  worker-fixture problem; it is a browser-fixture problem too, and the first `beforeAll` that tries
+  to reset a graded *session* fails with the trigger's own message.
+- ⚠️ **The *session* resumes from the server, and `09` §4.7 step 2 says `localStorage` first.** #12
+  built the durable half: `POST /api/review/session` resumes the live run — the newest with a null
+  `completed_at` and something ungraded — and composes only when there is none. ADR 0014's snapshot
+  in browser storage is #13's, and it goes **in front** of this rather than instead of it.
+
+~~⚠️ **#12 inherited four things, and the first is the one that costs if it is missed:**~~
+**All four held.** The epoch really did belong to the *grade* rather than to the acceptance, the
+wrapper really was the seam, the freeze really did refuse the one rewrite that would have mattered,
+and #15 really is still in front of *Review* on the screen. Kept because each is still the shortest
+statement of a thing #13 may need:
 
 - ⚠️ **The first *scheduling epoch* belongs to the *session* that first schedules the *card*, and
   not to acceptance.** `scheduling_epoch.card_id` is `RESTRICT` (`04` §9), so an epoch minted at
@@ -1095,6 +1212,26 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **An answer to a *grade* moves the *grades* and never the words.**
+  `shared/review/snapshot.ts`'s `mergeGrades`, added 2026-09-12 by #12 after `/code-review` found the
+  criterion the code claimed and did not have. Every *grade* is answered with a fresh snapshot so the
+  client's counts cannot drift from the database — and `snapshotOf` reads `note.fields` **live**,
+  because `04` §7.7 snapshots membership and nothing else. **Installing that answer wholesale
+  re-reads the text mid-run**, which is PRD §5's *a note edited mid-session shows the old text*
+  failing quietly, on a screen whose whole contract is that the run was decided once.
+  ⚠️ **It is unreachable today and that is why it is written down rather than left to the freeze:**
+  an accepted *note*'s fields are frozen against every writer (ADR 0052) and a *card* exists only for
+  an accepted *note*, so the freeze is doing the prefetch's job — and `S9`'s re-vetting (#13) is
+  where lifting it gets argued. **`localStorage` makes it reachable a second way**: a resumed run
+  that rehydrates from the database would be reading the new text over the snapshot's.
+- ⚠️ **`review_session.size` is what was composed, not what the reader asked for**, and the two look
+  identical until the queue runs short. The knob is a **cap** (`06-decision-log.md`, 2026-09-12):
+  `04` §14 makes the *progress rail*'s length `review_session.size` and `04` §7.7 holds `size` rows,
+  so a reader with seven *cards* and a knob at twenty gets a rail of seven. **Anything that later
+  reads `size` as an intention rather than as a count is wrong** — a *session* completion rate on
+  Stats (#14) computed as *graded ÷ size* is correct only because of this, and would be silently
+  wrong under the other reading.
+
 - ⚠️ **The *acceptance rate* arithmetic is a pure module and Stats must not re-derive it in SQL.**
   `shared/metrics/acceptance.ts`, added 2026-09-12 by #11, holds the numerator rule (`S6`: an edited
   accept is an **edit**) and the denominator rule (*notes generated*, which includes every *pending
@@ -1127,8 +1264,12 @@ Nothing.
   true of the socket), so four concurrent reads make `node-postgres` open four connections and the
   server resets three. The route answers `500`; the browser shows an empty screen; **nothing in the
   test output names the cause**, and production would have been fine. `server/utils/vet/queries.ts`
-  runs its four reads sequentially and says why. **#12 composes a *session* out of several reads and
-  will meet this on its first browser test.**
+  runs its four reads sequentially and says why. ~~**#12 composes a *session* out of several reads
+  and will meet this on its first browser test.**~~ ⚠️ **#12 did not meet it, because it was written
+  down here.** `server/utils/review/queries.ts` and `server/utils/review/session.ts` are sequential
+  by construction and both cite this bullet — six reads compose a *session* and none of them raced.
+  **That is the bullet working rather than the finding being wrong**, and it is worth saying which,
+  because a prediction that never fires reads afterwards like a prediction that was not needed.
 - ⚠️ **`04` §7.1's idle sweep runs on the next read and therefore not at all while nobody is
   looking** ([ADR 0050](adr/0050-the-idle-sweep-runs-on-the-next-read-because-there-is-no-scheduler.md)).
   A run abandoned by a reader who never comes back stays open, so a *rejection* inside it stays
@@ -1161,6 +1302,13 @@ Nothing.
   prose read at length*. `app/components/VetNote.vue` holds a three-entry map with a fallback and
   says it is standing in for something. **A second *subject* closes it in the declaration** (ADR
   0003), not in a second map — and `10` §4.4 now carries the amendment.
+  ⚠️ **Amended 2026-09-12 by #12: there are two maps now, and this bullet said *not in a second
+  one*.** `app/components/ReviewCard.vue` has its own — `roleOf`, four field names to four entries in
+  the ramp, plus a two-name set for the `:lang` hook. It is the same gap seen from the other *mode*:
+  `10` §5.4 says "the *meaning* at 36px Newsreader 300" and "the example at 22px Mincho", which are
+  field names rather than roles. **The instruction has not changed and is now worth more** — the
+  declaration is where this closes, and a second map is evidence that a third is coming rather than a
+  reason to keep writing them.
 
 - ⚠️ **The reading half of ADR 0006's *identity key* is the *surface*'s reading, so one word becomes
   several *notes*** — [#15](https://github.com/yutaasakura96/kioku/issues/15), found by #9 and
@@ -1217,7 +1365,11 @@ Nothing.
   tables short, and `review_log`'s `BEFORE DELETE` trigger fires. **A comment was standing in for a
   guard for a day; `test_scratch_cleanup.py` is the guard.**
 - ⚠️ **A committed `review_log` row can never be deleted, so a test that writes one poisons every
-  later test in the session.** `04` §7.5's trigger refuses the `DELETE`, which refuses
+  later test in the session.** ⚠️ **Amended 2026-09-12 by #12: it is not only the worker's
+  fixtures.** `test/e2e/review.test.ts` grades a *card* in its first run, and its second `beforeAll`
+  cannot reset the tier by deleting the rows it wrote — the trigger refuses with its own message, in
+  the tier where the failure looks like a broken harness. **Each run takes its own *card* instead**,
+  which is the only cleanup that exists for this table: none. `04` §7.5's trigger refuses the `DELETE`, which refuses
   `scheduling_epoch`, which refuses `card`, which refuses `note` — and `note` is in the fixture's
   cleanup list. `test_scratch_cleanup.py` runs its whole assertion inside a transaction it rolls back
   (`psycopg.Rollback`, with an inner savepoint for the refusal it expects). **The one table worth

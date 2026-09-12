@@ -43,7 +43,7 @@
       "allowedVersions": "<3.0.0"
     },
     {
-      "description": "PIN 4/6 \u2014 ts-fsrs 5.4.2. 6.0.0 removes `elapsed_days` (verification \u00a71.2). `04` builds no column on it so the major is survivable, but it is a data review rather than a version bump. Arrives with #12.",
+      "description": "PIN 4/6 \u2014 ts-fsrs 5.4.2. 6.0.0 removes `elapsed_days` (verification \u00a71.2). `04` builds no column on it so the major is survivable, but it is a data review rather than a version bump. Arrived with #12, 2026-09-12: `shared/review/scheduler.ts` is the only file that imports it, and the mapping there is what keeps the removed field out of `scheduling_epoch` and `review_log`.",
       "matchPackageNames": [
         "ts-fsrs"
       ],

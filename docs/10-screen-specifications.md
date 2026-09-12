@@ -570,6 +570,13 @@ Top to bottom:
 
 1. **The *session tally*** — `05` §7 unchanged: four equal columns `8px` apart, a 10px Plex Mono
    eyebrow at 0.14em in `--k-ink-secondary`, `8px` down a 38px Newsreader 300 figure in `--k-ink`.
+   ⚠️ **Amended 2026-09-12 with [#12](https://github.com/yutaasakura96/kioku/issues/12): the four
+   are the *grade* distribution** — `FORGOT` · `HARD` · `GOOD` · `EASY`, one count each
+   ([ADR 0053](adr/0053-the-end-screens-four-figures-are-the-four-grades.md)). This section asked for
+   four columns and never said which four, and eleven documents name no candidate set. The
+   distribution is the only set of four the run actually produces — every *card* ends as exactly one
+   of them (ADR 0016, ADR 0034) — and the rail above already says how long the run was, so a
+   `REVIEWED` column would restate it in 38px type.
 2. **⚠️ The unsent-grades notice**, `32px` down, and only when there is something to say. `09` §4.8
    requires it and nothing had drawn it: a flush that answers 401 is not a network error, and `03`
    §8.2's rejected *grades* are surfaced rather than dropped. 15px Newsreader, `--k-ink`, with the

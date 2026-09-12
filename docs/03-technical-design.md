@@ -758,6 +758,13 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
   year, and it re-opens that question rather than inheriting the answer.
 - **`ts-fsrs` 5.4.2** — 6.0.0 removes `elapsed_days` (verification §1.2). `04` builds no column on
   it, so the major is survivable, but it is a data review rather than a version bump.
+  ⚠️ **Amended 2026-09-12 with [#12](https://github.com/yutaasakura96/kioku/issues/12), the commit
+  that gave this pin a manifest to live in.** `shared/review/scheduler.ts` is the whole of the
+  library's reach into this application: it is the only file that imports `ts-fsrs`, and it is what
+  keeps `elapsed_days` out of the database — the library's `Card` still requires the field at 5.4.2
+  and **the scheduler ignores whatever it is given**, recomputing it from `last_review` before any
+  outcome is built (measured 2026-09-12). So the 6.0.0 survivability is a property of one mapping
+  function rather than of a search across the codebase.
 - **`drizzle-orm` 0.45.2** — a **security floor**, not a preference: the version exists because of a
   SQL-injection fix in `sql.identifier()` / `sql.as()` (§13.2, verification §6.4). It is also what
   builds both test databases — 0.45.2 exports `./pglite/migrator` alongside

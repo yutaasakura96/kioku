@@ -532,7 +532,17 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   ours is the mapping to and from `scheduling_epoch`, and ⚠️ that **`enable_short_term` is off** and
   `enable_fuzz` is on (ADR 0016). A test that asserts grade 1 schedules **at least one day out**
   catches a configuration regression that would otherwise surface as a worse retention curve in six
-  months (verification §13.1).
+  months (verification §13.1). ⚠️ **Built 2026-09-12 with #12** — `shared/review/scheduler.ts` and
+  `test/unit/review-scheduler.test.ts`. Turning `enable_short_term` back on reddens **six** of that
+  file's tests rather than one, which is the shape the seam was chosen for: the configuration is
+  asserted directly *and* through what it makes every grade do.
+- ⚠️ **The *session* composer**, added 2026-09-12 with #12 — `compose(due, new, size) → ordered card
+  ids`, `shared/review/compose.ts`. **Queue ordering, new-*card* introduction and daily caps are the
+  app's job and explicitly not the scheduler's** (`03` §8, verification §1.4), so `S7`'s composition
+  rule has no other home: without this seam it is reachable only through the schema tier, **where a
+  wrong order reads as a fixture problem**. The bounds check beside it (`clampSessionSize`) is the
+  same function on both sides of the wire, because `10` §5.8 puts the knob on three screens and
+  `04` §7.6 puts a `CHECK` under all of them.
 - **The `from` allowlist.** Three strings; anything else falls back to `/` (ADR 0032). ⚠️ Test the
   attacks: `//evil.com`, `https://evil.com`, `/vet`, `/stats/../../x`, empty, absent.
 - **The grade validator** — `03` §8.2's future-skew and before-snapshot rules, as a pure function.

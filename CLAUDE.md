@@ -10,21 +10,25 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **eleven more ADRs** with it. ⚠️ **This paragraph said "there is still no
+code since 2026-09-09 and **fourteen more ADRs** with it. ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
-**What exists now:** #2 through #10 are built — a Nuxt app with the rendering split enforced by the
+**What exists now:** #2 through #12 are built — a Nuxt app with the rendering split enforced by the
 build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
-and **a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by
-doing so**. What nothing does yet is **review** a *card*: they exist with no *scheduling epoch* under
-them, which is #12's and is deliberate — an epoch minted at acceptance would make *Vet*'s undo
-impossible. **The commands:**
+a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by doing
+so, and — since 2026-09-12 — **a bounded *session* of those *cards* that ends**: composed due-first
+and snapshotted server-side, four *grades* under a *progress rail* that knows its own length, and a
+first *scheduling epoch* minted by the *grade* rather than by the acceptance, because
+`scheduling_epoch.card_id` is `RESTRICT` and an epoch at acceptance would kill *Vet*'s undo. What
+nothing does yet is **survive the network**: a *grade* is posted as it is given, so a tunnel loses
+it, and `X` — the flag that returns a bad *card* to the queue — has no key. Both are #13's.
+**The commands:**
 
 ```
-npm run test        # 293 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 549 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
