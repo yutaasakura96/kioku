@@ -1375,6 +1375,48 @@ sample count alone would drop the half that matters. ⚠️ Every ratio is compu
 will be shown; suppression is a fact about the screen, not about the arithmetic.
 → [ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-as-a-pair.md)
 
+### [2026-09-12] ⚠️ The connection experiments were run, and a pooled `LISTEN` fails silently
+
+**Decision** — a confirmation and a correction, both applied in place; no new ADR, because nothing
+was decided that was not already decided. A real Neon project (`kioku`, `small-hat-90514806`,
+Postgres 18.6) was provisioned and the two first-week connection experiments finally run.
+`psycopg.connect()` on the direct endpoint works on the **plain string as issued** in 597 ms, so
+ADR 0027's no-rewriting rule costs nothing and verification §9.1's documentary chain holds — with two
+numbers corrected there, libpq now 18.0.6 rather than 17.2 and psycopg 3.3.5. A **pooled**
+`pg_notify` **is** delivered to a **direct** `LISTEN` in 563 ms, which settles ADR 0043's open half in
+favour of PgBouncer's own matrix over Neon's coarser summary.
+
+⚠️ **The control run is the part worth carrying.** `LISTEN` issued on the *pooled* string is
+**accepted with no error and no warning**, and then silently receives nothing. `03` §4.1 predicted
+this in prose — "does not run slowly, it silently never wakes" — and it is now demonstrated. The
+whole defence is `worker/db.py:require_direct_url` refusing a `-pooler` hostname at startup.
+**Reason** it is recorded here rather than only in the ADR: the next person to meet that guard will
+meet it as an obstacle, with no failure in front of them to explain why it exists.
+**Revisit if** Neon changes what the pooled endpoint does with `LISTEN` — but note that a *louder*
+failure upstream would not retire the guard, it would only make the guard's message redundant.
+→ [ADR 0043](adr/0043-the-app-sends-the-wake-up-after-the-transaction-that-earned-it.md),
+[`phase-4-verification.md`](phase-4-verification.md) §9.1
+
+### [2026-09-12] ⚠️ A held `LISTEN` does not keep the Neon compute awake — it just dies with it
+
+**Decision** — a correction, applied in place; the design is unchanged and now measured. The
+scale-to-zero experiment was finally run. A held idle `LISTEN` **never advanced `last_active` at
+all**, and the compute suspended five minutes and nine seconds after the last real query, closing the
+socket. **`00-status.md`'s long-carried assertion — that a held listener keeps the compute awake and
+would exhaust the free month — was wrong in both halves**: it does not keep it awake, so it costs
+nothing, and it does not survive, which is the actual reason not to build on it.
+**Reason** this matters beyond tidying a note: ADR 0028's "the session ends routinely, by design" was
+read off a documentation sentence and is now a timestamp. `NOTIFY`-as-transport would lose jobs about
+twelve times an hour on an idle laptop.
+⚠️ **The operational half:** the failure is
+`psycopg.OperationalError: consuming input failed: SSL connection has been closed unexpectedly`, out
+of the `notifies()` generator. `worker/db.py`'s `CONNECTION_LOST` catches it, so `loop.py`'s
+reconnect works — verified against the real failure rather than the fake connection in
+`tests/test_reconnect.py`. **The reconnect path is the common case, not the exceptional one.**
+**Revisit if** the worker moves off Neon Free to ADR 0022's destination and the database stops
+suspending — which is ADR 0028's existing revisit condition, unchanged.
+→ [ADR 0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

@@ -652,9 +652,35 @@ pick one.
 
 Notification support, all confirmed: psycopg 3 has a blocking `notifies(timeout=...)` generator and
 works on a plain synchronous `Connection` in autocommit; asyncpg has `add_listener()` (async only);
-pg8000 exposes a `notifications` deque with no blocking API. **Not verified:** no live connection was
-made. The chain (libpq 17.2 → `sslsni=1` → Neon's stated libpq ≥ 14 rule) is documentary. One
-`psycopg.connect()` falsifies it cheaply.
+pg8000 exposes a `notifications` deque with no blocking API. ~~**Not verified:** no live connection
+was made. The chain (libpq 17.2 → `sslsni=1` → Neon's stated libpq ≥ 14 rule) is documentary. One
+`psycopg.connect()` falsifies it cheaply.~~
+
+**⚠️ Verified 2026-09-12 — the connection was made, and the chain holds.** Against the real `kioku`
+project (`small-hat-90514806`, `aws-ap-southeast-1`), `psycopg.connect()` on the direct endpoint with
+**the plain connection string as issued** — no `options=endpoint%3D…`, no hand-edited TLS parameters,
+exactly what ADR 0027 requires — connected in **597 ms cold**. `server_version_num` came back
+`180006` (Postgres 18.6) and `uuidv7()` evaluates, so `04`'s primary-key default is live rather than
+planned.
+
+Two numbers in the paragraph above are now stale and are corrected here rather than in place, because
+the reasoning that used them is still the reasoning:
+
+- **libpq is 18.0.6, not 17.2.** `psycopg.pq.version()` reports `180006`. `psycopg[binary]` has moved
+  a major version since this section was written. The inference is unaffected — the rule is libpq
+  ≥ 14 and 18 clears it by more than 17 did — but a future session comparing the number against the
+  page will find it does not match, and this is why.
+- **psycopg is 3.3.5**, comfortably above §9.1's own `≥ 3.2.4` floor for the lost-notification bug.
+  ⚠️ It is also above **3.2.10**, where mixing the `notifies()` generator with `add_notify_handler()`
+  started raising a runtime warning. `worker/loop.py` uses the generator and must keep using only
+  that one.
+
+⚠️ **One result that looks alarming and is not: `SHOW ssl` returns `off`.** Neon terminates TLS at
+its proxy and forwards to the compute behind it, so the backend GUC describes the proxy→compute leg
+and says nothing about the client leg — which is TLS, and which Neon rejects outright if it is not
+([Connect to Neon securely](https://neon.com/docs/connect/connect-securely)). **Do not "fix" this by
+adding TLS parameters to the connection string**; that is the exact hand-editing ADR 0027 forbids,
+and it would be done in response to a reading that means something else.
 
 ### 9.2 Scale-to-zero destroys the listener, and this corrects a Carrying note
 
@@ -665,6 +691,16 @@ restriction on `LISTEN`/`NOTIFY` — but it documents a lifecycle hazard, on the
 
 > notifications and listeners defined using NOTIFY/LISTEN commands only exist for the duration of
 > the current session and are lost when the session ends.
+
+⚠️ **Amended 2026-09-12 — "when the session ends" has a measured period, and it is five minutes.**
+An idle `LISTEN` held against the real `kioku` project **did not count as activity at all**:
+`last_active` stayed frozen at the last real query, the compute suspended 5m09s after it, and the
+subscription died with the socket
+(`psycopg.OperationalError: consuming input failed: SSL connection has been closed unexpectedly`).
+So the hazard above is not an edge case on this host — it is the normal five-minute cadence of an
+idle worker, and ADR 0028 now carries the timings. **This also closes §9's other open direction**:
+Neon documents what wakes a compute but not what prevents suspension, and the answer is that an open
+subscribed connection does not prevent it.
 
 ⚠️ **Amended 2026-09-11 with #7 — Neon's page summarises PgBouncer's matrix and the matrix is
 finer-grained than the summary.** Read directly

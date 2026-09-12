@@ -22,11 +22,42 @@ window between the query and the subscription in which a notification lands with
 
 ## This also settles a contradiction the project was carrying
 
-`00-status.md` asserted that a held listener keeps the Neon compute awake and would exhaust the free
+~~`00-status.md` asserted that a held listener keeps the Neon compute awake and would exhaust the free
 month. Neon documents what *wakes* an idle compute — connecting, querying, API access — but never
 states what *prevents* suspension, so that assertion is unverified in both directions
 (`phase-4-verification.md` §9). **This decision is correct whichever way it resolves**, which is the
-main reason to take it now rather than after the experiment.
+main reason to take it now rather than after the experiment.~~
+
+**⚠️ Amended 2026-09-12 — the experiment was run, and `00-status.md`'s assertion was wrong.** An idle
+`LISTEN` connection was held against the direct endpoint of the real `kioku` project and nothing else
+touched the database. The control-plane record is unambiguous:
+
+| | |
+| --- | --- |
+| Idle `LISTEN` held from | 08:21:46 UTC |
+| Last actual query (`last_active`) | **08:26:52 UTC** — and the held listener never advanced it |
+| Compute `suspended_at` | **08:32:01 UTC** — five minutes and nine seconds later |
+| Listener died between | 08:31:46 and 08:32:46, i.e. at suspension |
+
+**A held listener does not defer scale-to-zero.** It is not counted as activity at all: `last_active`
+stayed frozen at the last real query while the socket was open and subscribed. So the cost worry that
+rejected "a held daemon that never disconnects" was unfounded — but the *other* objection to it, that
+Neon does not confirm it would work, turns out to be the fatal one. **It does not work.** The
+suspension closes the socket and the subscription is gone.
+
+⚠️ **This decision is not merely still correct; it is correct for a measured reason now.** "The
+session ends routinely, by design" was read off Neon's documentation. It is now a timestamp: every
+five idle minutes, on the clock, and every notification fired in the gap is not delayed but gone. A
+design in which `NOTIFY` was the transport would lose jobs roughly twelve times an hour on an idle
+laptop.
+
+⚠️ **And the exception has a name, which the reconnect path already catches.** The failure surfaces
+as `psycopg.OperationalError: consuming input failed: SSL connection has been closed unexpectedly`,
+raised out of the `notifies()` generator. `worker/db.py`'s `CONNECTION_LOST` is
+`(psycopg.OperationalError, psycopg.InterfaceError)`, so `loop.py`'s "step 7, reconnect and resume at
+step 2" catches it — verified against the real failure rather than against a fake connection, which
+is all `tests/test_reconnect.py` could do. **The worker will take this path every five idle minutes
+in normal operation**; it is the common case, not the exceptional one.
 
 ## It is the pattern the project already uses twice
 

@@ -16,11 +16,19 @@ keystroke, and mint a *card* by doing so — whose fields are frozen by a guard 
 having asked — a bounded *session* of those *cards* that ends, a *session* that survives the network,
 and, since 2026-09-12, **numbers that get read**: `/stats` computes all six, suppresses the four
 ratios under twenty vetted *notes* and says why. ⚠️ **What is left is not code.** ADR 0037 makes
-`S3`'s median and `S10`'s ratios answerable by **a person, after twenty *notes***, and the three
-first-week experiments have still not been run (§ Next).
-⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
-in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
-and it is the one thing this file and the tracker disagree about.
+`S3`'s median and `S10`'s ratios answerable by **a person, after twenty *notes***. ⚠️ **Two of the
+three first-week experiments were run 2026-09-12 and both changed a document** (§ Next); the third is
+`S3`'s run itself, and it is the one no session can do.
+~~⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever
+signed in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is
+Yuta's call and it is the one thing this file and the tracker disagree about.~~
+⚠️ **Half paid 2026-09-12, and the half that is left is the half only a person can do.** There is now
+a **real database** — Neon project `kioku` (`small-hat-90514806`), Postgres 18.6,
+`aws-ap-southeast-1`, with all twenty-two tables migrated and `uuidv7()` live — and both `.env` files
+are written. What is still missing is the **Google OAuth client**, because creating one is a console
+visit with a consent screen, and the **Anthropic key**. [`scripts/first-run.sh`](../scripts/first-run.sh)
+walks both in five stages and writes the three values where they belong.
+⚠️ **Nobody has still ever signed in**, so #5 stays open. It closes on the run, not on this paragraph.
 **Updated:** 2026-09-12
 
 Read `CLAUDE.md` first, then this.
@@ -1389,7 +1397,12 @@ cheap and falsifies what the rendering split rests on, the first dependency mani
 the same commit, and three experiments block nothing. **The published tickets already honour all
 four.**
 
-**Three first-week experiments**, none blocking anything:
+**Three first-week experiments**, none blocking anything.
+⚠️ **Two of the three are done as of 2026-09-12 and the third is the one that needs a person.** Both
+infrastructure experiments were run against a real Neon project and both changed something written
+down: ADR 0043's open half is closed, ADR 0028's carried contradiction is resolved *against*
+`00-status.md`'s own old assertion, and verification §9.1 has two corrected numbers. **What is left
+on this list is `S3`'s run of twenty notes, and no session can do it.**
 
 - ~~**The `noScripts` smoke test.**~~ ⚠️ **Promoted to a test 2026-09-07** — `11` §6.1. It leaves
   this list. It was always three assertions plus a config check, and `@nuxt/test-utils`' `$fetch`
@@ -1397,6 +1410,10 @@ four.**
 - ⚠️ **`S3`'s first real run of twenty notes**, with a written-down expectation. **New here**, and it
   is an experiment rather than a test on purpose (ADR 0037): if the median comes back at eleven
   seconds that is the project learning something, and a red suite is the wrong way to be told.
+  ⚠️ **The written-down expectation now has somewhere to be written: `docs/first-run-expectation.md`,
+  created 2026-09-12 and unfilled.** Part 1 is filled **before** any Japanese is pasted and `/stats`
+  is not opened until it has values in it — a prediction recorded afterwards is not a prediction, and
+  the ordering is the only thing that makes this evidence rather than a reading.
   ⚠️ **It is now also the instrument for two decisions** — ADR 0044's candidate allowlist and
   ADR 0045's reading script. Both were decided with no real *source* to look at, and the rejected set
   is the evidence: a filter the allowlist should have made shows up as a cluster of rejections
@@ -1408,13 +1425,31 @@ four.**
   future-dated row*, which only helps if something then queries; that is the step that would amend
   step 6, and ADR 0028 and `tests/test_loop.py` both pin it. **The cap is thirty minutes so the gap
   stays small rather than closed.** The ticket that wants it closed owns the amendment.
-- **One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
+- ~~**One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
   live connection falsifies it cheaply. ⚠️ **A second line settles ADR 0043's open half** in the same
   session: `SELECT pg_notify('kioku_job','')` on the **pooled** string. PgBouncer's matrix says
   `NOTIFY` works in transaction pooling and Neon's summary says the pair does not; the worker is
-  correct either way, but one statement says which.
-- **Whether an idle `LISTEN` connection defers scale-to-zero.** Neon is silent. ADR 0028 holds either
-  way; this settles the *cost* question only.
+  correct either way, but one statement says which.~~
+  **⚠️ Both run 2026-09-12, and both leave this list.** Verification §9.1 and ADR 0043 carry the
+  numbers. The connect works on the plain string in 597 ms; a **pooled** `pg_notify` **is** delivered
+  to a **direct** `LISTEN` in 563 ms, so PgBouncer's matrix wins over Neon's summary and the
+  production wake-up path is real rather than planned. ⚠️ **The control run is the finding worth
+  carrying**: `LISTEN` on the *pooled* string is **accepted with no error** and then receives
+  nothing — `03` §4.1's silent-never-wakes, demonstrated. `worker/db.py:require_direct_url` is the
+  only thing between that config error and a queue that is never drained; it is load-bearing and must
+  not be softened into a warning.
+- ~~**Whether an idle `LISTEN` connection defers scale-to-zero.** Neon is silent. ADR 0028 holds
+  either way; this settles the *cost* question only.~~
+  **⚠️ Run 2026-09-12, and it settled more than the cost question. It does not defer it.** The held
+  listener never advanced `last_active` at all — frozen at the last real query — and the compute
+  suspended **five minutes and nine seconds** after that query, killing the subscription. So the old
+  cost worry was unfounded, and the reason not to hold a daemon open is that **it does not work**
+  rather than that it is expensive. ⚠️ **The exception is
+  `psycopg.OperationalError: consuming input failed: SSL connection has been closed unexpectedly`,
+  and `worker/db.py`'s `CONNECTION_LOST` already catches it** — now verified against the real failure
+  rather than a fake connection. **The worker takes its reconnect path every five idle minutes in
+  normal operation**; treat that path as the common case, not the exceptional one. ADR 0028 carries
+  the table.
 
 ## Blocked
 

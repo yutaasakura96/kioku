@@ -50,10 +50,28 @@ belongs to whoever gets that server connection next — it cannot work. `NOTIFY`
 it is a statement inside a transaction whose effect is delivered by the server at commit, and it does
 not care which client connection carried it.
 
-⚠️ **This has not been run against Neon**, because nobody has signed in yet and there is no `.env`
+~~⚠️ **This has not been run against Neon**, because nobody has signed in yet and there is no `.env`
 (#5). The failure it would produce if Neon's summary turns out to be the operative one is a caught
 exception and a worker that polls on connect — so the design is correct in both directions, which is
-the same reason ADR 0028 did not wait for the scale-to-zero experiment.
+the same reason ADR 0028 did not wait for the scale-to-zero experiment.~~
+
+**⚠️ Amended 2026-09-12 — run against Neon, and PgBouncer's matrix wins.** The `kioku` project
+(`small-hat-90514806`, Postgres 18.6, `aws-ap-southeast-1`) was provisioned and the statement issued.
+A `pg_notify('kioku_job','')` on the **pooled** string was accepted with no error and **was delivered
+to a `LISTEN` held on the direct endpoint**, in 563 ms. The production wake-up path — app writes and
+notifies through the pooler, worker wakes on the direct endpoint — works as designed, and the
+fallback branch this ADR kept for the other outcome is now dead weight rather than insurance.
+Neon's summary sentence, which reads as though the `LISTEN`/`NOTIFY` pair does not survive transaction
+pooling, is the coarser statement; it is `LISTEN` alone that does not.
+
+⚠️ **And the control run is the sharper finding, because it is the failure mode nobody would see.**
+`LISTEN kioku_job` issued on the **pooled** string was **accepted — no error, no warning** — and the
+connection then received nothing when a `pg_notify` was issued on the same channel from a second
+pooled connection. This is `03` §4.1's "does not run slowly, it silently never wakes", demonstrated
+rather than reasoned: a worker misconfigured onto the pooled string would start, log nothing, claim
+nothing, and look healthy indefinitely. The only thing standing between that configuration error and
+a permanently idle queue is `worker/db.py:require_direct_url`'s hostname refusal, which is therefore
+load-bearing and not a nicety. **Do not relax it into a warning.**
 
 ## The channel, and the one thing that makes it dangerous
 
