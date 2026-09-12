@@ -1457,6 +1457,19 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **The e2e tier's single connection is a single *session*, and that means a test can read a
+  transaction the app has not committed** ([ADR 0059](adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md)).
+  Measured 2026-09-12: `test/e2e/database.ts`'s in-process handle and the app's socket connection
+  report the **same `pg_backend_pid` and the same `txid`**, an in-process read sees the app's
+  uncommitted row, and an in-process write issued during the app's transaction is **lost to its
+  rollback**. This is the third face of the `Promise.all` and `page.reload()` findings below, and the
+  only one that is silent — the other two answer `500`, this one goes green. **The rule: what the app
+  writes in one transaction, the test reads in one statement.** `test/e2e/vet.test.ts` polled
+  `note_vetting.state` alone, caught `'accepted'` between `decide()`'s two writes, and counted zero
+  *cards* — which looked like a missing `await` for as long as it went unexplained, because a
+  committed `accepted` with no *card* is impossible. ⚠️ **The rest of the tier is unaudited and the
+  ticket is open**; a poll whose predicate spans two statements is a poll over two snapshots.
+
 - ⚠️ **A negative assertion over a whole HTML document is almost never an assertion about the
   screen.** Measured 2026-09-12 while writing `test/e2e/stats.test.ts`: `expect(document).not
   .toContain('%')` — meant as *the ratios are suppressed* — fails on a document that suppresses them

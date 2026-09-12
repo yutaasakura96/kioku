@@ -1417,6 +1417,16 @@ reconnect works — verified against the real failure rather than the fake conne
 suspending — which is ADR 0028's existing revisit condition, unchanged.
 → [ADR 0028](adr/0028-the-job-table-is-the-truth-and-notify-is-only-an-optimisation.md)
 
+### [2026-09-12] ⚠️ The e2e tier has no transaction isolation, so a test reads the pair in one statement
+
+`test/e2e/database.ts`'s in-process PGlite handle and the app's socket connection are **one backend
+session** — measured: same `pg_backend_pid`, same `txid`, and an in-process read sees the app's
+uncommitted transaction. `test/e2e/vet.test.ts`'s intermittent failure was that read, not a missing
+`await`: it polled `state` alone, caught `'accepted'` mid-transaction, and counted the *card* before
+`decide()` had minted it. The rule adopted is **what the app writes in one transaction, the test
+reads in one statement**; the audit of the rest of the tier is ticketed.
+→ [ADR 0059](adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

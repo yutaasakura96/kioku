@@ -27,6 +27,17 @@
  * connects to Neon (ADR 0040). **Docker is still required for exactly three
  * tests and they are all in `worker/`.**
  *
+ * ⚠️ **`exactly` is wrong in the one place a test can notice, and the difference
+ * is not a nicety** (ADR 0059). The socket does not open its own *session* — it
+ * shares this one. Measured 2026-09-12: `client` below and the app's connection
+ * report the **same `pg_backend_pid` and the same `txid`**, so a read through
+ * `client` while the app is mid-transaction **sees uncommitted rows**, and a
+ * write through `client` in that window is **lost to the app's rollback**.
+ * **The rule: what the app writes in one transaction, read in one statement.**
+ * A poll whose predicate spans two statements is a poll over two snapshots, and
+ * `test/e2e/vet.test.ts` failed about one full-suite run in four on exactly
+ * that.
+ *
  * ⚠️ **The new dependency tightens PIN 6/6 rather than loosening it.**
  * `@electric-sql/pglite-socket` 0.2.11 declares a peer dependency on
  * `@electric-sql/pglite` **0.5.8 exactly** — the same version `03` §13.5 pins
@@ -47,7 +58,11 @@ import * as schema from '../../server/db/schema'
 const MIGRATIONS = fileURLToPath(new URL('../../server/db/migrations', import.meta.url))
 
 export interface TestDatabase {
-  /** In-process handle, for seeding and for reading back what the app wrote. */
+  /**
+   * In-process handle, for seeding and for reading back what the app wrote.
+   * ⚠️ **Reading back is where ADR 0059 bites**: this shares the app's session,
+   * so read a multi-write transaction in one statement or not at all.
+   */
   client: PGlite
   /** What `DATABASE_URL` becomes for the app under test. */
   connectionString: string

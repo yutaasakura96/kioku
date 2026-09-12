@@ -305,7 +305,9 @@ pieces, both test-only:
 
 - **A database the built app can reach.** `@electric-sql/pglite-socket` speaks the PostgreSQL wire
   protocol over TCP in front of an in-process PGlite, so `node-postgres` in the app under test
-  connects to it exactly as it connects to Neon (ADR 0040). ⚠️ **This is still PGlite and ADR 0038 is
+  connects to it exactly as it connects to Neon (ADR 0040). ⚠️ **Amended 2026-09-12: *exactly* is
+  wrong in the one place a test can notice** — the socket shares the in-process session rather than
+  opening its own, so there is no isolation between the harness and the app. See the trap below. ⚠️ **This is still PGlite and ADR 0038 is
   undisturbed** — §1's table already said the e2e tier's database was PGlite; what was missing was a
   way to reach an in-process one from another process. **Docker is still required for exactly three
   tests, all of them in `worker/`.** The new dependency *tightens* `03` §13.5's PGlite pin: it
@@ -339,6 +341,19 @@ its reads with `Promise.all` makes `node-postgres` open several connections and 
 resets all but one — the route answers `500` and the browser shows an empty screen with nothing in
 the test output naming the cause. **Production would have been fine.** `server/utils/vet/queries.ts`
 runs its four reads sequentially and says why.
+
+⚠️ **Amended 2026-09-12 — the same single connection has a second, silent consequence, and it is a
+rule about how tests read** ([ADR 0059](adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md)).
+The socket does not front a second *session*; it fronts the same one. Measured: the in-process handle
+and the app's connection report the **same `pg_backend_pid` and the same `txid`**, so an in-process
+read issued while the app is mid-transaction **sees uncommitted rows**, and an in-process write
+issued in that window is **lost to the app's rollback**. The `Promise.all` trap above and §4's
+`page.reload()` trap are the socket refusing a second connection and both answer `500`; **this one
+refuses nothing and goes green**. `test/e2e/vet.test.ts` polled `note_vetting.state`, caught
+`'accepted'` between `decide()`'s two writes, and counted zero *cards* — intermittently, and made
+deterministic by widening the gap with a 150 ms sleep. ⚠️ **The rule for this tier: what the app
+writes in one transaction, the test reads in one statement.** A poll whose predicate spans two
+statements is a poll over two snapshots.
 
 ### 6.2 The key-handler binding — not testable directly, and it does not need to be ⚠️
 
