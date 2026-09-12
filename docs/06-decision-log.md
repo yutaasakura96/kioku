@@ -1424,7 +1424,10 @@ session** — measured: same `pg_backend_pid`, same `txid`, and an in-process re
 uncommitted transaction. `test/e2e/vet.test.ts`'s intermittent failure was that read, not a missing
 `await`: it polled `state` alone, caught `'accepted'` mid-transaction, and counted the *card* before
 `decide()` had minted it. The rule adopted is **what the app writes in one transaction, the test
-reads in one statement**; the audit of the rest of the tier is ticketed.
+reads in one statement**. ⚠️ **Amended 2026-09-12:** the audit found a second one —
+`test/e2e/review.test.ts` read the *flag* and the suspension `flag()` writes together as two
+statements. Both files now poll a pair; the other four e2e files have no browser and are safe by
+construction.
 → [ADR 0059](adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md)
 
 ## Adding an entry

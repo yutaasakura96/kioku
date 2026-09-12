@@ -99,6 +99,32 @@ holds a transaction joins that transaction and a rollback takes it with it. Noth
 known to do this today — the seeds run before the page opens — but a `beforeEach` cleanup placed
 between two browser actions would, and the symptom would be a fixture that silently was not there.
 
+## Amended 2026-09-12 — the audit, and what it found
+
+**The audit this ADR ticketed is done, and there was a second one.** `test/e2e/review.test.ts`
+polled the `card_flag` count to `1` and then counted suspended *cards* as a separate statement.
+`server/utils/review/flag.ts` writes both — four writes, one transaction (`04` §7.8) — so a poll
+that lands between the insert and the update takes an uncommitted `1` for *the flag has landed* and
+reads the suspension as `0`. ⚠️ **It had never been observed to fail**, and it fails **every** run
+once the gap is widened. It now polls a single value to `1/1`.
+
+**The other four e2e files are safe by construction, and the reason is structural rather than
+lucky.** `stats.test.ts`, `ingest.test.ts`, `auth.test.ts` and `no-scripts.test.ts` open no browser:
+every database read in them follows an **awaited** `nuxtFetch`, and a response that has arrived is a
+transaction that has committed. Only a test that acts on a page and then looks at a row can read
+while a request is in flight, which is why the two browser files are the two that were exposed.
+
+**The write direction is clean today, by the narrower margin this ADR predicted.** Every test write
+in the tier is in a `beforeAll` that runs before a page is opened, or sits between two awaited
+fetches. Nothing writes between two browser actions.
+
+⚠️ **One thing the audit measured that changes how the probe must be used.** The 150 ms sleep
+reproduces this finding **only when it is narrowed to the path under test**. Put it on every
+`decide()` call and the *reject* test's transaction stays open across its `page.close()` and into
+the next test's page open — and that test then fails on an **empty queue**, because the single
+connection is busy. That is the `Promise.all` trap wearing this one's clothes: a probe placed too
+widely reproduces the wrong finding and looks like a regression in the fix.
+
 ## Revisit if
 
 `@electric-sql/pglite-socket` grows real per-connection backends — 0.2.11 does not — or the e2e tier

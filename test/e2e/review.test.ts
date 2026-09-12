@@ -222,6 +222,27 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
     return result.rows[0]!.n
   }
 
+  /**
+   * The *flag* and the suspension as **one value, read in one statement** —
+   * [ADR 0059](../../docs/adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md).
+   *
+   * ⚠️ **`flag()` writes the `card_flag` row and suspends the *card* in one
+   * transaction** (`server/utils/review/flag.ts` — four writes, `04` §7.8), and
+   * the e2e tier's in-process handle is **inside** that transaction rather than
+   * outside it. Polling `flags()` to `1` and then counting suspended *cards* as
+   * a second statement is the shape that flaked in `vet.test.ts`: the poll can
+   * land between the insert and the update and take an uncommitted `1` as
+   * *the flag has landed*. `1/1` cannot be read out of that gap.
+   */
+  async function flagged(): Promise<string> {
+    const result = await database.client.query<{ shape: string }>(`
+      SELECT (SELECT count(*) FROM card_flag)::text
+             || '/' ||
+             (SELECT count(*) FROM card WHERE suspended_reason = 'flagged')::text AS shape;
+    `)
+    return result.rows[0]!.shape
+  }
+
   it('loses nothing, and replays both entry types in order when it comes back', async () => {
     const page = await openReview()
 
@@ -253,7 +274,14 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
     await page.context().setOffline(false)
 
     await expect.poll(grades, { timeout: 10_000 }).toBe(before + 1)
-    await expect.poll(flags, { timeout: 10_000 }).toBe(1)
+
+    // `S9`: the *flag* is recorded **and** the *card* left scheduling. `flag()`
+    // writes both in one transaction (`04` §7.8), so the test reads them in one
+    // statement (ADR 0059). That the *history* stands is asserted after the
+    // reload below, which is the only read taken past every write.
+    await expect
+      .poll(flagged, { timeout: 10_000 })
+      .toBe('1/1')
 
     // ⚠️ **In order, and the two server clocks say so.** `review_log.received_at`
     // and `card_flag.flagged_at` are both stamped at replay, so the flag landing
@@ -264,12 +292,6 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
              > (SELECT max(received_at) FROM review_log) AS afterwards;
     `)
     expect(order.rows[0]!.afterwards, 'the flag overtook the grade it was given after').toBe(true)
-
-    // `S9`: the *card* left scheduling and the history did not move.
-    const suspended = await database.client.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM card WHERE suspended_reason = 'flagged';`,
-    )
-    expect(suspended.rows[0]!.n).toBe(1)
 
     // ⚠️ **The durable record decides, and it is empty now** (property 4). A
     // reload replays whatever is still owed, so a store that still held these

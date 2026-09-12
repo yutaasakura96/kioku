@@ -355,6 +355,29 @@ deterministic by widening the gap with a 150 ms sleep. ⚠️ **The rule for thi
 writes in one transaction, the test reads in one statement.** A poll whose predicate spans two
 statements is a poll over two snapshots.
 
+⚠️ **Amended 2026-09-12 — the tier is audited and it had a second one, in `test/e2e/review.test.ts`.**
+`S9`'s `X` writes the `card_flag` row and suspends the *card* in one transaction
+(`server/utils/review/flag.ts`, `04` §7.8), and the test polled the flag count and then counted
+suspended *cards* as a second statement — the same shape, the same silence, never observed to fail
+but failing **every** run once the gap is widened. Both files now read their pair as one value;
+`test/e2e/vet.test.ts` polls `accepted/1` and `test/e2e/review.test.ts` polls `1/1`.
+
+**The other four files are safe by construction, and the reason is worth stating rather than
+re-deriving.** `stats.test.ts`, `ingest.test.ts`, `auth.test.ts` and `no-scripts.test.ts` have no
+browser: every database read in them follows an **awaited** `nuxtFetch`, and a response that has
+arrived is a transaction that has committed. Only the two browser files can issue a read while a
+request is still in flight, because only they act on the page and then look at the row. ⚠️ **The
+write direction is clean today for the same reason and by a narrower margin**: every test write sits
+in a `beforeAll` that runs before a page is opened, or between two awaited fetches. A `beforeEach`
+cleanup placed between two browser actions would join the app's transaction and vanish with a
+rollback, and nothing in the tier would say so.
+
+⚠️ **What the 150 ms probe does when it is put on the *reject* path instead of the accept path is a
+finding of its own, and it is not this rule.** Widening `decide()` for **every** decision leaves the
+first test's transaction open across `page.close()` and the next test's page open, and the *second*
+page then renders an empty queue — the single connection is busy, not the read torn. The probe has
+to be narrowed to the path under test or it reproduces the `Promise.all` trap instead of this one.
+
 ### 6.2 The key-handler binding — not testable directly, and it does not need to be ⚠️
 
 `10` §11 calls this a Level A conformance test: the handlers must bind to the mode container, not to

@@ -3,8 +3,9 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**58 ADRs**, eleven documents, an empty frontier, and **three open issues** on the tracker — #1 the
-spec, #5, and **#15, which #9 found and did not fix** (#13 and #14 close when this work merges), plus
+**59 ADRs** — ⚠️ **this said 58 until 2026-09-12**, written in the commit that added ADR 0059 —
+eleven documents, an empty frontier, and **three open issues** on the tracker — #1 the spec, #5, and
+**#15, which #9 found and did not fix** (#13, #14 and **#16** close when this work merges), plus
 **the re-vetting ticket #13 hands on and nobody has opened yet** (§ Next).
 **#2 through #14 are built.** ⚠️ **The ticket frontier is empty**: every ticket `/to-tickets`
 published is built, and what is owed is **unticketed** — the re-vetting ticket (§ Next) and
@@ -34,6 +35,26 @@ walks both in five stages and writes the three values where they belong.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #16 — the e2e flake, fixed and the tier audited, 2026-09-12.** **The rule from ADR 0059
+applied, and it found a second one nobody had seen fail.** `test/e2e/vet.test.ts` polls
+`accepted/1` as a single value instead of polling `state` and counting *cards* behind it;
+`test/e2e/review.test.ts` polls `1/1` instead of polling `card_flag` and counting suspended *cards*
+behind it — `flag()` writes both in one transaction (`04` §7.8), so it was the same shape, and it
+had **never been observed to fail**. Neither fix uses a `waitForTimeout`.
+
+**Demonstrated both ways, not argued.** A 150 ms sleep inserted into the gap fails both tests on
+**every** run before the change and passes both after it; twenty consecutive full runs are green.
+⚠️ **The probe has to be narrowed to the path under test** — widened to every `decide()` it leaves
+the *reject* test's transaction open across the next test's page open, which fails on an **empty
+queue** and looks like the fix regressing. That is the `Promise.all` trap, not this one.
+
+**The rest of the tier is audited and safe by construction, and the reason is structural.**
+`stats.test.ts`, `ingest.test.ts`, `auth.test.ts` and `no-scripts.test.ts` open no browser, so every
+read follows an awaited `nuxtFetch` and a response that arrived is a transaction that committed.
+⚠️ **The write direction is clean by the narrower margin ADR 0059 predicted**: every test write is
+in a `beforeAll` before a page opens, or between two awaited fetches. `11` §6.1, § Carrying,
+`06` and ADR 0059's own amendment block all carry this.
 
 **Phase 6, #14 — Stats: six figures and the suppression boundary, 2026-09-12.** **The numbers get
 read.** `/stats` carries *acceptance rate*, *false-accept rate*, median *seconds-per-note*,
@@ -1467,8 +1488,17 @@ Nothing.
   writes in one transaction, the test reads in one statement.** `test/e2e/vet.test.ts` polled
   `note_vetting.state` alone, caught `'accepted'` between `decide()`'s two writes, and counted zero
   *cards* — which looked like a missing `await` for as long as it went unexplained, because a
-  committed `accepted` with no *card* is impossible. ⚠️ **The rest of the tier is unaudited and the
-  ticket is open**; a poll whose predicate spans two statements is a poll over two snapshots.
+  committed `accepted` with no *card* is impossible. A poll whose predicate spans two statements is
+  a poll over two snapshots.
+  ⚠️ **Audited 2026-09-12 and it had a second one.** `test/e2e/review.test.ts` polled the `card_flag`
+  count and then counted suspended *cards* — `flag()` writes both in one transaction (`04` §7.8), so
+  the same shape, never observed to fail and failing **every** run once the gap is widened. Both
+  files now poll a pair: `accepted/1` and `1/1`. **The other four e2e files are safe by
+  construction** — they have no browser, so every read follows an awaited `nuxtFetch`, and a response
+  that arrived is a transaction that committed. ⚠️ **The write direction is clean by a narrower
+  margin**: every test write is in a `beforeAll` before a page opens, or between two awaited fetches.
+  A `beforeEach` cleanup between two browser actions would join the app's transaction and go with its
+  rollback, and nothing would say so.
 
 - ⚠️ **A negative assertion over a whole HTML document is almost never an assertion about the
   screen.** Measured 2026-09-12 while writing `test/e2e/stats.test.ts`: `expect(document).not

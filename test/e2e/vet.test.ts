@@ -85,6 +85,33 @@ async function state(): Promise<string> {
   return result.rows[0]!.state
 }
 
+/**
+ * The *state* and the *card* count as **one value, read in one statement** —
+ * [ADR 0059](../../docs/adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md).
+ *
+ * ⚠️ **`database.client` and the app's socket connection are one backend
+ * session, not two connections**, so a read issued while `decide()` holds its
+ * transaction open sees the uncommitted row. This test used to poll `state()`
+ * to `'accepted'` and then count *cards* as a second statement; roughly one
+ * full-suite run in four caught `'accepted'` in the gap between the
+ * `note_vetting` update and the `mint()` behind it, and counted zero. ⚠️ **A
+ * committed `accepted` with no *card* is impossible — `decide()` is one
+ * transaction by construction — which is why the failure read as a missing
+ * `await` for as long as it went unexplained.**
+ *
+ * Reading the pair in one statement makes a straddling read return
+ * `accepted/0`, which is not the expected value, so the poll keeps going
+ * instead of passing a wrong answer through. **The rule for the tier: what the
+ * app writes in one transaction, the test reads in one statement.**
+ */
+async function shape(): Promise<string> {
+  const result = await database.client.query<{ shape: string }>(
+    `SELECT v.state || '/' || (SELECT count(*) FROM card WHERE note_id = v.note_id) AS shape
+       FROM note_vetting v WHERE v.note_id = '${noteId}';`,
+  )
+  return result.rows[0]!.shape
+}
+
 /** A browser tab carrying the session cookie `test/e2e/session.ts` forged. */
 async function openVet() {
   const page = await createPage()
@@ -145,13 +172,18 @@ describe('one keystroke, one decision', () => {
     // and the reason ADR 0013 made this a *mode* at all. The page is opened and
     // one key is pressed; nothing else happens in this test.
     await page.keyboard.press(' ')
-    await expect.poll(state, { timeout: 5_000 }).toBe('accepted')
+    await expect
+      .poll(shape, {
+        timeout: 5_000,
+        message: 'acceptance mints the card — `04` §7.3, read as one value per ADR 0059',
+      })
+      .toBe('accepted/1')
 
-    const card = await database.client.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM card WHERE note_id = '${noteId}';`,
-    )
-    expect(card.rows[0]!.n, 'acceptance mints the card — `04` §7.3').toBe(1)
-
+    // ⚠️ **Safe as a second statement only because the pair already landed.**
+    // `seconds_to_vet` is set by the same `UPDATE` that set the state, so once
+    // `accepted/1` has been read there is no torn state left for this to fall
+    // into — unlike the *card* count, which sat on the far side of a socket
+    // round trip.
     const stamped = await database.client.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM note_vetting
         WHERE note_id = '${noteId}' AND seconds_to_vet IS NOT NULL;`,
