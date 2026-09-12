@@ -711,14 +711,18 @@ def test_an_ingestion_that_produces_no_new_notes_is_a_success(connection):
         LIBRARY,
         "駅" + chr(31) + "えき",
         "近く" + chr(31) + "ちかく",
-        # ⚠️ `あり`, not `ある`, and that is a **defect this test is standing on
-        # rather than endorsing** — see `00-status.md` § Carrying and
-        # https://github.com/yutaasakura96/kioku/issues/15. `reading_of` reads
-        # the *surface*'s reading, so あります keys as `有る␟あり` while ある keys
-        # as `有る␟ある`: one word, two *notes*. It is #8's `reading_of` and it
-        # predates #9; the key written here is the one the corpus would actually
-        # hold today.
-        "有る" + chr(31) + "あり",
+        # ⚠️ `ある`, and it was `あり` until #15 — the defect this test stood on
+        # rather than endorsed. `reading_of` read the *surface*'s reading, so
+        # あります keyed `有る␟あり` while ある keyed `有る␟ある`: one word, two
+        # *notes*. ADR 0045 § Amended 2026-09-13 takes the reading from the
+        # **dictionary form** whenever the surface inflected, so the corpus now
+        # holds one key for both, and it is this one.
+        #
+        # ⚠️ **Written out rather than derived, deliberately.** A key computed
+        # here by calling the pipeline would agree with the pipeline by
+        # construction, including on the day the pipeline is wrong — which is
+        # exactly the day this test exists for.
+        "有る" + chr(31) + "ある",
         "時" + chr(31) + "じ",
         "開く" + chr(31) + "ひらく",
     ):

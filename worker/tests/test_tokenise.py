@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import resource
 import sys
+import warnings
 
 import pytest
 from sudachipy import Dictionary
 
-from pipeline.tokenise import DICTIONARY_VERSION, SPLIT_MODE, dictionary, tokenise
+from pipeline.tokenise import DICTIONARY_VERSION, SPLIT_MODE, Token, dictionary, tokenise
 
 
 def test_c_mode_keeps_a_compound_whole() -> None:
@@ -121,3 +122,92 @@ def test_the_dictionary_version_is_the_pinned_release() -> None:
     a hard-coded copy here would be a second place for it to be wrong.
     """
     assert DICTIONARY_VERSION == "20260723"
+
+
+def test_an_inflected_surface_carries_its_dictionary_form_s_reading() -> None:
+    """⚠️ [#15](https://github.com/yutaasakura96/kioku/issues/15), and
+    [ADR 0045](../../docs/adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+    § Amended 2026-09-13 is the rule: *when the surface is inflected, the reading
+    is the dictionary form's*.
+
+    ⚠️ **It is stage 2's to compute because it needs the dictionary**, which
+    stage 3 does not have and must not acquire (`11` §8). あり's own
+    `reading_form` is アリ; ある — its `dictionary_form`, re-tokenised — is アル,
+    and that is what the *identity key* and the *card* get.
+    """
+    inflected = _token("本があります。", "あり")
+    uninflected = _token("本がある。", "ある")
+
+    assert (inflected.reading_form, inflected.dictionary_form_reading) == ("アリ", "アル")
+    assert (uninflected.reading_form, uninflected.dictionary_form_reading) == ("アル", None)
+
+
+def test_an_uninflected_token_is_left_with_the_reading_it_had_in_context() -> None:
+    """⚠️ **The guard is load-bearing, not an optimisation** (ADR 0045 § Amended
+    2026-09-13). 六時's 時 is its own dictionary form and reads ジ where it
+    stands; the same 時 tokenised alone reads トキ. A rule that re-read every
+    token would break the words it was not aimed at, so the second assertion
+    here is the measurement rather than the behaviour — it is why the first one
+    has to be `None`.
+    """
+    hour = _token("図書館は六時に開く。", "時")
+
+    assert (hour.reading_form, hour.dictionary_form_reading) == ("ジ", None)
+    assert tokenise("時")[0].reading_form == "トキ"
+
+
+def test_the_dictionary_form_is_re_tokenised_and_the_normalized_form_is_not() -> None:
+    """⚠️ **The case that ranked the three candidate rules, and reversed #15's
+    own preference.** し normalises to 為る, and 為る tokenised alone reads ナル —
+    so re-tokenising `normalized_form` gives one of the commonest verbs in the
+    language the reading of a different one. `dictionary_form` is する and reads
+    スル (ADR 0045 § Amended 2026-09-13, rule C over rule A).
+    """
+    suru = _token("勉強します。", "し")
+
+    assert (suru.normalized_form, suru.dictionary_form) == ("為る", "する")
+    assert suru.dictionary_form_reading == "スル"
+    assert tokenise("為る")[0].reading_form == "ナル"
+
+
+def test_an_i_adjective_inflects_too_and_is_covered_by_the_same_test() -> None:
+    """`04` §5.3's key is *one per word*, and 形容詞 is the other large inflecting
+    class — 高かっ is as much a *note* about 高い as 開い is about 開く.
+    """
+    tall = _token("高かった", "高かっ")
+
+    assert (tall.reading_form, tall.dictionary_form_reading) == ("タカカッ", "タカイ")
+
+
+def test_re_tokenising_costs_no_deprecated_accessor() -> None:
+    """⚠️ **#15's criterion, and the whole reason rule C won over rule B.** B
+    reaches the lemma through `WordInfo.dictionary_form_word_id`, and SudachiPy
+    0.6.11 answers that accessor with `DeprecationWarning: Users should not touch
+    the raw WordInfo`. The rule adopted reads `dictionary_form`, which is public
+    and warns about nothing.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+
+        assert tokenise("ドアが開いた。")
+
+
+def test_the_re_tokenised_reading_is_present_exactly_when_the_surface_inflected() -> None:
+    """The invariant stage 3 selects on: `dictionary_form_reading` is not `None`
+    if and only if `surface != dictionary_form`.
+
+    ⚠️ Asserted over a whole sentence rather than a chosen token, because the
+    field is the one thing stage 3 cannot recompute — it has no dictionary — and
+    a stage 2 that filled it in for uninflected tokens would silently hand 時 the
+    reading トキ.
+    """
+    for token in tokenise("図書館は六時に開く。ドアが開いた。本があります。"):
+        assert (token.dictionary_form_reading is not None) == (
+            token.surface != token.dictionary_form
+        )
+
+
+def _token(text: str, surface: str) -> Token:
+    """The one morpheme of `text` whose surface is `surface` — so a test can name
+    the word it is about rather than an index into a sentence."""
+    return next(token for token in tokenise(text) if token.surface == surface)

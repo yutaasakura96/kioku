@@ -4,11 +4,25 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for fifty-nine of the one hundred and ninety-nine tests
-here**, and **ADR 0038 carries a dated amendment for each time that number
-moved** — three, then twenty-three with #7, forty with #8, now fifty-nine with
-#9. The new nineteen are stages 6 and 7 against real SQL: `04` §6.3's cache, the
-spend ledger, and the four writes one *pending note* is.
+⚠️ **Docker is required for sixty of the two hundred and eleven tests here.**
+ADR 0038 carried a dated amendment for each time the container count moved —
+three, then twenty-three with #7, forty with #8, fifty-nine with #9 — and **#9's
+amendment was the last of them on purpose**: it took the number out of that ADR
+and left it here, in one file, because #8 had shipped it stale in two of the four
+places that repeated it. So a move is recorded **here** now, and this paragraph is
+where the dating lives.
+
+⚠️ **Re-counted 2026-09-13 with #15, and both numbers were stale.** It said
+fifty-nine of one hundred and ninety-nine; the suite was **two hundred with sixty
+needing the container** before #15 touched anything, so the container count had
+moved by one and the total by one, and **nothing had recorded either** — which is
+this file's own failure mode arriving once more, in the one place that is
+supposed to absorb it. #15 added **eleven** tests and **none** of them needs
+Docker: they are stage 2 and stage 3, and the point of the seam they sit on is
+that neither needs a database. ⚠️ **Both numbers are counted rather than
+remembered** — `uv run pytest --collect-only -q` for the total, and the tests
+taking the `connection` or `postgres_dsn` fixture for the other. Count them again
+rather than adding to them.
 
 ⚠️ **This is the one file that carries the number.** #8 shipped it stale in two
 of the four files that repeated it, and said so: *"the durable fix is for four of
@@ -96,8 +110,8 @@ Not run by Vitest, and the whole file list is now:
 | `test_runs.py` | **yes** | The chunk queue, `04` §6.2's resume query, the settle, and the drain |
 | `test_reconnect.py` | **yes** | ADR 0028's ordering, asked of the **server** through `pg_listening_channels()` |
 | `test_chunk.py` | no | Reading a *chunk* back out of its *source* by **code point**, and a range past the end refused rather than clamped |
-| `test_tokenise.py` | no | C split mode keeping 図書館 whole, one `Dictionary()` per process, and the pinned dictionary version |
-| `test_extract_candidates.py` | no | ADR 0044's allowlist, the numeral rule, ADR 0045's script rule, and ⚠️ **that every part of speech the installed dictionary declares is classified** |
+| `test_tokenise.py` | no | C split mode keeping 図書館 whole, one `Dictionary()` per process, the pinned dictionary version, and ⚠️ **the reading of an inflected word's `dictionary_form`, re-tokenised** — with 六時's 時 as the guard that it happens only for a surface that inflected (ADR 0045 § Amended 2026-09-13) |
+| `test_extract_candidates.py` | no | ADR 0044's allowlist, the numeral rule, ADR 0045's script rule and ⚠️ **whose reading the key is built from** — あります and ある are one *note* since #15 — and ⚠️ **that every part of speech the installed dictionary declares is classified** |
 | `test_deduplicate.py` | no | Repeats folded into one group carrying every sighting; `04` §6.1's first two counters |
 | `test_filter_known.py` | no | `04` §6.1's other two, each candidate counted **once** though a rejected word matches both filters |
 | `test_pipeline.py` | no | ⚠️ `11` §7's **stage-order test**: no generation is asked for a word already known or rejected. Needs no database, because ADR 0010's ordering is a property of the stages. Also that **every** stage key is a module name, all seven of them since #9 |

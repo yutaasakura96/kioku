@@ -232,6 +232,24 @@ katakana throughout, and until #8 every *identity key* in the repository was a t
 by hand — which is why nothing had noticed. It is part of the rendering rule, and therefore part of
 the identity.
 
+⚠️ **Amended 2026-09-13, [ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+§ Amended 2026-09-13 — that decided *which script* and left *whose reading* unstated**, and the
+answer stage 3 had taken was the surface's. あります keyed `有る␟あり` beside ある's `有る␟ある`: one
+word, two notes, which is the failure ADR 0006 exists to prevent arriving through the half of the key
+the `normalized_form` finding did not cover. **The rule is now: when the surface is inflected, the
+reading is the dictionary form's** — `dictionary_form` re-tokenised, with the script rule above
+applying on top. Built 2026-09-13 by [#15](https://github.com/yutaasakura96/kioku/issues/15); like
+the script rule, it is part of the rendering rule and therefore part of the identity.
+
+⚠️ **And `開く␟あく` above is a worked example of the key's shape, not a pair this pipeline mints.**
+The あく entries are in `SudachiDict-core` 20260723 — word ids 732354 and 732125 — and the analyser
+never selects them: sixteen sentences written to force the sense (店が開く, 穴が開く, 鍵が開く …)
+across all three split modes **resolved to ヒラク, 48 of 48** (measured 2026-09-13). The pair this
+tokeniser actually produced was `開く␟ひらく` and `開く␟ひらい`, and the second one was the defect
+above. **The example stays**, because what it illustrates is still true — two readings of one term
+are two notes, and a second dictionary or a second *subject* can still produce them — but nothing
+should be built expecting this dictionary to yield it.
+
 **Example:**
 
 ```

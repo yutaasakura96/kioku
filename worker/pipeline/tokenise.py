@@ -22,10 +22,10 @@ rediscovered by every caller that tries to window over morphemes.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from importlib.metadata import version
 
-from sudachipy import Dictionary, SplitMode
+from sudachipy import Dictionary, SplitMode, Tokenizer
 
 #: PIN 2/6 (`03` §13.5), **read from the installed package rather than typed**.
 #:
@@ -73,8 +73,29 @@ class Token:
     #: future display of the word as written want it, and because the difference
     #: from `normalized_form` is load-bearing enough to be visible.
     dictionary_form: str
-    #: Katakana, as Sudachi returns it. `extract_candidates` converts it.
+    #: Katakana, as Sudachi returns it, **for the form that appeared**.
+    #: `extract_candidates` converts it (ADR 0045).
     reading_form: str
+    #: The reading of `dictionary_form`, re-tokenised — and ⚠️ **`None` when the
+    #: surface did not inflect**, which is the whole rule rather than a shortcut
+    #: (ADR 0045 § Amended 2026-09-13, #15).
+    #:
+    #: ⚠️ **This is the reading that reaches the key and the card.** あり's own
+    #: `reading_form` is アリ, so あります keyed `有る␟あり` beside ある's
+    #: `有る␟ある` — one word, two *notes*, ADR 0006's failure arriving through
+    #: the half of the key `normalized_form` did not cover.
+    #:
+    #: ⚠️ **`None` is not "nothing to do": it is the answer.** 六時's 時 is its
+    #: own dictionary form and reads ジ where it stands; the same 時 tokenised
+    #: alone reads トキ. A field filled in for every token would hand stage 3 a
+    #: worse reading than the one it had, so the guard is load-bearing and the
+    #: absence is what carries it across the seam.
+    #:
+    #: ⚠️ **And it is `dictionary_form` that is re-tokenised, not
+    #: `normalized_form`** — し's `normalized_form` is 為る, which alone reads
+    #: ナル. The term half of the key stays `normalized_form`; only the reading
+    #: comes from the lemma.
+    dictionary_form_reading: str | None
     #: ⚠️ **Read twice, for two different reasons** (`03` §5.2): by the numeral
     #: rule in stage 3, and by *provenance* to tell a looked-up reading from a
     #: generated one (ADR 0019, `04` §5.4).
@@ -103,6 +124,20 @@ def dictionary() -> Dictionary:
     return _dictionary
 
 
+def is_inflected(token: Token) -> bool:
+    """Whether the word appeared in a form other than its own dictionary form.
+
+    ⚠️ **Written once and read twice, on purpose** (ADR 0045 § Amended
+    2026-09-13). Stage 2 asks it to decide whether to spend a second
+    tokenisation; stage 3 asks it to decide which of the two readings on
+    :class:`Token` is the word's. The two answers have to be the same answer,
+    and a predicate copied into `extract_candidates` would be the way they stop
+    being — while importing it costs stage 3 nothing it was not already paying,
+    since :class:`Token` comes from here too.
+    """
+    return token.surface != token.dictionary_form
+
+
 def tokenise(text: str) -> list[Token]:
     """Morphemes, in order, as plain data.
 
@@ -110,14 +145,21 @@ def tokenise(text: str) -> list[Token]:
     SudachiPy's `MorphemeList` cannot be sliced; building a list here is both
     the conversion to :class:`Token` and the one place that finding has to be
     respected.
+
+    ⚠️ **The re-tokenisation is a second pass, not a nested one.** Asking the
+    tokeniser for a dictionary form *while* iterating its own `MorphemeList`
+    would be a reentrant call into the object the loop is reading; the list is
+    flattened into dataclasses first, and the lemmas are looked up from plain
+    strings afterwards.
     """
     tokenizer = dictionary().create(mode=SPLIT_MODE)
-    return [
+    tokens = [
         Token(
             surface=morpheme.surface(),
             normalized_form=morpheme.normalized_form(),
             dictionary_form=morpheme.dictionary_form(),
             reading_form=morpheme.reading_form(),
+            dictionary_form_reading=None,
             is_oov=morpheme.is_oov(),
             part_of_speech=tuple(morpheme.part_of_speech()),
             begin=morpheme.begin(),
@@ -125,3 +167,34 @@ def tokenise(text: str) -> list[Token]:
         )
         for morpheme in tokenizer.tokenize(text)
     ]
+    return [
+        replace(token, dictionary_form_reading=_read_alone(tokenizer, token.dictionary_form))
+        if is_inflected(token)
+        else token
+        for token in tokens
+    ]
+
+
+def _read_alone(tokenizer: Tokenizer, form: str) -> str:
+    """Sudachi's answer for one form, read on its own.
+
+    ⚠️ **Named for what it does rather than for what it is used for**, because
+    `extract_candidates.reading_of` is one import away and ADR 0045 says in as
+    many words that the next reader will look *there* for this rule. Two
+    functions called `reading_of` in one package is how they would find the
+    wrong one.
+
+    ⚠️ **Joined rather than indexed.** Every lemma measured 2026-09-13 comes
+    back as a single morpheme — ある, 開く, する, 高い — but the question being
+    asked is *how is this string read*, and a lemma that splits has its reading
+    spread across the pieces. ``[0]`` would silently answer with the first
+    syllable of one.
+
+    ⚠️ **No memo, and that is a decision rather than an oversight.** A *source*
+    that inflects the same verb forty times pays for the lemma forty times, at
+    the 2.1 µs/token ADR 0045 measured — call it a millisecond across a whole
+    document, against a stage 6 that is an HTTP request per *chunk*. A cache
+    here would be a second thing to invalidate on a `SudachiDict` bump, which is
+    already `03` §5.3's most delicate event.
+    """
+    return "".join(morpheme.reading_form() for morpheme in tokenizer.tokenize(form))

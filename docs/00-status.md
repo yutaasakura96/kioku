@@ -36,6 +36,43 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
+**Phase 6, #15 — the reading is the dictionary form's, 2026-09-13.** **One word is one *note* again.**
+`reading_of` read the **surface**'s reading, so あります keyed `有る␟あり` beside ある's `有る␟ある` and
+開いた keyed `開く␟ひらい` beside `開く␟ひらく` — every inflecting word class, which is verbs and
+i-adjectives, one *note* per form the *source* happened to contain. ⚠️ **And it was never only a key
+problem**: `reading` is on the answer side of the recognition *template* (`10` §5), so the first
+*card* minted from an inflected word would have shown あり.
+[ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+§ Amended 2026-09-13 is the rule and `04` §5.3 carries it as part of the identity.
+
+**The fix is one field on `Token` and one line in stage 3, and the split between them is the whole
+design.** Re-tokenising needs the dictionary; `11` §8's seam says stage 3 is *tokens in, candidates
+out — no dictionary, no database, no clock*. So `pipeline/tokenise.py` computes the reading of
+`dictionary_form` and carries it as `dictionary_form_reading`, and
+`pipeline/extract_candidates.reading_of` chooses between that and the token's own. ⚠️ **The predicate
+is written once and read twice** — `is_inflected` lives beside `Token` and both stages import it,
+because stage 2 uses it to decide whether to spend a second tokenisation and stage 3 uses it to
+decide which reading is the word's, and those two answers have to be the same answer.
+
+**Eleven tests, and six of them assert what the rule must not break.** あります/ある and 開いた/開く
+collapse to one key each; ⚠️ 六時's 時 still reads じ — it is uninflected, and re-read alone it reads
+トキ, which is the measurement that makes the guard load-bearing rather than an optimisation; an
+inflected する reads する and never なる — its `normalized_form` is 為る, which alone reads ナル, and
+that is the case that reversed #15's own preferred rule; サボった reads さぼる, so ADR 0045's script
+rule still runs on the term; and one test asserts the invariant the seam rests on, that
+`dictionary_form_reading` is present exactly when the surface inflected. ⚠️ **No deprecated
+accessor**: the rule reads `dictionary_form`, and a test tokenises inside
+`simplefilter("error", DeprecationWarning)` to keep it that way.
+
+⚠️ **`worker/tests/test_generation.py` seeded `有る␟あり` and now seeds `有る␟ある`** — it was standing
+on the defect rather than endorsing it, and it says so. It is still **written out rather than
+derived**, because a key computed by calling the pipeline agrees with the pipeline on the day the
+pipeline is wrong.
+
+⚠️ **The re-ingestion consequence, stated because `04` §5.3 requires it to be:** this changes the
+identity of any *note* written from an inflected form. **None exists.** That is why #15 went in front
+of the first run and not after it, and it is the last moment the change is free.
+
 **Phase 6, #16 — the e2e flake, fixed and the tier audited, 2026-09-12.** **The rule from ADR 0059
 applied, and it found a second one nobody had seen fail.** `test/e2e/vet.test.ts` polls
 `accepted/1` as a single value instead of polling `state` and counting *cards* behind it;
@@ -1200,6 +1237,14 @@ reviewed data event with a re-ingestion plan; **no *note* has ever been written,
 nothing**, and it stops costing nothing the moment the first run mints twenty. Every other unticketed
 thing below — re-vetting, `S12`'s export — is indifferent to the ordering. This one is not.
 
+**⚠️ [#15](https://github.com/yutaasakura96/kioku/issues/15) built 2026-09-13. The ticket frontier is
+empty again**, and what is in front of it is not a ticket: it is
+[`scripts/first-run.sh`](../scripts/first-run.sh), then **Part 1 of
+[`docs/first-run-expectation.md`](first-run-expectation.md) filled in before any Japanese is pasted**
+(ADR 0037 — a prediction written after the run is not a prediction), then the run itself. What stays
+unticketed is below: re-vetting a flagged *note*, `S12`'s export, and the three first-week
+experiments.
+
 ~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
 ticket.**~~ **All three of its remaining items are closed** — the contradiction in
 [ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md), the
@@ -1748,6 +1793,12 @@ Nothing.
   to read the dfwid, and the rule chosen needs neither. **It changes the identity of existing
   *notes***, which is `03` §5.3's reviewed-data-event class — **free today because none exists, and
   not free after the first run**, which is why #15 now sits in front of it.
+  ⚠️ **Closed 2026-09-13 by #15, and kept here rather than deleted for one reason**: the re-tokenised
+  reading is computed in **stage 2**, and stage 3 only chooses between two fields on `Token`. The
+  next person to look for the rule will look in `reading_of`, which is where the defect was and is
+  not where the fix is. `pipeline/tokenise.py` owns `dictionary_form_reading` and `is_inflected`;
+  `extract_candidates` owns the choice and ADR 0045's script rule; `11` §8's seam is why the line
+  falls there and not somewhere more convenient.
 - ⚠️ **A test fixture that does not clean a content-keyed table serves one test's answers to the
   next.** `generation_cache` is keyed on `(content_hash, dictionary_version, prompt_version,
   model_id)` — nothing a test owns — and it was not in `conftest.py`'s `SCRATCH_TABLES`. Six of #9's

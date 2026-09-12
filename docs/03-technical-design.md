@@ -290,7 +290,7 @@ vocabulary:
 | # | Stage | Scales with | Notes |
 | --- | --- | --- | --- |
 | 1 | **Accept and chunk the source** | document size | ≤ 100,000 characters, refused above it before any spend |
-| 2 | **Tokenise** — SudachiPy, C split mode | document size | `dictionary_form`, `reading_form`, `normalized_form`, `is_oov`, `part_of_speech` |
+| 2 | **Tokenise** — SudachiPy, C split mode | document size | `dictionary_form`, `reading_form`, `normalized_form`, `is_oov`, `part_of_speech` — and ⚠️ **the reading of `dictionary_form`, re-tokenised**, for a surface that inflected (ADR 0045 § Amended 2026-09-13, #15). It is computed here because it needs the dictionary and stage 3 has none |
 | 3 | **Extract candidates** | document size | Compounds survive: C mode keeps 図書館 whole |
 | 4 | **Deduplicate against the corpus** | candidates | ADR 0006's *identity key*. Collision appends an *occurrence* |
 | 5 | **Filter known and rejected** | candidates | ADR 0006 made rejection permanent, so this shrinks as the corpus grows |

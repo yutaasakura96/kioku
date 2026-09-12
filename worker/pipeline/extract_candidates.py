@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 from subject import Declaration, render_identity_key
 
-from .tokenise import Token
+from .tokenise import Token, is_inflected
 
 #: ⚠️ **The allowlist is ADR 0044 and it is a decision, not a default.** No
 #: document names the parts of speech a *candidate* may have; `03` §5.1 names the
@@ -171,18 +171,31 @@ def is_candidate(token: Token) -> bool:
 
 
 def reading_of(token: Token) -> str:
-    """ADR 0045 — the reading half of the key, in the script it is written in.
+    """ADR 0045 — **whose** reading, and then in which script.
 
-    Hiragana for a word written with kanji or kana; **katakana left alone for a
-    word that is itself katakana**. コーヒー's reading is コーヒー, not こーひー.
+    ⚠️ **Whose comes first, and it is the dictionary form's whenever the surface
+    inflected** (ADR 0045 § Amended 2026-09-13, [#15]). Reading the surface's
+    gave あります the key `有る␟あり` beside ある's `有る␟ある` — one word, two
+    *notes* — and put あり on the answer side of the *card*. The reading of the
+    lemma is :func:`tokenise`'s to compute, because it needs the dictionary and
+    this stage has none; what is decided here is which of the two fields on
+    :class:`Token` the word is actually read with, and for an uninflected token
+    that is still its own: 六時's 時 reads ジ where it stands and トキ alone.
+
+    Then the script. Hiragana for a word written with kanji or kana; **katakana
+    left alone for a word that is itself katakana**. コーヒー's reading is
+    コーヒー, not こーひー.
 
     ⚠️ **The reading is not only a key, it is a field the reader sees.** The
     declaration makes `reading` a `lookup` field on every *note* and `10` §5 puts
     it on the answer side of the recognition *template*, so a mechanical
     conversion that produced こーひー would be wrong on a card, not merely odd in
-    a column.
+    a column — and so would a card that reads ひらい for 開く.
+
+    [#15]: https://github.com/yutaasakura96/kioku/issues/15
     """
-    return token.reading_form if is_katakana_word(token.normalized_form) else to_hiragana(token.reading_form)
+    reading = token.dictionary_form_reading if is_inflected(token) else token.reading_form
+    return reading if is_katakana_word(token.normalized_form) else to_hiragana(reading)
 
 
 def is_katakana_word(term: str) -> bool:

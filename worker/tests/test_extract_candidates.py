@@ -171,3 +171,68 @@ def test_a_mixed_term_is_not_a_katakana_word() -> None:
     bakery = candidates("パン屋")[0]
 
     assert (bakery.term, bakery.reading) == ("パン屋", "ぱんや")
+
+
+def test_an_inflected_verb_keys_on_the_reading_of_its_dictionary_form() -> None:
+    """⚠️ [#15](https://github.com/yutaasakura96/kioku/issues/15) — the reading
+    half of ADR 0006's key was the **surface**'s, so あります keyed `有る␟あり`
+    beside ある's `有る␟ある`: one word, two *notes*, which is the failure ADR 0006
+    exists to prevent arriving through the half the `normalized_form` finding did
+    not cover.
+
+    ⚠️ **And it is worse than a key problem.** The declaration makes `reading` a
+    `lookup` field and `10` §5 puts it on the answer side of the recognition
+    *template*, so the first *card* minted from あります showed あり.
+    """
+    assert keys("本があります。") == keys("本がある。") == ["本" + SEPARATOR + "ほん", "有る" + SEPARATOR + "ある"]
+
+
+def test_the_inflected_and_the_plain_form_of_a_verb_are_one_note() -> None:
+    """ADR 0045 § Amended 2026-09-13, through the key rather than the field.
+
+    ⚠️ **The criterion this replaces asked for `開く␟あく`, and it is not
+    reachable.** The あく entries are in the lexicon and the analyser never
+    selects them — 48 of 48 resolved to ヒラク across sixteen forcing sentences
+    and all three split modes. `04` §5.3's `開く␟ひらく` / `開く␟あく` pair is a
+    worked example of the key's *shape*; the pair this pipeline actually produced
+    was `開く␟ひらく` and `開く␟ひらい`, and the second one was the defect.
+    """
+    opens = "開く" + SEPARATOR + "ひらく"
+
+    assert opens in keys("ドアが開いた。")
+    assert opens in keys("図書館は六時に開く。")
+    assert "開く" + SEPARATOR + "ひらい" not in keys("ドアが開いた。")
+
+
+def test_an_inflected_suru_reads_suru_and_never_naru() -> None:
+    """⚠️ **The case that chose the rule** (ADR 0045 § Amended 2026-09-13). #15
+    preferred re-tokenising `normalized_form`, and し's `normalized_form` is 為る,
+    which tokenised alone reads ナル. The *note* is about する; a card that reads
+    なる is about a different word.
+    """
+    studied = [candidate for candidate in candidates("勉強します。") if candidate.term == "為る"]
+
+    assert [candidate.reading for candidate in studied] == ["する"]
+
+
+def test_an_i_adjective_keys_on_its_dictionary_form_s_reading_too() -> None:
+    """形容詞 is the other large inflecting class, and 高かっ / 高い is the same
+    defect as あり / ある with a different part of speech."""
+    assert keys("高かった") == keys("高い") == ["高い" + SEPARATOR + "たかい"]
+
+
+def test_the_script_rule_still_runs_on_a_term_the_new_rule_rewrote() -> None:
+    """⚠️ **ADR 0045's script rule is unchanged and applies on top of the new
+    one** — *wholly katakana keeps, everything else converts, tested on the
+    term*. サボっ is inflected, so the reading comes from サボる rather than from
+    the surface; サボる is **not** wholly katakana — the okurigana る is not — so
+    it converts, and the reading is さぼる rather than さぼっ.
+
+    ⚠️ **The two rules do not otherwise meet, and that is worth saying once.** A
+    word wholly in katakana has no okurigana to inflect, so the katakana branch
+    and the inflected branch are disjoint in practice; this is as close as they
+    come.
+    """
+    skipped = [candidate for candidate in candidates("授業をサボった。") if candidate.term == "サボる"]
+
+    assert [candidate.reading for candidate in skipped] == ["さぼる"]
