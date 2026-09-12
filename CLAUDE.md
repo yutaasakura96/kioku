@@ -32,14 +32,25 @@ reappear on `/vet` until the re-vetting ticket, which owns four decisions rather
 (ADR 0056). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
 `/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
 route that does not exist.
+⚠️ **And, since 2026-09-12, there is an environment to run it in.** Neon project `kioku`
+(`small-hat-90514806`, Postgres 18.6, `aws-ap-southeast-1`) with all twenty-two tables migrated and
+`uuidv7()` live; `.env` and `worker/.env` written and gitignored. **Two values are still empty and
+deliberately so** — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `ANTHROPIC_API_KEY` — because
+creating them is a console visit. `scripts/first-run.sh` walks it. ⚠️ **Nobody has still ever signed
+in**, and `docs/first-run-expectation.md` is the form that must be filled *before* the run rather
+than after it (ADR 0037).
+
 **The commands:**
 
 ```
-npm run test        # 693 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 694 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
-cd worker && uv run python . # the worker; needs KIOKU_WORKER_DATABASE_URL and ANTHROPIC_API_KEY
+cd worker && uv run --env-file .env python .   # the worker
+# ⚠️ --env-file is not optional: the worker has NO dotenv loader (it reads
+# os.environ directly), so a plain `uv run python .` does not see worker/.env
+# and dies on KIOKU_WORKER_DATABASE_URL. Verified against uv 0.11.10.
 ```
 
 ⚠️ **`docs/00-status.md` is the memory and this paragraph is not.** It carries what is built, what is
