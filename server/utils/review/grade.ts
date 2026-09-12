@@ -21,16 +21,23 @@
  * ⚠️ **The two timestamps are not redundant.** `reviewed_at` is the client's
  * stamp and feeds the scheduler (ADR 0007); `received_at` is the server's and
  * feeds `03` §12's *time-to-first-review*. Neither column can do the other's
- * job, and the server never stamps a *grade* on receipt. **The rule for a stamp
- * the server cannot trust is `03` §8.2's and it is the grade validator's, which
- * is #13's** — this records the skew rather than judging it.
+ * job, and the server never stamps a *grade* on receipt.
+ *
+ * ⚠️ **What the server does instead is refuse a stamp it cannot trust**
+ * (`03` §8.2), and that rule is `shared/review/stamp.ts` — a pure function, one
+ * of `11` §8's named seams. #12 recorded `clock_skew_seconds` without judging
+ * it; #13 judges it, and ⚠️ **a refusal is surfaced to the reader rather than
+ * dropped** (ADR 0039 property 5), because a wrong clock is one of the few
+ * failures the reader can actually fix.
  */
 
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
+import { checkStamp } from '../../../shared/review/stamp'
 import { completeSession } from './session'
 import { freshEpoch, schedule } from '../../../shared/review/scheduler'
+import { isFinished } from '../../../shared/review/snapshot'
 import { snapshotOf } from './queries'
 import type { EpochState, Grade } from '../../../shared/review/scheduler'
 import type { IngestDatabase } from '../ingest/record'
@@ -44,9 +51,15 @@ export interface GradeRequest {
   reviewedAt: Date
 }
 
+export type GradeRefusal
+  = | 'not_in_session'
+    | 'already_graded'
+    | 'stamped_in_future'
+    | 'stamped_before_snapshot'
+
 export type GradeOutcome
   = | { ok: true, snapshot: ReviewSnapshot | null }
-    | { ok: false, reason: 'not_in_session' | 'already_graded' }
+    | { ok: false, reason: GradeRefusal }
 
 export async function recordGrade(
   db: IngestDatabase,
@@ -54,9 +67,23 @@ export async function recordGrade(
   request: GradeRequest,
 ): Promise<GradeOutcome> {
   const outcome = await db.transaction(async (tx): Promise<GradeOutcome> => {
+    // ⚠️ **`now()` comes back with the snapshot instant, on one clock.**
+    // `snapshot_taken_at` is the database's (`04` §7.6) and `received_at`
+    // defaults to the database's, so measuring the skew allowance against *this
+    // process*'s clock would silently widen it by whatever the application
+    // server and Neon disagree by. `extract(epoch …)` is `numeric`, which the
+    // driver hands back as a string.
     const [member] = await tx
-      .select({ ordinal: schema.reviewSessionCard.ordinal })
+      .select({
+        ordinal: schema.reviewSessionCard.ordinal,
+        snapshotTakenAt: schema.reviewSession.snapshotTakenAt,
+        receivedAtEpoch: sql<string>`extract(epoch from now())`,
+      })
       .from(schema.reviewSessionCard)
+      .innerJoin(
+        schema.reviewSession,
+        eq(schema.reviewSession.id, schema.reviewSessionCard.reviewSessionId),
+      )
       .where(
         and(
           eq(schema.reviewSessionCard.reviewSessionId, request.sessionId),
@@ -72,6 +99,18 @@ export async function recordGrade(
     if (!member)
       return { ok: false, reason: 'not_in_session' }
 
+    // ⚠️ **`03` §8.2, and it runs before anything is written.** The outbox makes
+    // a stamp travel far enough from its keystroke to be wrong, and `review_log`
+    // is the one table that cannot be rewritten (ADR 0011) — so the check is in
+    // front of the row rather than a correction after it.
+    const refusal = checkStamp(request.reviewedAt, {
+      snapshotTakenAt: member.snapshotTakenAt,
+      receivedAt: new Date(Number(member.receivedAtEpoch) * 1000),
+    })
+
+    if (refusal)
+      return { ok: false, reason: refusal }
+
     const [already] = await tx
       .select({ id: schema.reviewLog.id })
       .from(schema.reviewLog)
@@ -79,16 +118,26 @@ export async function recordGrade(
         and(
           eq(schema.reviewLog.reviewSessionId, request.sessionId),
           eq(schema.reviewLog.cardId, request.cardId),
+          // ⚠️ **At or after this stamp**, which is PRD §5's *the same card
+          // graded twice — both replay; the later timestamp wins* as narrowly as
+          // an append-only table permits. A duplicate replay of one entry — the
+          // outbox's real duplicate, an acknowledgement lost on the way back —
+          // carries the **same** stamp and is refused here; a genuinely later
+          // answer to the same *card* is recorded, and `snapshotOf` reads the
+          // rows in stamp order so the later one is the one the rail shows.
+          // ⚠️ **Nothing is taken back to do it.** `04` §7.5's trigger refuses an
+          // `UPDATE` and a `DELETE`, so *later wins* can only ever mean *the
+          // later one is also written*; a rule that replaced the first row would
+          // have been unimplementable against the one table ADR 0011 protects.
+          gte(schema.reviewLog.reviewedAt, request.reviewedAt),
         ),
       )
       .limit(1)
 
     // ⚠️ **A graded *card* leaves the *session* and never returns to it**
-    // (`S7`), so a second *grade* for the same position is a held key. It
-    // changes nothing rather than writing a second irreplaceable row and
-    // scheduling the *card* twice. **Two *grades* for the same *card* replaying
-    // with the later one winning is `03` §8.2's rule and it is #13's**, where
-    // the outbox makes a replay a thing that happens.
+    // (`S7`), so a second *grade* for the same position at the same instant is a
+    // held key or a replay. It changes nothing rather than writing a second
+    // irreplaceable row and scheduling the *card* twice.
     if (already)
       return { ok: false, reason: 'already_graded' }
 
@@ -125,7 +174,10 @@ export async function recordGrade(
   // and that is a read of what the transaction just committed.
   const snapshot = await snapshotOf(db, ownerId, request.sessionId)
 
-  if (snapshot && snapshot.positions.every(position => position.grade !== null))
+  // ⚠️ **Answered, not graded.** `S9`'s `X` advances without a *grade*
+  // (`09` §4.9), so a run can end with nineteen answers out of twenty and
+  // `isFinished` is the one place that knows it (`shared/review/snapshot.ts`).
+  if (snapshot && isFinished(snapshot))
     await completeSession(db, ownerId, request.sessionId)
 
   return { ok: true, snapshot }

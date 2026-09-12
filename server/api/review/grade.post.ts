@@ -5,8 +5,8 @@
  * on the control is visible for exactly as long as it takes the next *card* to
  * render and it is not a loading state, so the answer here is bookkeeping the
  * client folds in when it arrives rather than the thing that lets the reader
- * move. #13 puts an outbox in front of it; until then a lost request is a lost
- * *grade*, which is what that ticket exists to close.
+ * move. ⚠️ **#13 put an outbox in front of it**: a request that does not land is
+ * an entry still in `localStorage` (ADR 0014), and the end screen says how many.
  *
  * ⚠️ **`not_in_session` and `already_graded` are `200`s, not `409`s** — the same
  * reading as `/api/vet/decision`'s `not_pending`. Neither is an error: one is a
@@ -16,7 +16,12 @@
  * stops being tested.
  *
  * ⚠️ **The server does not stamp the *grade***. `reviewed_at` arrives from the
- * client and `received_at` is written beside it (`03` §8.1, `04` §7.5).
+ * client and `received_at` is written beside it (`03` §8.1, `04` §7.5) — and
+ * ⚠️ **`stamped_in_future` and `stamped_before_snapshot` are `200`s too.**
+ * `03` §8.2's refusals are answers about a *grade* rather than faults in a
+ * request: nothing is retryable about them, and the client has to be able to
+ * tell them from a flush that simply did not arrive, because one is surfaced on
+ * the end screen and the other is tried again (ADR 0039 property 5).
  */
 import { parseGrade } from '../../../shared/review/request'
 import { recordGrade } from '../../utils/review/grade'

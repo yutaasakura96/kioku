@@ -93,3 +93,26 @@ describe('a modified key is never ours', () => {
     }
   })
 })
+
+// ⚠️ **`S9`'s `X`, and the reason it is not face-dependent.** A digit answers a
+// question; `X` reports that the question should not have been asked — it
+// advances **without a *grade*** and leaves *Review* history untouched (`09`
+// §4.9, `04` §7.8), so a *card* that is wrong in a way the *term* alone shows is
+// caught before the answer is read. `10` §5.1 puts its legend line on both
+// faces, which is the same fact drawn.
+describe('`X` — the flag (`S9`, `10` §5.1)', () => {
+  it.each(['front', 'back'] as const)('flags on %s', (face) => {
+    expect(reviewAction(press('x'), face)).toEqual({ kind: 'flag' })
+    expect(reviewAction(press('X', { shiftKey: true }), face)).toEqual({ kind: 'flag' })
+  })
+
+  // The same rule the rest of the map follows: a modifier means the keystroke
+  // belongs to the browser.
+  it.each(['ctrlKey', 'metaKey', 'altKey'] as const)('ignores it under %s', (modifier) => {
+    expect(reviewAction(press('x', { [modifier]: true }), 'back')).toBeNull()
+  })
+
+  it('is not a grade, and does not become one on the back', () => {
+    expect(reviewAction(press('x'), 'back')).not.toMatchObject({ kind: 'grade' })
+  })
+})

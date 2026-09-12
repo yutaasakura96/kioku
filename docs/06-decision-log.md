@@ -1317,6 +1317,48 @@ produces a `review_log` row, and by nothing else.**
 **Revisit if** a *card* ever needs a scheduling state before it is answered — a per-*card* deferral,
 or a burial — at which point an epoch with `reps = 0` is a real state rather than a placeholder.
 
+### [2026-09-12] The skew allowance is two minutes, and it covers both of §8.2's rules
+
+`03` §8.2's "small skew allowance" is 120 seconds, and it applies to the before-snapshot rule as well
+as to the future one — both comparisons put a client stamp against a server one, so an exact
+before-snapshot rule refuses the opening *grade* of every *session* on a slightly slow laptop.
+→ [ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)
+
+### [2026-09-12] Later wins is a second row, because review_log cannot be rewritten
+
+PRD §5's *the same card graded twice — both replay; the later timestamp wins* is a second `review_log`
+row plus a read ordered by `reviewed_at`; a stamp at or before the recorded one is `already_graded`,
+which is what a replayed entry carries. `04` §7.5's trigger makes replacement impossible, so this is
+the only available meaning.
+→ [ADR 0055](adr/0055-later-wins-is-a-second-row-because-review-log-cannot-be-rewritten.md)
+
+### [2026-09-12] A flag returns a note to the queue through card_flag, not by un-accepting it
+
+`S9` leaves `note_vetting.state` at `accepted` — un-accepting would raise the numerator and lower the
+denominator of *false-accept rate* at once — and `04` §11's `card_flag (note_id) WHERE resolved_at IS
+NULL` index is how the queue finds it. ⚠️ The queue query and the re-vetting it leads to are
+deliberately not #13's.
+→ [ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md)
+
+### [2026-09-12] The browser store is three named functions, not a `useStorage`
+
+**Decision:** ADR 0014's `localStorage` path is `app/utils/review-store.ts` — `readStored`,
+`writeStored`, `clearStored` — imported explicitly at the call site. No `@vueuse` dependency is added.
+
+**Alternatives considered:** adding `@vueuse/nuxt` for its `useStorage`, which is what `03` §8.1's
+"the storage helper is an explicit import" was written against; and writing a composable of our own
+called `useStorage`.
+
+**Reason:** the hazard verification §5.5 recorded is a **name collision** — Nuxt has a built-in
+`useStorage` (Nitro's key-value store), which is why `@vueuse/nuxt` disables its own from
+auto-import. A composable of that name here would inherit the collision without the dependency that
+explains it. The dependency itself buys one reactive wrapper over three lines, and `03` §13.5's pin
+obligation applies to every one we add. Three functions with their own names, imported by path,
+cannot be mistaken for anything.
+
+**Revisit if** a second screen needs browser storage and the reactive wrapper starts paying for
+itself — at which point the decision is the dependency, not the naming.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

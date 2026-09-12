@@ -10,25 +10,28 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **fourteen more ADRs** with it. ⚠️ **This paragraph said "there is still no
+code since 2026-09-09 and **seventeen more ADRs** with it. ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
-**What exists now:** #2 through #12 are built — a Nuxt app with the rendering split enforced by the
+**What exists now:** #2 through #13 are built — a Nuxt app with the rendering split enforced by the
 build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
 a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by doing
-so, and — since 2026-09-12 — **a bounded *session* of those *cards* that ends**: composed due-first
-and snapshotted server-side, four *grades* under a *progress rail* that knows its own length, and a
-first *scheduling epoch* minted by the *grade* rather than by the acceptance, because
-`scheduling_epoch.card_id` is `RESTRICT` and an epoch at acceptance would kill *Vet*'s undo. What
-nothing does yet is **survive the network**: a *grade* is posted as it is given, so a tunnel loses
-it, and `X` — the flag that returns a bad *card* to the queue — has no key. Both are #13's.
+so, a bounded *session* of those *cards* that ends — composed due-first and snapshotted server-side,
+four *grades* under a *progress rail* that knows its own length — and, since 2026-09-12, **a
+*session* that survives the network**: an outbox in `localStorage` carrying two kinds of entry, so
+every answer is durable before the screen moves and the stream replays in order when the connection
+returns, and `X`, which suspends a bad *card* and leaves its *review* history standing. What no
+**number** does yet is get read — Stats is five figures nothing computes, and that is #14's.
+⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.** A flagged *note* does not
+reappear on `/vet` until the re-vetting ticket, which owns four decisions rather than a query
+(ADR 0056).
 **The commands:**
 
 ```
-npm run test        # 549 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 622 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

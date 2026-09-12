@@ -3,13 +3,16 @@
 // can read, and a typed column validates nothing at runtime (`03` §2.3).
 //
 // ⚠️ **This is not `03` §8.2's grade validator**, which rejects a stamp in the
-// future beyond a skew allowance and one before its own snapshot. That is its
-// own seam and it is #13's, where the outbox makes a stamp travel far enough
-// from its keystroke to be wrong.
+// future beyond a skew allowance and one before its own snapshot. ⚠️ **Built
+// 2026-09-12 with #13** and it is still its own seam — `shared/review/stamp.ts`
+// and `test/unit/review-stamp.test.ts`. The difference is the one this file is
+// about: a `reviewed_at` that is not a date at all cannot reach a `timestamptz`,
+// and that is a shape; whether a date the server cannot trust may be recorded is
+// a rule.
 
 import { describe, expect, it } from 'vitest'
 
-import { parseGrade, parseSessionSize } from '../../shared/review/request'
+import { parseFlag, parseGrade, parseSessionSize } from '../../shared/review/request'
 
 const SESSION = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
 const CARD = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c'
@@ -85,5 +88,25 @@ describe('parseSessionSize', () => {
   it('is twenty when nothing was sent', () => {
     expect(parseSessionSize({})).toBe(20)
     expect(parseSessionSize(undefined)).toBe(20)
+  })
+})
+
+// `S9`'s `X`. ⚠️ **It carries no stamp**, which is the visible difference
+// between the outbox's two entry types: `card_flag.flagged_at` defaults to
+// `now()` (`04` §7.8) and nothing computes anything from it, while a *grade*'s
+// stamp is arithmetic the server cannot reconstruct (ADR 0007).
+describe('the flag (`S9`, `04` §7.8)', () => {
+  it('takes a session and a card and nothing else', () => {
+    const parsed = parseFlag({ sessionId: SESSION, cardId: CARD, reviewedAt: 'ignored' })
+
+    expect(parsed).toEqual({ ok: true, flag: { sessionId: SESSION, cardId: CARD } })
+  })
+
+  it.each([
+    ['not an object', 'x', 'not_an_object'],
+    ['a card id that is not one', { sessionId: SESSION, cardId: 'card-1' }, 'bad_card_id'],
+    ['a session id that is not one', { sessionId: 'run-1', cardId: CARD }, 'bad_session_id'],
+  ])('refuses %s', (_, body, code) => {
+    expect(parseFlag(body)).toEqual({ ok: false, code })
   })
 })

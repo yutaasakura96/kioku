@@ -20,6 +20,34 @@ import { clampSessionSize } from './compose'
 import { isUuid } from '../utils/uuid'
 import type { Grade } from './scheduler'
 
+/**
+ * What both answer endpoints report back — ⚠️ **one union, because the outbox
+ * sends both entry types through one loop** and a sixth value edited into only
+ * one of the two places it is written is `04` §13's drift argument at five
+ * string literals.
+ */
+export type AnswerOutcome
+  = | 'ok'
+    | 'not_in_session'
+    | 'already_graded'
+    | 'already_flagged'
+    | 'stamped_in_future'
+    | 'stamped_before_snapshot'
+
+/**
+ * ⚠️ **Which outcomes mean *this entry will never land*.**
+ *
+ * ADR 0039 property 5 splits the stream's failures in two, and the split is not
+ * about status codes: an entry the network could not carry is **held and tried
+ * again**, and an entry the server has decided about is **taken out and shown**
+ * (`03` §8.2). `not_in_session` and the two `already_` values are the third
+ * case — the durable record has already answered, and retrying either forever
+ * would be the client's memory arguing with the database.
+ */
+export function isRefused(outcome: AnswerOutcome): boolean {
+  return outcome === 'stamped_in_future' || outcome === 'stamped_before_snapshot'
+}
+
 export interface GradeBody {
   sessionId: string
   cardId: string
@@ -75,6 +103,39 @@ export function parseGrade(body: unknown): GradeParseResult {
     return { ok: false, code: 'bad_reviewed_at' }
 
   return { ok: true, grade: { sessionId, cardId, grade, reviewedAt: stamped } }
+}
+
+export interface FlagBody {
+  sessionId: string
+  cardId: string
+}
+
+export type FlagErrorCode = 'not_an_object' | 'bad_session_id' | 'bad_card_id'
+
+export type FlagParseResult
+  = | { ok: true, flag: FlagBody }
+    | { ok: false, code: FlagErrorCode }
+
+/**
+ * `S9`'s `X` — ⚠️ **and it carries no stamp**, which is the visible difference
+ * between the outbox's two entry types.
+ *
+ * `card_flag.flagged_at` defaults to `now()` (`04` §7.8) and nothing computes
+ * anything from it, so a flag replayed an hour after a tunnel is a flag. A
+ * *grade* is the opposite case and the reason ADR 0007 exists: the moment it was
+ * given is arithmetic, and the server cannot reconstruct it.
+ */
+export function parseFlag(body: unknown): FlagParseResult {
+  if (!isRecord(body))
+    return { ok: false, code: 'not_an_object' }
+
+  if (!isUuid(body.sessionId))
+    return { ok: false, code: 'bad_session_id' }
+
+  if (!isUuid(body.cardId))
+    return { ok: false, code: 'bad_card_id' }
+
+  return { ok: true, flag: { sessionId: body.sessionId, cardId: body.cardId } }
 }
 
 /**

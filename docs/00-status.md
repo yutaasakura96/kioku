@@ -3,20 +3,20 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**53 ADRs**, eleven documents, an empty frontier, and **five open issues** on the tracker — #1 the
-spec, #5, #13, #14, and **#15, which #9 found and did not fix** (#12 closes when this work merges).
-⚠️ **This said *seven* and counted #11 among them until 2026-09-12** — #11 closed on the tracker the
-moment `f4bfa47` merged, which is the same sentence that predicted it. It was the fifth stale number
-in a row and § Next names the pattern.
-**#2 through #12 are built.** ⚠️ **The frontier is
-[#13](https://github.com/yutaasakura96/kioku/issues/13) alone** — *the outbox, and the `S9` flag*.
+**56 ADRs**, eleven documents, an empty frontier, and **four open issues** on the tracker — #1 the
+spec, #5, #14, and **#15, which #9 found and did not fix** (#13 closes when this work merges), plus
+**the re-vetting ticket #13 hands on and nobody has opened yet** (§ Next).
+**#2 through #13 are built.** ⚠️ **The frontier is
+[#14](https://github.com/yutaasakura96/kioku/issues/14) alone** — *Stats: six figures and the
+suppression boundary*.
 There is a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two
 pages of Japanese and get control back, a worker that wakes up and claims the job, a pipeline that
 turns that paste into *pending notes* one *chunk* at a time, a reader who can see one, judge it in a
 keystroke, and mint a *card* by doing so — whose fields are frozen by a guard rather than by nobody
-having asked — and, since 2026-09-12, **a bounded *session* of those *cards* that ends.** What
-nothing does yet is **survive the network**: a *grade* is posted as it is given rather than queued,
-so a tunnel loses it, and `X` has no key. Both are #13's.
+having asked — a bounded *session* of those *cards* that ends, and, since 2026-09-12, **a *session*
+that survives the network**: every answer is durable before the screen moves, the stream replays in
+order when the connection returns, and `X` suspends a bad *card* without costing the record. What
+**no number** does yet is get read: Stats is five figures nothing computes, and that is #14's.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -25,6 +25,90 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #13 — the outbox, and the `S9` flag, 2026-09-12.** **A *session* answered underground
+loses nothing.** Every answer is written to `localStorage` before the screen paints the next *card*,
+the stream replays in order when the connection returns, and it carries **two kinds of entry** — a
+*grade*, and `S9`'s `X`, which suspends a *card* and stamps its *note* for return to the queue
+without giving it a *grade*. ⚠️ **Stamps it, and does not yet return it**: the queue's own half is
+the re-vetting ticket's and § Next carries why.
+
+**Suite: 622 TypeScript** (was 549) **plus 200 pytest.** Typecheck and build clean.
+
+**ADR 0039's five properties are asserted in this project's own idiom, in three tiers.**
+`shared/review/outbox.ts` is the arithmetic — append, replay order, settle by `seq`, and what a
+resumed run inherits — and what it asserts hardest is an **absence**: there is no deduplicate
+anywhere, because PRD §5 says the same *card* graded twice replays twice and ADR 0007 says no
+conflict is resolved anywhere. `test/nuxt/review-outbox.test.ts` mounts the page against registered
+endpoints and reads `localStorage` rather than the component, because property 4 is *the durable
+record decides, not client memory*. `test/e2e/review.test.ts` takes a real browser offline, answers a
+whole run, and asserts nothing reached the database until the connection came back.
+
+⚠️ **`03` §8.2's grade validator is built and the allowance covers both of its rules**
+([ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)). 120
+seconds, and the finding is the symmetry rather than the number: `03` §8.2 names an allowance for the
+future rule only, and read literally the before-snapshot rule is exact — which it cannot be, because
+**both comparisons put a client stamp against a server one.** A laptop three seconds slow stamps the
+first *grade* of every run before `snapshot_taken_at`, so an exact rule refuses the opening *grade* of
+every *session* on a machine that works. Both server instants are now read from the database in one
+statement, because measuring the bound against the application server's clock would widen it by
+whatever Vercel and Neon disagree by.
+
+⚠️ **PRD §5's *later timestamp wins* could not mean what it sounds like**
+([ADR 0055](adr/0055-later-wins-is-a-second-row-because-review-log-cannot-be-rewritten.md)).
+`04` §7.5's trigger refuses an `UPDATE` and a `DELETE` on `review_log`, so *later wins* has exactly
+one available meaning: **the later one is also written, and everything that reads a *card*'s answer
+reads the latest stamp.** The two cases are told apart by the stamp rather than by counting — a
+replayed entry carries the **same** stamp and is `already_graded`; a genuinely later answer is a
+second row and the epoch moves on. ⚠️ **A *session* can therefore hold more `review_log` rows than it
+has positions**, and #14's completion rate stays correct only because it counts positions.
+
+⚠️ **The flag leaves `note_vetting.state` alone, and `04` §11's unused index is what said so**
+([ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md)).
+`09` §4.9 says the flag returns the *note* to the queue, and the straightforward implementation —
+`state` back to `pending` — **raises the numerator of *false-accept rate* and lowers its denominator
+at the same time**, so one flag moves the ratio twice and takes the *note* out of *acceptance rate*
+too. `card_flag (note_id) WHERE resolved_at IS NULL` has been in the schema since Phase 4, labelled
+*the flagged notes waiting in the Vet queue*, and it only makes sense under the other reading. ⚠️
+**The rule worth keeping: when an implementation and an index disagree about how something is found,
+the index is the older statement and usually the considered one.**
+
+⚠️ **What #13 did not build, deliberately: re-vetting.** The queue query and the decision path behind
+it are the next ticket's, because three decisions sit inside them — `decide()` requires `pending`,
+ADR 0052 freezes an accepted *note*'s fields, and editing a *memory-bearing field* resets the *card*
+(`04` §7.4, the first reset in the application, and nothing writes one). **So after #13 a flagged
+*note* does not yet reappear on `/vet`.** It is the same refusal #10 made when it declined to resolve
+a flag, one step later: half of `S9` built here would have been a guess at the half that was not.
+⚠️ **This is the one acceptance criterion on #13 that is not met**, and it is named rather than
+quietly folded in — `09` §4.9 and `04` §7.8 both carry the amendment.
+
+**The store is ours and `@vueuse` was not added.** `app/utils/review-store.ts` — `readStored`,
+`writeStored`, `clearStored`, imported by path. `03` §8.1's rule is about a **name collision**: Nuxt
+has a built-in `useStorage` and that is why `@vueuse/nuxt` disables its own, so a composable of that
+name here would inherit the hazard without the dependency that explains it. Every call is wrapped,
+because the store throws rather than answers in a private window — ⚠️ **a store that cannot be
+written is a *Review* that still works**, and degrades to #12's behaviour.
+
+⚠️ **One listener on `window`, and it is not a keystroke.** ADR 0025 binds the key handlers to the
+mode container because ADR 0023's map is all printable characters and SC 2.1.4 is Level A — a
+criterion about keyboard shortcuts. `online` is ADR 0039's *signal*: removing it entirely changes
+when the stream drains and never whether it does, because the next load replays anyway.
+
+**`/code-review` found two things and both were real.** ⚠️ **A replayed flag wrote a second
+`card_flag` row** — the code said so in a comment, reading `11` §3's *a second flag on the same card
+is a second row* as covering it. It does not: `11` §3 is about a **reader** flagging twice, and an
+outbox retry counted as a flag **inflates the numerator of *false-accept rate***, which is the metric
+ADR 0056 was written to protect. The *grade* path had exactly this guard on exactly this pair and the
+flag path did not. ⚠️ **And a `400` blocked the head of the stream for ever**: `send` could not tell
+a body the server cannot read from a network fault, so it held it and everything behind it — the
+drop ADR 0039 property 5 exists to prevent, arriving through the mechanism added to prevent it. A
+`400` is now a refusal; a `404` or a `500` is still held, because those may work next time.
+
+**Sabotaged to red, seven ways.** Removing the stamp check reddens two schema tests; reading a flagged
+position as unanswered reddens the run that ends on a flag; dropping the `localStorage` write reddens
+four of the page's twelve; not folding the outbox into a resumed run reddens exactly the one about
+asking a *card* twice; removing the flag's replay guard reddens the one that counts `card_flag` rows;
+and holding a `400` instead of refusing it reddens the one about the head of the stream.
 
 **Phase 6, #12 — the session composer, the snapshot and four grades, 2026-09-12.** **A *card* can be
 reviewed.** `/review` composes a bounded *session* due-first, snapshots it server-side, prefetches it
@@ -979,7 +1063,7 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 13`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 14`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
@@ -1000,10 +1084,14 @@ is #7 alone.~~ ~~**⚠️ #7 built 2026-09-11.** The frontier is #8 alone.~~
 edit path*.~~
 ~~**⚠️ [#11](https://github.com/yutaasakura96/kioku/issues/11) built 2026-09-12. The frontier is
 [#12](https://github.com/yutaasakura96/kioku/issues/12) alone** — *review*.~~
-**⚠️ [#12](https://github.com/yutaasakura96/kioku/issues/12) built 2026-09-12. The frontier is
-[#13](https://github.com/yutaasakura96/kioku/issues/13) alone** — *the outbox, and the `S9` flag*.
-**This line was written in the same commit as the work it describes**, which is the whole of the fix
-for the pattern above.
+~~**⚠️ [#12](https://github.com/yutaasakura96/kioku/issues/12) built 2026-09-12. The frontier is
+[#13](https://github.com/yutaasakura96/kioku/issues/13) alone** — *the outbox, and the `S9`
+flag*.~~
+**⚠️ [#13](https://github.com/yutaasakura96/kioku/issues/13) built 2026-09-12. The frontier is
+[#14](https://github.com/yutaasakura96/kioku/issues/14) alone** — *Stats: six figures and the
+suppression boundary*.
+**Both of these lines were written in the same commit as the work they describe**, which is the whole
+of the fix for the pattern above — twice now.
 
 ~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
 ticket.**~~ **All three of its remaining items are closed** — the contradiction in
@@ -1011,15 +1099,55 @@ ticket.**~~ **All three of its remaining items are closed** — the contradictio
 freeze in [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md),
 and the arithmetic in `shared/metrics/acceptance.ts`. See § Done.
 
-⚠️ **#13 inherits five things, and the first two are what #12 left it on purpose:**
+⚠️ **A ticket is owed and nobody has opened it: re-vetting a flagged *note*.**
+[ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md)
+is the argument and #13's § Done entry is the state. It owns five things, and the middle three are
+decisions rather than code: the *Vet* queue query over `04` §11's
+`card_flag (note_id) WHERE resolved_at IS NULL`; `decide()` against a *note* whose `state` is
+`accepted`; **lifting ADR 0052's freeze**, which that ADR names as an argument to have; the **first
+*scheduling epoch* reset** in the application (`04` §7.4 — editing a *memory-bearing field*
+invalidates what was memorised, and nothing writes one today); and `card_flag.resolved_at`.
+⚠️ **Until it ships, `note_vetting.flagged_at` is written and still nothing reads it** — which is
+#10's own carried bullet, one step further along.
 
-- ⚠️ **`X` has no key, no legend line and no handler — and the rail already has its mark.** `10`
+⚠️ **#14 inherits four things, and the first two are arithmetic that will look reasonable and be
+wrong:**
+
+- ⚠️ **A *session* can hold more `review_log` rows than it has positions**
+  ([ADR 0055](adr/0055-later-wins-is-a-second-row-because-review-log-cannot-be-rewritten.md)). PRD
+  §5's *later timestamp wins* is a **second row** — the table is append-only, so nothing else was
+  available — so a completion rate written as *rows ÷ size* is wrong the first time a reader answers
+  a *card* twice, and correct-looking until then. **Count positions.**
+- ⚠️ **`review_session.size` is what was composed, not what the knob asked for** (§ Carrying). This
+  is what makes *graded ÷ size* correct at all, and the other reading is silently wrong.
+- ⚠️ **The *acceptance rate* arithmetic is a pure module and Stats must not re-derive it in SQL**
+  (§ Carrying, `shared/metrics/acceptance.ts`). The counts are #14's; the rate is not.
+  ⚠️ **And a flagged *note* stays `accepted`** (ADR 0056), which is what keeps *false-accept rate*'s
+  denominator from moving every time its numerator does.
+- ⚠️ **`S10`'s suppression boundary is the only branch in the story** (`11` §3): nineteen suppresses,
+  twenty reports, with raw counts and a line saying why. It governs all four ratios at once, and it
+  is off by default in every naive implementation.
+
+~~⚠️ **#13 inherited five things, and the first two are what #12 left it on purpose:**~~
+**All five held.** `mergeGrades` really was the rule the outbox had to not break, the rail really did
+already have its mark, `apply()` really was the shape the outbox slotted into, the `review_log`
+trigger really did decide how the e2e fixtures are written, and the `localStorage` resume really did
+go in front of the server rather than instead of it. Kept because each is still the shortest
+statement of a thing #14 may need:
+
+- ~~⚠️ **`X` has no key, no legend line and no handler**~~ — **built 2026-09-12**, on **both faces**
+  (`10` §5.1), and the rail needed nothing: the flagged tick was already there. The original, kept
+  because it is still the shortest statement of what the rail's fourth mark is for:
+  ⚠️ **`X` has no key, no legend line and no handler — and the rail already has its mark.** `10`
   §5.1 puts `X — flag` in the footer in both faces and #12 draws neither, because the keystroke
   writes four rows in one transaction (`04` §7.8) and rides the same outbox as a *grade*. What is
   built is `10` §5.3's **flagged tick** in `ProgressRail.vue` — 2px rather than 6px, the graded fill,
   *height and not colour* because ADR 0024 left this palette no grey to spare. So #13 supplies the
   key and the transaction and changes nothing in the rail.
-- ⚠️ **A *grade* is posted as it is given, and `apply()` is the shape the outbox slots into.**
+- ~~⚠️ **A *grade* is posted as it is given**~~ — **queued 2026-09-12**, and `apply()` really was the
+  shape it slotted into: `send` folds the same answer through the same function, and the only thing
+  that changed in it is that a flag moves too. The original:
+  ⚠️ **A *grade* is posted as it is given, and `apply()` is the shape the outbox slots into.**
   `app/pages/review.vue` already paints on the keystroke and never waits (`S8`): the *grade* goes
   into a local `given` map, the next *card* renders from the snapshot the client holds, and the
   request is chained behind the last one so two answers cannot land out of order. **What is missing
@@ -1165,9 +1293,9 @@ findings that amended `11` §1 and §6.1**.
                                         #3,#7 ─→ #8 pipeline 1–5 ✔
                                                  #8 ─→ #9 generation ✔
                                   #9 ─→ #10 vet mechanics ✔ ─┬─→ #11 vet presentation ✔
-                                                             └─→ #12 review ← the frontier
-                                                            #12 ─→ #13 outbox ─┐
-                                                                     #6,#13 ─→ #14 stats
+                                                             └─→ #12 review ✔
+                                                            #12 ─→ #13 outbox ✔ ─┐
+                                                             #6,#13 ─→ #14 stats ← the frontier
 ```
 
 **How the rest of the phase runs:** **`/clear`, then `/implement <n>`** — one ticket per fresh
@@ -1211,6 +1339,71 @@ four.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **A retry is not a second event, and every append-only table has to be told which it is
+  looking at.** `11` §3's *a second flag on the same card is a second row* and ADR 0007's *the outbox
+  replays* describe two different duplicates, and the first draft of #13 conflated them: a replayed
+  flag wrote a second `card_flag` row, **inflating the numerator of *false-accept rate***, while the
+  *grade* path a hundred lines away already guarded the same pair. Both now key on
+  `(review_session_id, card_id)`, and the reason that pair works is a fact about the screen rather
+  than about the table — **a flagged or graded position is answered, so the reader cannot reach it
+  again inside that run.** ⚠️ **The class is wider than these two tables**: every append-only write
+  reachable from a replay owes an idempotency key, and *deduplicating under-reports* and *counting
+  retries over-reports* are the same error with the sign flipped.
+- ⚠️ **An entry that can never succeed must leave the outbox, or it blocks every answer behind it.**
+  The stream replays in order and stops at the first entry the network would not take (ADR 0039), so
+  *held* is the right answer for a tunnel and the **wrong** answer for a `400` — the body cannot
+  become readable, and holding it is head-of-line blocking that loses the whole run silently, which
+  is the drop property 5 exists to prevent. `app/pages/review.vue` refuses a `400` and holds a `404`
+  or a `500`, because those can work on the next attempt. ⚠️ **The distinction is *can this ever
+  succeed*, not the status class** — and it is a judgement the client has to make, because the server
+  does not know it is talking to a replay.
+- ⚠️ **An unused index is a decision somebody already made.** `04` §11 has carried
+  `card_flag (note_id) WHERE resolved_at IS NULL` since Phase 4, labelled *the flagged notes waiting
+  in the Vet queue*, and nothing queried it — and it is the only thing in eleven documents that says
+  **how** `09` §4.9's *returns the note to the vetting queue* is meant to work. The straightforward
+  reading, `note_vetting.state` back to `pending`, raises the numerator of *false-accept rate* and
+  lowers its denominator at once (ADR 0056). **The rule generalises: when an implementation and an
+  index disagree about how something is found, the index is the older statement and usually the
+  considered one.**
+- ⚠️ **`review_log` can hold two rows for one position, and every consumer that counts reviews has to
+  know it** ([ADR 0055](adr/0055-later-wins-is-a-second-row-because-review-log-cannot-be-rewritten.md)).
+  PRD §5's *the same card graded twice — both replay; the later timestamp wins* had exactly one
+  available implementation, because `04` §7.5's trigger refuses an `UPDATE` and a `DELETE`: write the
+  later one too, and read the rows in stamp order. ⚠️ **The two consumers that exist are correct and
+  the next one is #14's** — a *session* completion rate written as *`review_log` rows ÷ size* is
+  wrong the first time a reader answers a *card* twice and correct-looking until then. Count
+  positions. **The duplicate that is refused is the exact one**: a replayed outbox entry carries the
+  same stamp it was created with, so `reviewed_at >= incoming` catches a lost acknowledgement without
+  a heuristic.
+- ⚠️ **A client stamp compared against a server instant needs the allowance in both directions**
+  ([ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)).
+  `03` §8.2 names a skew allowance for the future rule and reads exact for the before-snapshot one —
+  and a laptop three seconds slow stamps the first *grade* of every run before `snapshot_taken_at`,
+  so the exact rule refuses the opening *grade* of every *session* on a machine that works. ⚠️ **Both
+  server instants are read in one statement** — `snapshot_taken_at` from the row, `extract(epoch from
+  now())` beside it — because the application server and the database are different machines (`03`
+  §13.1) and measuring the bound against this process's clock widens it by whatever they disagree by.
+- ⚠️ **The e2e tier's single connection is not only about `Promise.all`; a reload is the other way
+  in.** Measured 2026-09-12: `page.reload()` issued while the **previous** document still has a
+  request in flight puts two connections on `@electric-sql/pglite-socket`, one is reset, the route
+  answers `500`, and the page's flush stops with the entry still owed — **and nothing in the test
+  output names the cause**, exactly as the `Promise.all` bullet below describes for the other shape.
+  `test/e2e/review.test.ts` drains the outbox before it reloads. **The class is *overlapping
+  requests*, not *concurrent reads inside one handler*.**
+- ⚠️ **A `window` listener in a *mode* is not automatically ADR 0025's problem.** The key handlers
+  bind to the mode container because ADR 0023's map is all printable characters and **SC 2.1.4
+  Character Key Shortcuts** is Level A — a criterion about keyboard shortcuts. `app/pages/review.vue`
+  listens for `online` on `window`, which is ADR 0039's *signal*: removing it entirely changes when
+  the outbox drains and never whether it does, because the next load replays anyway. ⚠️ **It is also
+  the reason the nuxt tier unmounts every page it mounts** — a screen left mounted answers the next
+  test's reconnection with its own outbox, on the one `window` they share.
+- ⚠️ **A refused *grade* stays painted as answered, and that is deliberate.** `03` §8.2's refusal
+  arrives after the reader has moved on; un-painting the position would put a *card* they have
+  already left back in front of them, and on a clock that is an hour fast **every** *grade* is
+  refused, so the run would loop on the first *card* forever. The end screen names the count and the
+  cause instead (`10` §5.6). ⚠️ **The consequence to carry: the end screen's four figures can
+  overstate what reached the database**, and the sentence under them is what reconciles it.
 
 - ⚠️ **An answer to a *grade* moves the *grades* and never the words.**
   `shared/review/snapshot.ts`'s `mergeGrades`, added 2026-09-12 by #12 after `/code-review` found the
@@ -1289,7 +1482,14 @@ Nothing.
   owner-scoped rule lets a second reader rewrite the first reader's *cards* under them. Unreachable
   while ADR 0012 invites one reader. **Not a trigger**, deliberately: `04` §7.5 has exactly one and
   ADR 0011 names exactly one irreplaceable thing.
-- ⚠️ **`note_vetting.flagged_at` is rendered and never written.** `10` §4.3's `returned by a flag`
+- ⚠️ **`note_vetting.flagged_at` is written now and still nothing reads it.** ⚠️ **Amended
+  2026-09-12 by #13**, which is the half of this bullet that moved: `X` stamps it, and the *Vet*
+  queue still selects `state = 'pending'` — so `10` §4.3's `returned by a flag` aside is drawn, the
+  column is set, and the *note* does not come back. The query that would find it is `04` §11's
+  `card_flag (note_id) WHERE resolved_at IS NULL`, and it belongs to the re-vetting ticket with the
+  four decisions behind it (ADR 0056, § Next). The original, because the shape of the refusal is the
+  same one step earlier:
+  ⚠️ **`note_vetting.flagged_at` is rendered and never written.** `10` §4.3's `returned by a flag`
   aside is built, the queue query reads the column, and nothing sets it — `X` is *Review*'s key and
   `S9` is #13's. **#10 also deliberately does not resolve a flag**: `04` §7.8 says
   `card_flag.resolved_at` is "set when the note is re-vetted", and re-vetting a flagged *note* is

@@ -356,6 +356,16 @@ place client-authored data becomes permanent history, so rare is not the same as
    count in the shell goes up by one, and `/vet` will present it again.
 4. Advances without a *grade*.
 
+⚠️ **Amended 2026-09-12 with #13: step 3 is the durable half only, and the `state` does not move**
+([ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md)).
+The *note* stays `accepted` — un-accepting it moves two of `S10`'s ratios by arithmetic that has
+nothing to do with `S9` — so the queue finds a flagged *note* through `04` §11's
+`card_flag (note_id) WHERE resolved_at IS NULL` rather than through `state = 'pending'`.
+⚠️ **That query is not built**, and neither is deciding a flagged *note*: `decide()` requires
+`pending`, ADR 0052 freezes an accepted *note*'s fields, and editing a *memory-bearing field* resets
+the *card* (`04` §7.4) — three decisions that belong to the re-vetting ticket. **After #13 a flagged
+*note* does not yet reappear on `/vet`**, and the sentence above describes where it is going.
+
 ⚠️ **The rail needs a third mark.** A flagged position is passed but not answered, so a twenty-card
 *session* can end with nineteen answers. `05` §7 gives the rail three fills (graded, current, not
 reached); this is a fourth. `10-screen-specifications.md` owns it.

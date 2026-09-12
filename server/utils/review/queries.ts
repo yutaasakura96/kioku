@@ -135,12 +135,32 @@ export async function snapshotOf(
     .where(eq(schema.reviewSessionCard.reviewSessionId, sessionId))
     .orderBy(asc(schema.reviewSessionCard.ordinal))
 
+  // ⚠️ **Ordered by the client's stamp, because the later one wins**
+  // (PRD §5, ADR 0039 property 3). A *card* answered twice has two `review_log`
+  // rows — the table is append-only and neither can be taken back — so which
+  // *grade* the rail and the tally show is decided here, by reading them in the
+  // order they were **given** rather than the order they were received.
   const graded = await db
-    .select({ cardId: schema.reviewLog.cardId, rating: schema.reviewLog.rating })
+    .select({
+      cardId: schema.reviewLog.cardId,
+      rating: schema.reviewLog.rating,
+      reviewedAt: schema.reviewLog.reviewedAt,
+    })
     .from(schema.reviewLog)
     .where(eq(schema.reviewLog.reviewSessionId, sessionId))
+    .orderBy(asc(schema.reviewLog.reviewedAt))
+
+  // ⚠️ **A second flag on the same *card* is a second row** (`11` §3):
+  // deduplicating flags would under-report exactly the signal `S9` exists for.
+  // A `Set` is the right shape to read them with and the wrong shape to write
+  // them with, and `04` §7.8 writes them.
+  const flags = await db
+    .select({ cardId: schema.cardFlag.cardId })
+    .from(schema.cardFlag)
+    .where(eq(schema.cardFlag.reviewSessionId, sessionId))
 
   const given = new Map(graded.map(row => [row.cardId, row.rating as Grade]))
+  const flagged = new Set(flags.map(row => row.cardId))
 
   return {
     sessionId: session.id,
@@ -152,6 +172,7 @@ export async function snapshotOf(
       templateKey: row.templateKey,
       fields: (row.fields ?? {}) as Record<string, string>,
       grade: given.get(row.cardId) ?? null,
+      flagged: flagged.has(row.cardId),
     })),
   }
 }

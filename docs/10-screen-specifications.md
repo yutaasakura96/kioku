@@ -582,6 +582,19 @@ Top to bottom:
    §8.2's rejected *grades* are surfaced rather than dropped. 15px Newsreader, `--k-ink`, with the
    count, plus a link to `/auth` when the cause is the 401. **It is not styled as an alert** — there
    is no alert in this system — it is a sentence with a rule above it.
+   ⚠️ **Amended 2026-09-12 with #13: it is one notice carrying up to two sentences**, because the
+   two things it reports are different in kind. *Answers have not reached the database yet* is a
+   **wait** — the outbox is holding them and the next connection sends them (ADR 0014) — and
+   *answers were refused and will not be sent again — usually a clock that disagrees with the
+   server's* is an **end**: nothing retries them
+   ([ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)).
+   ⚠️ **It says *usually*** because two things end an entry and only one is the clock: `03` §8.2's
+   stamp rules, and a body the server cannot read, which is refused the same way and for the same
+   reason — an entry that can never succeed must leave the stream, or it blocks every answer behind
+   it.
+   Both are *what happened to the answers you gave*, so they share the rule and the block rather
+   than growing a second one. ⚠️ **It says *answers* rather than *grades***: `X` rides the same
+   outbox, so the count is of entries and a flag is one of them.
 3. **The *session*-size knob** (§5.8), `32px` down.
 4. **`Start another session`** — the standalone primary control (`05` §7): inline rather than full
    width, `13px 24px`, `14px` gap, key hint `space` in 12px Plex Mono `--k-on-ink-quiet`, label at

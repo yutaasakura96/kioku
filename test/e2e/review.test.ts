@@ -203,3 +203,84 @@ describe('one session, from the rail to the end screen', () => {
     await page.close()
   })
 })
+
+// ⚠️ **`S8` end to end, because there is no smaller seam** (`11` §8, §6.3).
+// `test/nuxt/review-outbox.test.ts` asserts the page's own arithmetic against a
+// registered endpoint; what only exists here is a **real browser with the
+// network switched off** — a store that survives, and a replay that happens
+// because the connection came back rather than because a test called a function.
+describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', () => {
+  beforeAll(async () => {
+    await acceptedCard('電車␟でんしゃ')
+    await acceptedCard('切符␟きっぷ')
+  })
+
+  async function flags(): Promise<number> {
+    const result = await database.client.query<{ n: number }>(
+      'SELECT count(*)::int AS n FROM card_flag;',
+    )
+    return result.rows[0]!.n
+  }
+
+  it('loses nothing, and replays both entry types in order when it comes back', async () => {
+    const page = await openReview()
+
+    const before = await grades()
+    expect(await page.locator('.tick').count()).toBe(2)
+
+    await page.context().setOffline(true)
+
+    // ⚠️ **The interface never waits on the flush** (`S8`): both answers are
+    // given, and the run ends, with nothing reachable.
+    await page.keyboard.press(' ')
+    await page.locator('.value.meaning').waitFor()
+    await page.keyboard.press('3')
+
+    // `S9`'s `X` — the outbox's second entry type, behind a *grade* for a
+    // different *card* (ADR 0039 property 3).
+    await page.keyboard.press('x')
+
+    await page.getByText('Start another session').waitFor()
+    expect(await page.textContent('.unsent')).toContain('2 answers have not reached the database')
+
+    expect(await grades(), 'a grade reached the database with the network off').toBe(before)
+    expect(await flags()).toBe(0)
+
+    // ⚠️ **Both entries are in `localStorage`, not in the page** (ADR 0014).
+    const owed = await page.evaluate(() => localStorage.getItem('kioku:review:outbox'))
+    expect(JSON.parse(owed!).map((entry: { kind: string }) => entry.kind)).toEqual(['grade', 'flag'])
+
+    await page.context().setOffline(false)
+
+    await expect.poll(grades, { timeout: 10_000 }).toBe(before + 1)
+    await expect.poll(flags, { timeout: 10_000 }).toBe(1)
+
+    // ⚠️ **In order, and the two server clocks say so.** `review_log.received_at`
+    // and `card_flag.flagged_at` are both stamped at replay, so the flag landing
+    // after a *grade* for a **different** *card* is observable rather than
+    // asserted (ADR 0039 property 3).
+    const order = await database.client.query<{ afterwards: boolean }>(`
+      SELECT (SELECT flagged_at FROM card_flag)
+             > (SELECT max(received_at) FROM review_log) AS afterwards;
+    `)
+    expect(order.rows[0]!.afterwards, 'the flag overtook the grade it was given after').toBe(true)
+
+    // `S9`: the *card* left scheduling and the history did not move.
+    const suspended = await database.client.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM card WHERE suspended_reason = 'flagged';`,
+    )
+    expect(suspended.rows[0]!.n).toBe(1)
+
+    // ⚠️ **The durable record decides, and it is empty now** (property 4). A
+    // reload replays whatever is still owed, so a store that still held these
+    // two would grade the same *card* twice on the next visit.
+    await page.reload({ waitUntil: 'networkidle' })
+    await page.waitForTimeout(500)
+
+    expect(await page.evaluate(() => localStorage.getItem('kioku:review:outbox'))).toBe('[]')
+    expect(await grades()).toBe(before + 1)
+    expect(await flags()).toBe(1)
+
+    await page.close()
+  })
+})

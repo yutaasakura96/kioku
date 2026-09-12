@@ -523,6 +523,11 @@ time: **write immediately, treat the signal as a hint, let the durable record de
 
 ⚠️ **`@vueuse/nuxt` disables `useStorage` from auto-import** — it clashes with a Nuxt built-in
 (verification §5.5). ADR 0014's storage path is an explicit import, not an ambient one.
+⚠️ **Amended 2026-09-12 with #13: the helper is ours and `@vueuse` was not added.**
+`app/utils/review-store.ts` exports `readStored` / `writeStored` / `clearStored`, imported by path in
+`app/pages/review.vue`. The hazard this line records is a **name collision**, and a composable of our
+own called `useStorage` would inherit it without the dependency that explains it; the dependency
+itself buys one reactive wrapper and owes a pin (§13.5). Decision log, 2026-09-12.
 
 ### 8.2 A client-stamped timestamp is client-controlled
 
@@ -536,6 +541,18 @@ allowance, and rejects one stamped before its own session snapshot was taken.** 
 surfaced to the reader rather than dropped silently — it is one of the few things the reader can
 actually fix. Everything in between is accepted as given, which is the whole point of stamping it
 client-side.
+
+⚠️ **Amended 2026-09-12 with #13: the allowance is 120 seconds and it covers both rules**
+([ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)). The
+paragraph above names a skew allowance for the future rule alone, and read literally the
+before-snapshot rule is exact — which it cannot be: both comparisons put a **client** stamp against a
+**server** one, so a laptop three seconds slow stamps the first grade of every run before
+`snapshot_taken_at` and every session's opening grade is refused on a machine that works.
+
+⚠️ **Both server instants are read from the database in one statement** — `snapshot_taken_at` from
+the row and `now()` beside it — because measuring the bound against the application server's clock
+would widen it by whatever Vercel and Neon disagree by. The rule itself is a pure function,
+`shared/review/stamp.ts`, and it is one of `11-testing-plan.md` §8's named seams.
 
 ---
 

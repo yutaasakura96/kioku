@@ -2,10 +2,15 @@
  * *Review*'s key map, as two pure functions over a keyboard event — the same
  * seam `shared/vet/keystroke.ts` is for the other *mode*.
  *
- * `space` reveal · `1`–`4` grade · `Esc` leave (ADR 0023, ADR 0034). ⚠️ **`X` —
- * the `S9` flag — is deliberately absent**: it writes four rows in one
- * transaction and rides the outbox, which is #13's, and a legend naming a key
- * that does nothing is worse than no legend.
+ * `space` reveal · `1`–`4` grade · `X` flag · `Esc` leave (ADR 0023, ADR 0034,
+ * `09` §4.7).
+ *
+ * ⚠️ **`X` is live on both faces, and that is `10` §5.1 rather than a
+ * convenience.** The front's legend carries it beside `space` and the back's
+ * carries it under the four *grade* controls, because a *card* can be wrong in a
+ * way the *term* alone already shows — a word that should never have become a
+ * *card* is caught before the answer is read, and a reader who had to reveal
+ * first would be answering it to report it.
  *
  * ⚠️ **The map depends on which face is showing, and that is the whole reason it
  * is a seam.** A *grade* is arithmetic that cannot be undone (ADR 0016, `03`
@@ -43,6 +48,7 @@ export type CardFace = 'front' | 'back'
 export type ReviewAction
   = | { kind: 'reveal' }
     | { kind: 'grade', grade: Grade }
+    | { kind: 'flag' }
     | { kind: 'leave' }
 
 /** ADR 0034: the labels name recall, because this configuration cannot name a time. */
@@ -67,6 +73,14 @@ export function reviewAction(event: Keystroke, face: CardFace): ReviewAction | n
 
   if (event.key === 'Escape')
     return { kind: 'leave' }
+
+  // ⚠️ **`X` is not face-dependent and the four digits are.** A flag records
+  // that the *card* is bad; it advances **without a *grade*** (`09` §4.9), so
+  // unlike a digit it answers nothing about a question the reader has not been
+  // shown. `04` §7.8 leaves *Review* history untouched, which is what makes it
+  // safe on the front face.
+  if (event.key === 'x' || event.key === 'X')
+    return { kind: 'flag' }
 
   if (face === 'front')
     return event.key === ' ' ? { kind: 'reveal' } : null

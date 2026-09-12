@@ -20,6 +20,7 @@ import type { PGlite } from '@electric-sql/pglite'
 
 import { dueCards, newCards, nothingToStudy, snapshotOf } from '../../server/utils/review/queries'
 import { freshDatabase, reset } from './harness'
+import { recordFlag } from '../../server/utils/review/flag'
 import { recordGrade } from '../../server/utils/review/grade'
 import { resumeOrCompose } from '../../server/utils/review/session'
 import type { Grade } from '../../shared/review/scheduler'
@@ -342,22 +343,51 @@ describe('one grade (`S7`, ADR 0016, `04` §7.4, §7.5)', () => {
     expect(after.positions.map(p => p.grade)).toEqual([null, 4, null])
   })
 
-  // A held key, not an error — and it must not write a second irreplaceable row
-  // or schedule the *card* twice. The replay rule for two *grades* on one *card*
-  // is `03` §8.2's and it is #13's.
-  it('answers `already_graded` to a second grade and changes nothing', async () => {
+  // ⚠️ **A replay carrying the same stamp is a held key or a lost
+  // acknowledgement**, not a second answer — and it must not write a second
+  // irreplaceable row or schedule the *card* twice.
+  it('answers `already_graded` to an entry replayed at the same instant', async () => {
     const run = await session()
     const cardId = run.positions[0]!.cardId
+    const given = new Date()
 
-    await grade(run.sessionId, cardId, 1)
+    await grade(run.sessionId, cardId, 1, given)
     const { due: first } = await one<{ due: Date }>('SELECT due FROM scheduling_epoch LIMIT 1;')
 
-    const outcome = await grade(run.sessionId, cardId, 4)
+    const outcome = await grade(run.sessionId, cardId, 4, given)
 
     expect(outcome).toEqual({ ok: false, reason: 'already_graded' })
     expect(await count('review_log')).toBe(1)
     const { due: unchanged } = await one<{ due: Date }>('SELECT due FROM scheduling_epoch LIMIT 1;')
     expect(unchanged.getTime()).toBe(first.getTime())
+  })
+
+  // ⚠️ **PRD §5: *the same card graded twice — both replay; the later timestamp
+  // wins*.** `04` §7.5's trigger refuses an `UPDATE` and a `DELETE`, so *later
+  // wins* can only ever mean *the later one is also written* — the first row
+  // stands, the epoch moves on, and `snapshotOf` reads the rows in stamp order
+  // so the rail shows the answer the reader gave last
+  // ([ADR 0055](../../docs/adr/0055-later-wins-is-a-second-row-because-review-log-cannot-be-rewritten.md)).
+  it('records a genuinely later grade for the same card, and lets it win', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+    const first = new Date()
+
+    await grade(run.sessionId, cardId, 1, first)
+    const outcome = await grade(run.sessionId, cardId, 4, new Date(first.getTime() + 60_000))
+
+    expect(outcome.ok).toBe(true)
+    expect(await count('review_log'), 'the first grade was taken back').toBe(2)
+
+    const after = (await snapshotOf(db, OWNER, run.sessionId))!
+    expect(after.positions[0]!.grade).toBe(4)
+
+    // One *card*, one epoch: a second answer moves the life it is in rather than
+    // starting a new one (`04` §7.4 — a reset is the insert, and this is not a
+    // reset).
+    expect(await count('scheduling_epoch')).toBe(1)
+    const { reps } = await one<{ reps: number }>('SELECT reps FROM scheduling_epoch LIMIT 1;')
+    expect(reps).toBe(2)
   })
 
   it('refuses a card the session does not hold, and one belonging to someone else', async () => {
@@ -457,5 +487,262 @@ describe('nothing to study', () => {
 
     expect(answer.hasCards).toBe(true)
     expect(answer.nextDue!.getTime()).toBeGreaterThan(Date.now())
+  })
+})
+
+// `S9`'s `X` — **four things in one transaction** (`04` §7.8, `09` §4.9), and
+// the fifth thing is the absence of a fifth write.
+//
+// ⚠️ **`review_log` is untouched**, which is the whole of "catching a bad *card*
+// costs the *card* and not the record". Nothing here writes a review, an epoch
+// or a rating.
+describe('the flag (`S9`, `04` §7.8)', () => {
+  async function session(cards = 1) {
+    for (let index = 0; index < cards; index += 1)
+      await acceptedCard(`${index}␟${index}`, { minutesAgo: cards - index })
+
+    return (await resumeOrCompose(db, OWNER, cards))!
+  }
+
+  /** A *note* with the run that generated it, so `04` §7.8 has three things to copy. */
+  async function generated(cardId: string): Promise<{ sourceId: string, noteId: string }> {
+    const { noteId } = await one<{ noteId: string }>(
+      `SELECT note_id AS "noteId" FROM card WHERE id = '${cardId}';`,
+    )
+    const source = await one<{ id: string }>(`
+      INSERT INTO source (subject_id, title, content, content_hash, char_count)
+      VALUES ('jlpt-vocab', '朝日新聞 社説', '駅の近くに図書館があります。', 'a3f9', 14)
+      RETURNING id;
+    `)
+    const ingestion = await one<{ id: string }>(`
+      INSERT INTO ingestion (source_id, source_title, subject_id, model_id, prompt_version)
+      VALUES ('${source.id}', '朝日新聞 社説', 'jlpt-vocab', 'the-run-model', 'v0')
+      RETURNING id;
+    `)
+
+    await client.exec(`
+      UPDATE note SET origin_ingestion_id = '${ingestion.id}' WHERE id = '${noteId}';
+      INSERT INTO note_field_provenance (note_id, field_name, kind, model_id, prompt_version)
+      VALUES ('${noteId}', 'meaning', 'generated', 'claude-sonnet-5', 'v3'),
+             ('${noteId}', 'term', 'lookup', null, null);
+    `)
+
+    return { sourceId: source.id, noteId }
+  }
+
+  it('writes the flag, suspends the card, returns the note to the queue — and no review', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+    const { sourceId, noteId } = await generated(cardId)
+
+    const outcome = await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId })
+
+    expect(outcome.ok).toBe(true)
+
+    const flag = await one<{
+      sourceId: string
+      promptVersion: string
+      modelId: string
+      reviewSessionId: string
+      noteId: string
+    }>(`
+      SELECT source_id AS "sourceId", prompt_version AS "promptVersion", model_id AS "modelId",
+             review_session_id AS "reviewSessionId", note_id AS "noteId"
+      FROM card_flag;
+    `)
+
+    // ⚠️ **Denormalised at flag time** (ADR 0004): without the prompt version the
+    // reader learns *some cards are bad* rather than *prompt v3 writes bad
+    // example sentences*, and only the second is actionable.
+    expect(flag).toEqual({
+      sourceId,
+      noteId,
+      promptVersion: 'v3',
+      modelId: 'claude-sonnet-5',
+      reviewSessionId: run.sessionId,
+    })
+
+    const card = await one<{ suspendedAt: Date | null, reason: string | null }>(`
+      SELECT suspended_at AS "suspendedAt", suspended_reason AS "reason" FROM card WHERE id = '${cardId}';
+    `)
+    expect(card.suspendedAt).not.toBeNull()
+    expect(card.reason).toBe('flagged')
+
+    expect(await count('note_vetting', 'flagged_at is not null')).toBe(1)
+    // ⚠️ **The state is left alone** (`04` §11): the queue finds a flagged *note*
+    // through `card_flag … WHERE resolved_at IS NULL`, and flipping it back to
+    // `pending` would take it out of the denominator of both *acceptance rate*
+    // and *false-accept rate*.
+    expect(await count('note_vetting', `state = 'accepted'`)).toBe(1)
+  })
+
+  // ⚠️ **The assertion this whole feature is measured by** — `S9`, `04` §7.8.
+  it('leaves review history standing', async () => {
+    const run = await session(2)
+    await recordGrade(db, OWNER, {
+      sessionId: run.sessionId,
+      cardId: run.positions[0]!.cardId,
+      grade: 3,
+      reviewedAt: new Date(),
+    })
+
+    await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId: run.positions[1]!.cardId })
+
+    expect(await count('review_log')).toBe(1)
+    expect(await count('scheduling_epoch')).toBe(1)
+  })
+
+  // ⚠️ **A replayed entry is not a second flag, and the two are opposites.**
+  // `11` §3's "a second flag is a second row" is about a **reader** flagging the
+  // same *card* twice; an outbox retry whose acknowledgement was lost is one
+  // flag arriving twice, and counting it inflates `count(card_flag)` — the
+  // numerator of *false-accept rate*, which is the metric ADR 0056 exists to
+  // protect.
+  it('answers `already_flagged` to the same entry replayed, and writes one row', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+
+    await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId })
+    const { suspendedAt } = await one<{ suspendedAt: Date }>(
+      `SELECT suspended_at AS "suspendedAt" FROM card WHERE id = '${cardId}';`,
+    )
+
+    const outcome = await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId })
+
+    expect(outcome).toEqual({ ok: false, reason: 'already_flagged' })
+    expect(await count('card_flag')).toBe(1)
+    const again = await one<{ suspendedAt: Date }>(
+      `SELECT suspended_at AS "suspendedAt" FROM card WHERE id = '${cardId}';`,
+    )
+    expect(again.suspendedAt.getTime()).toBe(suspendedAt.getTime())
+  })
+
+  // ⚠️ **And a genuine second flag is a second row** (`11` §3). Deduplicating
+  // that would under-report exactly the signal `S9` exists for. It is a
+  // different *session*, which is what the guard above keys on — and it is
+  // written by hand here because a suspended *card* is never composed into a
+  // run, so reaching it needs the re-vetting path that ADR 0056 defers.
+  it('writes a second row for a flag given in a later session', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+
+    await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId })
+
+    const later = await one<{ id: string }>(`
+      INSERT INTO review_session (owner_id, size) VALUES ('${OWNER}', 1) RETURNING id;
+    `)
+    await client.exec(`
+      INSERT INTO review_session_card (review_session_id, ordinal, card_id, owner_id)
+      VALUES ('${later.id}', 0, '${cardId}', '${OWNER}');
+    `)
+
+    const outcome = await recordFlag(db, OWNER, { sessionId: later.id, cardId })
+
+    expect(outcome.ok).toBe(true)
+    expect(await count('card_flag')).toBe(2)
+  })
+
+  // ⚠️ **A flag is an answer** (`shared/review/snapshot.ts`). `09` §4.9: a
+  // twenty-*card* run can end with nineteen *grades*, and a `completed_at` left
+  // null would resume it onto a *card* the reader has already passed — whose
+  // *card* is now suspended.
+  it('ends a run whose last position was flagged rather than graded', async () => {
+    const run = await session(2)
+    await recordGrade(db, OWNER, {
+      sessionId: run.sessionId,
+      cardId: run.positions[0]!.cardId,
+      grade: 3,
+      reviewedAt: new Date(),
+    })
+
+    await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId: run.positions[1]!.cardId })
+
+    expect(await count('review_session', 'completed_at is null')).toBe(0)
+
+    const after = (await snapshotOf(db, OWNER, run.sessionId))!
+    expect(after.positions.map(p => p.flagged)).toEqual([false, true])
+    expect(after.positions[1]!.grade).toBeNull()
+  })
+
+  it('refuses a card the session does not hold, and one belonging to someone else', async () => {
+    const run = await session()
+    const elsewhere = await acceptedCard('外␟そと')
+
+    expect(await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId: elsewhere }))
+      .toEqual({ ok: false, reason: 'not_in_session' })
+    expect(await recordFlag(db, OTHER, {
+      sessionId: run.sessionId,
+      cardId: run.positions[0]!.cardId,
+    })).toEqual({ ok: false, reason: 'not_in_session' })
+    expect(await count('card_flag')).toBe(0)
+  })
+
+  // ⚠️ A *card* with no generation behind it still flags. Every one of the three
+  // copied columns is nullable because `04` §9 makes both joins `SET NULL` — the
+  // signal survives the thing it is a fact about.
+  it('flags a card whose source was hard-deleted', async () => {
+    const run = await session()
+
+    await recordFlag(db, OWNER, { sessionId: run.sessionId, cardId: run.positions[0]!.cardId })
+
+    const flag = await one<{ sourceId: string | null, modelId: string | null }>(
+      'SELECT source_id AS "sourceId", model_id AS "modelId" FROM card_flag;',
+    )
+    expect(flag).toEqual({ sourceId: null, modelId: null })
+  })
+})
+
+// `03` §8.2 — what the server does with a stamp it cannot trust. The rule is a
+// pure function (`test/unit/review-stamp.test.ts`); what is here is that it runs
+// **in front of the row**, because `review_log` cannot be corrected afterwards.
+describe('a stamp the server cannot trust (`03` §8.2)', () => {
+  async function run() {
+    await acceptedCard('一␟いち')
+    return (await resumeOrCompose(db, OWNER, 1))!
+  }
+
+  it('refuses a grade stamped an hour into the future, and writes nothing', async () => {
+    const session = await run()
+
+    const outcome = await recordGrade(db, OWNER, {
+      sessionId: session.sessionId,
+      cardId: session.positions[0]!.cardId,
+      grade: 3,
+      reviewedAt: new Date(Date.now() + 60 * 60 * 1000),
+    })
+
+    expect(outcome).toEqual({ ok: false, reason: 'stamped_in_future' })
+    expect(await count('review_log')).toBe(0)
+    expect(await count('scheduling_epoch'), 'a refused grade minted an epoch').toBe(0)
+  })
+
+  it('refuses a grade stamped before its own snapshot was taken', async () => {
+    const session = await run()
+
+    const outcome = await recordGrade(db, OWNER, {
+      sessionId: session.sessionId,
+      cardId: session.positions[0]!.cardId,
+      grade: 3,
+      reviewedAt: new Date(Date.now() - 60 * 60 * 1000),
+    })
+
+    expect(outcome).toEqual({ ok: false, reason: 'stamped_before_snapshot' })
+    expect(await count('review_log')).toBe(0)
+  })
+
+  // ⚠️ **A *session* answered underground and flushed hours later is the story**
+  // (`S8`), so lateness is never the thing refused.
+  it('takes a grade given inside the run and flushed much later', async () => {
+    const session = await run()
+
+    const outcome = await recordGrade(db, OWNER, {
+      sessionId: session.sessionId,
+      cardId: session.positions[0]!.cardId,
+      grade: 3,
+      reviewedAt: new Date(),
+    })
+
+    expect(outcome.ok).toBe(true)
+    expect(await count('review_log')).toBe(1)
   })
 })

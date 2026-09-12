@@ -820,6 +820,26 @@ is what makes the fact survive the thing it is a fact about.
 **`false-accept rate` is `count(card_flag) / count(note_vetting WHERE state='accepted')`.** No metrics
 table exists; §13.
 
+⚠️ **Amended 2026-09-12 with #13: a flag does not change `note_vetting.state`**
+([ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md)).
+It writes the row above, sets `card.suspended_at` / `suspended_reason = 'flagged'` and stamps
+`note_vetting.flagged_at`, and the *note* stays `accepted`. Un-accepting it would raise the numerator
+of the ratio in the line above **and lower its denominator at the same time**, so one flag would move
+*false-accept rate* twice — and it would take the *note* out of *acceptance rate*'s numerator too
+(`11` §3). §11's `card_flag (note_id) WHERE resolved_at IS NULL` index is how the *Vet* queue finds
+a flagged *note*, and that query is the re-vetting ticket's rather than #13's.
+
+⚠️ **`flagged_at` on both tables is guarded by `IS NULL` on write.** A second flag on the same *card*
+is a second row here (`11` §3), but the instants a *card* left scheduling and a *note* came back to
+the queue are facts about the **first** one.
+
+⚠️ **A *replayed* flag is not a second flag, and the two are opposites.** `11` §3 means a **reader**
+flagging the same *card* twice; the outbox's duplicate is one entry arriving twice because its
+acknowledgement was lost, and counting it inflates `count(card_flag)` — the numerator of the ratio
+above. `(review_session_id, card_id)` separates them: a flagged position is answered, so the reader
+cannot reach it again **inside that run**, and a genuine second flag carries a different
+`review_session_id`. It is the same guard `review_log` has on the same pair (§7.5, ADR 0055).
+
 ---
 
 ## 8. The four tables Better Auth owns

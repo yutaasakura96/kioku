@@ -116,7 +116,7 @@ that produced them, so every way it can be wrong is a bug rather than a fact abo
 | --- | --- | --- |
 | *Acceptance rate* | An edited accept is an **edit**, not an acceptance (`S6`); the denominator is *notes generated*, not notes seen | The most likely arithmetic error in the app, and the one that would flatter the thesis |
 | Median *seconds-per-note* | Stamped **per note at the keystroke**; over **unedited accepts only**; an even count takes the mean of the middle two | A median computed over all accepts silently includes the slow edits |
-| *False-accept rate* | `count(card_flag) ÷ count(note_vetting WHERE state='accepted')`; a second flag on the same *card* is a **second row** | Deduplicating flags would under-report exactly the signal `S9` exists for |
+| *False-accept rate* | `count(card_flag) ÷ count(note_vetting WHERE state='accepted')`; a second flag on the same *card* is a **second row**, and ⚠️ **a replayed outbox entry is not a second flag** (`04` §7.8) | Deduplicating flags would under-report exactly the signal `S9` exists for — and counting a retry would inflate it, which is the same error with the sign flipped |
 | *Time-to-first-review* | `source.submitted_at` → the first `review_log` for a *card* **from that source** — not the first grade of any card | The near-miss implementation, which is wrong the moment a second *source* exists |
 | Tokens and cost | From the API response, **never estimated** (`04` §6.1); `worker_environment` is on the row | ADR 0018's price table has an effective date; a hard-coded constant lies silently |
 | **The suppression boundary** | **Nineteen suppresses, twenty reports**, with raw counts and a line saying why | ⚠️ The only branch in `S10`, and off by default in every naive implementation |
@@ -387,6 +387,22 @@ asserted three times in three idioms:
 landing after a grade for a different *card*, and a harness that made the two one type would have
 erased the distinction the test exists to protect.
 
+⚠️ **Built 2026-09-12 with #13, and the browser half is two tiers rather than one.**
+`test/nuxt/review-outbox.test.ts` mounts `/review` against registered endpoints and asserts all five
+against `localStorage`; `test/e2e/review.test.ts` takes a real browser offline
+(`context.setOffline`), answers a whole *session* with a *grade* and a flag, and asserts nothing
+reached the database until the connection came back. **Property 3's end-to-end form is the two server
+clocks**: `card_flag.flagged_at > max(review_log.received_at)` says the flag landed behind the
+*grade* it was given after, without the test having to observe the requests.
+
+⚠️ **A finding the harness had to be built around.** The e2e tier's database is a
+single-connection PGlite behind `@electric-sql/pglite-socket` (`00-status.md` § Carrying), and a
+`page.reload()` issued while the **previous** document still has a request in flight puts two
+connections on that socket: one is reset, the route answers `500`, and the page's flush stops with
+the entry still owed. It is the same finding as § Carrying's `Promise.all` bullet from a second
+direction — **overlapping requests, rather than one handler's concurrent reads** — and the answer is
+the same: the test drains the stream before it reloads.
+
 ---
 
 ## 7. The worker, and the tests that need Docker
@@ -546,6 +562,16 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
 - **The `from` allowlist.** Three strings; anything else falls back to `/` (ADR 0032). ⚠️ Test the
   attacks: `//evil.com`, `https://evil.com`, `/vet`, `/stats/../../x`, empty, absent.
 - **The grade validator** — `03` §8.2's future-skew and before-snapshot rules, as a pure function.
+  ⚠️ **Built 2026-09-12 with #13** — `shared/review/stamp.ts` and `test/unit/review-stamp.test.ts`.
+  The allowance is 120 seconds and it covers **both** rules
+  ([ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)), so
+  the test that matters most is the one asserting a **slightly slow** clock's opening *grade* is
+  taken: an exact before-snapshot rule passes every other test in the file.
+- ⚠️ **The outbox**, added 2026-09-12 with #13 — `shared/review/outbox.ts` and
+  `test/unit/review-outbox.test.ts`. Append, replay order, settle by `seq`, and what a resumed run
+  inherits, as arithmetic over a list. **What is asserted hardest is an absence**: there is no
+  deduplicate, because PRD §5 says the same *card* graded twice replays twice and ADR 0007 says no
+  conflict is resolved anywhere.
 - **The metric arithmetic** — §3, over fixture rows. ⚠️ **Split 2026-09-12 with #11**, which owns
   *acceptance rate* alone because it is #11's own acceptance criterion: `shared/metrics/acceptance.ts`
   and `test/unit/acceptance-rate.test.ts`, holding the numerator rule (`S6`'s edited accept is an

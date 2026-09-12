@@ -21,6 +21,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import { compose } from '../../../shared/review/compose'
 import { dueCards, newCards, snapshotOf } from './queries'
+import { isFinished } from '../../../shared/review/snapshot'
 import type { IngestDatabase } from '../ingest/record'
 import type { ReviewSnapshot } from './queries'
 
@@ -33,7 +34,7 @@ import type { ReviewSnapshot } from './queries'
  * change it would be lying. Done mid-*session* is a pause (`10` §5.3), so the
  * live run is what `/review` answers with until it is finished.
  *
- * ⚠️ **A run with nothing left ungraded is completed here rather than resumed.**
+ * ⚠️ **A run with nothing left unanswered is completed here rather than resumed.**
  * `review_session.completed_at` is normally stamped by the *grade* that empties
  * the run; a tab closed on the last keystroke is the case that leaves it null,
  * and a row that says *abandoned* about a run the reader finished would be a lie
@@ -50,7 +51,11 @@ export async function resumeOrCompose(
   if (live) {
     const snapshot = await snapshotOf(db, ownerId, live)
 
-    if (snapshot && snapshot.positions.some(position => position.grade === null))
+    // ⚠️ **Unanswered, not ungraded.** `S9`'s `X` advances without a *grade*
+    // (`09` §4.9), so a run whose last position was flagged is finished — and
+    // read the other way it resumes forever, onto a *card* the reader has
+    // already passed and whose *card* is suspended.
+    if (snapshot && !isFinished(snapshot))
       return snapshot
 
     await completeSession(db, ownerId, live)
