@@ -94,7 +94,7 @@ about the export and it is true of all twelve.
 | **S3** One keystroke | `space` writes `note_vetting.state='accepted'`, stamps `seconds_to_vet` and mints the *card* — **one keystroke, no confirmation, no focus change**; `R` and `E` likewise. ⚠️ The **median is not asserted** (ADR 0037) | nuxt + schema |
 | **S4** Only what needs looking at | The *provenance marker* is filled when `level_claim.authority_key IS NOT NULL` and hollow when null (`04` §14); ⚠️ **the *authority*'s name is in the DOM, not behind a hover** (`09` §4.4) | nuxt |
 | **S5** Say no once | Stage 5 drops an already-*rejected* `identity_key` **before** stage 6 spends money (`03` §5.1); re-ingesting the same *source* asks about fewer *notes* | worker |
-| **S6** Fix before accepting | `Enter` commits and accepts with `edited = true`; ⚠️ an edited accept counts as an **edit, not an acceptance**, in *acceptance rate*; an *accepted* note's fields are frozen | schema + nuxt |
+| **S6** Fix before accepting | `Enter` commits and accepts with `edited = true`; ⚠️ an edited accept counts as an **edit, not an acceptance**, in *acceptance rate* (§8's seam, `shared/metrics/acceptance.ts`); an *accepted* note's fields are frozen — **in the `WHERE` of both write paths**, the app's and the worker's, each sabotaged to red (ADR 0052) | unit + schema + nuxt + worker |
 | **S7** A session that ends | `review_session.size` rows in `review_session_card`, composed due-first; `snapshot_taken_at` is **server-side**; a graded *card* leaves and never returns; ⚠️ the end screen **never starts the next session** | schema + e2e |
 | **S8** Not lose grades | ADR 0039's five properties, browser side. A *session* completed with the network off loses nothing when it returns | nuxt + e2e |
 | **S9** Catch a bad card | `X` does **four things in one transaction** (`04` §7.8): `card_flag` with `prompt_version` and `model_id` denormalised, `suspended_at`, `note_vetting.flagged_at`, advance without a *grade*. ⚠️ **History untouched** | schema |
@@ -536,7 +536,13 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
 - **The `from` allowlist.** Three strings; anything else falls back to `/` (ADR 0032). ⚠️ Test the
   attacks: `//evil.com`, `https://evil.com`, `/vet`, `/stats/../../x`, empty, absent.
 - **The grade validator** — `03` §8.2's future-skew and before-snapshot rules, as a pure function.
-- **The metric arithmetic** — §3, over fixture rows.
+- **The metric arithmetic** — §3, over fixture rows. ⚠️ **Split 2026-09-12 with #11**, which owns
+  *acceptance rate* alone because it is #11's own acceptance criterion: `shared/metrics/acceptance.ts`
+  and `test/unit/acceptance-rate.test.ts`, holding the numerator rule (`S6`'s edited accept is an
+  **edit**) and the denominator rule (*notes generated*, which includes every *pending note*). The
+  other three numbers and **the suppression boundary** stay #14's — the boundary governs all four
+  ratios at once and belongs where they are rendered together. ⚠️ **What is not at this seam is the
+  query**: these are counts, and where they come from is `note_vetting`.
 
 **End to end only, because there is no seam to hold them:**
 

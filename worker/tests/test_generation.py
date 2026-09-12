@@ -491,16 +491,15 @@ def test_a_run_served_entirely_from_the_cache_still_names_its_model(connection):
     assert (input_tokens, cost) == (None, None)
 
 
-def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
-    """⚠️ **Gated on *created*, a crash between two writes lost six rows for
-    ever.**
+def write_one_note(
+    connection: psycopg.Connection, *, meaning: str = "library", char_start: int = 5
+):
+    """Stage 7 called directly, for the two cases a run cannot reach.
 
-    `04` §12's eighth query is ADR 0018's instrument and it reads
-    `note_field_provenance`. A process that died after the `note` insert and
-    before the provenance one would leave a *note* the retry skips — the row is
-    already there — and the fields would be unattributable permanently. The
-    `ON CONFLICT DO NOTHING` on each provenance row is what makes writing it
-    unconditionally safe: an existing row always wins.
+    ⚠️ **Both of them are about a *note* whose row is already there**, which
+    stage 5 normally drops before stage 6 spends anything — so a run is the wrong
+    instrument and the stage is called on its own. `char_start` moves the
+    sighting, because `04` §5.5 keys an *occurrence* on the position.
     """
     from pipeline.deduplicate import Group
     from pipeline.extract_candidates import Candidate
@@ -508,24 +507,18 @@ def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
     from pipeline.write_pending import Destination, Provenance, write_pending_note
     from subject import load_declaration
 
-    make_run(connection)
     source_id, chunk_id = connection.execute(
         "SELECT source_id, id FROM source_chunk ORDER BY ordinal LIMIT 1;"
     ).fetchone()
     ingestion_id = connection.execute("SELECT id FROM ingestion LIMIT 1;").fetchone()[0]
-    connection.execute(
-        "INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab', %s, '{}'::jsonb);",
-        (LIBRARY,),
-    )
 
-    declaration = load_declaration()
     candidate = Candidate(
         term="図書館",
         reading="としょかん",
         part_of_speech="名詞",
         surface_form="図書館",
-        char_start=5,
-        char_end=8,
+        char_start=char_start,
+        char_end=char_start + 3,
         is_oov=False,
         identity_key=LIBRARY,
     )
@@ -537,17 +530,17 @@ def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
             "term": "図書館",
             "reading": "としょかん",
             "part_of_speech": "名詞",
-            "meaning": "library",
+            "meaning": meaning,
             "example_sentence": "図書館です。",
             "example_gloss": "It is a library.",
         },
     )
 
-    written = write_pending_note(
+    return write_pending_note(
         connection,
         note,
         to=Destination(
-            declaration=declaration,
+            declaration=load_declaration(),
             subject_id="jlpt-vocab",
             owner_id=OWNER,
             source_id=source_id,
@@ -561,11 +554,76 @@ def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
         ),
     )
 
+
+def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
+    """⚠️ **Gated on *created*, a crash between two writes lost six rows for
+    ever.**
+
+    `04` §12's eighth query is ADR 0018's instrument and it reads
+    `note_field_provenance`. A process that died after the `note` insert and
+    before the provenance one would leave a *note* the retry skips — the row is
+    already there — and the fields would be unattributable permanently. The
+    `ON CONFLICT DO NOTHING` on each provenance row is what makes writing it
+    unconditionally safe: an existing row always wins.
+    """
+    make_run(connection)
+    connection.execute(
+        "INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab', %s, '{}'::jsonb);",
+        (LIBRARY,),
+    )
+
+    written = write_one_note(connection)
+
     assert written.created is False
     rows = connection.execute(
         "SELECT count(*) FROM note_field_provenance WHERE note_id = %s;", (written.note_id,)
     ).fetchone()[0]
     assert rows == 6
+
+
+def test_an_accepted_notes_fields_survive_a_later_write(connection):
+    """`S6`'s freeze, from the **worker's** side of it — ADR 0006.
+
+    ⚠️ **This is the half the application cannot guard.** `04` §4 makes `note`
+    shared and `note_vetting` personal, so the app refuses the write in the
+    `WHERE` of `server/utils/note/fields.ts`; the worker never reads
+    `note_vetting` at all and does not need to, because `_insert_note`'s
+    `ON CONFLICT DO NOTHING` means *a second sighting appends an occurrence and
+    leaves the note alone*. An upsert there — which is what the obvious version
+    of this function is — would let a re-ingestion rewrite a *note* the reader
+    has already accepted and studied, silently, with the *cards* still pointing
+    at it.
+
+    ⚠️ **One write path open and the other shut, which is why the second
+    sighting is at a different position.** ADR 0006's rule has two halves and the
+    freeze is only one of them: what a later sighting is allowed to add is *where
+    the word was seen*, and that half must still work — `S11` reads it back as
+    *open a source, see what came from it*. Asserted at the same position, the
+    occurrence count would be `1` whether the append ran or had been deleted
+    outright.
+    """
+    make_run(connection)
+    accepted = write_one_note(connection, meaning="library", char_start=5)
+    connection.execute(
+        "UPDATE note_vetting SET state = 'accepted', vetted_at = now() WHERE note_id = %s;",
+        (accepted.note_id,),
+    )
+
+    again = write_one_note(
+        connection, meaning="a completely different meaning", char_start=40
+    )
+
+    assert again.note_id == accepted.note_id
+    assert again.created is False
+    fields = connection.execute(
+        "SELECT fields FROM note WHERE id = %s;", (accepted.note_id,)
+    ).fetchone()[0]
+    assert fields["meaning"] == "library"
+    positions = connection.execute(
+        "SELECT char_start FROM occurrence WHERE note_id = %s ORDER BY char_start;",
+        (accepted.note_id,),
+    ).fetchall()
+    assert [position for (position,) in positions] == [5, 40]
 
 
 def test_a_refused_answer_is_never_cached(connection):

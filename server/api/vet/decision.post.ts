@@ -14,6 +14,12 @@
  * remedy is the fresh queue that comes back with it. Answering `409` would make
  * the client's error path and its success path do the same thing, which is how
  * one of them stops being tested.
+ *
+ * ⚠️ **`frozen` travels the same way, and it is `S6`'s refusal rather than a
+ * failure** (`server/utils/note/fields.ts`): another reader has accepted this
+ * *note*, so its fields are the thing they confirmed and this edit is a rewrite.
+ * Nothing was decided, and the fresh queue that comes back still has the *note*
+ * in it. Unreachable while v1 invites one reader (ADR 0012).
  */
 import { decide } from '../../utils/vet/decide'
 import { jlptVocab } from '../../../shared/subject/declaration'

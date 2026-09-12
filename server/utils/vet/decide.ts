@@ -34,13 +34,14 @@ import { and, eq, sql } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import { jlptVocab } from '../../../shared/subject/declaration'
 import { openOrStartRun } from './run'
+import { writeNoteFields } from '../note/fields'
 import type { IngestDatabase } from '../ingest/record'
 import type { SubjectDeclaration } from '../../../shared/subject/declaration'
 import type { VetDecision } from '../../../shared/vet/decision'
 
 export type DecideOutcome
   = | { ok: true }
-    | { ok: false, reason: 'not_pending' | 'unknown_subject' }
+    | { ok: false, reason: 'not_pending' | 'unknown_subject' | 'frozen' }
 
 /**
  * The one *subject* v1 ships.
@@ -89,8 +90,22 @@ export async function decide(
     if (!declaration)
       return { ok: false, reason: 'unknown_subject' }
 
-    if (decision.edits)
-      await applyEdit(tx, current.noteId, current.fields as Record<string, string>, decision.edits)
+    if (decision.edits) {
+      const applied = await applyEdit(
+        tx,
+        current.noteId,
+        current.fields as Record<string, string>,
+        decision.edits,
+      )
+
+      // ⚠️ **Nothing is decided when the edit is refused**, and this returns
+      // before the first of the other writes rather than rolling them back. An
+      // acceptance that quietly dropped the correction would be an acceptance
+      // of the value the reader had just said was wrong — which is the failure
+      // `S6` exists to prevent, arriving as a success.
+      if (!applied)
+        return { ok: false, reason: 'frozen' }
+    }
 
     const runId = await openOrStartRun(tx, ownerId)
 
@@ -151,23 +166,28 @@ async function mint(
  * fields are written once and frozen at acceptance, and a later *source* that
  * implies something different appends an *occurrence* rather than rewriting. The
  * edit is the last write before the freeze, which is the only window in which
- * changing them is not a rewrite.
+ * changing them is not a rewrite — and `writeNoteFields` is what makes *the only
+ * window* a guard rather than a description.
+ *
+ * @returns `false` when the freeze refused the write. Committing nothing is
+ * already true of an edit that changed nothing, which returns `true`: there was
+ * no write to refuse.
  */
 async function applyEdit(
   tx: IngestDatabase,
   noteId: string,
   fields: Record<string, string>,
   edits: Record<string, string>,
-): Promise<void> {
+): Promise<boolean> {
   const changed = Object.entries(edits).filter(([name, value]) => fields[name] !== value)
 
   if (changed.length === 0)
-    return
+    return true
 
-  await tx
-    .update(schema.note)
-    .set({ fields: { ...fields, ...Object.fromEntries(changed) } })
-    .where(eq(schema.note.id, noteId))
+  const written = await writeNoteFields(tx, noteId, { ...fields, ...Object.fromEntries(changed) })
+
+  if (!written)
+    return false
 
   await tx
     .insert(schema.noteFieldProvenance)
@@ -190,4 +210,6 @@ async function applyEdit(
         createdAt: sql`now()`,
       },
     })
+
+  return true
 }

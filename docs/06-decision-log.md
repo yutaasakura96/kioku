@@ -1257,6 +1257,20 @@ closes the row on the next read regardless. The branch where it matters is the o
 **Revisit if** anything else is ever attached to `ended_at` — a metric, a notification, a per-run
 tally on Stats — at which point losing the request stops being free.
 
+### [2026-09-12] The edit reaches the judgement fields, and `S6` is amended to say so
+`S6`'s *any field is editable* is narrowed to *any judgement field*, which is what `10` §4.4 already
+said and what #10 already built: editing the *term* or the *reading* changes `note.identity_key`
+(ADR 0006) and editing a *level* manufactures a claim with no *authority* (ADR 0005). The PRD is
+amended rather than the code.
+→ [ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md)
+
+### [2026-09-12] An accepted note is frozen against every writer, and any reader's acceptance freezes it
+The freeze is a `NOT EXISTS` in the `WHERE` of the app's fields write and an `ON CONFLICT DO NOTHING`
+in the worker's insert, rather than a property held by who happens to be calling. `note` is shared
+and `note_vetting` is personal, so **any** acceptance freezes the fields — the narrower owner-scoped
+rule would let a second reader rewrite the first reader's *cards* under them.
+→ [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

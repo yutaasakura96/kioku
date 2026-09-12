@@ -3,16 +3,17 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**50 ADRs**, eleven documents, an empty frontier, and **eight open issues** on the tracker — #1 the
-spec, #5, #10 (which closes when this work merges), #11–#14, and **#15, which #9 found and did not
+**52 ADRs**, eleven documents, an empty frontier, and **seven open issues** on the tracker — #1 the
+spec, #5, #11 (which closes when this work merges), #12–#14, and **#15, which #9 found and did not
 fix**.
-**#2 through #10 are built.** ⚠️ **The frontier is
-[#11](https://github.com/yutaasakura96/kioku/issues/11) alone**, and it is **much smaller than its
-ticket** — see § Next. There is a schema, a door, a *subject* declaration both toolchains read, a
-reader who can paste two pages of Japanese and get control back, a worker that wakes up and claims
-the job, a pipeline that turns that paste into *pending notes* one *chunk* at a time — and now
-**a reader who can see one, judge it in a keystroke, and mint a *card* by doing so.** What nothing
-does yet is **review** one: `card` rows exist with no *scheduling epoch* under them, which is #12's.
+**#2 through #11 are built.** ⚠️ **The frontier is
+[#12](https://github.com/yutaasakura96/kioku/issues/12) alone** — *review*. There is a schema, a
+door, a *subject* declaration both toolchains read, a reader who can paste two pages of Japanese and
+get control back, a worker that wakes up and claims the job, a pipeline that turns that paste into
+*pending notes* one *chunk* at a time, and a reader who can see one, judge it in a keystroke, and
+mint a *card* by doing so — **whose fields are now frozen by a guard rather than by nobody having
+asked.** What nothing does yet is **review** one: `card` rows exist with no *scheduling epoch* under
+them, which is #12's.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -21,6 +22,95 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #11 — the freeze, the contradiction, and the arithmetic, 2026-09-12.** **#11 was three
+things, and one of them was a contradiction rather than work.** #10 could not render a *mode*
+without rendering the *note* inside it, so eight of eleven acceptance criteria arrived already met —
+the quiet/foregrounded split, the *facts strip* and its zoning, the *provenance marker* filled and
+hollow, the *authority*'s name in the document rather than behind a hover, both of two disagreeing
+*level claims*, `E` at one keystroke, the four-grey ramp, three interaction states. What was left is
+what this session did.
+
+**Suite: 412 TypeScript** (was 400) **plus 200 pytest** (was 199). Typecheck, build and
+`drizzle-kit check` clean.
+
+⚠️ **`S6` said *any field is editable* and `10` §4.4 said the opposite — the PRD was amended, not
+the code.**
+[ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md). #10 had
+already built `10` §4.4's version in the component *and* in `shared/vet/decision.ts`, and the two
+reasons are not stylistic: editing the *term* or the *reading* changes `note.identity_key`, which
+`04` §5.3 calls a reviewed data event rather than a refactor (ADR 0006), and editing a *level*
+manufactures a claim with no *authority* (ADR 0005). `S6`'s own story is about a wrong *meaning*, so
+narrowing it costs the story nothing. **The contradiction was never live in the code — it was live in
+the acceptance criteria**, where the next implementer reads it.
+
+⚠️ **The freeze was true because nobody had asked, and it is a guard now — in the `WHERE` of both
+write paths.**
+[ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md).
+`server/utils/note/fields.ts` is the application's one write path to `note.fields` and refuses on a
+`NOT EXISTS`; `worker/pipeline/write_pending.py`'s `ON CONFLICT DO NOTHING` was already the worker's
+half and now has a test that reddens if it becomes an upsert. **Both were sabotaged to red.** Two
+things fell out of writing it down:
+
+- ⚠️ **Any reader's acceptance freezes the fields, not just the requesting reader's.** `04` §4 makes
+  `note` **shared** and `note_vetting` **personal**, so there is one `fields` document under two
+  queues. The owner-scoped rule — the one that reads naturally out of `decide()` — lets a second
+  reader rewrite the first reader's *cards* under them. **Unreachable in v1** (ADR 0012 invites one
+  reader) and written anyway, because the cost of the guard is one `NOT EXISTS` and the cost of
+  finding out is a corpus nobody can tell has been rewritten.
+- **A refusal decides nothing.** `decide()` returns `frozen` before the first of the other writes
+  rather than rolling them back — an acceptance that committed with the correction dropped would be
+  the reader accepting the value they had just called wrong, arriving as a success. `10` §4.8 now
+  names a **second** keystroke-that-failed message; `Z` was the only one.
+
+⚠️ **`11` §8's "metric arithmetic" seam is split, and #11 took only its own half.**
+`shared/metrics/acceptance.ts` is *acceptance rate* as arithmetic over counts, with the two failures
+`11` §3 names — an edited accept counted as an acceptance, and a denominator of *notes seen* rather
+than *notes generated* — and **both bias the number the same direction, up.** The other three numbers
+and `S10`'s suppression boundary stay #14's: the boundary governs all four ratios at once and belongs
+where they are rendered together. **What is not at this seam is the query**; these are counts, and
+where they come from is `note_vetting`.
+
+⚠️ **`/code-review` found one real bug in the branch it was reviewing, and it was the client rather
+than the guard.** `apply()` keeps an `inFlight` entry for as long as the *note* is still in the
+server's answer, and `visible` hides every *note* that has one — correct for a decision that landed,
+**wrong for one that was refused.** A `frozen` answer leaves the *note* in the queue, so the entry
+would never clear: the *note* would vanish from the reader's screen while still sitting in the
+database, with `pending`, `vetted` and `rejections` each a keystroke ahead of it, recoverable only
+by a reload. `not_pending` never reached this because that *note* has left the queue. **`frozen`
+reloads instead of applying.**
+
+⚠️ **And one test that was green for no reason.** The worker's freeze test asserted the *note* still
+had one *occurrence* after the second write — which is what it would have had if the occurrence
+append had been **deleted outright**. ADR 0006 has two halves and the freeze is only one: the second
+sighting is now written at a different position, and the test asserts both positions are there.
+Sabotaged to red both ways.
+
+⚠️ **The ticket carries a second contradiction nobody had noticed, and it is not this one.** #11's
+eleventh criterion reads *three interaction states on this screen, not five (ADR 0035)* — but
+ADR 0035's three-state rule is about **the three *places*, which ship no JavaScript**, and its own
+next paragraph says ***Vet* and *Review* are the opposite case and get both states for real**.
+`10` §4.8 specifies *Vet*'s loading and error states and #10 built them. **Satisfying the criterion
+literally would mean deleting them.** Nothing in the code is wrong; the criterion is, and it is
+recorded here because the ticket will close carrying it.
+
+⚠️ **Four of the eight criteria #10 met are held by source and by a deliberate non-test, not by a
+test — and this file said otherwise.** § Next claimed all eight were "covered by
+`test/nuxt/vet-note.test.ts` and `test/schema/vet.test.ts`". Verified 2026-09-12 by grepping the
+suite: the *provenance marker*, the *authority*'s name, both *level claims* and `E`'s cost are
+genuinely asserted; **the quiet/foregrounded split, the *facts strip*'s two rules, the four-grey ramp
+and the interaction-state count are asserted nowhere.** They hold in
+`app/components/VetNote.vue` — the rules read `--k-rule`, and the file uses exactly four `--k-ink*`
+tokens and no hex — and `11` §9 puts **visual regression** on the deliberately-not-tested list,
+because a screenshot suite would make the canvas the authority that `05` §9 says it is not. **So it
+is a documentation defect rather than a coverage gap**, and it is the seventh consecutive ticket to
+ship a sentence that was true when it was written.
+
+⚠️ **Two small readings that are recorded because they will look arbitrary later:** *acceptance rate*
+answers **`null`** rather than `0` when nothing has been generated, because `0%` is a claim about a
+pipeline that produced nothing usable and a reader who has not pasted anything yet would read it as
+one; and a **rejection freezes nothing**, because ADR 0012 makes a rejection a claim about the reader
+rather than about the word — nobody confirmed the fields, so there is nothing to protect.
 
 **Phase 6, #10 — *Vet* as a *mode*, 2026-09-12.** **A *pending note* is now on a screen, and one
 keystroke turns it into a *card*.** `/vet` replaces the *shell* entirely; `space`, `R` and `E` each
@@ -812,7 +902,7 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 11`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 12`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
@@ -828,38 +918,39 @@ is #7 alone.~~ ~~**⚠️ #7 built 2026-09-11.** The frontier is #8 alone.~~
 [#9](https://github.com/yutaasakura96/kioku/issues/9) alone.**~~
 ~~**⚠️ [#9](https://github.com/yutaasakura96/kioku/issues/9) built 2026-09-12. The frontier is
 [#10](https://github.com/yutaasakura96/kioku/issues/10) alone.**~~
-**⚠️ [#10](https://github.com/yutaasakura96/kioku/issues/10) built 2026-09-12. The frontier is
+~~**⚠️ [#10](https://github.com/yutaasakura96/kioku/issues/10) built 2026-09-12. The frontier is
 [#11](https://github.com/yutaasakura96/kioku/issues/11) alone** — *the note as presented, and the
-edit path*.
+edit path*.~~
+**⚠️ [#11](https://github.com/yutaasakura96/kioku/issues/11) built 2026-09-12. The frontier is
+[#12](https://github.com/yutaasakura96/kioku/issues/12) alone** — *review*.
 
-⚠️ **#11 is much smaller than its ticket, and the next session should read this before the ticket.**
-#10 could not render a *mode* without rendering the *note* inside it, so **eight of #11's eleven
-acceptance criteria were met on the way through**, covered by `test/nuxt/vet-note.test.ts` and
-`test/schema/vet.test.ts`: the quiet/foregrounded split, the *facts strip* and its zoning, the
-*provenance marker* filled and hollow, the *authority*'s name **in the document rather than behind a
-hover**, both of two disagreeing *level claims* shown, `E` costing one keystroke without touching the
-cost of the other two, the four-grey ramp, and three interaction states rather than five.
-**Three are left, and one of them is a contradiction rather than work:**
+~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
+ticket.**~~ **All three of its remaining items are closed** — the contradiction in
+[ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md), the
+freeze in [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md),
+and the arithmetic in `shared/metrics/acceptance.ts`. See § Done.
 
-- ⚠️ **#11's sixth criterion says "any field is editable before acceptance" and `10` §4.4 says it is
-  not.** `S6`'s sentence is *any field*; `10` §4.4 narrows it to the three *judgement fields* and
-  gives two reasons that are not stylistic — editing the *term* or the *reading* changes
-  `note.identity_key` (ADR 0006) and editing a *level* manufactures a claim with no *authority*
-  (ADR 0005). **#10 built `10` §4.4's version**, in the component *and* in
-  `shared/vet/decision.ts`, because a client is the thing sending the request. #11 should close the
-  contradiction in the ticket or in `02-product-requirements.md`, not in the code.
-- ⚠️ **"An *accepted* *note*'s fields are frozen" is not enforced anywhere.** #10 writes
-  `note.fields` on the edit path and nothing refuses a later write. Today nothing attempts one — the
-  only writer is `decide()`, and it refuses a *note* that is not `pending` — so the property holds by
-  accident rather than by a guard, which is exactly the shape `04` §13 warns about. ADR 0006 says a
-  later *source* appends an *occurrence* and **never alters the fields**; the worker's write path is
-  the other half.
-- ⚠️ **The arithmetic `S6` calls "the most likely error in the app, and the one that would flatter
-  the thesis"** — an edited accept counting as an **edit** rather than as an acceptance in
-  *acceptance rate* — is not computed anywhere yet. The column is written and correct
-  (`note_vetting.edited`); the metric that reads it is Stats, which is #14, and `11` §8 puts "the
-  metric arithmetic" in the pure-seam list. #11 should decide whether it owns that seam or hands it
-  on.
+⚠️ **#12 inherits four things, and the first is the one that costs if it is missed:**
+
+- ⚠️ **The first *scheduling epoch* belongs to the *session* that first schedules the *card*, and
+  not to acceptance.** `scheduling_epoch.card_id` is `RESTRICT` (`04` §9), so an epoch minted at
+  acceptance makes ADR 0033's `Z` fail on **every** acceptance the application ever makes — with a
+  failure that reads like a database problem. `test/schema/vet.test.ts` asserts the **absence**, so
+  the day #12 reaches for the obvious place to put the first epoch, the *undo* tests redden rather
+  than the *Review* ones. **That redness is the message, not a broken test.**
+- **The FSRS wrapper is `11` §8's named seam and it is unbuilt.** Not FSRS itself — `ts-fsrs` 5.4.2
+  is pinned and has its own suite. What is ours is the mapping to and from `scheduling_epoch`, and
+  that **`enable_short_term` is off** while `enable_fuzz` is on (ADR 0016). A test asserting grade 1
+  schedules **at least one day out** catches the configuration regression that would otherwise
+  surface as a worse retention curve in six months (verification §13.1).
+- ⚠️ **A *card*'s fields are frozen now, and #12 is the ticket that makes that matter.** A *card*
+  minted from an accepted *note* points at text the reader confirmed; after #12 there is a review
+  history measured against it. ADR 0052's guard is in the `WHERE` of both write paths, so a #12 that
+  needs to rewrite a *note* will be refused rather than surprised — and `S9`'s re-vetting path
+  (#13) is where lifting the freeze gets argued.
+- ⚠️ **#15 is in front of #12 on the screen, not behind it.** The reading is on the answer side of
+  the recognition *template* (`10` §5), so the first *card* studied from an inflected word shows it.
+  Fixing it changes the identity of existing *notes*, which is why it is its own ticket.
 
 **#10 inherited five things from #9 and all five held.** Kept because each is still the shortest
 statement of a thing #11 may need:
@@ -956,8 +1047,8 @@ findings that amended `11` §1 and §6.1**.
                                                #4,#6 ─→ #7 worker loop ✔
                                         #3,#7 ─→ #8 pipeline 1–5 ✔
                                                  #8 ─→ #9 generation ✔
-                                  #9 ─→ #10 vet mechanics ← the frontier ─┬─→ #11 vet presentation
-                                                                        └─→ #12 review
+                                  #9 ─→ #10 vet mechanics ✔ ─┬─→ #11 vet presentation ✔
+                                                             └─→ #12 review ← the frontier
                                                             #12 ─→ #13 outbox ─┐
                                                                      #6,#13 ─→ #14 stats
 ```
@@ -1004,6 +1095,16 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **The *acceptance rate* arithmetic is a pure module and Stats must not re-derive it in SQL.**
+  `shared/metrics/acceptance.ts`, added 2026-09-12 by #11, holds the numerator rule (`S6`: an edited
+  accept is an **edit**) and the denominator rule (*notes generated*, which includes every *pending
+  note*). ⚠️ **Both of the ways to get it wrong bias the number the same direction — up** — and
+  `11` §3 calls it the most likely arithmetic error in the app and the one that would flatter the
+  thesis. A `COUNT(*) FILTER (WHERE state = 'accepted')` over decided *notes* written straight into
+  #14's query is the failure, and it looks entirely reasonable in a diff. **The seam is counts in,
+  a rate out**; the query that produces the counts is #14's, and so is `S10`'s suppression boundary,
+  which governs all four ratios at once.
+
 - ⚠️ **Acceptance must never mint a *scheduling epoch*, and the constraint that says so is three
   tables away from the code that would.** `scheduling_epoch.card_id` is `RESTRICT` (`04` §9), so an
   epoch written at acceptance makes ADR 0033's `Z` fail on **every** acceptance — the database
@@ -1035,12 +1136,18 @@ Nothing.
   laptop, so the window is theoretical; it stops being theoretical for a second reader, which is the
   ADR's revisit condition. ⚠️ **It is also the reason `Done` may fire its end request without waiting
   when the run holds no rejections**: the sweep is the floor under that.
-- ⚠️ **`S6`'s "an *accepted* *note*'s fields are frozen" is true by accident, not by a guard.**
-  #10's `decide()` is the only writer of `note.fields` in the application and it refuses a *note*
-  that is not `pending`, so nothing can currently rewrite an accepted one. **Nothing enforces it**:
-  ADR 0006's rule is that a later *source* appends an *occurrence* and never alters the fields, and
-  the worker's write path is the other half of that. It is #11's second criterion and it is listed
-  here because a property held by the absence of a caller is exactly what `04` §13 says drifts.
+- ~~⚠️ **`S6`'s "an *accepted* *note*'s fields are frozen" is true by accident, not by a
+  guard.**~~ ⚠️ **Paid 2026-09-12 by #11 —
+  [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md),
+  and the guard is in the `WHERE` of both write paths.** `server/utils/note/fields.ts` is the
+  application's one write path to `note.fields` and refuses on a `NOT EXISTS`;
+  `worker/pipeline/write_pending.py`'s `ON CONFLICT DO NOTHING` is the worker's half and now has a
+  test that reddens if it becomes an upsert. **Both sabotaged to red.** ⚠️ **The part worth carrying
+  is who it freezes against:** `note` is *shared* and `note_vetting` is *personal* (`04` §4), so
+  **any** reader's acceptance freezes the fields, not just the requesting reader's — the
+  owner-scoped rule lets a second reader rewrite the first reader's *cards* under them. Unreachable
+  while ADR 0012 invites one reader. **Not a trigger**, deliberately: `04` §7.5 has exactly one and
+  ADR 0011 names exactly one irreplaceable thing.
 - ⚠️ **`note_vetting.flagged_at` is rendered and never written.** `10` §4.3's `returned by a flag`
   aside is built, the queue query reads the column, and nothing sets it — `X` is *Review*'s key and
   `S9` is #13's. **#10 also deliberately does not resolve a flag**: `04` §7.8 says

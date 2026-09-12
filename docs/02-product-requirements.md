@@ -92,10 +92,23 @@ ADR 0010)
 > As the reader, I want to correct a wrong meaning at *vetting*, so that a small error doesn't cost
 > the whole *note*.
 
-**Acceptance:** any field is editable before acceptance. An edited *note* is accepted and counts
-against *acceptance rate* as an edit, not as an acceptance. Once *accepted*, the *note*'s fields are
-frozen — a later *source* implying something different raises a flag rather than rewriting it.
-(ADR 0004, ADR 0006)
+**Acceptance:** any *judgement field* is editable before acceptance. An edited *note* is accepted and
+counts against *acceptance rate* as an edit, not as an acceptance. Once *accepted*, the *note*'s
+fields are frozen — a later *source* implying something different raises a flag rather than rewriting
+it. (ADR 0004, ADR 0006, ADR 0051, ADR 0052)
+
+⚠️ **Amended 2026-09-12 with #11. This said *any field* and `10` §4.4 said the opposite**, and #10
+had already built `10` §4.4's version — in `app/components/VetNote.vue` and in
+`shared/vet/decision.ts` both, because the request arrives from a client anybody can read. The edit
+reaches the three *judgement fields* — the
+*meaning*, the example sentence and the example gloss — and not the *facts strip*: editing the *term*
+or the *reading* changes `note.identity_key` and is therefore a re-ingestion event rather than a
+correction (ADR 0006), and editing a *level* manufactures a claim with no *authority* (ADR 0005).
+The story above is about a wrong *meaning* in its own words, and loses nothing.
+[ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md) carries the
+argument; [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md)
+carries the freeze, which is now a guard in both write paths rather than a property nobody was
+testing.
 
 ### S7 — Study a session that ends `MUST`
 

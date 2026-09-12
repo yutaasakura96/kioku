@@ -83,6 +83,17 @@ function reject(noteId: string) {
   return decide(db, OWNER, { noteId, action: 'reject', secondsToVet: 1.2, edits: null })
 }
 
+/**
+ * A second reader's own row on the same shared *note* (`04` §4) — the state
+ * `decide()` cannot produce for `OWNER` and the freeze is about.
+ */
+async function alsoVetted(noteId: string, owner: string, state: 'accepted' | 'rejected') {
+  await client.exec(`
+    INSERT INTO note_vetting (note_id, owner_id, state, vetted_at)
+    VALUES ('${noteId}', '${owner}', '${state}', now());
+  `)
+}
+
 async function one<T>(sql: string): Promise<T> {
   const result = await client.query<T>(sql)
   return result.rows[0]!
@@ -293,6 +304,67 @@ describe('`S6` — an edit, and the provenance it writes', () => {
     await accept(noteId)
 
     expect(await count('note_vetting', `edited AND note_id = '${noteId}'`)).toBe(0)
+  })
+})
+
+// ⚠️ **`S6`'s freeze, and it is a guard rather than a property held by the
+// absence of a caller.** `decide()` refuses a *note* that is not `pending` for
+// the reader sending the keystroke, which covers the one reader v1 invites — but
+// `note` is a **shared** entity (`04` §4) and `note_vetting` is personal, so the
+// *note* on this reader's queue can be a *note* another reader has already
+// accepted and studied. The guard is in the `WHERE` of the fields write
+// (`server/utils/note/fields.ts`), which is why these tests can reach it at all.
+describe('`S6` — an accepted note\'s fields are frozen', () => {
+  it('refuses an edit to a note another reader has already accepted', async () => {
+    const noteId = await pending('図書館␟としょかん')
+    await alsoVetted(noteId, OTHER, 'accepted')
+
+    expect(await accept(noteId, { edits: { meaning: 'a library' } })).toEqual({
+      ok: false,
+      reason: 'frozen',
+    })
+  })
+
+  // ⚠️ **The refusal is the whole transaction, not just the fields write.** A
+  // *note* accepted with the edit silently dropped is the failure `S6` is about
+  // — the reader's correction is the reason they pressed `Enter` rather than
+  // `space`, and an acceptance without it is an acceptance of something they
+  // said was wrong.
+  it('decides nothing and mints nothing when it refuses', async () => {
+    const noteId = await pending('図書館␟としょかん')
+    await alsoVetted(noteId, OTHER, 'accepted')
+
+    await accept(noteId, { edits: { meaning: 'a library' } })
+
+    const note = await one<{ fields: Record<string, string> }>(`SELECT fields FROM note WHERE id = '${noteId}';`)
+    expect(note.fields).toEqual(FIELDS)
+    expect(await count('note_vetting', `state = 'pending' AND owner_id = '${OWNER}'`)).toBe(1)
+    expect(await count('card')).toBe(0)
+    expect(await count('note_field_provenance', `kind = 'human'`)).toBe(0)
+  })
+
+  // The freeze is about the fields, and a plain acceptance writes none. Refusing
+  // here would make a *note* somebody else accepted un-acceptable, which is a
+  // different — and wrong — rule.
+  it('accepts without an edit even when the note is frozen', async () => {
+    const noteId = await pending('図書館␟としょかん')
+    await alsoVetted(noteId, OTHER, 'accepted')
+
+    expect(await accept(noteId)).toEqual({ ok: true })
+    expect(await count('card', `owner_id = '${OWNER}'`)).toBe(1)
+  })
+
+  // ⚠️ **A rejection is a claim about the reader, not about the word** (ADR
+  // 0012), so it freezes nothing: the other reader declined to study it and
+  // nobody has confirmed the fields.
+  it('lets the edit through when the other reader only rejected it', async () => {
+    const noteId = await pending('図書館␟としょかん')
+    await alsoVetted(noteId, OTHER, 'rejected')
+
+    expect(await accept(noteId, { edits: { meaning: 'a library' } })).toEqual({ ok: true })
+
+    const note = await one<{ fields: Record<string, string> }>(`SELECT fields FROM note WHERE id = '${noteId}';`)
+    expect(note.fields).toEqual({ ...FIELDS, meaning: 'a library' })
   })
 })
 

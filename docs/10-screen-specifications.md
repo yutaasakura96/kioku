@@ -449,6 +449,10 @@ screen whose whole thesis is that nothing moves between keystrokes.
   on the *term* and not on the footer. Replacing the legend is acceptable: the legend is reference
   material, and by the time a `RESTRICT` failure is reachable the reader has completed a prior run.
   15px Newsreader, `--k-ink`, left-aligned in the 940px column.
+  ⚠️ **Amended 2026-09-12 with #11 — there is a second one, and `Z` is no longer the only.** An
+  `Enter` out of an edit on a *note* another reader has already accepted is refused by `S6`'s freeze
+  (ADR 0052) and nothing is decided; the message says so in the same place, on the same terms.
+  Unreachable while v1 invites one reader (ADR 0012), and written because the guard is not.
 
 ---
 

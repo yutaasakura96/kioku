@@ -41,7 +41,7 @@ const POLL_INTERVAL = 5_000
 const LOADING_THRESHOLD = 500
 
 interface DecisionResponse {
-  outcome: 'ok' | 'not_pending'
+  outcome: 'ok' | 'not_pending' | 'frozen'
   queue: VetQueue
 }
 
@@ -192,6 +192,24 @@ async function submit(action: 'accept' | 'reject', edits: Record<string, string>
         method: 'POST',
         body: { noteId: current.noteId, action, secondsToVet, edits },
       })
+      // ⚠️ **`frozen` reloads rather than applying**, and the difference is not
+      // cosmetic. `apply()` keeps an `inFlight` entry while the *note* is still
+      // in the server's answer, and `visible` hides every *note* that has one —
+      // which is right for a decision that landed and **wrong for one that was
+      // refused**: the *note* would vanish from the screen while still sitting
+      // in the queue, with the counts a keystroke ahead of the database.
+      // `not_pending` never reaches this because that *note* has left the queue.
+      if (response.outcome === 'frozen') {
+        await load()
+
+        // `10` §4.8's second keystroke-that-failed message — `S6` froze the
+        // fields when another reader accepted this *note*, so the correction was
+        // refused and nothing was decided. Unreachable while v1 invites one
+        // reader (ADR 0012).
+        message.value = 'Another reader has already accepted that note, so its fields are frozen. Nothing was decided, and the edit was not kept.'
+        return
+      }
+
       apply(response.queue)
     }
     catch {
