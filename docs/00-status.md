@@ -3,16 +3,16 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**48 ADRs**, eleven documents, an empty frontier, and **nine open issues** on the tracker — #1 the
-spec, #5, #9 (which closes when this work merges), #10–#14, and **#15, which #9 found and did not
+**50 ADRs**, eleven documents, an empty frontier, and **eight open issues** on the tracker — #1 the
+spec, #5, #10 (which closes when this work merges), #11–#14, and **#15, which #9 found and did not
 fix**.
-**#2, #3, #4, #5, #6, #7, #8 and #9 are built.** ⚠️ **The frontier is
-[#10](https://github.com/yutaasakura96/kioku/issues/10) alone** — *Vet*'s mechanics. There is a
-schema, a door, a *subject* declaration both toolchains read, a reader who can paste two pages of
-Japanese and get control back, a worker that wakes up and claims the job, a pipeline that turns that
-paste into *candidates* — and now **a model that turns those candidates into *pending notes*, written
-as each *chunk* returns, with what they cost on the row.** What it cannot do is show them to anybody:
-nothing renders a *Vet* queue.
+**#2 through #10 are built.** ⚠️ **The frontier is
+[#11](https://github.com/yutaasakura96/kioku/issues/11) alone**, and it is **much smaller than its
+ticket** — see § Next. There is a schema, a door, a *subject* declaration both toolchains read, a
+reader who can paste two pages of Japanese and get control back, a worker that wakes up and claims
+the job, a pipeline that turns that paste into *pending notes* one *chunk* at a time — and now
+**a reader who can see one, judge it in a keystroke, and mint a *card* by doing so.** What nothing
+does yet is **review** one: `card` rows exist with no *scheduling epoch* under them, which is #12's.
 ⚠️ **#5 is still open on the tracker while `00-status.md` records it closed.** Nobody has ever signed
 in — there is no Google client, no redirect URI and no `.env`. Whether that closes it is Yuta's call
 and it is the one thing this file and the tracker disagree about.
@@ -21,6 +21,145 @@ and it is the one thing this file and the tracker disagree about.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6, #10 — *Vet* as a *mode*, 2026-09-12.** **A *pending note* is now on a screen, and one
+keystroke turns it into a *card*.** `/vet` replaces the *shell* entirely; `space`, `R` and `E` each
+cost one keystroke; acceptance mints in the same transaction; `Z` un-mints and **fails visibly** when
+the database refuses; Done ends the run and spends the undo, after asking once if there is anything
+to lose. The three empty states, the run-end confirmation, the edit, the phone refusal and the
+footer legend are all built.
+
+**Suite: 400 TypeScript** (was 293) **plus 199 pytest**, unchanged — the worker was not touched.
+Typecheck, build and `drizzle-kit check` clean.
+
+⚠️ **`11` §6.1's two-ticket debt is paid: the e2e tier opens a browser again.** #5 gated both
+*modes* and took the browser assertions away; #6 paid the **context** (a database the built app can
+reach, and a forged session); #10 pays the **browser**. `test/e2e/vet.test.ts` is `11` §6.2's
+behavioural proxy written down as one test — focus the Done control, press `R`, assert `note_vetting`
+is unchanged; focus the container, same key, assert it is `rejected`. **Sabotaged 2026-09-12**:
+moving the handler to `document.addEventListener` turns it red and nothing else in the suite notices.
+⚠️ It is a proxy and the file says so — **if Done is ever moved inside the container the test needs
+re-thinking rather than re-running.**
+
+**Two decisions this session made rather than transcribed:**
+
+- ⚠️ **[ADR 0049](adr/0049-the-vet-queue-is-oldest-first-and-the-client-holds-no-position-in-it.md)
+  — the queue is oldest-first and the client holds no position in it.** ADR 0033 said `Z` reads its
+  target from the database "so the undo survives a reload" and then said the *note* goes "back at the
+  head of the queue" without saying what the head was. Oldest-first makes that free: a *note* just
+  decided is older than every *note* still waiting, so returning it to *pending* returns it to the
+  front. Every endpoint answers with the whole batch, whose head **is** the *note* on screen, so the
+  client renders `notes[0]` and stores no index — two tabs cannot disagree about whose turn it is.
+- ⚠️ **[ADR 0050](adr/0050-the-idle-sweep-runs-on-the-next-read-because-there-is-no-scheduler.md) —
+  `04` §7.1's idle sweep had no home.** Vercel Cron is forbidden by ADR 0022, a serverless deployment
+  holds no timer, and the worker claims `job` rows over **shared** entities and has never touched a
+  personal table. It runs on the next read. **The cost is stated**: a run abandoned by a reader who
+  never comes back stays open until somebody looks, so a *rejection* in it stays reversible while
+  nobody is asking — and is permanent the instant anybody is.
+
+**And three readings recorded in the decision log rather than as ADRs**, each of which is a sentence
+somebody had already written without noticing what it decided:
+
+- ⚠️ **Acceptance mints the *card* and **must not** mint a *scheduling epoch*.** `scheduling_epoch.
+  card_id` is `RESTRICT` (`04` §9), so an epoch written at acceptance makes ADR 0033's `Z` fail on
+  **every** acceptance the application ever makes — with a failure that reads like a database problem
+  rather than a decision. ADR 0033 said it in its own words and nothing had put the sentence beside
+  the constraint: the *card* it deletes is "a card with no `review_log` and no `scheduling_epoch`".
+  `test/schema/vet.test.ts` asserts the **absence**.
+- **`human` provenance follows the diff; `note_vetting.edited` follows the commit.** `09` §4.3 sets
+  `edited` on the `Enter`, which is a fact about the reader's act; ADR 0048 makes `kind` a fact about
+  each value, and a field the reader read and left alone was produced by the model. Stamping it
+  `human` would take ADR 0018's instrument away one *note* at a time. `edited` is also monotone — `Z`
+  leaves it standing, because the edit is still in `note.fields`.
+- **Done does not wait for the run to end when the run holds no rejections.** The anchor's click is
+  not prevented — that bit is exactly what `test/nuxt/modes.test.ts` guards — so the end request
+  travels beside the document load as a `sendBeacon`. Losing it costs nothing, because the only thing
+  `ended_at` decides is whether a *rejection* can be reversed and this branch has none. The branch
+  that matters is `10` §4.6's confirmation, and it **awaits**.
+
+⚠️ **Two measurements nobody publishes, both found by a test going red for the right reason:**
+
+- **A `RESTRICT` refusal raises `23001`, not `23503`.** PGlite 0.5.8 / PostgreSQL 18.3, 2026-09-12.
+  `23503` is `foreign_key_violation` and belongs to `NO ACTION`; `04` §9 spells every rule in the
+  `card` chain `RESTRICT`, so a guard written against `23503` alone would have caught **nothing** —
+  and the code path it guards is the one ADR 0033 says the whole argument falls back on. Drizzle also
+  **wraps**: the driver error carrying the code is the `cause`, and reading `code` off the top would
+  have made the guard silently never match.
+- ⚠️ **`@electric-sql/pglite-socket` fronts a single-connection PGlite, so `Promise.all` in a request
+  handler fails in the e2e tier and only there.** Four reads at once make `node-postgres` open four
+  connections; the socket server resets three, the route answers `500`, and the browser shows an
+  empty screen with nothing in the test output naming the cause. **Production would have been fine.**
+  `server/utils/vet/queries.ts` runs its reads sequentially and says why.
+
+⚠️ **The documents disagreed about the footer legend and the disagreement is now closed in `10`
+§4.7.** §4.4 says "while an edit is open the legend's `Esc` label reads `cancel edit`"; §4.7's legend
+has no `Esc` in it, because §4.3 gives that key to the Done cluster. The reading that honours both is
+that **the legend names the keys that act on the screen in front of the reader** — four with a
+*note*, three inside an edit, `Z` alone on an empty queue with an open run (the undo really does
+reach back into an empty screen, because ADR 0033 reads its target from the database), and nothing at
+all on the confirmation or on a phone. `10` §4.7 carries the table.
+
+⚠️ **And two things `05` §7 and `05` §4 name without defining, decided in `10` and marked as gaps:**
+the ***note* index** is the position in this run (`#19`) — the only monotone figure on the screen, and
+the pending count beside it already answers the other direction; and **`05` §4's ramp is written per
+*field name***, so `app/components/VetNote.vue` holds a three-entry map from field name to type with
+a fallback. The declaration carries `kind`, `required`, `memory_bearing` and `label` and nothing that
+says *this value is Japanese prose*. **A second *subject* closes that, in the declaration** (ADR 0003)
+rather than in a second map.
+
+⚠️ **`/code-review` found one bug that would have biased `S3`'s own number, and it was a Vue
+subtlety rather than a mistake in the arithmetic.** `watch(note, …)` keyed on the *note* **object**;
+every answer installs a freshly parsed queue, so the *note* on screen gets a new reference with the
+same contents and the timer restarted each time a response landed. `seconds_to_vet` would then have
+measured from the previous request's reply rather than from when the *note* rendered — **every
+reading understated by one round trip, biased low**, on the one number `S3` exists to produce, from
+the first run. The watch keys on `noteId` now.
+
+⚠️ **And it caught the same failure this project has shipped in five consecutive tickets: a comment
+that asserts something untrue of the code beside it.** Three of them, all written by the change that
+made them false — a `.marker` comment describing a `title` attribute that had been replaced by an
+`aria-label` an hour earlier; a style-block header claiming "the vertical rhythm below is not in `05`
+or `10`" when `05` §5 names two of its four gaps by meaning, **and the untruth is what licensed the
+wrong number** (40px where §5 says 52); and a key-cap comment about `--k-face-mono`'s default sitting
+beside a `white-space` rule. **The pattern is now six tickets long and the shape is always the same**:
+the sentence was true when it was written.
+
+Four more that were real:
+
+- ⚠️ **`draft` is on `CONTEXT.md`'s `_Avoid_` list — twice**, under **Pending** and under
+  **Candidate** — and it was the name of the variable holding the uncommitted edit of a *pending
+  note*, which is the exact collision the list exists to prevent. It is `edit`. **Second review
+  running that has caught a vocabulary breach**, which makes it a category rather than an accident.
+- ⚠️ **ADR 0050's idle horizon had two homes before it was a day old.** `decide.ts` re-inlined the
+  sweep's SQL with a literal `interval '30 minutes'` beside a `queries.ts` that exported
+  `IDLE_HORIZON` for exactly that, and the run boundary was being found three different ways — one of
+  which had dropped the `ORDER BY` that `openRun`'s own doc comment called load-bearing.
+  `server/utils/vet/run.ts` is the boundary now, and it is the only file that knows what half an hour
+  is.
+- **`05` §7's quiet affordance is a bounded control** — `--k-raised`, `1px --k-border-control`,
+  `--k-radius-control`, `13px 20px` — and the empty state's was a bare link with an arrow, under a
+  comment citing the section it did not implement.
+- ⚠️ **A `28px` gap that was 40px.** `10` §4.3 measures the Done cluster `28px` from the counts; the
+  chrome bar also carried a `12px` flex gap, which adds. The bar's left group carries its own gap
+  now and the bar carries none.
+
+⚠️ **And one place where two sections of `05` disagree with each other**, which is new: §5's scale
+snaps the empty-state block's statement-to-body gap `18 → 20` **and gives 20 the meaning that fits it
+exactly** — *between a body block and what introduced it* — while §7 restates the canvas's 18 and
+`10` §4.5 copies it. §5 wins on its own terms ("New values are added to the scale, never set by hand
+beside it"); both other sections carry a dated amendment, and the body's 18px **type size** is
+untouched, because §5 exempts type sizes from the snap.
+
+⚠️ **The review also named the edit path as scope creep, and it is right.** #10's criterion is that
+*entering* an edit costs one keystroke; #11 owns the edit itself. Shipping `E` as a control that
+opens something with no way to commit would have been worse, so it is built — and § Next says exactly
+which of #11's criteria that leaves.
+
+**What #10 does not do:** schedule anything. A minted *card* has no *scheduling epoch*, so
+`startBlockCounts`'s due figure is zero until #12 — which is correct rather than broken, and is the
+reason `Z` works at all. It also does not resolve a flag: `card_flag.resolved_at` is untouched and
+`note_vetting.flagged_at` is **rendered** (`10` §4.3's aside) but never written, because `X` is
+*Review*'s key and `S9` is #13's.
 
 **Phase 6, #9 — generation and pending notes, 2026-09-12.** **A pasted *source* now becomes
 *pending notes*, and the money is on the row.** `worker/provider.py` is ADR 0018's boundary and the
@@ -673,7 +812,7 @@ Seven findings worth knowing without opening it:
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **The next command is `/implement 10`, in a fresh window.** `/to-spec` and
+⚠️ **The next command is `/implement 11`, in a fresh window.** `/to-spec` and
 `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are the tickets — so neither is
 the next command, and neither is `/grill-with-docs`, whose frontier is empty.
 
@@ -687,11 +826,43 @@ shipped one number that was true when it was written and false when it was read.
 is #7 alone.~~ ~~**⚠️ #7 built 2026-09-11.** The frontier is #8 alone.~~
 ~~**⚠️ [#8](https://github.com/yutaasakura96/kioku/issues/8) built 2026-09-12. The frontier is
 [#9](https://github.com/yutaasakura96/kioku/issues/9) alone.**~~
-**⚠️ [#9](https://github.com/yutaasakura96/kioku/issues/9) built 2026-09-12. The frontier is
-[#10](https://github.com/yutaasakura96/kioku/issues/10) alone** — *Vet*'s mechanics. It needs #9 and
-has it: `note_vetting` rows exist at `pending`, and `04` §12's first query has nothing rendering it.
+~~**⚠️ [#9](https://github.com/yutaasakura96/kioku/issues/9) built 2026-09-12. The frontier is
+[#10](https://github.com/yutaasakura96/kioku/issues/10) alone.**~~
+**⚠️ [#10](https://github.com/yutaasakura96/kioku/issues/10) built 2026-09-12. The frontier is
+[#11](https://github.com/yutaasakura96/kioku/issues/11) alone** — *the note as presented, and the
+edit path*.
 
-**#10 inherits five things from #9**, none of which needs re-deriving:
+⚠️ **#11 is much smaller than its ticket, and the next session should read this before the ticket.**
+#10 could not render a *mode* without rendering the *note* inside it, so **eight of #11's eleven
+acceptance criteria were met on the way through**, covered by `test/nuxt/vet-note.test.ts` and
+`test/schema/vet.test.ts`: the quiet/foregrounded split, the *facts strip* and its zoning, the
+*provenance marker* filled and hollow, the *authority*'s name **in the document rather than behind a
+hover**, both of two disagreeing *level claims* shown, `E` costing one keystroke without touching the
+cost of the other two, the four-grey ramp, and three interaction states rather than five.
+**Three are left, and one of them is a contradiction rather than work:**
+
+- ⚠️ **#11's sixth criterion says "any field is editable before acceptance" and `10` §4.4 says it is
+  not.** `S6`'s sentence is *any field*; `10` §4.4 narrows it to the three *judgement fields* and
+  gives two reasons that are not stylistic — editing the *term* or the *reading* changes
+  `note.identity_key` (ADR 0006) and editing a *level* manufactures a claim with no *authority*
+  (ADR 0005). **#10 built `10` §4.4's version**, in the component *and* in
+  `shared/vet/decision.ts`, because a client is the thing sending the request. #11 should close the
+  contradiction in the ticket or in `02-product-requirements.md`, not in the code.
+- ⚠️ **"An *accepted* *note*'s fields are frozen" is not enforced anywhere.** #10 writes
+  `note.fields` on the edit path and nothing refuses a later write. Today nothing attempts one — the
+  only writer is `decide()`, and it refuses a *note* that is not `pending` — so the property holds by
+  accident rather than by a guard, which is exactly the shape `04` §13 warns about. ADR 0006 says a
+  later *source* appends an *occurrence* and **never alters the fields**; the worker's write path is
+  the other half.
+- ⚠️ **The arithmetic `S6` calls "the most likely error in the app, and the one that would flatter
+  the thesis"** — an edited accept counting as an **edit** rather than as an acceptance in
+  *acceptance rate* — is not computed anywhere yet. The column is written and correct
+  (`note_vetting.edited`); the metric that reads it is Stats, which is #14, and `11` §8 puts "the
+  metric arithmetic" in the pure-seam list. #11 should decide whether it owns that seam or hands it
+  on.
+
+**#10 inherited five things from #9 and all five held.** Kept because each is still the shortest
+statement of a thing #11 may need:
 
 - ⚠️ **A *pending note* is already four rows and #10 reads all four.** `note`, six
   `note_field_provenance` rows, a `note_vetting` at `pending`, and one `occurrence` per sighting.
@@ -833,6 +1004,57 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **Acceptance must never mint a *scheduling epoch*, and the constraint that says so is three
+  tables away from the code that would.** `scheduling_epoch.card_id` is `RESTRICT` (`04` §9), so an
+  epoch written at acceptance makes ADR 0033's `Z` fail on **every** acceptance — the database
+  refuses the delete and the undo is dead, with a failure that reads like a database problem rather
+  than a decision. ADR 0033 said it in its own words ("a card with no `review_log` and no
+  `scheduling_epoch`") and nothing had put the sentence beside the constraint until #10.
+  `test/schema/vet.test.ts` asserts the **absence**, so the day #12 reaches for the obvious place to
+  put the first epoch the *undo* tests redden rather than the *Review* ones. **The first epoch
+  belongs to the *session* that first schedules the *card*.**
+- ⚠️ **A `RESTRICT` refusal raises `23001`, and Drizzle wraps it.** Measured 2026-09-12 against
+  PGlite 0.5.8 / PostgreSQL 18.3: `23503` is `foreign_key_violation` and belongs to `NO ACTION`;
+  `04` §9 spells every rule in the `card` chain `RESTRICT`. A guard written against `23503` alone
+  catches **nothing**, and reading `code` off the error Drizzle throws catches nothing either — the
+  driver's error is its `cause`, and the wrapper's own `code` is `undefined`. `server/utils/vet/undo.ts`
+  walks the chain and accepts both codes. **The class is wider than this file**: every `RESTRICT` in
+  `04` §9 is a refusal some future code will have to recognise.
+- ⚠️ **The e2e tier's database accepts one connection at a time, so `Promise.all` in a request
+  handler fails there and only there.** Measured 2026-09-12: `@electric-sql/pglite-socket` fronts a
+  single-connection PGlite (`test/schema/harness.ts` says so of the schema tier and it is just as
+  true of the socket), so four concurrent reads make `node-postgres` open four connections and the
+  server resets three. The route answers `500`; the browser shows an empty screen; **nothing in the
+  test output names the cause**, and production would have been fine. `server/utils/vet/queries.ts`
+  runs its four reads sequentially and says why. **#12 composes a *session* out of several reads and
+  will meet this on its first browser test.**
+- ⚠️ **`04` §7.1's idle sweep runs on the next read and therefore not at all while nobody is
+  looking** ([ADR 0050](adr/0050-the-idle-sweep-runs-on-the-next-read-because-there-is-no-scheduler.md)).
+  A run abandoned by a reader who never comes back stays open, so a *rejection* inside it stays
+  reversible — and becomes permanent the instant anybody reads. In v1 that is one reader with one
+  laptop, so the window is theoretical; it stops being theoretical for a second reader, which is the
+  ADR's revisit condition. ⚠️ **It is also the reason `Done` may fire its end request without waiting
+  when the run holds no rejections**: the sweep is the floor under that.
+- ⚠️ **`S6`'s "an *accepted* *note*'s fields are frozen" is true by accident, not by a guard.**
+  #10's `decide()` is the only writer of `note.fields` in the application and it refuses a *note*
+  that is not `pending`, so nothing can currently rewrite an accepted one. **Nothing enforces it**:
+  ADR 0006's rule is that a later *source* appends an *occurrence* and never alters the fields, and
+  the worker's write path is the other half of that. It is #11's second criterion and it is listed
+  here because a property held by the absence of a caller is exactly what `04` §13 says drifts.
+- ⚠️ **`note_vetting.flagged_at` is rendered and never written.** `10` §4.3's `returned by a flag`
+  aside is built, the queue query reads the column, and nothing sets it — `X` is *Review*'s key and
+  `S9` is #13's. **#10 also deliberately does not resolve a flag**: `04` §7.8 says
+  `card_flag.resolved_at` is "set when the note is re-vetted", and re-vetting a flagged *note* is
+  reachable only through machinery that does not exist. Half of `S9` built inside #10 would have been
+  a guess at the half that was not.
+- ⚠️ **`05` §4's type ramp is written per *field name*, and the *subject* declaration has no role
+  that would generalise it.** "*Vet* — the *meaning*" at 40px Newsreader and "*Vet* — example
+  sentence" at 27px Mincho are three JLPT field names, not three roles; the declaration carries
+  `kind`, `required`, `memory_bearing` and `label` and nothing that says *this value is Japanese
+  prose read at length*. `app/components/VetNote.vue` holds a three-entry map with a fallback and
+  says it is standing in for something. **A second *subject* closes it in the declaration** (ADR
+  0003), not in a second map — and `10` §4.4 now carries the amendment.
+
 - ⚠️ **The reading half of ADR 0006's *identity key* is the *surface*'s reading, so one word becomes
   several *notes*** — [#15](https://github.com/yutaasakura96/kioku/issues/15), found by #9 and
   deliberately not fixed in it. Measured 2026-09-12: あります gives `normalized_form` 有る with
@@ -869,11 +1091,13 @@ Nothing.
   is treated as a miss**, because serving it would lose a *note* in silence: the chunk would still be
   marked `complete`, so no resume would ever come back for it. The same rule makes a stored response
   that no longer validates a miss rather than an error.
-- ⚠️ **`note_field_provenance.kind` has four values and v1 can produce two** (ADR 0048). `judgement`
-  means the model **chose** among an authority's answers, and v1 hands it no sense inventory, so
-  nothing writes one; `human` is *Vet*'s edit and is #10's. **Two of four empty is the honest state**
-  — a `judgement` row today would claim a choice among alternatives that never existed, and `04`
-  §12's eighth query would be grouping over a distinction with no mechanism behind it.
+- ⚠️ **`note_field_provenance.kind` has four values and v1 can now produce three** (ADR 0048).
+  ⚠️ **Amended 2026-09-12 by #10: `human` is written**, and it is written **only for the fields an
+  edit actually changed** — a field the reader read and left alone was produced by the model, and
+  stamping it `human` takes ADR 0018's instrument away one *note* at a time. `judgement` stays
+  unreachable: v1 hands the model no sense inventory, so a `judgement` row would claim a choice among
+  alternatives that never existed and `04` §12's eighth query would be grouping over a distinction
+  with no mechanism behind it. **One of four empty is the honest state.**
 - ⚠️ **`TRUNCATE … CASCADE` does not stop at the tables you name, and `worker/tests/conftest.py`'s
   cleanup reached `review_log`.** Measured 2026-09-12: `TRUNCATE job, ingestion_chunk, ingestion,
   source_chunk, source CASCADE` follows `note.origin_ingestion_id` → `note` → `card` → `review_log`,

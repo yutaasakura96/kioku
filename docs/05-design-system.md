@@ -325,6 +325,14 @@ Left-aligned in a 560px column, never centred. A 46px statement, `18px` down an 
 `--k-ink-secondary`, then a full-width `--k-rule` with `32–34px` clearance, then whatever the state
 offers — an affordance, a datum, or nothing.
 
+⚠️ **Amended 2026-09-12, while building [#10](https://github.com/yutaasakura96/kioku/issues/10) —
+the statement-to-body gap is `20px`, and this section disagreed with §5 about it.** §5 is the
+authority on gaps, it says "New values are added to the scale, never set by hand beside it", and its
+snap record resolves this one by name: `18 → 20`. §5 also gives 20 a meaning that is this gap
+exactly — *between a body block and what introduced it*. The figure above is the canvas's, unsnapped.
+**The body's 18px type size is unchanged**: §5 exempts type sizes from the snap and only ever moved
+the gap. `10` §4.5 carries the same amendment.
+
 Where an empty state offers an action it is a **quiet** affordance: `--k-raised` face,
 `1px --k-border-control`, `--k-radius-control`, `13px 20px`, a 17px label in `--k-ink` and an accent
 `→`. It is not the primary control — nothing here is urgent.

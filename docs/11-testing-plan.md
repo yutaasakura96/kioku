@@ -315,6 +315,21 @@ half — that Ingest, Sources and Stats ship no JavaScript to a reader who is in
 the three routes it is actually about**, rather than through `/auth/refused` standing in for them.
 #10 still owes the **browser**; it no longer owes the context.
 
+⚠️ **Amended 2026-09-12, while building #10 — the browser is paid and `playwright-core` is earning
+its place in the manifest again.** `test/e2e/vet.test.ts` runs under `setup({ browser: true })`,
+carries the forged cookie into the page through `page.context().addCookies()` — `createPage(path)`
+navigates immediately, so the tab is opened blank and the cookie set before `goto` — and asserts
+§6.2's proxy and one whole keystroke. **Verified by sabotage 2026-09-12**: moving the handler from
+the *mode* container to `document.addEventListener('keydown', …)` turns it red, and nothing else in
+the suite notices.
+
+⚠️ **And the tier has one trap that is not in ADR 0038 and cost an afternoon.** Measured 2026-09-12:
+`@electric-sql/pglite-socket` fronts a **single-connection** PGlite, so a request handler that issues
+its reads with `Promise.all` makes `node-postgres` open several connections and the socket server
+resets all but one — the route answers `500` and the browser shows an empty screen with nothing in
+the test output naming the cause. **Production would have been fine.** `server/utils/vet/queries.ts`
+runs its four reads sequentially and says why.
+
 ### 6.2 The key-handler binding — not testable directly, and it does not need to be ⚠️
 
 `10` §11 calls this a Level A conformance test: the handlers must bind to the mode container, not to
@@ -339,6 +354,12 @@ A `document`-bound handler passes step 3's keypress through and fails the assert
 container-bound one does not. ⚠️ **This is a behavioural proxy and it is written down as one** — it
 holds the property SC 2.1.4 requires without claiming to inspect the binding, and if the Done control
 is ever moved inside the container the test needs re-thinking rather than re-running.
+
+⚠️ **Built 2026-09-12 with #10 — `test/e2e/vet.test.ts`, and the four steps are the four steps.**
+The Done control is outside the container in the markup rather than by accident, and
+`app/pages/vet.vue` says so where the two elements are declared. **Sabotaged both ways**: with the
+handler on `document` the test fails at step 3 with the message it was given, and no other test in
+the suite changes colour.
 
 **This is ADR 0037's principle applied to a different subject:** where the thing you care about
 cannot be asserted, assert its observable consequence, and say which one you did.

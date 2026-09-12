@@ -1177,6 +1177,86 @@ conditions.
 **Revisit if** a second *subject* has no generation stage at all, in which case the key becomes
 conditional on the declaration rather than on the process.
 
+### [2026-09-12] The Vet queue is oldest-first, and the client holds no position in it
+`04` §12's first query orders by `note_vetting.created_at` ascending and every *Vet* endpoint answers
+with the same batch, so the head of the answer **is** the *note* on screen — which is what makes
+ADR 0033's "back at the head of the queue" free rather than a position the client has to remember.
+→ [ADR 0049](adr/0049-the-vet-queue-is-oldest-first-and-the-client-holds-no-position-in-it.md)
+
+### [2026-09-12] The idle sweep runs on the next read, because there is no scheduler
+`04` §7.1's third writer of `ended_at` had no home: Vercel Cron is forbidden by ADR 0022 and the
+worker never touches personal tables. It runs at the top of every *Vet* read and inside every
+decision, and the only thing that differs from a real sweep is *when the row is written*.
+→ [ADR 0050](adr/0050-the-idle-sweep-runs-on-the-next-read-because-there-is-no-scheduler.md)
+
+### [2026-09-12] Acceptance mints the card and deliberately does not mint a scheduling epoch
+No ADR — ADR 0033 decided it and did not know it had.
+
+**Decision** — `decide()` writes the `note_vetting` row and one `card` per declared template in one
+transaction, and **no `scheduling_epoch`**. The first epoch belongs to the *session* that first
+schedules the *card*, which is #12's.
+
+**Alternatives considered:** minting the epoch alongside the *card*, which is the obvious reading of
+"a *card* owns its own scheduling state" (`04` §7.3, §7.4) and is what `test/schema/harness.ts`'s seed
+chain does by hand. It is **impossible**, not merely undesirable: `scheduling_epoch.card_id` is
+`RESTRICT` (`04` §9), so an epoch written at acceptance makes ADR 0033's `Z` fail on **every**
+acceptance the application ever makes — the database refuses the delete and the undo is dead on
+arrival, with a failure that reads like a database problem rather than like a decision.
+
+**Reason:** ADR 0033 already said it in its own words — the *card* `Z` deletes is "a card with no
+`review_log` and no `scheduling_epoch`", "rebuilt by accepting the note again". The constraint and
+the sentence agree; nothing had put them side by side. `test/schema/vet.test.ts` asserts the
+**absence**, so the day somebody adds the epoch here the undo tests redden rather than the *Review*
+ones.
+
+**Revisit if** the due query ever needs to count *cards* that have never been scheduled, at which
+point the answer is a `LEFT JOIN` in that query and not an epoch here.
+
+### [2026-09-12] `human` provenance follows the diff; `note_vetting.edited` follows the commit
+No ADR — it is [ADR 0048](adr/0048-provenance-kind-is-decided-by-who-produced-the-value.md) applied
+to the first code that writes its fourth value.
+
+**Decision** — committing out of *Vet*'s edit sets `note_vetting.edited = true` whether or not
+anything changed, and writes `note_field_provenance.kind = 'human'` **only for the fields whose value
+actually differs**. `edited` is also monotone: `Z` leaves it standing, because the edit stays in
+`note.fields`.
+
+**Alternatives considered:** stamping every field the edit touched as `human`. Rejected because
+ADR 0048 makes `kind` the record of *who produced the value*, and a field the reader read and left
+alone was produced by the model — stamping it `human` takes ADR 0018's instrument away one *note* at
+a time, and `04` §12's eighth query is that instrument. And clearing `edited` on an undo, rejected
+because `S6` counts *notes* that needed fixing and the fix is still in the row.
+
+**Reason:** `09` §4.3 sets `edited` on the **commit** ("`Enter` — commit and accept.
+`note_vetting.edited = true`"), which is a fact about the reader's act; provenance is a fact about
+each value. They are different questions and only one of them is answered by the diff.
+
+**Revisit if** a re-edit path ever exists (`S6` says there is none in v1 — the way back to a bad
+*note* is `S9`'s flag), at which point `edited` stops being a property of one commit.
+
+### [2026-09-12] Done does not wait for the run to end when the run holds no rejections
+No ADR — it is what ADR 0032's `external` anchor costs, and the cost is zero.
+
+**Decision** — the Done control is `<NuxtLink :to="origin" external>` and its click is **not**
+prevented, so the document load starts immediately; `POST /api/vet/end` travels beside it as a
+`sendBeacon`, falling back to a `keepalive` fetch. When the run holds at least one rejection the
+click *is* prevented, `10` §4.6's confirmation appears, and `space` there **awaits** the same request
+before navigating.
+
+**Alternatives considered:** always preventing the default and using
+`navigateTo(origin, { external: true })`, which ADR 0032 blesses equally. Rejected because
+`test/nuxt/modes.test.ts` holds the one bit that distinguishes `external` from a bare `<NuxtLink>` —
+`event.defaultPrevented === false` — and weakening that test to buy an `await` is trading a guard
+that catches a silent, unflaggable bug for a request that does not matter.
+
+**Reason:** the only thing `ended_at` decides is whether a *rejection* can still be reversed. On this
+branch the run holds none, so a lost request costs **nothing at all**, and
+[ADR 0050](adr/0050-the-idle-sweep-runs-on-the-next-read-because-there-is-no-scheduler.md)'s sweep
+closes the row on the next read regardless. The branch where it matters is the one that waits.
+
+**Revisit if** anything else is ever attached to `ended_at` — a metric, a notification, a per-run
+tally on Stats — at which point losing the request stops being free.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

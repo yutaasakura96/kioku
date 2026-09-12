@@ -589,6 +589,19 @@ and every rejection inside it became permanent at `10:31`.
 **Ending the session is what makes a rejection permanent.** The mode's one visible exit (ADR 0026)
 turns out to be a data boundary as well as an interaction one.
 
+⚠️ **Amended 2026-09-12 with [#10](https://github.com/yutaasakura96/kioku/issues/10) — the third
+writer had no home, and now has one.** This row names an idle sweep and nothing in the deployment
+could run it: ADR 0022 forbids Vercel Cron, a serverless deployment holds no timer, and the worker
+claims `job` rows over **shared** entities and has never touched a personal table. It runs **on the
+next read** instead — at the top of every *Vet* queue read and inside every decision, against the
+reader whose request it is — and idleness is measured from the run's **last decision**, falling back
+to `started_at`, because measuring from `started_at` alone ends a run longer than half an hour
+underneath a reader who is still working.
+[ADR 0050](adr/0050-the-idle-sweep-runs-on-the-next-read-because-there-is-no-scheduler.md) carries
+the cost: a run abandoned by a reader who never comes back stays open until somebody looks, so a
+*rejection* in it stays reversible while nobody is asking and becomes permanent the instant anybody
+is.
+
 ⚠️ **This is not a *session* in `CONTEXT.md`'s sense.** That word is reserved for the bounded run of
 due cards. Vetting is a queue, not a session — PRD §5 — and every note still commits on its keystroke.
 This row records *when the keyboard run was*, and nothing about it is prefetched, snapshotted or
@@ -975,7 +988,14 @@ a belief.
 Stated as behaviour, not SQL. If a later change makes one of these awkward, the change is wrong.
 
 1. **The *Vet* queue** — pending notes for this owner, with their fields, provenance and level claims.
-   One note per keystroke, and `S3` gives it a five-second median to live inside.
+   One note per keystroke, and `S3` gives it a five-second median to live inside. ⚠️ **Amended
+   2026-09-12 with #10: ordered `note_vetting.created_at` ascending, and answered a batch at a time**
+   — [ADR 0049](adr/0049-the-vet-queue-is-oldest-first-and-the-client-holds-no-position-in-it.md).
+   Oldest-first is what makes ADR 0033's "back at the head of the queue" free: a *note* just decided
+   is older than every *note* still waiting, so returning it to *pending* returns it to the front
+   with nothing to remember. The batch is what keeps `S3`'s keystroke off a round trip, and it is
+   three queries rather than one — provenance and *level claims* are a row per field and a row per
+   authority, so joining them to the batch would multiply it.
 2. **The dedup lookup** — does `(subject_id, identity_key)` exist? Once per candidate, in the worker,
    before any spend (ADR 0010). ⚠️ **Amended 2026-09-12 with #8: once per *chunk*, for all of that
    chunk's keys at once** — `identity_key = ANY($2)` rather than a round trip each. §12's own rule is

@@ -13,18 +13,14 @@
  * straight into a query, and an id that is not an id should be a missing line
  * rather than a database error on a page that was otherwise rendering fine.
  *
- * The shape is the one `04` §1 gives every primary key: a UUID, and specifically
- * a `uuidv7()`. This accepts any RFC 4122 version — the guard is about shape,
- * and a v4 id typed in by hand is still a well-formed id that simply will not be
- * found.
+ * The shape is the one `04` §1 gives every primary key — `shared/utils/uuid.ts`,
+ * which carries the argument for accepting any RFC 4122 version and is shared
+ * with the *Vet* decision validator rather than written twice.
  */
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+import { isUuid } from '../utils/uuid'
 
 /** The id, or `null` for anything that is not one. */
 export function resolveExisting(value: unknown): string | null {
-  if (typeof value !== 'string')
-    return null
-
-  return UUID.test(value) ? value : null
+  return isUuid(value) ? value : null
 }

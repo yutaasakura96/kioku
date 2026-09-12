@@ -276,6 +276,13 @@ this is the file someone reads while building the control.
 *source* name (14px Mincho, `--k-ink-secondary`) — then, right-aligned — the pending count · the
 *note* index · the Done cluster.
 
+⚠️ **Added 2026-09-12 with #10 — what the *note* index is, which `05` §7 names and never defines.**
+It is **the position in this run**: the number of decisions made plus one, rendered `#19`. It is the
+only monotone figure on the screen and the one that answers *how much have I done*; the pending count
+beside it already answers *how much is left*, and a second figure counting the same direction would
+be one of them restated. ⚠️ **In every empty state the counts are absent entirely** (§4.5) — there is
+no *note* to be at a position in.
+
 ⚠️ **A *note* returned by a flag carries one more thing**, and nothing else in the project named it:
 a 13px Newsreader italic aside in `--k-ink-secondary`, `12px` after the *source* name, reading
 **`returned by a flag`**. `X` in *Review* sets `note_vetting.flagged_at` and puts the *note* back in
@@ -301,6 +308,15 @@ gloss. `Tab` cycles those three. It does not reach the *facts strip*, and that i
 editing a *level* would manufacture a claim with no *authority* (ADR 0005). Neither is an edit; both
 are a different feature.
 
+⚠️ **Added 2026-09-12 with #10 — `05` §4's ramp is written per *field name*, and the declaration
+carries no role that would generalise it.** The ramp names "*Vet* — the *meaning*" at 40px Newsreader
+300, "*Vet* — example sentence" at 27px Mincho and the example gloss at 17px; those are three JLPT
+field names, not three roles, and `subjects/jlpt-vocab.json` declares `kind`, `required`,
+`memory_bearing` and `label` — nothing that says *this value is Japanese prose read at length*. So
+`app/components/VetNote.vue` holds a three-entry map from field name to type, written where it is
+visible, with a 17px Newsreader fallback. **A second *subject* closes this**, and the declaration is
+the place to close it (ADR 0003) rather than a second map.
+
 | | Resting field | Being edited |
 | --- | --- | --- |
 | Face | none | `--k-raised` |
@@ -323,6 +339,12 @@ reads **`cancel edit`** rather than `leave`.
 left-aligned in a **560px** column, never centred; a 46px Newsreader 300 statement, `18px` down an
 18px body in `--k-ink-secondary`, then a full-width `--k-rule` with `32px` clearance, then what the
 state offers (`05` §7).
+
+⚠️ **Amended 2026-09-12 with #10: the statement-to-body gap is `20px`.** `05` §5 is the authority on
+gaps and its snap record resolves this one by name — `18 → 20` — and gives 20 the meaning that fits
+it exactly, *between a body block and what introduced it*. The `18` above and in `05` §7 is the
+canvas's figure restated without the snap; **the body's 18px type size is unchanged**, because §5
+exempts type sizes. `05` §7 carries the same amendment.
 
 **The chrome bar stays in all three**, carrying `VET` and the Done cluster. Its counts are empty.
 
@@ -383,6 +405,23 @@ label 15px — `--k-ink` beside the primary cap, `--k-ink-secondary` beside the 
 
 `space` accept (primary cap — the widest, per ADR 0023) · `E` edit · `R` reject · `Z` undo ·
 `X` — not present here; `X` is *Review*'s key.
+
+⚠️ **Amended 2026-09-12, while building [#10](https://github.com/yutaasakura96/kioku/issues/10) —
+this section and §4.4 disagreed, and the legend is not one fixed row.** §4.4 says "while an edit is
+open the legend's `Esc` label reads `cancel edit` rather than `leave`"; the legend above has no `Esc`
+in it at all, because §4.3 gives that key to the Done cluster. Both are honoured by **the legend
+naming the keys that act on the screen in front of the reader**:
+
+| Screen | The legend holds |
+| --- | --- |
+| A *note* | The four above, and the horizon aside |
+| An edit open | `Enter` **accept** (primary) · `Tab` next field · `Esc` **cancel edit** — §4.4's sentence, in the only row it can be true of |
+| An empty queue, run holds ≥ 1 decision | `Z` undo, and the horizon. ⚠️ **`Z` is live here**: ADR 0033 reads its target from the database rather than from what is rendered, so the undo reaches back into an empty screen |
+| An empty queue, nothing decided yet | Nothing. The 68px band and its rule stay — `05` §5 gives the frame its shape |
+| The run-end confirmation (§4.6) | Nothing. §4.6 says the confirmation replaces the reading column and is silent about the footer; four keys that do nothing beneath a question with two is worse than no legend |
+| A phone (§10.5) | Nothing — the whole footer goes with the reading column |
+
+⚠️ **A failed keystroke replaces all of it** (§4.8), in place and until the next keystroke.
 
 ⚠️ **And the horizon, which ADR 0023 put here on purpose and ADR 0033 made load-bearing:** a 13px
 Newsreader italic aside in `--k-ink-secondary`, right-aligned in the footer, reading

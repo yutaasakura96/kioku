@@ -10,16 +10,18 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **nine more ADRs** with it. ⚠️ **This paragraph said "there is still no code"
-until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant every
-session opened by being told the opposite of what it would find.
+code since 2026-09-09 and **eleven more ADRs** with it. ⚠️ **This paragraph said "there is still no
+code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
+every session opened by being told the opposite of what it would find.
 
-**What exists now:** #2, #3, #4, #5, #6, #7, #8 and #9 are built — a Nuxt app with the rendering split
-enforced by the build, eighteen tables plus four the auth library owns, a *subject* declaration both
-toolchains read, a session gate, Ingest and Sources end to end, a Python worker that subscribes,
-polls, claims and sweeps, and **a pipeline that turns a pasted *source* into *pending notes*, one
-model request per *chunk*, written as each chunk returns, with what they cost on the row**. What
-nothing does yet is show a *note* to anybody. **The commands:**
+**What exists now:** #2 through #10 are built — a Nuxt app with the rendering split enforced by the
+build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
+a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
+sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
+and **a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by
+doing so**. What nothing does yet is **review** a *card*: they exist with no *scheduling epoch* under
+them, which is #12's and is deliberate — an epoch minted at acceptance would make *Vet*'s undo
+impossible. **The commands:**
 
 ```
 npm run test        # 293 across four tiers — unit, schema, nuxt, e2e
