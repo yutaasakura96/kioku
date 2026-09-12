@@ -1066,7 +1066,14 @@ installed dictionary so the two sets cover it exactly. No document named the rul
 ### [2026-09-12] The reading half of the identity key is written in the word's own script
 Hiragana, except for a word written wholly in katakana, which keeps it. `04` §5.3's three worked keys
 are all hiragana and SudachiPy answers in katakana; コーヒー's reading is a field on the card, not only
-half of a key. → [ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+half of a key. ⚠️ **Amended 2026-09-13:** that decided the script and left *whose* reading unstated,
+so stage 3 took the surface's — あります keyed `有る␟あり` beside ある's `有る␟ある`, and an inflected
+word minted a *card* reading ひらい ([#15](https://github.com/yutaasakura96/kioku/issues/15)). An
+inflected surface now takes the **dictionary form's** reading, re-tokenised from `dictionary_form`.
+⚠️ #15's own preferred rule — re-tokenise `normalized_form` — reads **ナル** for する, because し
+normalises to 為る; and `開く␟あく` is unreachable under every candidate, 48 hits of 48 resolving to
+ヒラク, so the criterion asking for it was rewritten rather than met.
+→ [ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
 
 ### [2026-09-12] A job gives up after five abandonments, and every retry after the first is deferred
 The stale sweep gained a second branch. `04` §6.4 called `available_at` backoff and nothing ever set

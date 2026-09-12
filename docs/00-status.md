@@ -544,10 +544,13 @@ reading, so あります keys as `有る␟あり` while ある keys as `有る�
 is exactly what ADR 0006 exists to prevent, arriving through the half of the key that § Carrying's
 `normalized_form` finding did not cover. It is worse than a key problem: ADR 0045 makes `reading` a
 field on the answer side of the *card*, so 開いた would produce a card reading ひらい. **It is #8's
-`reading_of` and the fix is a decision, not a patch** — re-tokenising the normalized form is verified
-to give the right answer for 有る, 開く, 引っ越し, ひらがな and コーヒー, and **collapses 開く/ひらく
-and 開く/あく into one**, which is the pair `04` §5.3 gives as the reason the key has two halves. The
-issue carries both candidate rules and the measurement behind each.
+`reading_of` and the fix is a decision, not a patch** — the issue carries both candidate rules and
+the measurement behind each. ⚠️ **Amended 2026-09-13: both candidates were ranked backwards and the
+cost the losing one was charged is not real.** Re-tokenising `normalized_form` reads **ナル** for
+する, because し normalises to 為る; and `開く␟あく` is unreachable under every rule — 48 hits of 48
+resolve to ヒラク — so collapsing it was never a cost anyone could pay. The rule adopted is
+**re-tokenise `dictionary_form`, and only for a surface that inflected**. See ADR 0045 § Amended
+2026-09-13.
 
 ⚠️ **The test fixture was serving one test's answers to the next one.** `generation_cache` is keyed on
 content rather than on any row a test owns, and it was not in `conftest.py`'s cleanup list — so six of
@@ -1187,6 +1190,16 @@ whether an idle subscription defers the host's scale-to-zero.
 **All three of these lines were written in the same commit as the work they describe**, which is the
 whole of the fix for the pattern above — three times now.
 
+⚠️ **Amended 2026-09-13: the frontier is not empty. It is
+[#15](https://github.com/yutaasakura96/kioku/issues/15) alone, and it is in front of the first run.**
+#15 was `needs-triage` and is now `ready-for-agent` — *the reading half of the identity key is the
+surface's reading* — with its rule decided ([ADR 0045](adr/0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+§ Amended 2026-09-13) and one of its own acceptance criteria withdrawn as unreachable. ⚠️ **The
+ordering is the whole of why it moved.** It changes `note.identity_key`, which `04` §5.3 calls a
+reviewed data event with a re-ingestion plan; **no *note* has ever been written, so today it costs
+nothing**, and it stops costing nothing the moment the first run mints twenty. Every other unticketed
+thing below — re-vetting, `S12`'s export — is indifferent to the ordering. This one is not.
+
 ~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
 ticket.**~~ **All three of its remaining items are closed** — the contradiction in
 [ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md), the
@@ -1721,12 +1734,20 @@ Nothing.
   reading half on the surface**, and every inflecting word class — verbs and i-adjectives — is
   affected. ⚠️ **It is worse than a key problem**: ADR 0045 makes `reading` a field on the answer side
   of the *card* (`10` §5), so the first *card* #10 mints from an inflected word shows ひらい. The fix
-  is a decision rather than a patch — re-tokenising `normalized_form` gives the right answer for
-  有る, 開く, 引っ越し, ひらがな and コーヒー **and collapses 開く/ひらく into 開く/あく**, which is
-  the pair `04` §5.3 gives as the reason the key has two halves at all; the alternative needs
-  `WordInfo.dictionary_form_word_id`, which SudachiPy 0.6.11 emits a `DeprecationWarning` for and
-  exposes no public lexicon accessor to resolve. **It changes the identity of existing *notes***,
-  which is `03` §5.3's reviewed-data-event class.
+  is a decision rather than a patch. ⚠️ **Decided 2026-09-13, and the measurement reversed both of
+  this bullet's own claims** (ADR 0045 § Amended 2026-09-13): re-tokenising `normalized_form` reads
+  **ナル** for する — し normalises to 為る — so the candidate this bullet called right is wrong on one
+  of the commonest words in the language; and the cost it was weighed against, collapsing
+  開く/ひらく into 開く/あく, **is not a cost**, because `開く␟あく` is unreachable — 48 hits of 48
+  across sixteen forcing sentences and all three split modes resolve to ヒラク. ⚠️ **`04` §5.3's pair
+  is a worked example of the key's shape, not a pair this pipeline mints.** The rule adopted is
+  **re-tokenise `dictionary_form`, and only for a surface that inflected** — the guard is
+  load-bearing, because 六時's 時 reads ジ in place and トキ alone. ⚠️ **And SudachiPy 0.6.11 does
+  expose a public route to the lexicon** — `Dictionary.lookup()` entries carry a public `word_id()`,
+  which matches `dictionary_form_word_id` without private API; the deprecated accessor is only needed
+  to read the dfwid, and the rule chosen needs neither. **It changes the identity of existing
+  *notes***, which is `03` §5.3's reviewed-data-event class — **free today because none exists, and
+  not free after the first run**, which is why #15 now sits in front of it.
 - ⚠️ **A test fixture that does not clean a content-keyed table serves one test's answers to the
   next.** `generation_cache` is keyed on `(content_hash, dictionary_version, prompt_version,
   model_id)` — nothing a test owns — and it was not in `conftest.py`'s `SCRATCH_TABLES`. Six of #9's
