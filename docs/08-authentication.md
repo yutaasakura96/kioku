@@ -146,6 +146,18 @@ global `disableSignUp`.** It is per-provider, so it is set wherever a method is 
 today is one place, and which is exactly the kind of fact that goes stale silently when a second
 provider is added by someone who read only the first refusal.
 
+> **Amended 2026-09-13, at the first sign-in.** "An unknown account" includes **the invited one**.
+> Nothing in the app creates a user row, so with `disableSignUp: true` the first sign-in by the
+> invited address was refused with `signup_disabled` — §2's step 7 assumed a row this document never
+> said how to write. The row is **inserted once, by hand, before the first sign-in**, and it must
+> carry `email_verified = true`: on the first pass Better Auth finds the row by email and links the
+> Google account to it implicitly, and that link is refused unless the local row is verified
+> (`account.accountLinking.requireLocalEmailVerified` defaults to `true` — read in
+> `better-auth/dist/oauth2/link-account.mjs`, 1.7.3). Neither refusal is weakened by the seed:
+> `validateUserInfo` still fires on `link-account` and on every sign-in after it, and
+> `disableSignUp` still refuses every address that has no row. `scripts/first-run.sh` stage 5 carries
+> the statement, with the address left as a placeholder because the repository is public.
+
 ### 3.3 Why two, and why they do not share a failure mode
 
 They fail differently on purpose:
