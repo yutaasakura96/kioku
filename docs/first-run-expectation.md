@@ -61,7 +61,7 @@ And one about the machinery rather than the corpus:
 ## Part 2 — the run
 
 1. `scripts/first-run.sh` if the Google client does not exist yet. Sign in once.
-2. **Paste two pages of Japanese** into `/ingest`. Real material, not a word list — the tokeniser and
+2. **Paste two pages of Japanese** into Ingest, which is `/` — there is no `/ingest` route. Real material, not a word list — the tokeniser and
    ADR 0044's allowlist are only being tested if the input is prose.
 3. Start the worker in a second terminal:
    ```
