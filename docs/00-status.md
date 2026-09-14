@@ -4,9 +4,11 @@
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
 **59 ADRs** — ⚠️ **this said 58 until 2026-09-12**, written in the commit that added ADR 0059 —
-eleven documents, an empty frontier, and **three open issues** on the tracker — #1 the spec, #5, and
-**#15, which #9 found and did not fix** (#13, #14 and **#16** close when this work merges), plus
-**the re-vetting ticket #13 hands on and nobody has opened yet** (§ Next).
+eleven documents, an empty frontier, and **two open issues** on the tracker as of 2026-09-14 —
+#1 the spec, and #14, which closes after `/stats` is read with real data (**#5 closed 2026-09-14 on
+the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
+ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
+closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
 **#2 through #14 are built.** ⚠️ **The ticket frontier is empty**: every ticket `/to-tickets`
 published is built, and what is owed is **unticketed** — the re-vetting ticket (§ Next) and
 `S12`'s export, which issue #1 puts outside milestone 1.
@@ -29,12 +31,35 @@ a **real database** — Neon project `kioku` (`small-hat-90514806`), Postgres 18
 are written. What is still missing is the **Google OAuth client**, because creating one is a console
 visit with a consent screen, and the **Anthropic key**. [`scripts/first-run.sh`](../scripts/first-run.sh)
 walks both in five stages and writes the three values where they belong.
-⚠️ **Nobody has still ever signed in**, so #5 stays open. It closes on the run, not on this paragraph.
-**Updated:** 2026-09-12
+~~⚠️ **Nobody has still ever signed in**, so #5 stays open. It closes on the run, not on this paragraph.~~
+⚠️ **Paid 2026-09-13: the first sign-in happened.** `first-run.sh` ran, all three values are written
+and each was checked live, and the invited address is signed in — after one hand-seeded
+`auth."user"` row, because `disableSignUp` refused it too (§ Done, § Carrying). **What is left is
+the run**, and it opens with Part 1 of `docs/first-run-expectation.md`, not with Japanese.
+**Updated:** 2026-09-14
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6 — the first sign-in anyone has ever done, 2026-09-13.** `scripts/first-run.sh` ran and
+wrote `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `.env` and `ANTHROPIC_API_KEY` to
+`worker/.env`. **Each was checked against the real endpoint, not assumed**: Google's token endpoint
+answered `invalid_grant` to a bogus code, which it only does for a client id and secret it accepts;
+Google's authorize endpoint accepted the exact redirect URI
+`http://localhost:3000/api/auth/callback/google`; and Anthropic's `/v1/models` answered `200`.
+⚠️ **That last one is read-only, so account credit is still unconfirmed** — the first *chunk* is
+what confirms it. `test/unit/no-provider-key-in-the-app` passes with the key on disk.
+
+⚠️ **The first attempt was refused with `signup_disabled`, and it was the invited address.** Nothing
+in the app creates a user row, so `disableSignUp: true` refuses everyone, and `08` §2's step 7 had
+assumed a row that no document said how to write. One `auth."user"` row was inserted by hand on Neon
+with `email_verified = true` — Better Auth 1.7.3 links a Google account to an existing row by email
+only when the local row is verified (`requireLocalEmailVerified` defaults to `true`, read in
+`better-auth/dist/oauth2/link-account.mjs`). Confirmed afterwards: **one user, one `google` account
+linked to it, one live session.** `08` §3.2 carries a dated amendment saying why neither refusal is
+weakened by the seed, and `first-run.sh` stage 5 carries the statement with the address as a
+placeholder, because the repository is public. `c43a86f`.
 
 **Phase 6, #15 — the reading is the dictionary form's, 2026-09-13.** **One word is one *note* again.**
 `reading_of` read the **surface**'s reading, so あります keyed `有る␟あり` beside ある's `有る␟ある` and
@@ -1245,6 +1270,11 @@ empty again**, and what is in front of it is not a ticket: it is
 unticketed is below: re-vetting a flagged *note*, `S12`'s export, and the three first-week
 experiments.
 
+⚠️ **Amended 2026-09-14: `first-run.sh` is done and the sign-in works** (§ Done). The next thing is
+**Part 1 of `docs/first-run-expectation.md`**, then the worker
+(`cd worker && uv run --env-file .env python .`), then the run: two pages pasted, twenty *notes*
+vetted, *review* on two separate days, `/stats` read.
+
 ~~⚠️ **#11 is much smaller than its ticket, and the next session should read this before the
 ticket.**~~ **All three of its remaining items are closed** — the contradiction in
 [ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md), the
@@ -1535,6 +1565,16 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **A fresh database refuses the invited address until its user row is seeded by hand**
+  (`08` §3.2, amended 2026-09-13). `disableSignUp: true` does not know who is invited — nothing in
+  the app creates a user row, so every first sign-in answers `signup_disabled`. The row goes in
+  **before** the first sign-in and must carry `email_verified = true`, or Better Auth refuses the
+  implicit Google link instead. This applies to **every** new database — a Neon branch, a restore
+  into an empty project, the EC2 move ADR 0022 plans for — and a `pg_dump` carries the row, so only
+  an empty target needs it. `scripts/first-run.sh` stage 5 has the statement and how to tell the two
+  refusals apart in the dev log. ⚠️ **Do not "fix" this by lifting `disableSignUp`**: it is the
+  refusal that is Better Auth's rather than ours (`08` §3.3), and the seed is what keeps both.
 
 - ⚠️ **The e2e tier's single connection is a single *session*, and that means a test can read a
   transaction the app has not committed** ([ADR 0059](adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md)).
