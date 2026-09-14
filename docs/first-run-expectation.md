@@ -79,11 +79,11 @@ And one about the machinery rather than the corpus:
 
 | | |
 | --- | --- |
-| Date of day 1 | |
+| Date of day 1 | 2026-09-14 (source pasted, first 5 *notes* vetted) |
 | Date of day 2 | |
-| Source material — what it was, roughly how long | |
-| Model id that actually ran (`KIOKU_MODEL_ID`, or the `claude-sonnet-5` default) | |
-| Anything that surprised you mid-run | |
+| Source material — what it was, roughly how long | Natsume Sōseki, 『夢十夜』 第一夜 and 第二夜, from Aozora Bunko — about 3,400 characters of prose, three *chunks*. One gaiji in 第一夜 was written as 開けた |
+| Model id that actually ran (`KIOKU_MODEL_ID`, or the `claude-sonnet-5` default) | `claude-sonnet-5` (the default; `worker.started` logged it) |
+| Anything that surprised you mid-run | **474 *pending notes* from 3,400 characters**, 208 of them from the first *chunk* alone. Each *chunk* took roughly 3–5 minutes, and the job was **claimed twice** (`attempts = 2`) by a single worker with nothing in its log; it finished `done` with all three *chunks* complete and no duplicate *notes* (the `(subject_id, identity_key)` unique index) |
 
 ---
 
