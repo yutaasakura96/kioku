@@ -22,19 +22,23 @@ a number that comes back badly is the most useful outcome this document has.
 
 Fill every row. A confident guess is better than a blank; the width of the error is the finding.
 
+⚠️ **Filled 2026-09-14 by Claude, not by Yuta, before any Japanese was pasted.** Yuta chose not to
+predict. These are still predictions made before the run, so the ordering holds, but they are a
+model's guess about Yuta and not Yuta's guess about himself. Part 4 should read the gap that way.
+
 | # | Figure | Your prediction | Why you think so |
 | --- | --- | --- | --- |
-| 1 | **Median seconds-per-note**, unedited accepts only. `S3`'s criterion is *under 5s over ≥20* | | |
-| 2 | **Acceptance rate** — unedited accepts ÷ notes generated | | |
-| 3 | **How many of twenty you will edit** rather than accept or reject | | |
-| 4 | **How many you will reject outright** | | |
+| 1 | **Median seconds-per-note**, unedited accepts only. `S3`'s criterion is *under 5s over ≥20* | 6 s | A first run has no rhythm yet, and reading the facts strip on an unfamiliar screen costs more than the single keystroke does |
+| 2 | **Acceptance rate** — unedited accepts ÷ notes generated | 65% | Prose gives mostly sound content words, but a first pass of the allowlist and glosses will miss on some |
+| 3 | **How many of twenty you will edit** rather than accept or reject | 3 | Glosses that are right but too broad or too narrow for the sentence they came from |
+| 4 | **How many you will reject outright** | 4 | Words too basic to be worth a card, plus a few tokeniser fragments |
 
 Two more, and these are the ones the rejected set is evidence for:
 
 | # | Question | Your prediction |
 | --- | --- | --- |
-| 5 | **What will you reject them *for*?** Name the single most common reason you expect | |
-| 6 | **Will the rejections cluster by part of speech?** If yes, which | |
+| 5 | **What will you reject them *for*?** Name the single most common reason you expect | Too basic to be worth a card — words Yuta already knows cold |
+| 6 | **Will the rejections cluster by part of speech?** If yes, which | Yes, weakly: verbs and adverbs, where the allowlist lets through high-frequency forms like する, ある, なる and もう |
 
 ⚠️ Rows 5 and 6 are not curiosity. `S3`'s run is *also* the instrument for two decisions that were
 made with no real *source* to look at:
@@ -50,7 +54,7 @@ And one about the machinery rather than the corpus:
 
 | # | Question | Your prediction |
 | --- | --- | --- |
-| 7 | **Time-to-first-review** — paste to the first grade of a *card* from that *source*. Note this is measured from `received_at` on the ingestion, not from a review timestamp (ADR 0057) | |
+| 7 | **Time-to-first-review** — paste to the first grade of a *card* from that *source*. Note this is measured from `received_at` on the ingestion, not from a review timestamp (ADR 0057) | About 15 minutes: a minute or two of generation, then twenty notes to vet before the first card can be graded |
 
 ---
 
