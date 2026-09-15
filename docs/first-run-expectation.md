@@ -1,6 +1,6 @@
 # The first real run — the expectation, written down first
 
-**Status:** unfilled. **Created:** 2026-09-12, by the session that provisioned the database.
+**Status:** filled 2026-09-15. The run stopped after vetting; no review took place. **Created:** 2026-09-12, by the session that provisioned the database.
 
 This is the instrument for `S3` and `S10`, and
 [ADR 0037](adr/0037-a-measured-criterion-is-reported-not-asserted.md) is why it is a form and not a
@@ -93,21 +93,25 @@ Open `/stats` only now.
 
 | # | Figure | Predicted (Part 1) | Actual | Off by |
 | --- | --- | --- | --- | --- |
-| 1 | Median seconds-per-note | | | |
-| 2 | Acceptance rate | | | |
-| 3 | Edited | | | |
-| 4 | Rejected | | | |
-| 7 | Time-to-first-review | | | |
+| 1 | Median seconds-per-note | 6 s | **1.76 s** (`/stats` shows 1.8), over 39 unedited accepts; fastest 0.14 s, slowest 34.9 s | −4.2 s |
+| 2 | Acceptance rate | 65% | **8%** — 39 of 474 generated. Of the *notes* actually seen, 39 of 39 | −57 points; the prediction assumed the denominator was *notes* seen |
+| 3 | Edited | 3 | **0** | −3 |
+| 4 | Rejected | 4 | **0** | −4 |
+| 7 | Time-to-first-review | ~15 min | **— (none)**: no *card* was ever reviewed | not measured |
 
 Also record the two the screen shows that Part 1 did not ask you to predict, because there was no
 basis to:
 
 | Figure | Actual |
 | --- | --- |
-| Notes vetted (the raw count — the one figure the boundary never withholds) | |
-| False-accept rate, and how many `X` flags produced it | |
-| Tokens and cost for the run | |
-| `worker_environment` shown on time-to-first-review | |
+| Notes vetted (the raw count — the one figure the boundary never withholds) | 39 |
+| False-accept rate, and how many `X` flags produced it | 0%, from 0 flags. No review took place, so nothing had the chance to be flagged |
+| Tokens and cost for the run | 21,145 in, 38,757 out, **$0.4299**. ⚠️ Approximate: the job was reclaimed mid-*chunk*, and #17 shows the spend write is not idempotent across that redo |
+| `worker_environment` shown on time-to-first-review | `laptop` |
+
+⚠️ **Read 2026-09-15, and the run stopped here.** Yuta vetted 39 *notes* on 2026-09-14 and chose not
+to review. Day 2 never happened, so *time-to-first-review*, the scheduler and the false-accept rate
+have no evidence from this run.
 
 ---
 
@@ -127,6 +131,31 @@ right. Either way this is the first evidence either ADR has had.
 re-vetting a flagged *note* ([ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md))
 and `S12`'s export. This run is allowed to add a third, and it is the only thing so far that can add
 one from evidence rather than from the documents.
+
+### The answers, written 2026-09-15
+
+**1. `S3` holds on the number: 1.76 s median over 39.** Two caveats sit beside it. First, 39 of 39
+accepted, with nothing edited or rejected, over a spread from 0.14 s to 34.9 s. That shape fits
+*notes* that were right, and it equally fits a reader moving fast through a queue of 474; nothing
+here tells the two apart. Second, the reader stopped before reviewing and said so plainly: he did not
+want to keep doing it. That is a finding about the loop, not about vetting.
+
+**2. ADR 0044 gets no evidence from rejections, because there were none.** Zero is not a scatter.
+The evidence it does get is **volume**: 474 *candidates* survived the allowlist from about 3,400
+characters, roughly one *note* per seven characters of prose. Whatever the allowlist is doing, it
+is not the thing keeping the queue small.
+
+**3. Worth ticketing, from evidence:**
+
+- **#17**, opened 2026-09-14. A model request outlives the five-minute heartbeat window, and the job
+  is silently reclaimed.
+- **Typed answers.** Asked what he was aiming for, the reader described WaniKani: show the word, type
+  its reading in hiragana, then type the English meaning, and have the app check both. v1 has one
+  self-graded recognition *template* (ADR 0002, PRD §6). This is the next piece of work, and it
+  needs a decision before any code.
+- **Queue volume** is recorded above rather than ticketed. One real *source* is not yet a pattern.
+
+WaniKani-API and Jōyō-kanji import were raised and dropped by the reader on 2026-09-15.
 
 ---
 

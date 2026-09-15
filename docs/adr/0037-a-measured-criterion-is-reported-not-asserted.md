@@ -94,6 +94,16 @@ stating plainly: green tests on this project mean the instrument is built correc
 about what it will read. `docs/01-project-brief.md` §5 is answered by `/stats`, by a person, after
 twenty notes.
 
+## Amendment — 2026-09-15, the first real run
+
+The numbers came back, and the ADR was right that a threshold test would have taught nothing.
+Median *seconds-per-note* was **1.76 s over 39** unedited accepts, against a prediction of 6.
+*Acceptance rate* was **8%**: 39 of 474 generated, because the reader stopped after 39. A floor
+asserted on that figure would have failed for a reason the code has no part in. No *card* was
+reviewed, so *time-to-first-review* and the false-accept rate have no reading yet. The full record is
+`docs/first-run-expectation.md`. Still no baseline exists to regress from, so the revisit condition
+below is not met.
+
 ## Revisit if
 
 Real numbers exist and stabilise — at which point a **regression** assertion becomes meaningful,

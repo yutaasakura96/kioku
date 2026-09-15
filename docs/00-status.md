@@ -4,8 +4,9 @@
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
 **59 ADRs** — ⚠️ **this said 58 until 2026-09-12**, written in the commit that added ADR 0059 —
-eleven documents, an empty frontier, and **two open issues** on the tracker as of 2026-09-14 —
-#1 the spec, and #14, which closes after `/stats` is read with real data (**#5 closed 2026-09-14 on
+eleven documents, and **two open issues** on the tracker as of 2026-09-15 — #1 the spec, and
+**#17**, the worker's heartbeat window, opened from the first run's evidence. ⚠️ **#14 closed
+2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
@@ -36,11 +37,34 @@ walks both in five stages and writes the three values where they belong.
 and each was checked live, and the invited address is signed in — after one hand-seeded
 `auth."user"` row, because `disableSignUp` refused it too (§ Done, § Carrying). **What is left is
 the run**, and it opens with Part 1 of `docs/first-run-expectation.md`, not with Japanese.
-**Updated:** 2026-09-14
+⚠️ **Run 2026-09-14 and stopped 2026-09-15 before any review** (§ Done). `S3` holds at 1.76 s. What
+comes next is **typed answers**, which the reader named as what he was aiming for and which needs a
+decision before any code.
+**Updated:** 2026-09-15
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**Phase 6 — the first real run, 2026-09-14 to 2026-09-15, stopped before review.** The source was
+Sōseki's 『夢十夜』 第一夜 and 第二夜 (about 3,400 characters, three *chunks*, `claude-sonnet-5`). It
+became **474 *pending notes*** for $0.43. Yuta vetted **39: 39 accepted, 0 edited, 0 rejected, median
+1.76 s**, so `S3`'s criterion holds. *Acceptance rate* reads 8%, because the denominator is *notes*
+generated (ADR 0037). **No *card* was reviewed.** Yuta chose to stop, so *time-to-first-review*, the
+scheduler and the false-accept rate have no real reading yet. Part 1's predictions were Claude's
+rather than Yuta's (he chose not to make them), and the form says so. Three findings came out of it:
+
+- **#17:** each *chunk* takes 3–5 minutes, longer than the five-minute heartbeat window. The one
+  worker's idle connection dropped, and the job was reclaimed silently with `attempts = 2`. No *note*
+  was duplicated, but spend and candidate counters can be.
+- **Volume:** roughly one *note* per seven characters of prose. The allowlist (ADR 0044) is not what
+  keeps the queue small.
+- **Typed answers:** the reader wants WaniKani-style recall — type the reading in hiragana, then the
+  English, checked by the app. v1 self-grades one recognition *template*. This is the next work.
+  WaniKani-API and Jōyō-kanji import were raised and dropped the same day.
+
+The form is filled in `docs/first-run-expectation.md`, and ADR 0037 carries an amendment with the
+numbers.
 
 **Phase 6 — the first sign-in anyone has ever done, 2026-09-13.** `scripts/first-run.sh` ran and
 wrote `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `.env` and `ANTHROPIC_API_KEY` to
