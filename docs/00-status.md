@@ -3,9 +3,10 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**59 ADRs** — ⚠️ **this said 58 until 2026-09-12**, written in the commit that added ADR 0059 —
-eleven documents, and **two open issues** on the tracker as of 2026-09-15 — #1 the spec, and
-**#17**, the worker's heartbeat window, opened from the first run's evidence. ⚠️ **#14 closed
+**60 ADRs** — ADR 0060, typed answers, added 2026-09-15; ⚠️ **this said 58 until 2026-09-12** —
+eleven documents, and **three open issues** on the tracker as of 2026-09-15 — #1 the spec,
+**#17**, the worker's heartbeat window, opened from the first run's evidence, and **#18**, typed
+answers (ADR 0060), `ready-for-agent` and **the frontier**. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
@@ -38,8 +39,10 @@ and each was checked live, and the invited address is signed in — after one ha
 `auth."user"` row, because `disableSignUp` refused it too (§ Done, § Carrying). **What is left is
 the run**, and it opens with Part 1 of `docs/first-run-expectation.md`, not with Japanese.
 ⚠️ **Run 2026-09-14 and stopped 2026-09-15 before any review** (§ Done). `S3` holds at 1.76 s. What
-comes next is **typed answers**, which the reader named as what he was aiming for and which needs a
-decision before any code.
+comes next is **typed answers**, which the reader named as what he was aiming for. The decision is
+made, in **ADR 0060** (2026-09-15, Yuta's four answers): it replaces self-grading, is one *card* with two
+steps, the check proposes the *grade* and the digits overrule it, and the meaning match is lenient.
+**The next command is `/implement 18`, in a fresh window.**
 **Updated:** 2026-09-15
 
 Read `CLAUDE.md` first, then this.

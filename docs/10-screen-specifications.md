@@ -476,6 +476,13 @@ the grade controls beneath it share its exact width (`05` §5).
 
 `Esc` is not repeated in the legend, because the Done cluster in the header names it (§5.2).
 
+⚠️ **Amended 2026-09-15 by [ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md).**
+*Review* is answered by typing, so the front no longer shows `space` — reveal. Its footer legend is
+`Enter` — check, and it covers two steps: the reading, then the meaning. `X` — flag moves to the back
+only. On the back the four grade controls stay, one of them marked **proposed** by the check, and
+`Enter` commits the proposed one. The layout of the two text fields belongs to §5.4 and §5.5, which
+are amended by the ticket that builds this.
+
 ### 5.2 The Done cluster, and the rail it shares a row with ⚠️
 
 `05` §8: "On *Review* it has to share its row with the *progress rail*." ADR 0026 named the collision

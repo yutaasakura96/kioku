@@ -1437,6 +1437,13 @@ statements. Both files now poll a pair; the other four e2e files have no browser
 construction.
 → [ADR 0059](adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md)
 
+### [2026-09-15] Review is answered by typing, and the check proposes the grade
+The reader types the reading (romaji converted to hiragana) and then the English meaning. The app
+checks both, leniently for the meaning, and proposes Forgot or Good; the digits still commit any of
+the four grades. It replaces self-grading, is an interaction rather than a second template, and came
+from the first real run.
+→ [ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:
