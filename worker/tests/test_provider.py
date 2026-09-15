@@ -80,9 +80,14 @@ class _Message:
 
 
 class _Stream:
-    def __init__(self, message: _Message, recorded: dict[str, Any]) -> None:
+    def __init__(self, message: _Message, recorded: dict[str, Any], events: int = 0) -> None:
         self._message = message
         self._recorded = recorded
+        self._events = events
+
+    def __iter__(self):
+        for _ in range(self._events):
+            yield object()
 
     def __call__(self, **kwargs: Any) -> "_Stream":
         self._recorded.update(kwargs)
@@ -98,11 +103,13 @@ class _Stream:
         return self._message
 
 
-def build(message: _Message) -> tuple[provider_module.AnthropicProvider, dict[str, Any]]:
+def build(
+    message: _Message, *, events: int = 0
+) -> tuple[provider_module.AnthropicProvider, dict[str, Any]]:
     """A real provider with the SDK's stream replaced, and what it was asked."""
     instance = provider_module.AnthropicProvider(api_key="not-a-key")
     recorded: dict[str, Any] = {}
-    instance._client.messages.stream = _Stream(message, recorded)  # type: ignore[assignment]
+    instance._client.messages.stream = _Stream(message, recorded, events)  # type: ignore[assignment]
     return instance, recorded
 
 
@@ -145,6 +152,37 @@ def test_it_streams_and_the_declaration_is_the_output_contract() -> None:
     # ⚠️ Absent on purpose: ADR 0018 walks two vendors and seven ids, and every
     # one accepts `thinking` being unset while several reject one setting of it.
     assert "thinking" not in asked
+
+
+def test_the_keepalive_is_offered_on_every_event_of_the_stream() -> None:
+    """ADR 0061: a 3–5 minute answer sent no query at all, so the claim went
+    stale and Neon suspended the compute under it. The throttle is
+    `jobs.Keepalive`'s; the provider's part is to call it while it reads.
+    """
+    instance, _ = build(_Message(content=[_Block('{"notes": []}')], usage=_Usage(1, 1)), events=3)
+    beats: list[int] = []
+
+    generation = instance.generate(REQUEST, keepalive=lambda: beats.append(1))
+
+    assert len(beats) == 3
+    assert generation.payload == {"notes": []}
+
+
+def test_a_connection_lost_in_the_keepalive_is_not_a_provider_failure() -> None:
+    """⚠️ **Not translated into `ProviderUnavailable`.** A dropped database
+    connection is the loop's business (`03` §3.1 step 7); turned into a provider
+    error it would fail the *chunk* for something that was never the model's
+    fault.
+    """
+    import psycopg
+
+    instance, _ = build(_Message(content=[_Block('{"notes": []}')], usage=_Usage(1, 1)), events=1)
+
+    def dropped() -> None:
+        raise psycopg.OperationalError("SSL connection has been closed unexpectedly")
+
+    with pytest.raises(psycopg.OperationalError):
+        instance.generate(REQUEST, keepalive=dropped)
 
 
 def test_a_refusal_is_not_parsed_as_an_answer() -> None:

@@ -553,7 +553,11 @@ The sequence:
    at all on the worker's connection: it runs `autocommit=True` (`03` §3.1), where a separate
    `SELECT … FOR UPDATE` releases its lock before the `UPDATE` is issued and hands the same row to
    two workers. `worker/jobs.py`.
-3. The worker refreshes `heartbeat_at` every 30 seconds while working.
+3. The worker refreshes `heartbeat_at` while working. ⚠️ **Amended 2026-09-15 with
+   [ADR 0061](adr/0061-the-worker-heartbeats-while-the-model-streams.md): not every 30 seconds.**
+   It heartbeats between *chunks*, and while a model request streams it heartbeats on the same
+   connection at most once a minute. The first run measured a *chunk* at 3–5 minutes, and a request
+   that sent no query outlived both this step's window and Neon Free's five-minute scale-to-zero.
 4. **A job in `claimed` whose `heartbeat_at` is older than 5 minutes is reclaimable** and is returned
    to `queued` by the next worker to look. This is what "the laptop closed mid-job" resolves to: the
    claim is still visible, it is visibly stale, and a timed rule releases it.

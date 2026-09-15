@@ -39,7 +39,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from db import MisconfiguredWorker
 from pipeline.generate import GenerationRequest
@@ -63,9 +63,14 @@ DEFAULT_MODEL_ID = "claude-sonnet-5"
 #: named here so the bound is visible at the boundary that has it.
 MAX_RETRIES = 2
 
-#: One chunk of 1200 characters (ADR 0041) against a provider that is not
-#: answering is a claimed job going nowhere; the loop's stale sweep (`04` §6.4)
-#: runs on a five-minute heartbeat, so the request has to give up inside it.
+#: The SDK's **read** timeout: the longest wait for the next piece of a response.
+#:
+#: ⚠️ **It does not bound a request.** This said it kept the request inside the
+#: five-minute heartbeat window, and #17 measured a steady 3–5 minute stream that
+#: never tripped it. What keeps a long request's claim alive is the keepalive
+#: :meth:`AnthropicProvider.generate` calls per event (ADR 0061); what this bounds
+#: is the gap between those events, and `tests/test_keepalive.py` asserts the two
+#: together stay under five minutes.
 TIMEOUT_SECONDS = 120.0
 
 
@@ -127,7 +132,9 @@ class Provider(Protocol):
 
     model_id: str
 
-    def generate(self, request: GenerationRequest) -> Generation: ...
+    def generate(
+        self, request: GenerationRequest, *, keepalive: Callable[[], None] | None = None
+    ) -> Generation: ...
 
 
 class AnthropicProvider:
@@ -162,7 +169,14 @@ class AnthropicProvider:
             api_key=api_key, max_retries=max_retries, timeout=timeout
         )
 
-    def generate(self, request: GenerationRequest) -> Generation:
+    def generate(
+        self, request: GenerationRequest, *, keepalive: Callable[[], None] | None = None
+    ) -> Generation:
+        """⚠️ **`keepalive` is called on every event of the stream** (ADR 0061)
+        and throttles itself. A database error it raises is not an
+        `anthropic.APIError`, so it leaves here untranslated and the loop treats
+        it as the dropped connection it is.
+        """
         import anthropic
 
         try:
@@ -172,6 +186,11 @@ class AnthropicProvider:
                 output_config={"format": {"type": "json_schema", "schema": request.schema}},
                 messages=[{"role": "user", "content": request.prompt}],
             ) as stream:
+                # The SDK's documented pattern: consume the events, then read the
+                # accumulated message.
+                for _event in stream:
+                    if keepalive is not None:
+                        keepalive()
                 message = stream.get_final_message()
         except anthropic.APIStatusError as error:
             # ⚠️ The status, and not `str(error)`. `APIError.__str__` carries the

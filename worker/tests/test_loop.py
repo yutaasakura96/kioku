@@ -226,6 +226,50 @@ def test_an_interface_error_is_a_lost_connection_too():
     assert log.count(f"LISTEN {JOB_CHANNEL}") == 2
 
 
+def test_a_dropped_connection_is_reported_before_the_reconnect():
+    """ADR 0061: the first run's reconnect and its reclaim were both silent, so
+    `job.attempts = 2` was the only evidence either had happened."""
+    log: list[str] = []
+    dropped = psycopg.OperationalError("SSL connection has been closed unexpectedly")
+    connections = iter([FakeConnection(log, wakeups=[dropped]), FakeConnection(log, wakeups=[])])
+    lost: list[BaseException] = []
+
+    with pytest.raises(StopTheLoop):
+        serve(
+            lambda: next(connections),
+            drain=drain_recorder(log),
+            stop=Stop(),
+            sleep=lambda _s: None,
+            on_connection_lost=lost.append,
+        )
+
+    assert lost == [dropped]
+
+
+def test_a_compute_that_cannot_be_reached_is_not_reported_on_every_retry():
+    """Only a connection that was working is reported. The backoff while the
+    laptop has no network would otherwise print a line every thirty seconds."""
+    attempts = {"n": 0}
+    lost: list[BaseException] = []
+
+    def connect():
+        attempts["n"] += 1
+        if attempts["n"] < 4:
+            raise psycopg.OperationalError("the compute is asleep")
+        raise StopTheLoop
+
+    with pytest.raises(StopTheLoop):
+        serve(
+            connect,
+            drain=lambda _c: 0,
+            stop=Stop(),
+            sleep=lambda _s: None,
+            on_connection_lost=lost.append,
+        )
+
+    assert lost == []
+
+
 def test_a_connection_that_cannot_be_made_backs_off_and_retries():
     slept: list[float] = []
     attempts = {"n": 0}

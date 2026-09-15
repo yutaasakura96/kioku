@@ -155,7 +155,13 @@ def settle_run(connection: psycopg.Connection, ingestion_id: str) -> str:
     return settled[0]
 
 
-ChunkProcessor = Callable[[psycopg.Connection, Chunk], None]
+#: What a processor may hand back: **the writes that must commit with the
+#: *chunk*'s completion or not at all** (ADR 0061 §3). Anything not idempotent
+#: across a retry belongs here — today that is `04` §6.1's four candidate
+#: counters. ⚠️ **Not the spend ledger**, which ADR 0061 §4 keeps immediate.
+ChunkFinish = Callable[[psycopg.Connection], None]
+
+ChunkProcessor = Callable[[psycopg.Connection, Chunk], Optional[ChunkFinish]]
 
 
 def run_ingestion(
@@ -186,15 +192,19 @@ def run_ingestion(
             break
         _mark_chunk(connection, job.ingestion_id, chunk, "running")
         try:
-            process_chunk(connection, chunk)
+            finish = process_chunk(connection, chunk)
+            # ⚠️ ADR 0061 §3: one transaction, so a connection lost between the
+            # two cannot leave counters committed for a *chunk* a retry re-runs.
+            with connection.transaction():
+                if finish is not None:
+                    finish(connection)
+                _mark_chunk(connection, job.ingestion_id, chunk, "complete")
         except CONNECTION_LOST:
             raise
         except Exception as error:  # noqa: BLE001 - one chunk's failure is not the run's
             # ⚠️ `03` §13.4: never source text. ⚠️ `03` §11: never the provider's
             # name — this column is read straight onto the run row (`10` §6.2).
             _mark_chunk(connection, job.ingestion_id, chunk, "failed", error=str(error))
-        else:
-            _mark_chunk(connection, job.ingestion_id, chunk, "complete")
         # `04` §6.4 step 3, in the one place a run is long enough to need it.
         heartbeat(connection, job)
 

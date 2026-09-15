@@ -1444,6 +1444,14 @@ the four grades. It replaces self-grading, is an interaction rather than a secon
 from the first real run.
 → [ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md)
 
+### [2026-09-15] The worker heartbeats while the model streams
+A 3–5 minute *chunk* outlived both the five-minute stale-claim window and Neon Free's five-minute
+scale-to-zero, so the job was silently reclaimed. The worker now heartbeats on its own connection at
+most once a minute while the answer streams, and the candidate counters commit with their *chunk*'s
+completion. The spend ledger is deliberately left as one immediate statement, because a retry after a
+lost cache write is a second real charge.
+→ [ADR 0061](adr/0061-the-worker-heartbeats-while-the-model-streams.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

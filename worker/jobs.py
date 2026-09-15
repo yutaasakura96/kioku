@@ -57,6 +57,12 @@ MAX_ATTEMPTS = 5
 FIRST_RETRY_DELAY = "1 minute"
 MAX_RETRY_DELAY = "30 minutes"
 
+#: ADR 0061. How often a model request that is still streaming refreshes its
+#: claim. ⚠️ **Plus the provider's read timeout, it must stay under five
+#: minutes** — both `STALE_AFTER` and Neon Free's scale-to-zero — and
+#: `tests/test_keepalive.py` asserts the sum rather than trusting this line.
+KEEPALIVE_EVERY_SECONDS = 60.0
+
 
 @dataclass(frozen=True)
 class ClaimedJob:
@@ -209,15 +215,54 @@ def sweep_stale_claims(
 def heartbeat(connection: psycopg.Connection, job: ClaimedJob) -> None:
     """Say the laptop is still open — `04` §6.4 step 3.
 
-    ⚠️ **There is no background thread and no 30-second timer.** `04` §6.4 says
-    *every 30 seconds while working*, and the only thing long enough to need a
-    cadence is the per-chunk loop, which arrives with #8 — it calls this between
-    chunks, which is the cadence a chunk takes. A timer would need its own
-    connection (psycopg's is not safe to share across threads mid-statement),
-    and that is a decision to make against a measured chunk duration rather than
-    one to guess at now. **Nothing here declares an interval it does not keep.**
+    Called from two places: between *chunks* (`runs.run_ingestion`), and while a
+    model request streams, through :class:`Keepalive` (ADR 0061).
+
+    ⚠️ **There is no background thread.** A timer would need its own connection
+    (psycopg's is not safe to share across threads mid-statement), and ADR 0061
+    rejected it: the first run measured a *chunk* at 3–5 minutes, and the stream
+    is consumed on this connection's own thread, so the heartbeat rides on it.
     """
     _end_claim(connection, job, "UPDATE job SET heartbeat_at = now()", state="claimed")
+
+
+class Keepalive:
+    """A heartbeat the stream may call on every event, written once an interval.
+
+    ⚠️ **The interval starts when the keepalive is made**, which is the start of
+    a *chunk* — right after `runs.run_ingestion` heartbeated the previous one, or
+    right after the claim stamped `heartbeat_at`.
+
+    ⚠️ **One query keeps two things alive** (ADR 0061): the claim, which the
+    sweep reclaims after `STALE_AFTER`, and the compute, which Neon Free
+    suspends after five minutes with no query, taking the connection with it.
+    """
+
+    def __init__(
+        self,
+        beat: Callable[[], None],
+        *,
+        every: float = KEEPALIVE_EVERY_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._beat = beat
+        self._every = every
+        self._clock = clock
+        self._last = clock()
+
+    def __call__(self) -> None:
+        now = self._clock()
+        if now - self._last < self._every:
+            return
+        self._beat()
+        self._last = now
+
+
+def keepalive(
+    connection: psycopg.Connection, job: ClaimedJob, *, every: float = KEEPALIVE_EVERY_SECONDS
+) -> Keepalive:
+    """:func:`heartbeat` for this job on this connection, throttled."""
+    return Keepalive(lambda: heartbeat(connection, job), every=every)
 
 
 def finish_job(connection: psycopg.Connection, job: ClaimedJob) -> None:
@@ -266,6 +311,7 @@ def drain(
     *,
     owner: str,
     handle: Callable[[psycopg.Connection, ClaimedJob], None],
+    on_swept: Callable[[int], None] | None = None,
 ) -> int:
     """`03` §3.1 step 3 — **the poll**. Sweep, then claim until empty.
 
@@ -284,8 +330,13 @@ def drain(
     while the worker was away are at most one notification, and possibly none
     (ADR 0028) — so the poll has to take everything it finds or the catch-up
     that makes notifications optional does not happen.
+
+    ⚠️ **`on_swept` hears about a non-zero sweep** (ADR 0061). The first run's
+    reclaim left no trace but `attempts = 2`.
     """
-    sweep_stale_claims(connection)
+    swept = sweep_stale_claims(connection)
+    if swept and on_swept is not None:
+        on_swept(swept)
 
     handled = 0
     while (job := claim_next_job(connection, owner=owner)) is not None:

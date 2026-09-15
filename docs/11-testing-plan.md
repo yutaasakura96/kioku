@@ -512,6 +512,7 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | --- | --- | --- |
 | The job claim | Two workers claim **different** rows. `FOR UPDATE SKIP LOCKED` with the row lock held for the length of the `UPDATE`, **not the length of the job** | `04` §6.4, `03` §3.2 |
 | The stale-claim sweep | A job in `claimed` with `heartbeat_at` older than five minutes returns to `queued` at the next worker's poll. ⚠️ **The sweep runs in the worker**, not on a schedule elsewhere — ADR 0022 forbids Vercel Cron | `04` §6.4 |
+| The keepalive during a model request | A streaming request refreshes its own job's `heartbeat_at` on the worker's connection, at most once an interval, and the interval plus the read timeout stays under five minutes. The candidate counters roll back with a *chunk* whose completion does not commit | ADR 0061 |
 | The reconnect | The connection drops, notifications fire while nobody is listening, the worker reconnects — and **`LISTEN` happens before the poll**. Polling first leaves a window where a notification lands unheard | ADR 0028 |
 
 **And what #7 added beside them — a database, but no second session** (`worker/tests/`, built

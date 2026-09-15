@@ -56,7 +56,7 @@ class FakeProvider:
         #: keep what they produced (`03` §5.4).
         self.refuse: set[str] = set()
 
-    def generate(self, request) -> Generation:
+    def generate(self, request, *, keepalive=None) -> Generation:
         self.calls.append(request.prompt)
         notes = []
         for term, reading in LISTED.findall(request.prompt):
@@ -452,7 +452,7 @@ def test_a_refused_answer_is_still_paid_for(connection):
     ingestion_id = make_run(connection)
 
     class Declining(FakeProvider):
-        def generate(self, request):
+        def generate(self, request, *, keepalive=None):
             self.calls.append(request.prompt)
             raise ProviderRefused(
                 "the model declined this chunk",
@@ -626,6 +626,43 @@ def test_an_accepted_notes_fields_survive_a_later_write(connection):
     assert [position for (position,) in positions] == [5, 40]
 
 
+def test_a_long_model_request_keeps_its_claim_alive(connection):
+    """ADR 0061, #17: a 3–5 minute answer sent no query, the claim went stale
+    under it, and the job was reclaimed. The keepalive the provider is handed
+    heartbeats **this** job, on **this** connection, while the answer streams.
+    """
+    make_run(connection)
+    fresh: list[bool] = []
+
+    class Slow(FakeProvider):
+        def generate(self, request, *, keepalive=None):
+            # Four and a half minutes of streaming, compressed: the claim has
+            # aged past the sweep's boundary by the time the stream is read.
+            connection.execute(
+                "UPDATE job SET heartbeat_at = now() - interval '6 minutes' WHERE state = 'claimed';"
+            )
+            keepalive()
+            fresh.append(
+                connection.execute(
+                    "SELECT heartbeat_at > now() - interval '1 minute' FROM job WHERE state = 'claimed';"
+                ).fetchone()[0]
+            )
+            return super().generate(request)
+
+    generate = make_generator(Slow(), worker_environment="laptop")
+    drain(
+        connection,
+        owner="w",
+        handle=lambda conn, job: run_ingestion(
+            conn,
+            job,
+            process_chunk=make_chunk_processor(job, generate=generate, keepalive_every=0.0),
+        ),
+    )
+
+    assert fresh and all(fresh)
+
+
 def test_a_refused_answer_is_never_cached(connection):
     """`03` §7: **a failure is an error rather than a stored row**, and the same
     sentence pointed at `generation_cache` — a stored answer that does not
@@ -634,7 +671,7 @@ def test_a_refused_answer_is_never_cached(connection):
     make_run(connection)
 
     class Liar(FakeProvider):
-        def generate(self, request):
+        def generate(self, request, *, keepalive=None):
             generation = super().generate(request)
             generation.payload["notes"][0]["meaning"] = ""
             return generation

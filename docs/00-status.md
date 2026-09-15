@@ -3,10 +3,11 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**60 ADRs** — ADR 0060, typed answers, added 2026-09-15; ⚠️ **this said 58 until 2026-09-12** —
-eleven documents, and **three open issues** on the tracker as of 2026-09-15 — #1 the spec,
-**#17**, the worker's heartbeat window, opened from the first run's evidence, and **#18**, typed
-answers (ADR 0060), ⚠️ **built 2026-09-15 and closing on merge**. ⚠️ **#14 closed
+**61 ADRs** — ADR 0060, typed answers, and ADR 0061, the worker's heartbeat, both added 2026-09-15;
+⚠️ **this said 58 until 2026-09-12** — eleven documents, and **two open issues** on the tracker as
+of 2026-09-15 — #1 the spec, and **#17**, the worker's heartbeat window, opened from the first run's
+evidence and ⚠️ **built 2026-09-15 (ADR 0061), closing on merge**. #18, typed answers (ADR 0060),
+is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
@@ -66,7 +67,12 @@ rather than Yuta's (he chose not to make them), and the form says so. Three find
 
 - **#17:** each *chunk* takes 3–5 minutes, longer than the five-minute heartbeat window. The one
   worker's idle connection dropped, and the job was reclaimed silently with `attempts = 2`. No *note*
-  was duplicated, but spend and candidate counters can be.
+  was duplicated, but spend and candidate counters can be. ⚠️ **Decided and built 2026-09-15 —
+  [ADR 0061](adr/0061-the-worker-heartbeats-while-the-model-streams.md).** The drop was Neon Free's
+  five-minute scale-to-zero, the same length as the stale window. The worker now heartbeats on its
+  own connection at most once a minute while the answer streams. The candidate counters commit with
+  their *chunk*'s completion. A reconnect and a sweep each log a line. The spend ledger is left as
+  one immediate statement on purpose: a retry after a lost cache write is a second real charge.
 - **Volume:** roughly one *note* per seven characters of prose. The allowlist (ADR 0044) is not what
   keeps the queue small.
 - **Typed answers:** the reader wants WaniKani-style recall — type the reading in hiragana, then the
@@ -2313,6 +2319,15 @@ Nothing.
 - **`note.fields` gets no index.** No v1 query reads inside it — the card browser is cut and there is
   no field search. It is the index a future session adds on the general principle that jsonb wants a
   GIN index. It does not; queries do (`04` §11.1).
+- ⚠️ **The spend ledger is not in a transaction with the cache write, and must not be put in one**
+  ([ADR 0061](adr/0061-the-worker-heartbeats-while-the-model-streams.md) §4). It looks like the
+  fix for a double-count and is the opposite. If the spend commits and the cache write is lost, the
+  retry calls the model again, which is a second real charge, so recording it twice is correct.
+  Wrapped together, that failure rolls back the record of a request already billed. **The candidate
+  counters are the ones that do go in a transaction**, with their *chunk*'s completion, through the
+  `runs.ChunkFinish` a processor returns. And **a model request heartbeats through the keepalive it
+  is handed**: a provider that reads its response without calling it lets a long request's claim go
+  stale and Neon suspend the compute under it.
 - **The stale-job sweep runs in the worker**, not on a schedule elsewhere. Vercel Cron is on
   ADR 0022's forbidden list, and the worker already polls on every connect and reconnect, so it costs
   nothing (`04` §6.4).

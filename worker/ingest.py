@@ -33,7 +33,7 @@ import psycopg
 
 import prices
 from db import MisconfiguredWorker
-from jobs import ClaimedJob
+from jobs import KEEPALIVE_EVERY_SECONDS, ClaimedJob, keepalive
 from pipeline import Corpus, StageResult, chunk_text, run_stages
 from pipeline.deduplicate import Group
 from pipeline.generate import (
@@ -51,7 +51,7 @@ from pipeline.write_pending import (
     write_pending_notes,
 )
 from provider import Generation, Provider, ProviderRefused
-from runs import Chunk
+from runs import Chunk, ChunkFinish, ChunkProcessor
 from subject import Declaration, load_declaration
 
 #: `03` §12, `04` §6.1: early *time-to-first-review* figures are not comparable
@@ -76,6 +76,9 @@ class ChunkContext:
     run: "RunContext"
     chunk: Chunk
     text: str
+    #: ADR 0061: heartbeats this run's job while a model request streams, at
+    #: most once a minute. Handed to the provider, never called here.
+    keepalive: Callable[[], None]
 
 
 #: Stage 6 and stage 7, as one hook — **once per chunk, with that chunk's whole
@@ -165,7 +168,8 @@ def make_chunk_processor(
     *,
     generate: Optional[Generate] = None,
     declaration: Optional[Declaration] = None,
-) -> Callable[[psycopg.Connection, Chunk], None]:
+    keepalive_every: float = KEEPALIVE_EVERY_SECONDS,
+) -> ChunkProcessor:
     """`runs.ChunkProcessor` for one claimed job.
 
     ⚠️ **A closure over the job, because the seam's signature has no room for
@@ -186,7 +190,7 @@ def make_chunk_processor(
     #: `nonlocal`, which is the thing that makes this pattern hard to read.
     cached: dict[str, RunContext] = {}
 
-    def process_chunk(connection: psycopg.Connection, chunk: Chunk) -> None:
+    def process_chunk(connection: psycopg.Connection, chunk: Chunk) -> ChunkFinish:
         if "run" not in cached:
             cached["run"] = read_run_context(connection, job.ingestion_id)
         run = cached["run"]
@@ -218,20 +222,18 @@ def make_chunk_processor(
                     run=run,
                     chunk=chunk,
                     text=text,
+                    keepalive=keepalive(connection, job, every=keepalive_every),
                 ),
                 result.survivors,
             )
 
-        # ⚠️ **Last**, and after the work rather than before it. A chunk that
-        # raises part-way is marked `failed` by `runs.py` and retried, and the
-        # counters are the one thing here that is not idempotent — `occurrence`
-        # has `04` §5.5's unique constraint and generation will have `04` §6.3's
-        # cache. The window where a retry could double-count is between this
-        # statement and `_mark_chunk(… 'complete')`; `04` §6.1 makes all four
-        # columns nullable and `03` §11 uses them to tell the reader *how many
-        # were filtered, and by which filter*, so an over-count in that window is
-        # a wrong number on a screen rather than wrong data.
-        record_candidate_ledger(connection, job.ingestion_id, result)
+        # ⚠️ **Handed back, not written.** The counters are the one thing here
+        # that is not idempotent — `occurrence` has `04` §5.5's unique constraint
+        # and generation has `04` §6.3's cache — so `runs.run_ingestion` commits
+        # them in the transaction that marks this *chunk* `complete` (ADR 0061
+        # §3). Written here, a connection lost before the completion made the
+        # retry count them twice, which #17 found the first run could do.
+        return lambda conn: record_candidate_ledger(conn, job.ingestion_id, result)
 
     return process_chunk
 
@@ -395,7 +397,8 @@ def make_generator(provider: Provider, *, worker_environment: str | None = None)
         if notes is None:
             try:
                 generation = provider.generate(
-                    request_for(context.declaration, context.text, groups)
+                    request_for(context.declaration, context.text, groups),
+                    keepalive=context.keepalive,
                 )
             except ProviderRefused as refused:
                 if refused.spent is not None:
@@ -536,6 +539,12 @@ def record_spend(
     re-runs only the chunks that are not `complete` (`04` §6.2), so an assignment
     would report the resume's slice as the whole document — and here that means
     under-reporting money actually spent.
+
+    ⚠️ **One statement, committed at once, and never in a transaction with the
+    cache write** (ADR 0061 §4). If this commits and the cache write is lost,
+    the retry calls the model again — a second real charge, correctly recorded
+    twice. Wrapped together, that failure would roll back the record of a
+    request already billed.
 
     ⚠️ **A cache hit never reaches this function.** It spent nothing, and
     `04` §6.1 says these numbers come from the API response; a hit has no

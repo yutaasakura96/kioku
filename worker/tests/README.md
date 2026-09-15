@@ -4,7 +4,9 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for sixty of the two hundred and eleven tests here.**
+⚠️ **Docker is required for sixty-four of the two hundred and twenty-two tests here.**
+⚠️ **Re-counted 2026-09-15 with #17 (ADR 0061):** it said sixty of two hundred and eleven. #17 added
+eleven, four of which need the container — three in `test_runs.py` and one in `test_generation.py`.
 ADR 0038 carried a dated amendment for each time the container count moved —
 three, then twenty-three with #7, forty with #8, fifty-nine with #9 — and **#9's
 amendment was the last of them on purpose**: it took the number out of that ADR
@@ -72,7 +74,7 @@ behaviour of its own, which is also why it never became a test of its own.
 
 ## What is here now
 
-⚠️ **Thirteen of the nineteen files need neither a container nor a database**,
+⚠️ **Fourteen of the twenty files need neither a container nor a database**,
 and the table below says which. ⚠️ `seed.py` is not a test file at all — it is
 the four rows `S2` names on submit, shared by `test_ingest.py` and
 `test_generation.py` so that `04`'s column list has one place to go stale.
@@ -106,6 +108,7 @@ Not run by Vitest, and the whole file list is now:
 | `test_subject_drift.py` | no | `03` §6's cross-language drift test, by running `scripts/print-subject-view.ts` under Node |
 | `test_loop.py` | no | `03` §3.1's seven steps against a fake connection. ⚠️ **The payload is never read** is a `Notify` whose `payload` property raises |
 | `test_db.py` | no | The direct string taken verbatim, the pooled one refused by name |
+| `test_keepalive.py` | no | ADR 0061's throttle — one heartbeat per interval however many stream events arrive — and ⚠️ **that the interval plus the provider's read timeout stays under five minutes** |
 | `test_jobs.py` | **yes** | `04` §6.4 — the claim under two workers, `SKIP LOCKED` skipping rather than waiting, and the stale sweep |
 | `test_runs.py` | **yes** | The chunk queue, `04` §6.2's resume query, the settle, and the drain |
 | `test_reconnect.py` | **yes** | ADR 0028's ordering, asked of the **server** through `pg_listening_channels()` |

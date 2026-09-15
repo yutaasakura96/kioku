@@ -83,8 +83,14 @@ def serve(
     channel: str = JOB_CHANNEL,
     block_timeout: float = BLOCK_TIMEOUT_SECONDS,
     sleep: Callable[[float], None] = time.sleep,
+    on_connection_lost: Callable[[BaseException], None] = lambda _error: None,
 ) -> None:
-    """Run until `stop` is set. Reconnects forever; raises nothing routine."""
+    """Run until `stop` is set. Reconnects forever; raises nothing routine.
+
+    ⚠️ **`on_connection_lost` hears only about a connection that was open**
+    (ADR 0061), not about each failed attempt to open one — the backoff while
+    the laptop has no network would otherwise report every thirty seconds.
+    """
     attempt = 0
 
     while not stop.is_set():
@@ -131,7 +137,8 @@ def serve(
                 # scale-to-zero timer (verification §7.2), so a metronome query
                 # spends the month's compute budget asking a question whose
                 # answer arrives by notification anyway.
-        except CONNECTION_LOST:
+        except CONNECTION_LOST as error:
+            on_connection_lost(error)
             sleep(backoff_delay(attempt))
             attempt += 1
         finally:

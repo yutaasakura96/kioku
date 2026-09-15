@@ -89,7 +89,12 @@ def main() -> int:
         )
 
     def drain(connection: psycopg.Connection) -> int:
-        handled = drain_jobs(connection, owner=owner, handle=handle)
+        handled = drain_jobs(
+            connection,
+            owner=owner,
+            handle=handle,
+            on_swept=lambda swept: log("worker.swept", jobs=swept, owner=owner),
+        )
         if handled:
             log("worker.drained", jobs=handled, owner=owner)
         return handled
@@ -113,7 +118,16 @@ def main() -> int:
         model_id=provider.model_id,
         worker_environment=environment,
     )
-    serve(lambda: db.connect(url), drain=drain, stop=stop)
+    serve(
+        lambda: db.connect(url),
+        drain=drain,
+        stop=stop,
+        # ⚠️ The class name only (ADR 0061 §5). A psycopg message can carry the
+        # host, and this repository's rule is no connection details in a log.
+        on_connection_lost=lambda error: log(
+            "worker.connection_lost", owner=owner, error=type(error).__name__
+        ),
+    )
     log("worker.stopped", owner=owner)
     return 0
 

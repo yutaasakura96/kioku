@@ -261,6 +261,62 @@ def test_an_interface_error_is_not_a_failed_job_either(connection):
     assert state_of(connection, job_id) == "claimed"
 
 
+def test_the_writes_a_chunk_owes_are_lost_with_its_completion_not_kept_without_it(connection):
+    """ADR 0061 §3: **the candidate counters are not idempotent**, so they commit
+    in the transaction that marks their *chunk* `complete`. Committed on their
+    own, a connection lost between the two made the retry count them twice.
+    """
+    ingestion_id, job_id = make_run(connection, chunks=1)
+
+    def process(_connection, _chunk):
+        def finish(conn):
+            conn.execute(
+                "UPDATE ingestion SET candidates_extracted = 7 WHERE id = %s;", (ingestion_id,)
+            )
+            raise psycopg.OperationalError("SSL connection has been closed unexpectedly")
+
+        return finish
+
+    with pytest.raises(psycopg.OperationalError):
+        drain(connection, owner="w", handle=lambda c, j: run_ingestion(c, j, process_chunk=process))
+
+    assert connection.execute(
+        "SELECT candidates_extracted FROM ingestion WHERE id = %s;", (ingestion_id,)
+    ).fetchone()[0] is None
+    assert [chunk.status for chunk in incomplete_chunks(connection, ingestion_id)] == ["running"]
+    assert state_of(connection, job_id) == "claimed"
+
+
+def test_the_writes_a_chunk_owes_commit_with_its_completion(connection):
+    ingestion_id, _ = make_run(connection, chunks=1)
+
+    def process(_connection, _chunk):
+        return lambda conn: conn.execute(
+            "UPDATE ingestion SET candidates_extracted = 7 WHERE id = %s;", (ingestion_id,)
+        )
+
+    drain(connection, owner="w", handle=lambda c, j: run_ingestion(c, j, process_chunk=process))
+
+    assert connection.execute(
+        "SELECT candidates_extracted FROM ingestion WHERE id = %s;", (ingestion_id,)
+    ).fetchone()[0] == 7
+    assert status_of(connection, ingestion_id) == "complete"
+
+
+def test_a_sweep_that_returns_a_job_is_reported(connection):
+    """ADR 0061 §5: the first run's reclaim left no trace but `attempts = 2`."""
+    _, job_id = make_run(connection, chunks=1)
+    claim_next_job(connection, owner="gone")
+    connection.execute(
+        "UPDATE job SET heartbeat_at = now() - interval '6 minutes' WHERE id = %s;", (job_id,)
+    )
+    swept: list[int] = []
+
+    drain(connection, owner="w", handle=run_ingestion, on_swept=swept.append)
+
+    assert swept == [1]
+
+
 def test_a_run_with_no_pipeline_yet_is_left_resumable(connection):
     """⚠️ **What #7 deliberately does not do**, stated as a test so the next
     session does not read it as a bug.
