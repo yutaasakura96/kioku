@@ -99,6 +99,10 @@ const JAPANESE = new Set(['term', 'reading', 'example_sentence'])
         </p>
       </template>
     </template>
+
+    <!-- ADR 0060: the two answer fields on the front, and both results on the
+         back. The page owns them; the *card* only gives them a place, last. -->
+    <slot />
   </article>
 </template>
 

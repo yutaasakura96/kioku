@@ -32,6 +32,8 @@
 // (`app/utils/review-store.ts`).
 
 import { GRADE_KEYS, endScreenAction, reviewAction } from '#shared/review/keystroke'
+import { foldReading, meaningMatches, proposedGrade, readingMatches } from '#shared/review/answer'
+import type { ReviewStep } from '#shared/review/keystroke'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
 import { append, head, parseOutbox, settle, unsentAnswers } from '#shared/review/outbox'
 import { isRefused } from '#shared/review/request'
@@ -79,8 +81,27 @@ const snapshot = ref<ReviewSnapshot | null>(null)
 const nothing = ref<NothingToStudy | null>(null)
 const status = ref<'loading' | 'ready' | 'error'>('loading')
 const slow = ref(false)
-const face = ref<'front' | 'back'>('front')
 const size = ref(DEFAULT_SESSION_SIZE)
+
+/**
+ * ADR 0060 §2: one *card*, two steps, one *grade*.
+ *
+ * ⚠️ **None of this is persisted** (ADR 0060 §4). The typed text and the result
+ * live for as long as the *card* is on screen; only the *grade* reaches the
+ * outbox. A reload mid-*card* asks the reading again, which costs a few
+ * keystrokes and records nothing.
+ */
+const step = ref<ReviewStep>('reading')
+const typed = ref({ reading: '', meaning: '' })
+const check = ref<{ reading: boolean | null, meaning: boolean | null }>({ reading: null, meaning: null })
+
+/** ADR 0060 §3 — what `Enter` commits on the back. */
+const proposal = computed<Grade | null>(() => {
+  if (step.value !== 'back')
+    return null
+
+  return proposedGrade({ reading: Boolean(check.value.reading), meaning: Boolean(check.value.meaning) })
+})
 
 /**
  * Answers given but not yet reflected in a snapshot the server has answered
@@ -189,9 +210,54 @@ const nextDue = computed(() =>
 // -- Focus ------------------------------------------------------------------
 
 const container = useTemplateRef<HTMLElement>('container')
+const steps = useTemplateRef<{ focus: () => void }>('steps')
 
 function focusContainer() {
   container.value?.focus()
+}
+
+/**
+ * ⚠️ **On the front focus is in a field, and on the back it is the container**
+ * (ADR 0060 §7). The back's keys are the container's; leaving focus in a field
+ * there would make the digits typing again.
+ */
+async function focusStep() {
+  await nextTick()
+
+  if (current.value && step.value !== 'back')
+    steps.value?.focus()
+  else
+    focusContainer()
+}
+
+function resetAnswer() {
+  step.value = 'reading'
+  typed.value = { reading: '', meaning: '' }
+  check.value = { reading: null, meaning: null }
+}
+
+// -- The two steps (ADR 0060) -----------------------------------------------
+
+function checkReading(value: string) {
+  const position = current.value
+  if (!position)
+    return
+
+  typed.value.reading = foldReading(value)
+  check.value.reading = readingMatches(value, position.fields.reading ?? '')
+  step.value = 'meaning'
+  void focusStep()
+}
+
+function checkMeaning(value: string) {
+  const position = current.value
+  if (!position)
+    return
+
+  typed.value.meaning = value.trim()
+  check.value.meaning = meaningMatches(value, position.fields.meaning ?? '')
+  step.value = 'back'
+  void focusStep()
 }
 
 // -- The store (ADR 0014) ---------------------------------------------------
@@ -415,7 +481,7 @@ function install(response: SessionResponse) {
   }
 
   answers.value = new Map()
-  face.value = 'front'
+  resetAnswer()
   holdSnapshot(fresh)
   holdRefused([])
   nothing.value = response.empty
@@ -468,7 +534,7 @@ function flag() {
 function answer(draft: OutboxDraft, given: Answer) {
   holdOutbox(append(outbox.value, draft))
   answers.value = new Map(answers.value).set(draft.cardId, given)
-  face.value = 'front'
+  resetAnswer()
 
   void enqueue(flush)
 }
@@ -491,14 +557,18 @@ function onKeydown(event: KeyboardEvent) {
     return
   }
 
-  const action = reviewAction(event, face.value)
+  // ⚠️ **Events from an answer field are the field's** (ADR 0060 §7): `space`,
+  // `x` and the digits are typing there, and its `Enter` is handled in
+  // `ReviewAnswer.vue`. Only `Esc` is still the container's.
+  const fromField = event.target instanceof HTMLInputElement
+  const action = reviewAction(event, step.value, fromField)
   if (!action)
     return
 
   event.preventDefault()
 
-  if (action.kind === 'reveal')
-    face.value = 'back'
+  if (action.kind === 'commit')
+    give(proposal.value ?? 1)
   else if (action.kind === 'grade')
     give(action.grade)
   else if (action.kind === 'flag')
@@ -523,6 +593,8 @@ async function leave() {
 
 watch(() => current.value?.cardId, () => {
   justGraded.value = null
+  resetAnswer()
+  void focusStep()
 })
 
 /**
@@ -550,7 +622,7 @@ onMounted(async () => {
   await enqueue(flush)
   await enqueue(() => start())
   clearTimeout(threshold)
-  focusContainer()
+  void focusStep()
 })
 
 onBeforeUnmount(() => {
@@ -688,8 +760,22 @@ onBeforeUnmount(() => {
           :fields="current.fields"
           :declaration="jlptVocab"
           :template-key="current.templateKey"
-          :face="face"
-        />
+          :face="step === 'back' ? 'back' : 'front'"
+        >
+          <!-- ⚠️ Keyed by *card*, so the fields, their `bind` and what was typed
+               cannot outlive the *card* they answered. -->
+          <ReviewAnswer
+            ref="steps"
+            :key="current.cardId"
+            :step="step"
+            :declaration="jlptVocab"
+            :typed="typed"
+            :check="check"
+            :stored-reading="current.fields.reading ?? ''"
+            @reading="checkReading"
+            @meaning="checkMeaning"
+          />
+        </ReviewCard>
       </div>
     </div>
 
@@ -700,24 +786,25 @@ onBeforeUnmount(() => {
     -->
     <footer class="legend">
       <div v-if="current" class="column legend-column">
-        <!-- `10` §5.1: the front's legend is `space` — reveal beside `X` — flag,
-             and the back is the four *grade* controls with the `X` line alone
-             `12px` beneath them. ⚠️ **`X` is on both faces** because a *card*
-             can be wrong in a way the *term* alone already shows, and a reader
-             who had to reveal first would be answering it to report it. -->
-        <div v-if="face === 'front'" class="legend-row">
-          <KeyCap cap="space" label="reveal" variant="primary" />
-          <KeyCap cap="X" label="flag" variant="aside" class="flag-cap" />
+        <!-- `10` §5.1 as amended by ADR 0060: the front's legend is `Enter` —
+             check, which covers both steps. The back is the four *grade*
+             controls with the proposal marked, and beneath them `Enter` — the
+             proposal's label, beside `X` — flag. ⚠️ **`X` is on the back only**:
+             on the front an `x` is the first letter of a meaning. -->
+        <div v-if="step !== 'back'" class="legend-row">
+          <KeyCap cap="Enter" label="check" variant="primary" />
         </div>
 
         <template v-else>
           <GradeControls
             :selected="justGraded"
+            :proposed="proposal"
             @grade="give"
           />
 
           <div class="legend-row flag-row">
-            <KeyCap cap="X" label="flag" variant="aside" />
+            <KeyCap cap="Enter" :label="GRADE_KEYS.find(entry => entry.grade === proposal)?.label.toLowerCase()" variant="secondary" />
+            <KeyCap cap="X" label="flag" variant="aside" class="flag-cap" />
           </div>
         </template>
       </div>

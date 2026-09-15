@@ -53,6 +53,15 @@ oversight.
 - **Reading:** `toHiragana(typed) === toHiragana(stored)`, using the same function on both sides. This
   folds katakana, so コーヒー is answered by typing it in hiragana (ADR 0045 stores an all-katakana
   term's reading in katakana). No other variants are accepted.
+
+  ⚠️ **Amended 2026-09-15 by #18: the fold is `toHiragana(text.trim(), { convertLongVowelMark: false })`.**
+  Measured against wanakana 5.3.1: by default `toHiragana('コーヒー')` is `こうひい`, but `ko-hi-`
+  typed through the bound field is `こーひー`, and the default fold leaves `こーひー` as it is. So
+  with the default, every katakana word with a `ー` would be marked wrong however it was typed. That
+  is this ADR's second revisit condition, and it would have shown up on the first day. With the
+  option off both sides fold to `こーひー`, and `こうひい` is refused, which keeps "no other variants".
+  Whitespace around the answer is trimmed. The rule is still one function applied to both sides, in
+  `shared/review/answer.ts`.
 - **Meaning, lenient:** split the stored `meaning` on `,`, `;` and `/`. Normalise both sides:
   lowercase, strip punctuation, collapse whitespace, and drop a leading `to `, `a `, `an ` or `the `.
   Any candidate within an edit distance of **0 for up to 3 characters, 1 for 4–7 and 2 for 8 or

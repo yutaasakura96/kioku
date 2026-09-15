@@ -27,6 +27,11 @@ import type { Grade } from '#shared/review/scheduler'
 defineProps<{
   /** The *grade* just given, for as long as this *card* is still on screen. */
   selected?: Grade | null
+  /**
+   * ⚠️ **The check's proposal, which `Enter` commits** (ADR 0060 §3). It is a
+   * mark and not a selection: the digits still commit any of the four.
+   */
+  proposed?: Grade | null
 }>()
 
 const emit = defineEmits<{ grade: [grade: Grade] }>()
@@ -39,7 +44,7 @@ const emit = defineEmits<{ grade: [grade: Grade] }>()
       :key="entry.grade"
       type="button"
       class="grade"
-      :class="{ selected: selected === entry.grade }"
+      :class="{ selected: selected === entry.grade, proposed: proposed === entry.grade }"
       @click="emit('grade', entry.grade)"
     >
       <span class="digit">{{ entry.key }}</span>
@@ -80,6 +85,20 @@ const emit = defineEmits<{ grade: [grade: Grade] }>()
    carrying a use `05` does not yet list. */
 .grade:hover {
   background: var(--k-key-face);
+}
+
+/* ⚠️ `10` §5.5, amended 2026-09-15 (ADR 0060): **the proposed control is an
+   `--k-ink` border and label, and not the accent.** `05` §2 spends the accent on
+   where you are and nothing else, and the selected face below already means
+   *this grade was given* — so the proposal is the resting control drawn one step
+   darker, which the eye finds without it reading as already chosen. */
+.grade.proposed {
+  border-color: var(--k-ink);
+  box-shadow: inset 0 0 0 1px var(--k-ink);
+}
+
+.grade.proposed .label {
+  color: var(--k-ink);
 }
 
 .grade:active,

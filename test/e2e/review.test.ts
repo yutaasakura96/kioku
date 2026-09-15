@@ -14,10 +14,13 @@
 // - ⚠️ **The *session* is composed server-side and prefetched as a unit**, so
 //   the whole run is in the document before the first keystroke — which is what
 //   `S8` is built on.
-// - ⚠️ **A digit before the reveal does nothing.** A *grade* is arithmetic that
-//   cannot be undone (`03` §2.4) and there is no `Z` on this screen, so the one
-//   input that would permanently answer a question the reader has not been shown
-//   is the one this asserts is inert.
+// - ⚠️ **A digit before the *card* turns does nothing.** A *grade* is arithmetic
+//   that cannot be undone (`03` §2.4) and there is no `Z` on this screen, so the
+//   one input that would permanently answer a question the reader has not been
+//   shown is the one this asserts is inert. Since ADR 0060 the front is a text
+//   field, so the digit is typed rather than ignored.
+// - ⚠️ **Romaji becomes hiragana as it is typed** (ADR 0060 §2). `wanakana`'s
+//   `bind` works on real `input` events, and this is the tier that has them.
 
 import { fileURLToPath } from 'node:url'
 import { createPage, setup, url } from '@nuxt/test-utils/e2e'
@@ -129,24 +132,37 @@ async function openReview() {
   return page
 }
 
+type Page = Awaited<ReturnType<typeof openReview>>
+
+/** ADR 0060 §2: the reading, then the meaning, each checked by `Enter`. */
+async function turn(page: Page, reading = 'toshokan', meaning = 'library') {
+  await page.locator('#answer-reading:focus').waitFor()
+  await page.keyboard.type(reading)
+  await page.keyboard.press('Enter')
+  await page.locator('#answer-meaning:focus').waitFor()
+  await page.keyboard.type(meaning)
+  await page.keyboard.press('Enter')
+  await page.locator('.value.meaning').waitFor()
+}
+
 describe('the key handlers bind to the mode container', () => {
   it('does nothing while focus is on the Done control, and acts when it is back', async () => {
     const page = await openReview()
 
     expect(await grades()).toBe(0)
 
+    await turn(page)
+
     await page.getByRole('link', { name: /Done/ }).focus()
-    await page.keyboard.press(' ')
     await page.keyboard.press('3')
+    await page.keyboard.press('x')
     await page.waitForTimeout(250)
 
     // A `document`-bound handler passes both of those through.
     expect(await grades(), 'a keystroke acted while focus was outside the mode container').toBe(0)
-    expect(await page.locator('.value.meaning').count(), 'space revealed the answer from outside the container').toBe(0)
+    expect(await page.locator('.value.meaning').count(), 'the card moved on from outside the container').toBe(1)
 
     await page.locator('.container').focus()
-    await page.keyboard.press(' ')
-    await page.locator('.value.meaning').waitFor()
     await page.keyboard.press('3')
     await expect.poll(grades, { timeout: 5_000 }).toBe(1)
 
@@ -161,7 +177,7 @@ describe('one session, from the rail to the end screen', () => {
     await acceptedCard('会議␟かいぎ')
   })
 
-  it('reveals, grades, and ends without starting another', async () => {
+  it('answers by typing, commits the proposal, and ends without starting another', async () => {
     const page = await openReview()
 
     // ⚠️ The rail is the header and the only progress indicator in the app
@@ -169,24 +185,38 @@ describe('one session, from the rail to the end screen', () => {
     // to study rather than what the knob asked for.
     expect(await page.locator('.tick').count()).toBe(1)
 
-    // ⚠️ **A digit before the reveal does nothing** — the *card* is face-down
-    // and a *grade* cannot be taken back.
+    // ⚠️ **A digit before the *card* turns does nothing** — it is typed into
+    // the field, and a *grade* cannot be taken back.
     const before = await grades()
+    await page.locator('#answer-reading:focus').waitFor()
     await page.keyboard.press('4')
+    await page.keyboard.press(' ')
     await page.waitForTimeout(250)
     expect(await grades(), 'a grade was recorded before the answer was shown').toBe(before)
+    expect(await page.locator('.value.meaning').count()).toBe(0)
+    await page.locator('#answer-reading').fill('')
 
-    await page.keyboard.press(' ')
+    // ⚠️ `bind` converts as the reader types, in a real browser — and holds a
+    // trailing `n` until the next key, because `na` and `ん` both start with it.
+    // `Enter` arrives on `としょかn`, and the fold is what finishes it.
+    await page.keyboard.type('toshokan')
+    expect(await page.locator('#answer-reading').inputValue()).toBe('としょかn')
+    await page.keyboard.press('Enter')
+    expect(await page.locator('.given .verdict').first().textContent()).toBe('Right')
+    await page.locator('#answer-meaning:focus').waitFor()
+    await page.keyboard.type('the library')
+    await page.keyboard.press('Enter')
     await page.locator('.value.meaning').waitFor()
-    expect(await page.locator('.value.meaning').textContent()).toContain('library')
 
     // ADR 0034's labels — recall, not time. `Again` would promise a same-day
     // return this configuration cannot make.
     const footer = await page.locator('.legend').textContent()
     expect(footer).toContain('Forgot')
     expect(footer).not.toContain('Again')
+    expect(await page.locator('.grade.proposed').textContent()).toContain('Good')
 
-    await page.keyboard.press('3')
+    // ⚠️ `Enter` commits the proposal, stamped at this keystroke (ADR 0060 §4).
+    await page.keyboard.press('Enter')
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
 
     // ⚠️ The end screen shows the run's numbers and **never** starts the next
@@ -253,12 +283,13 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
 
     // ⚠️ **The interface never waits on the flush** (`S8`): both answers are
     // given, and the run ends, with nothing reachable.
-    await page.keyboard.press(' ')
-    await page.locator('.value.meaning').waitFor()
+    await turn(page)
     await page.keyboard.press('3')
 
     // `S9`'s `X` — the outbox's second entry type, behind a *grade* for a
-    // different *card* (ADR 0039 property 3).
+    // different *card* (ADR 0039 property 3). Since ADR 0060 it is on the back
+    // only, so the second *card* is answered first.
+    await turn(page)
     await page.keyboard.press('x')
 
     await page.getByText('Start another session').waitFor()

@@ -1,72 +1,111 @@
-// *Review*'s key map — ADR 0023's `space`-is-forward rule on the other *mode*,
-// and ADR 0034's four digits.
+// *Review*'s key map — ADR 0060's typed answers, and ADR 0034's four digits.
 //
-// ⚠️ **The map is face-dependent and that is the point of testing it.** A
-// *grade* is arithmetic that cannot be undone (ADR 0016, `03` §2.4) — there is
-// no `Z` here, because `Z` is *Vet*'s key and `X` is a flag rather than a
-// correction — so a digit pressed while the *term* is still face-down must do
-// nothing at all. It is the one keystroke in the application that would
-// permanently record an answer to a question the reader has not been shown.
+// ⚠️ **The map is step-dependent and that is the point of testing it.** A
+// *grade* is arithmetic that cannot be undone (ADR 0016, `03` §2.4), so a digit
+// pressed before the reader has answered must do nothing at all — and once the
+// front is a text field, a digit or an `x` typed there is an answer being
+// written, not a command.
 
 import { describe, expect, it } from 'vitest'
 
-import { endScreenAction, reviewAction } from '../../shared/review/keystroke'
+import { endScreenAction, fieldAction, reviewAction } from '../../shared/review/keystroke'
 
-function press(key: string, modifiers: Partial<Record<'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey', boolean>> = {}) {
+type Modifier = 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'isComposing' | 'repeat'
+
+function press(key: string, modifiers: Partial<Record<Modifier, boolean>> = {}) {
   return {
     key,
     ctrlKey: false,
     metaKey: false,
     altKey: false,
     shiftKey: false,
+    isComposing: false,
+    repeat: false,
     ...modifiers,
   }
 }
 
-describe('the front — `space` reveals, and nothing grades', () => {
-  it('reveals on space', () => {
-    expect(reviewAction(press(' '), 'front')).toEqual({ kind: 'reveal' })
-  })
-
-  it('leaves on Escape', () => {
-    expect(reviewAction(press('Escape'), 'front')).toEqual({ kind: 'leave' })
-  })
-
-  // ⚠️ The assertion this file exists for.
-  it.each(['1', '2', '3', '4'])('ignores %s, because the answer is still face-down', (key) => {
-    expect(reviewAction(press(key), 'front')).toBeNull()
+// ⚠️ `Enter` on the meaning field moves focus to the container, and a held key's
+// auto-repeat follows focus. Without this a held `Enter` checks the meaning and
+// commits a *grade* in one press.
+describe('a held key is never an answer', () => {
+  it('ignores a repeated Enter in a field and on the back', () => {
+    expect(fieldAction(press('Enter', { repeat: true }))).toBeNull()
+    expect(reviewAction(press('Enter', { repeat: true }), 'back', false)).toBeNull()
+    expect(reviewAction(press('3', { repeat: true }), 'back', false)).toBeNull()
   })
 })
 
-describe('the back — four grades, and no fifth way forward', () => {
+describe('the front — two fields, and nothing grades', () => {
+  // ⚠️ The assertion this file exists for.
+  it.each(['reading', 'meaning'] as const)('ignores every command key on the %s step', (step) => {
+    for (const key of ['1', '2', '3', '4', ' ', 'x', 'X', 'Enter']) {
+      expect(reviewAction(press(key), step, true)).toBeNull()
+      expect(reviewAction(press(key), step, false)).toBeNull()
+    }
+  })
+
+  // ADR 0060 §7: `space` no longer reveals, because there is nothing to reveal
+  // by hand.
+  it('has no reveal', () => {
+    expect(reviewAction(press(' '), 'reading', false)).toBeNull()
+  })
+
+  it.each(['reading', 'meaning', 'back'] as const)('leaves on Escape from the %s step, in a field or not', (step) => {
+    expect(reviewAction(press('Escape'), step, true)).toEqual({ kind: 'leave' })
+    expect(reviewAction(press('Escape'), step, false)).toEqual({ kind: 'leave' })
+  })
+})
+
+describe('a field checks on Enter', () => {
+  it('checks on Enter', () => {
+    expect(fieldAction(press('Enter'))).toBe('check')
+  })
+
+  // ⚠️ ADR 0060 §7: a system IME finishes its conversion with `Enter`. Checking
+  // there would submit half a word.
+  it('ignores Enter while an IME is composing', () => {
+    expect(fieldAction(press('Enter', { isComposing: true }))).toBeNull()
+    expect(reviewAction(press('Escape', { isComposing: true }), 'reading', true)).toBeNull()
+  })
+
+  it.each([' ', '1', 'x', 'a', 'Tab'])('leaves %j to the field', (key) => {
+    expect(fieldAction(press(key))).toBeNull()
+  })
+})
+
+describe('the back — the proposal, four grades, and the flag', () => {
+  it('commits the proposal on Enter', () => {
+    expect(reviewAction(press('Enter'), 'back', false)).toEqual({ kind: 'commit' })
+  })
+
   it.each([
     ['1', 1],
     ['2', 2],
     ['3', 3],
     ['4', 4],
-  ] as const)('%s grades %i', (key, grade) => {
-    expect(reviewAction(press(key), 'back')).toEqual({ kind: 'grade', grade })
+  ] as const)('%s grades %i, whatever was proposed', (key, grade) => {
+    expect(reviewAction(press(key), 'back', false)).toEqual({ kind: 'grade', grade })
   })
 
-  it('leaves on Escape', () => {
-    expect(reviewAction(press('Escape'), 'back')).toEqual({ kind: 'leave' })
+  it('flags on X', () => {
+    expect(reviewAction(press('x'), 'back', false)).toEqual({ kind: 'flag' })
+    expect(reviewAction(press('X', { shiftKey: true }), 'back', false)).toEqual({ kind: 'flag' })
   })
 
-  // `10` §5.1: the back's footer holds the four grade controls and nothing
-  // else. A `space` that advanced would be a fifth answer with no value behind
-  // it — and it is the key the reader's thumb is already on.
-  it('does nothing on space, which has already done its job', () => {
-    expect(reviewAction(press(' '), 'back')).toBeNull()
+  it.each([' ', '5', '0', 'z', 'Z', 'ArrowRight'])('ignores %j', (key) => {
+    expect(reviewAction(press(key), 'back', false)).toBeNull()
   })
 
-  it.each(['5', '0', 'z', 'Z', 'Enter', 'ArrowRight'])('ignores %s', (key) => {
-    expect(reviewAction(press(key), 'back')).toBeNull()
+  // ⚠️ The container ignores events whose target is a field (ADR 0060 §7).
+  it('ignores a field-targeted event even on the back', () => {
+    expect(reviewAction(press('3'), 'back', true)).toBeNull()
+    expect(reviewAction(press('Enter'), 'back', true)).toBeNull()
   })
 })
 
 // ⚠️ `09` §4.7 step 7: starting another *session* is **one deliberate action and
-// never automatic**, and `space` is safe here "because the key before it was a
-// digit" — the reader cannot arrive on this screen with `space` held down.
+// never automatic**.
 describe('the end screen — one deliberate action', () => {
   it('starts another session on space', () => {
     expect(endScreenAction(press(' '))).toBe('start')
@@ -86,33 +125,11 @@ describe('the end screen — one deliberate action', () => {
 // from the reader's browser — and on this screen it would also record a grade.
 describe('a modified key is never ours', () => {
   it.each(['ctrlKey', 'metaKey', 'altKey'] as const)('answers nothing while %s is held', (modifier) => {
-    for (const key of [' ', '1', '2', '3', '4', 'Escape']) {
-      expect(reviewAction(press(key, { [modifier]: true }), 'front')).toBeNull()
-      expect(reviewAction(press(key, { [modifier]: true }), 'back')).toBeNull()
+    for (const key of [' ', '1', '2', '3', '4', 'x', 'Enter', 'Escape']) {
+      expect(reviewAction(press(key, { [modifier]: true }), 'back', false)).toBeNull()
+      expect(reviewAction(press(key, { [modifier]: true }), 'reading', true)).toBeNull()
+      expect(fieldAction(press(key, { [modifier]: true }))).toBeNull()
       expect(endScreenAction(press(key, { [modifier]: true }))).toBeNull()
     }
-  })
-})
-
-// ⚠️ **`S9`'s `X`, and the reason it is not face-dependent.** A digit answers a
-// question; `X` reports that the question should not have been asked — it
-// advances **without a *grade*** and leaves *Review* history untouched (`09`
-// §4.9, `04` §7.8), so a *card* that is wrong in a way the *term* alone shows is
-// caught before the answer is read. `10` §5.1 puts its legend line on both
-// faces, which is the same fact drawn.
-describe('`X` — the flag (`S9`, `10` §5.1)', () => {
-  it.each(['front', 'back'] as const)('flags on %s', (face) => {
-    expect(reviewAction(press('x'), face)).toEqual({ kind: 'flag' })
-    expect(reviewAction(press('X', { shiftKey: true }), face)).toEqual({ kind: 'flag' })
-  })
-
-  // The same rule the rest of the map follows: a modifier means the keystroke
-  // belongs to the browser.
-  it.each(['ctrlKey', 'metaKey', 'altKey'] as const)('ignores it under %s', (modifier) => {
-    expect(reviewAction(press('x', { [modifier]: true }), 'back')).toBeNull()
-  })
-
-  it('is not a grade, and does not become one on the back', () => {
-    expect(reviewAction(press('x'), 'back')).not.toMatchObject({ kind: 'grade' })
   })
 })

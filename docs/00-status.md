@@ -6,7 +6,7 @@ and is the app they're studied in. First subject: JLPT vocabulary.
 **60 ADRs** — ADR 0060, typed answers, added 2026-09-15; ⚠️ **this said 58 until 2026-09-12** —
 eleven documents, and **three open issues** on the tracker as of 2026-09-15 — #1 the spec,
 **#17**, the worker's heartbeat window, opened from the first run's evidence, and **#18**, typed
-answers (ADR 0060), `ready-for-agent` and **the frontier**. ⚠️ **#14 closed
+answers (ADR 0060), ⚠️ **built 2026-09-15 and closing on merge**. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
@@ -42,7 +42,14 @@ the run**, and it opens with Part 1 of `docs/first-run-expectation.md`, not with
 comes next is **typed answers**, which the reader named as what he was aiming for. The decision is
 made, in **ADR 0060** (2026-09-15, Yuta's four answers): it replaces self-grading, is one *card* with two
 steps, the check proposes the *grade* and the digits overrule it, and the meaning match is lenient.
-**The next command is `/implement 18`, in a fresh window.**
+~~**The next command is `/implement 18`, in a fresh window.**~~
+⚠️ **#18 built 2026-09-15.** `/review` is answered by typing. `shared/review/answer.ts` does the
+check and `app/components/ReviewAnswer.vue` holds the two fields. `Enter` commits the proposal,
+`1`–`4` overrule it, and `X` works on the back only. `wanakana` 5.3.1 is the eighth pin (`03` §13.5).
+**One thing the build found and ADR 0060 now carries:** the fold is `toHiragana` with
+`convertLongVowelMark: false`. With the default, every katakana word with a `ー` would have been
+marked wrong. **What is left is the reader's run: a *session* of the 39 *cards* already minted**,
+which gives time-to-first-review and the false-accept rate their first real reading.
 **Updated:** 2026-09-15
 
 Read `CLAUDE.md` first, then this.

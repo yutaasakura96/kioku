@@ -244,7 +244,7 @@ draws it on the screens where it has stopped.**
 | *Vet*, editing | **On the field being edited** (ADR 0025) |
 | *Vet*, run-end confirmation (§4.6) | **Yes**, on the two controls |
 | *Vet*, any empty state (§4.5) | **Yes**, on Done and the affordance |
-| *Review*, front or back | None |
+| *Review*, front or back | None on the container. ⚠️ **Amended 2026-09-15 (ADR 0060): on the front, the ring is on the answer field that has focus** |
 | *Review*, end screen and both non-terminal empty states | **Yes** — three focusable elements: the *session*-size knob, "Start another session", Done |
 
 The token and its geometry are unchanged: `--k-focus` (`--k-accent`, 5.38), 2px outline at 2px
@@ -537,6 +537,29 @@ Front: the *term* alone at 104px Mincho 400, centred both ways.
 Back: *term*, *reading* `16px` below, a full-width `--k-rule-raised` at `38px / 34px`, the *meaning*
 at 36px Newsreader 300, the example pair `28px` down, the fact row `40px` below that.
 
+⚠️ **Amended 2026-09-15 by [ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md)
+(#18): the front is no longer the *term* alone.** The *term* stays centred in the space above, and
+the two answer steps sit at the bottom of the card (`app/components/ReviewAnswer.vue`):
+
+| Step | What is under the *term* |
+| --- | --- |
+| Reading | A row, `32px` below: the `READING` eyebrow (10px mono, 0.14em, `--k-ink-secondary`, a 76px column) and a text field. The field converts romaji to hiragana as the reader types (`wanakana` `bind`) |
+| Meaning | The reading row becomes its result: what was typed, the verdict `RIGHT` or `WRONG` (12px mono, upper-case, `--k-ink`) and the stored *reading* in `--k-ink-quiet`. A second row, `16px` below, holds the `MEANING` eyebrow and a text field for plain English |
+| Back | Everything above, then the card's last row: a full-width `--k-rule-raised` at `40px / 28px` and both results, `8px` apart, with no stored *reading* beside the first because the card already shows it |
+
+The rows are 420px wide and centred on the front, and full width on the back. The fields are *Vet*'s
+edit field (§4.4) at *Review*'s sizes: `--k-raised`, `1px --k-border-control`, `--k-radius-control`,
+`9px 12px`. The reading field is 25px Mincho and the meaning field 22px Newsreader 400. They are the
+only focus ring in a running *Review* (§4.2).
+
+**The verdict is a word, not a colour.** `05` §2 spends the accent on *where you are*, and a red that
+meant *wrong* would also be the only cue a colour-blind reader could miss (SC 1.4.1).
+
+On a phone (§10.2) the rows are `24px` below the *term* and have a 64px eyebrow column. The reading
+field is 18px and the meaning field 17px. **16px is iOS Safari's floor for a focused field**; below
+it the page zooms on focus. When `Enter` on the meaning field turns the card, focus moves to the
+container, so the on-screen keyboard closes and the four controls are in reach.
+
 ### 5.5 The grade controls
 
 `05` §7's geometry stands: four controls in a row, `12px` apart, spanning 760px, each a stacked pair
@@ -567,6 +590,18 @@ increments it).
 Digits are 12px Plex Mono, labels 14px Newsreader 400 (`05` §4). **A *grade* is stamped at the
 keystroke and the interface never waits on the flush** (`S8`, ADR 0007) — so the selected state is
 visible for exactly as long as it takes the next *card* to render, and it is not a loading state.
+
+⚠️ **Amended 2026-09-15 by ADR 0060 (#18): one control is marked *proposed*.** The check proposes
+`3` Good when both steps were right and `1` Forgot otherwise, and `Enter` commits it. The digits
+`1`–`4` and a click still commit any *grade*, which is how a wrong result is overruled.
+
+| State | Face | Border | Digit | Label |
+| --- | --- | --- | --- | --- |
+| **Proposed** | `--k-raised` | **`2px --k-ink`** (a 1px border plus a 1px inset) | `--k-ink-value` | **`--k-ink`** |
+
+The proposed control is the resting control drawn one step darker. It does not use the accent (`05`
+§2), and it does not use the selected face, which already means *this grade was given*. Beneath the
+four, the legend line is `Enter` — the proposal's label, beside `X` — flag.
 
 ### 5.6 The end screen
 

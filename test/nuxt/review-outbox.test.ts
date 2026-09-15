@@ -145,9 +145,23 @@ async function press(view: Mounted, key: string) {
   await flushPromises()
 }
 
-/** `space`, then the digit — a *grade* is refused while the *card* is face-down. */
+/** Types into an answer field and presses `Enter` there (ADR 0060 §2). */
+async function type(view: Mounted, selector: string, text: string) {
+  const field = view.find(selector)
+  await field.setValue(text)
+  await field.trigger('keydown', { key: 'Enter' })
+  await flushPromises()
+}
+
+/** Both steps, so the *card* is on its back — right by default. */
+async function turn(view: Mounted, reading = 'としょかん', meaning = 'library') {
+  await type(view, '#answer-reading', reading)
+  await type(view, '#answer-meaning', meaning)
+}
+
+/** Both steps, then the digit — a *grade* is refused until the *card* has turned. */
 async function answer(view: Mounted, key: string) {
-  await press(view, ' ')
+  await turn(view)
   await press(view, key)
 }
 
@@ -216,7 +230,7 @@ describe('property 3 — replay is in order, across two entry types', () => {
     server.reachable = false
 
     await answer(view, '3')
-    await press(view, 'x')
+    await answer(view, 'x')
 
     expect(parseOutbox(stored(OUTBOX_KEY)).map(entry => entry.kind)).toEqual(['grade', 'flag'])
 
@@ -231,7 +245,7 @@ describe('property 3 — replay is in order, across two entry types', () => {
     server.reachable = false
 
     await answer(view, '3')
-    await press(view, 'x')
+    await answer(view, 'x')
 
     expect(server.seen).toEqual([])
   })
@@ -267,7 +281,7 @@ describe('property 4 — the durable record decides, including after a reload', 
     }))
 
     const view = await open()
-    await press(view, ' ')
+    await turn(view)
 
     // ⚠️ The server's answer for this *card* says `library`; the store says
     // otherwise, and the store is what the reader was handed.
@@ -340,13 +354,13 @@ describe('the flag advances without a grade', () => {
   it('marks the position flagged, moves on, and counts no grade', async () => {
     const view = await open()
 
-    await press(view, 'x')
+    await answer(view, 'x')
 
     expect(view.findAll('.tick.flagged')).toHaveLength(1)
     expect(view.findAll('.tick.graded')).toHaveLength(0)
     await vi.waitFor(() => expect(server.seen).toEqual([`flag:${FIRST}`]))
 
-    await press(view, 'x')
+    await answer(view, 'x')
 
     // ⚠️ A run can end with no *grades* at all, and the tally says so rather
     // than inventing one (ADR 0053).
@@ -354,16 +368,128 @@ describe('the flag advances without a grade', () => {
     expect(view.findAll('.figure').map((figure: { text: () => string }) => figure.text())).toEqual(['0', '0', '0', '0'])
   })
 
-  // `10` §5.1: the legend carries `X` on both faces, because a *card* can be
-  // wrong in a way the *term* alone already shows.
-  it('is offered on the front and on the back', async () => {
+  // ⚠️ ADR 0060 §7 moved `X` to the back only: on the front an `x` is the first
+  // letter of a meaning.
+  it('is offered on the back only, and an x typed on the front is typing', async () => {
     const view = await open()
 
-    expect(view.find('.legend').text()).toContain('flag')
+    expect(view.find('.legend').text()).toContain('check')
+    expect(view.find('.legend').text()).not.toContain('flag')
 
-    await press(view, ' ')
+    await press(view, 'x')
+    const field = view.find('#answer-reading')
+    await field.setValue('x')
+    await field.trigger('keydown', { key: 'x' })
+    await flushPromises()
+
+    expect(view.findAll('.tick.flagged')).toHaveLength(0)
+    expect(parseOutbox(stored(OUTBOX_KEY))).toEqual([])
+
+    await field.setValue('としょかん')
+    await field.trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+    await type(view, '#answer-meaning', 'library')
 
     expect(view.find('.legend').text()).toContain('flag')
     expect(view.find('.legend').text()).toContain('Forgot')
+  })
+})
+
+// ADR 0060 on the screen: the check proposes, `Enter` commits the proposal, a
+// digit overrules it, and only the *grade* reaches the outbox.
+describe('the typed answer proposes the grade (ADR 0060)', () => {
+  function owed() {
+    return parseOutbox(stored(OUTBOX_KEY))
+  }
+
+  it('shows each result as it is checked, with the stored reading', async () => {
+    const view = await open()
+
+    await type(view, '#answer-reading', 'としょか')
+
+    expect(view.find('.answers').text()).toContain('Wrong')
+    expect(view.find('.answers').text()).toContain('としょかん')
+    expect(view.find('#answer-meaning').exists()).toBe(true)
+    expect(view.find('.value.meaning').exists(), 'the card turned before the meaning was asked').toBe(false)
+
+    await type(view, '#answer-meaning', 'libary')
+
+    expect(view.find('.value.meaning').text()).toBe('library')
+    expect(view.findAll('.given .verdict').map((verdict: { text: () => string }) => verdict.text())).toEqual(['Wrong', 'Right'])
+  })
+
+  it('proposes Good when both are right, and Enter commits it', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view)
+
+    expect(view.find('.grade.proposed').text()).toBe('3Good')
+
+    await press(view, 'Enter')
+
+    expect(owed().map(entry => entry.kind === 'grade' && entry.grade)).toEqual([3])
+  })
+
+  it('proposes Forgot when either is wrong', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view, 'としょかん', 'station')
+
+    expect(view.find('.grade.proposed').text()).toBe('1Forgot')
+
+    await press(view, 'Enter')
+
+    expect(owed().map(entry => entry.kind === 'grade' && entry.grade)).toEqual([1])
+  })
+
+  // ⚠️ "I was actually right" is a keystroke the reader already knows.
+  it('lets a digit overrule the proposal', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view, 'としょかん', 'librarian office')
+    await press(view, '3')
+
+    expect(owed().map(entry => entry.kind === 'grade' && entry.grade)).toEqual([3])
+  })
+
+  it('grades nothing from inside a field', async () => {
+    const view = await open()
+    server.reachable = false
+
+    for (const key of ['1', '3', ' ', 'x'])
+      await view.find('#answer-reading').trigger('keydown', { key })
+
+    await flushPromises()
+
+    expect(owed()).toEqual([])
+    expect(view.find('#answer-reading').exists()).toBe(true)
+  })
+
+  it('ignores Enter while an IME is composing', async () => {
+    const view = await open()
+
+    const field = view.find('#answer-reading')
+    await field.setValue('としょかん')
+    await field.trigger('keydown', { key: 'Enter', isComposing: true })
+    await flushPromises()
+
+    expect(view.find('#answer-meaning').exists()).toBe(false)
+  })
+
+  // ⚠️ ADR 0060 §4: the typed text and the result are not recorded — no column,
+  // and no second outbox entry kind.
+  it('persists the grade and nothing that was typed', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view, 'としょかん', 'a very particular answer')
+    await press(view, 'Enter')
+
+    const everything = Object.keys(localStorage).map(key => localStorage.getItem(key)).join('\n')
+    expect(everything).not.toContain('a very particular answer')
+    expect(Object.keys(owed()[0]!).sort()).toEqual(['cardId', 'grade', 'kind', 'reviewedAt', 'seq', 'sessionId'])
   })
 })

@@ -29,7 +29,8 @@
     "pg": "8.23.0",
     "ts-fsrs": "5.4.2",
     "vue": "^3.5.42",
-    "vue-router": "^5.2.0"
+    "vue-router": "^5.2.0",
+    "wanakana": "5.3.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

@@ -818,6 +818,13 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
   does not own, and drizzle-kit would emit the migration without anyone deciding to. **It is a
   regenerate-and-review event, not a version bump** — the same shape as `SudachiDict-core` above,
   for the same reason.
+- ⚠️ **`wanakana` 5.3.1, exactly** — added 2026-09-15 with
+  [#18](https://github.com/yutaasakura96/kioku/issues/18) (ADR 0060). It converts the reading field
+  as the reader types and folds both sides of the reading check, and
+  `shared/review/answer.ts` depends on one measured behaviour of this release:
+  `convertLongVowelMark: false` keeps `ー`, while the default spells it out. A release that changed
+  what the fold does would change which answers count as right without any test in this repository
+  noticing the reason. Its last publish was 2023-11-20, so the pin costs nothing. **It makes eight.**
 
 ⚠️ **One `overrides` entry, and it is not a pin.** `package.json` carries
 `"overrides": { "better-auth": { "vitest": "$vitest" } }`.

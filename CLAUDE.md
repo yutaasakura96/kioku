@@ -43,7 +43,7 @@ than after it (ADR 0037).
 **The commands:**
 
 ```
-npm run test        # 694 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 734 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
@@ -173,8 +173,9 @@ history.
   wherever it sits and maintains `uv.lock` (verified 2026-09-10).
 - ⚠️ **The first commit that adds a dependency manifest owes a bot in the same commit.** `03` §13.5:
   a bot has nothing to read until a `package.json` or `requirements.txt` exists, so Renovate or
-  Dependabot is configured *with* the first one rather than afterwards. **Seven pins that a routine
-  bump must not touch** are listed there — `psycopg[binary]` ≥ 3.2.4, `SudachiDict-core` 20260723
+  Dependabot is configured *with* the first one rather than afterwards. **Eight pins that a routine
+  bump must not touch** are listed there (the eighth, `wanakana` 5.3.1, arrived with #18 on
+  2026-09-15) — `psycopg[binary]` ≥ 3.2.4, `SudachiDict-core` 20260723
   (moving it can change the identity of existing *notes*), Nuxt 4.5.2 with `nitropack ^2.13.4`,
   `ts-fsrs` 5.4.2, `drizzle-orm` 0.45.2 (a security floor — `03` §13.2), and
   `@electric-sql/pglite` 0.5.8 **with the Postgres image tag beside it**, because `04` defaults every
