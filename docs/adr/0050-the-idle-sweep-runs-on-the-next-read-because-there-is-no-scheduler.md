@@ -10,7 +10,7 @@ to carry the horizon anyway." #10 built the first two and found that the third h
 
 ## There is no scheduler, and the two obvious ones are both closed
 
-**Vercel Cron is forbidden.** [ADR 0022](0022-vercel-neon-and-a-local-worker-until-the-numbers-say-otherwise.md)'s
+**Vercel Cron is forbidden.** [ADR 0022](0022-the-first-deployment-is-deliberately-temporary.md)'s
 whole premise is that the move to EC2 or Lightsail stays a Nitro preset change plus a `pg_dump`, and
 `CLAUDE.md` states it as a hard constraint: nothing may depend on a Vercel-only feature — no KV, no
 Blob, **no Cron**.
