@@ -94,6 +94,22 @@ The re-vetting path owns: the queue query, `decide()` against a flagged *note*, 
 resolved_at`, lifting ADR 0052's freeze, and the first *scheduling epoch* reset. It is the natural
 home for `04` §7.4's reset, which nothing has needed until now.
 
+## Amendment — 2026-09-16, the queue this returns a note to now exists
+
+This ADR's five open items were carried as an unopened ticket for four days because there was no
+queue for a flagged *note* to come back to. [ADR 0064](0064-a-chosen-word-mints-its-cards-on-arrival.md)
+makes the flag queue the whole of *Vet*, and settles the three items that were decisions rather than
+code:
+
+- **The queue query** is `card_flag (note_id) WHERE resolved_at IS NULL`, oldest first (ADR 0049).
+- **`decide()` against an `accepted` *note*** is the only case there is now, because every *note*
+  reaching *Vet* is accepted by construction.
+- **ADR 0052's freeze lifts**, for a *note* with an unresolved flag and no other.
+
+What is left is code: `card_flag.resolved_at`, and the first *scheduling epoch* reset the application
+has ever written, for a change to a *memory-bearing field*.
+⚠️ **`note_vetting.flagged_at` finally has a reader.**
+
 ## Revisit if
 
 The re-vetting ticket finds that a flagged *note* is better modelled as a fourth state after all —

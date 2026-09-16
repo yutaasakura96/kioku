@@ -106,6 +106,17 @@ worth far more than prompt caching, which saves cents.
 **The walk is recorded, not just performed.** Each *ingestion* already stores its model id (ADR
 0004, ADR 0010), so the comparison is a query over existing data rather than a separate experiment.
 
+## Amendment — 2026-09-16, the instrument changed and the walk is slower
+
+*Acceptance rate* is retired (ADR 0062), so the model walk described here has lost the number it was
+going to walk down. **The boundary half of this ADR is untouched** and is what made the swap cheap in
+the first place.
+
+What replaces the instrument is *flag rate*, distinct *cards* flagged over *cards* minted, and it is
+slower by weeks rather than by hours: a wrong meaning is found when the *card* comes back, not when
+it is made. ⚠️ **So the walk waits for a reading rather than being run on a quiet afternoon.** The
+revisit condition below is unchanged and now has that extra precondition.
+
 ## Revisit if
 
 A benchmark appears that actually measures Japanese structured extraction, or the first real

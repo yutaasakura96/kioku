@@ -5,20 +5,36 @@ the app they are studied in.
 
 ## Language
 
-**Acceptance rate**:
-Notes accepted with no edit ÷ notes generated. The project's primary health metric — a low rate
-means the generation pipeline is failing regardless of how good the app feels.
-_Avoid_: accuracy, quality score, hit rate
+**Acceptance rate** — ⚠️ **retired 2026-09-16 (ADR 0062)**:
+Notes accepted with no edit ÷ notes generated. It was the primary health metric while the pipeline
+chose the words and a human accepted them. Nothing is accepted now (ADR 0064), so the number is 100%
+by construction. Kept here so the word is recognised in older documents and not reused for something
+else. **Retention** and **flag rate** are what replaced it.
 
 **Time-to-first-review**:
 Minutes from submitting a source to answering the first card generated from it. Above roughly ten
 minutes, Kioku is a different chore rather than a replacement for hand-authoring.
 _Avoid_: ingestion time, latency, turnaround
 
-**Seconds-per-note**:
-Median wall-clock time to vet one note that is accepted without edit. The other half of acceptance
-rate — a high acceptance rate reached slowly is a failed thesis, not a passing one.
-_Avoid_: vetting speed, throughput, time per card
+**Seconds-per-note** — ⚠️ **retired 2026-09-16 (ADR 0062)**:
+Median wall-clock time to vet one note accepted without edit. It measured a step the reader no longer
+performs. Read 1.76 s over 39 notes on 2026-09-14, once, and that reading is in
+`docs/first-run-expectation.md`.
+
+**Retention**:
+Grades of Good or Easy ÷ grades given, over the trailing 30 days, counting only cards that were in
+the Review state when asked. The headline number: whether what was studied stayed learned.
+_Avoid_: accuracy, recall rate, success rate, pass rate
+
+**Consistency**:
+Days with at least one grade ÷ days in the trailing 30. The second headline, and deliberately not a
+streak — a streak is zero the morning after one missed day, which is the morning it is read.
+_Avoid_: streak, adherence, engagement
+
+**Flag rate**:
+Distinct cards flagged ÷ cards minted. The check on the model's fills, and the instrument ADR 0018's
+model walk has left. Replaced *false-accept rate*, whose denominator was acceptances.
+_Avoid_: error rate, defect rate, false-accept rate
 
 **Source**:
 The material a note was extracted from — a pasted document, list or file — retained after ingestion.
@@ -46,9 +62,20 @@ Another card derived from the same note.
 _Avoid_: related card, variant, duplicate
 
 **Subject**:
-A body of material studied together, declared once as a schema plus the ordered pipeline stages its
-ingestion needs. JLPT vocabulary is the first.
-_Avoid_: topic, domain, category, course
+A body of material studied together, declared once as a schema plus, per *source kind*, the ordered
+pipeline stages its ingestion needs (ADR 0063). JLPT vocabulary is the first, and there is one.
+_Avoid_: topic, category, course. ⚠️ *Domain* left this list on 2026-09-16 and is its own term below.
+
+**Domain**:
+A subject-declared label on a term saying what kind of language it is — `tech`, `business`, `daily`,
+`academic`, `general`. Carried as an attributed claim like a *level*, filled by the model, and used
+to choose which new cards are introduced. The reason this app exists rather than WaniKani.
+_Avoid_: topic, category, tag, field
+
+**Source kind**:
+Which of three shapes a source is: a `word_list` of chosen terms, `prose` to be mined, or an `anki`
+deck. It selects the pipeline the ingestion runs.
+_Avoid_: type, format, mode
 
 **Pipeline stage**:
 One named step an ingestion runs, selected by the subject. Tokenisation is a stage; a subject that
@@ -69,17 +96,18 @@ A field whose value the LLM chose or wrote rather than looked up. The only field
 _Avoid_: generated field, AI field, uncertain field
 
 **Pending**:
-A note that has been generated but not yet vetted. Mints no cards and is never studied.
+A note that has been generated but not vetted. Mints no cards and is never studied. ⚠️ After
+ADR 0064 nothing new arrives in this state; what holds it is the 474 notes the 2026-09-14 prose run
+produced, which `filter_known` now treats as a cache of work already paid for.
 _Avoid_: provisional, draft, unconfirmed, staged
 
 **Accepted**:
 A note a human has confirmed at vetting. Minting its cards is what acceptance means.
 _Avoid_: approved, confirmed, published
 
-**False-accept rate**:
-Notes accepted at vetting that were later flagged wrong ÷ notes accepted. Detects a vetting step that
-has become theatre.
-_Avoid_: error rate, defect rate
+**False-accept rate** — ⚠️ **superseded 2026-09-16 by *flag rate* (ADR 0062)**:
+Notes accepted at vetting that were later flagged wrong ÷ notes accepted. It detected a vetting step
+that had become theatre. There is no vetting step to catch out.
 
 **Authority**:
 A named external body of opinion a level claim cites — a community word list, a published exam guide.
@@ -119,9 +147,11 @@ A bounded, finishable run of due cards, prefetched as a unit and sized to be fin
 to exhaust what is due.
 _Avoid_: queue, batch, round, set
 
-**Vetting**:
-The human check of a generated note before it mints cards — accept, edit or reject. Distinct from
-review, which is answering a due card.
+**Vetting** — ⚠️ **moved 2026-09-16 (ADR 0064)**:
+The human check of a note. It used to happen before a note minted cards; a chosen word now mints on
+arrival and the check happens only when the reader flags a card during review. *Vet* is the flag
+queue, and its three resolutions are fix, keep and drop. Still distinct from review, which is
+answering a due card.
 _Avoid_: review, approval, triage, curation, moderation
 
 **Review**:

@@ -1452,6 +1452,43 @@ completion. The spend ledger is deliberately left as one immediate statement, be
 lost cache write is a second real charge.
 → [ADR 0061](adr/0061-the-worker-heartbeats-while-the-model-streams.md)
 
+### [2026-09-16] Retention and consistency are the headline, and acceptance rate retires
+The pivot removes the step *acceptance rate* and *seconds-per-note* measured, so both are retired
+rather than demoted. Retention (Good or Easy over reviews of *cards* in the Review state, trailing 30
+days) and consistency (days studied over 30) replace them, *false-accept rate* becomes *flag rate*
+over *cards* minted, and *time-to-first-review* survives with its clock starting at the word list.
+The cost is that ADR 0018's model walk loses its fast instrument.
+→ [ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)
+
+### [2026-09-16] The input is a chosen word list, and a source declares its pipeline
+`source.kind` is `word_list`, `prose` or `anki`, and the *subject* declaration names one ordered list
+of *pipeline stages* per kind instead of one overall. The word-list pipeline replaces tokenisation
+and candidate extraction with a `normalise` stage, chunks at 25 terms, and keeps Sudachi because the
+reading is half the *identity key*. Prose ingestion stays built and stops being the default.
+→ [ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md)
+
+### [2026-09-16] A chosen word mints its cards on arrival, and Vet becomes the flag queue
+A *note* from a chosen word is written `accepted` and mints its *card* in the same transaction, owned
+by the *ingestion*'s requester. *Vet* keeps its screen and its keystrokes and shows only flagged
+*cards*, with fix, keep and drop as the three resolutions. ADR 0052's freeze lifts for a *note* whose
+*card* carries an unresolved flag, and editing a *memory-bearing field* writes the application's first
+superseded *scheduling epoch*.
+→ [ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)
+
+### [2026-09-16] A domain is a claim like a level, and a filter only touches the new half
+Every term carries a *domain* and a *level*, both filled by the model in the same request as the six
+*fields*. *Domain* gets a `domain_claim` table shaped like `level_claim`, and both value sets are
+declared closed in the *subject* so a filter cannot miss on a synonym. A filtered *session* restricts
+which new *cards* are introduced and never which due *cards* are owed.
+→ [ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md)
+
+### [2026-09-16] The review load has a brake
+At most ten new *cards* a day, none at all while fifty or more are due, counted at composition on a
+new `review_session.new_count` column, over a local day starting at 04:00. The backlog is ordered by
+`get_retrievability` ascending when the due set is larger than the *session*, which corrects a comment
+in `compose.ts` that assumed equal stability. Nothing caps how many due *cards* may be answered.
+→ [ADR 0066](adr/0066-the-review-load-has-a-brake.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

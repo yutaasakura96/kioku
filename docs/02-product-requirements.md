@@ -49,6 +49,11 @@ is no path to create an account from inside the app. (ADR 0012)
 
 ### S2 — Turn a wall of text into notes `MUST`
 
+⚠️ **Amended 2026-09-16 ([ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md)).** The wall of
+text is no longer how words get in. A *source* is a `word_list`, `prose` or an `anki` deck, and the
+story's own criterion, control returns immediately and *notes* appear as they are produced, holds
+unchanged for all three. Prose ingestion stays built and stops being the default.
+
 > As the reader, I want to paste two pages of Japanese and walk away, so that I get *notes* without
 > authoring them.
 
@@ -57,6 +62,12 @@ background job; *notes* appear in the *vetting* queue as they are produced rathe
 *source* finishes. The first *note* is vettable while the rest are still generating. (ADR 0010)
 
 ### S3 — Vet a note in one keystroke `MUST`
+
+⚠️ **Retired 2026-09-16 ([ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)).** A
+chosen word mints its *cards* on arrival and nobody vets it. The keystrokes below survive on the flag
+queue; the criterion does not, because median *seconds-per-note* measures a step the reader no longer
+performs ([ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)).
+Read once, 1.76 s over 39, on 2026-09-14.
 
 > As the reader, I want to accept a correct *note* without touching the mouse, so that *vetting*
 > eight hundred *notes* is possible at all.
@@ -70,6 +81,10 @@ instead of removing it. (ADR 0004)
 
 ### S4 — Only look at what needs looking at `MUST`
 
+⚠️ **Narrowed 2026-09-16 (ADR 0064).** The *facts strip* and the zoning are unchanged, and the
+argument for them is weaker: on the flag queue every field is suspect, because the reader is there
+precisely because one of them is wrong.
+
 > As the reader, I want the screen to show me the *judgement fields* and not make me proofread
 > dictionary lookups, so that *vetting* is a decision rather than a transcription check.
 
@@ -80,6 +95,10 @@ available on inspection. (ADR 0004, ADR 0005)
 
 ### S5 — Say no once and mean it `MUST`
 
+⚠️ **Moved 2026-09-16 (ADR 0064).** Saying no is now the **drop** resolution on a flagged *card*:
+the flag resolves, the *card* stays *suspended*, and the *note* is written `rejected` so
+`filter_known` never offers the term again. The rule is the same one, said later.
+
 > As the reader, I want a *rejected* term to stay rejected, so that *vetting* cost tracks new
 > material rather than corpus size.
 
@@ -88,6 +107,11 @@ fiftieth *source* asks about fewer *notes* than the fifth, given overlapping mat
 ADR 0010)
 
 ### S6 — Fix a note before accepting it `MUST`
+
+⚠️ **Moved 2026-09-16 (ADR 0064).** The same editor, at a different moment: *fix a card after
+flagging it*. [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md)'s
+freeze lifts for a *note* whose *card* carries an unresolved flag, and editing a *memory-bearing
+field* supersedes the *scheduling epoch*.
 
 > As the reader, I want to correct a wrong meaning at *vetting*, so that a small error doesn't cost
 > the whole *note*.
@@ -112,6 +136,11 @@ testing.
 
 ### S7 — Study a session that ends `MUST`
 
+⚠️ **Extended 2026-09-16 ([ADR 0066](adr/0066-the-review-load-has-a-brake.md)).** The *session*
+still ends and is still a fixed size. What is new is the brake on what goes into it: at most ten new
+*cards* a day, none while fifty or more are due, and a backlog ordered by what is closest to being
+forgotten. Nothing caps how many due *cards* may be answered.
+
 > As the reader, I want a *session* with a visible end, so that I finish instead of quitting.
 
 **Acceptance:** a *session* is a fixed number of *cards*, default 20 and reader-settable. It is
@@ -131,6 +160,9 @@ nothing once it comes back. (ADR 0007)
 
 ### S9 — Catch a bad card after a month `MUST`
 
+⚠️ **Completed 2026-09-16 (ADR 0064).** The queue this story returns a *note* to now exists: it is
+the whole of *Vet*. Three resolutions, fix, keep and drop.
+
 > As the reader, I want a one-action "this is wrong" during *review*, so that a *note* that survived
 > *vetting* can still be caught.
 
@@ -139,6 +171,11 @@ queue flagged, and records the flag against the *note*'s *source* **and** prompt
 counted into *false-accept rate*. (ADR 0004)
 
 ### S10 — See whether the thesis holds `MUST`
+
+⚠️ **Amended 2026-09-16 (ADR 0062).** The numbers are **retention**, **consistency**, **flag
+rate**, *time-to-first-review*, and tokens and cost. *Acceptance rate* and median *seconds-per-note*
+are retired, and *false-accept rate* is *flag rate* with a denominator that still means something.
+The suppression rule survives with a per-metric threshold (ADR 0058).
 
 > As the reader, I want the four numbers, so that I learn whether Kioku works rather than whether it
 > feels nice.

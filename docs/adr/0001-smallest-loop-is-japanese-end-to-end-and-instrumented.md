@@ -22,3 +22,20 @@ scheduler moved the card.
 - **Japanese, generation and vetting only, no scheduling.** Rejected: it deletes the half that shows
   the cards are *studyable* rather than merely *plausible*, and §4.3's real question — what catches a
   bad card after a month of study — is invisible without a review loop.
+
+## Amendment — 2026-09-16, the loop changed shape
+
+The loop ran once, on 2026-09-14, and what it produced is in `docs/first-run-expectation.md`. It did
+what this ADR asked: it emitted the two numbers. The numbers then said the thesis this loop was built
+to test is not the one the reader wants tested (ADR 0062), so the loop is restated:
+
+**upload a list of chosen words → get *cards* without being asked → study them on two consecutive
+days, twice, with no backlog waiting at the end.**
+
+Two things survive unchanged and they are the two this ADR was actually about. The loop is still
+end to end, and it is still instrumented from the first commit rather than afterwards. What changed is
+which numbers come out of it: retention, consistency and flag rate, per
+[ADR 0062](0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md).
+*Twice* is new, and it is [ADR 0066](0066-the-review-load-has-a-brake.md)'s doing: one pass through
+two days proves the scheduler moved a *card*, and a second pass a week later is the only thing that
+proves the load did not pile up.

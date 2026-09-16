@@ -104,6 +104,24 @@ reviewed, so *time-to-first-review* and the false-accept rate have no reading ye
 `docs/first-run-expectation.md`. Still no baseline exists to regress from, so the revisit condition
 below is not met.
 
+## Amendment — 2026-09-16, the numbers changed and the argument did not
+
+ADR 0062 retires *acceptance rate* and *seconds-per-note* and puts retention, consistency and flag
+rate in their place. **Nothing in this ADR's argument depends on which numbers they are.** A
+threshold on retention is a fact about the reader and a corpus, exactly as a threshold on
+*seconds-per-note* was, and the suite's job is still to assert that the number is recorded correctly.
+
+The table above is re-pointed:
+
+| The number | What the suite asserts |
+| --- | --- |
+| Retention | Only `review_log.state = 2` rows count. A first answer (state 0) is not retention and a relearning answer (state 3) is not a second failure |
+| Consistency | Days are counted in the reader's local day starting 04:00 (ADR 0066), so two *grades* either side of midnight are two days and two either side of 02:00 are one |
+| *Flag rate* | Distinct *cards* flagged, over *cards* minted. A second flag on one *card* is a second row and not a second flag |
+| *Time-to-first-review* | Unchanged (ADR 0057), with the *source* now usually a word list |
+| Tokens and cost | Unchanged |
+| All ratios | Suppressed under their own evidence threshold, with the raw pair shown (ADR 0058) |
+
 ## Revisit if
 
 Real numbers exist and stabilise — at which point a **regression** assertion becomes meaningful,

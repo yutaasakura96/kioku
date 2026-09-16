@@ -69,6 +69,18 @@ needed is a corpus nobody can tell has been rewritten.
 acceptance that committed with the edit dropped would be the reader accepting the value they had just
 said was wrong, arriving as a success. `10` §4.8's keystroke-that-failed message carries it.
 
+## Amendment — 2026-09-16, the freeze lifts for a flagged note
+
+This ADR named the lift as an argument to have when re-vetting arrived.
+[ADR 0064](0064-a-chosen-word-mints-its-cards-on-arrival.md) has it and decides in favour, narrowly:
+**an unresolved `card_flag` on a *note*'s *card* lifts the freeze on that *note*, and nothing else
+does.**
+
+The reasoning is this ADR's own, turned around. The freeze protects a review history from having its
+text swapped underneath it. An unresolved flag is the reader stating that the text is already wrong,
+so what the freeze is protecting is a history measured against something he has rejected. The guard
+keeps its `WHERE` in both write paths and gains one condition rather than losing the clause.
+
 ## Revisit if
 
 - A second reader is ever invited (ADR 0012's revisit condition), at which point this branch becomes

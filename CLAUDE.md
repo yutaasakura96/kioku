@@ -10,18 +10,20 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **twenty-two more ADRs** with it — **61** as of 2026-09-15 (⚠️ this said
-*nineteen* until 2026-09-16). ⚠️ **This paragraph said "there is still no
+code since 2026-09-09 and **twenty-seven more ADRs** with it — **66** as of 2026-09-16, the last five
+being the pivot (⚠️ this said *61* until 2026-09-16 and *nineteen* until the day before). ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
-⚠️ **A product pivot was agreed with Yuta on 2026-09-16 and is not yet written down as ADRs.**
-Input becomes **word lists and imported Anki decks** rather than mined prose; every word carries a
-**domain** (tech, business, …) and a **JLPT level**, filled automatically; **manual vetting leaves
-the loop**; and the daily review load gets a **brake** so a break does not bury the reader. The next
-session writes it as ADRs and issues before any code — `docs/00-status.md` § Next carries the
-detail. Until then, read what follows about vetting, *acceptance rate* and prose ingestion as the
-built system, not the direction.
+⚠️ **A product pivot was agreed with Yuta on 2026-09-16 and written down the same day: ADRs 0062
+to 0066 and issues #19 to #25.** Input becomes **word lists, AI-seeded lists and imported Anki
+decks** rather than mined prose (ADR 0063); every word carries a **domain** and a **JLPT level**,
+filled automatically (ADR 0065); **manual vetting leaves the loop** and *Vet* becomes the flag queue
+(ADR 0064); the daily review load gets a **brake** (ADR 0066); and *acceptance rate* retires in
+favour of **retention, consistency and flag rate** (ADR 0062).
+⚠️ **No code has moved yet.** Everything below about vetting, *acceptance rate* and prose ingestion
+describes **the built system**, which is still what runs. `docs/00-status.md` § Next holds the ticket
+order, and the frontier is **#19**.
 
 **What exists now:** #2 through #18 are built — a Nuxt app with the rendering split enforced by the
 build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
@@ -34,11 +36,12 @@ four *grades* under a *progress rail* that knows its own length — and, since 2
 every answer is durable before the screen moves and the stream replays in order when the connection
 returns, and `X`, which suspends a bad *card* and leaves its *review* history standing. And, since
 2026-09-12, **the numbers get read**: `/stats` computes all six, suppresses the four ratios under
-twenty vetted *notes* and says why (ADR 0057, ADR 0058). ⚠️ **The ticket frontier is empty** — what
-is left is unticketed, and `docs/00-status.md` § Next names all of it.
+twenty vetted *notes* and says why (ADR 0057, ADR 0058). ⚠️ **The frontier was empty from 2026-09-12 to 2026-09-16
+and is now [#19](https://github.com/yutaasakura96/kioku/issues/19)**; `S12`'s export is the one thing
+still unticketed, and `docs/00-status.md` § Next names the rest.
 ⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.** A flagged *note* does not
-reappear on `/vet` until the re-vetting ticket, which owns four decisions rather than a query
-(ADR 0056). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
+reappear on `/vet` until [#20](https://github.com/yutaasakura96/kioku/issues/20), which ADR 0064
+settled the decisions for (ADR 0056 § Amendment 2026-09-16). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
 `/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
 route that does not exist.
 ⚠️ **And, since 2026-09-15, `/review` is answered by typing** (ADR 0060, #18): the reading, then the

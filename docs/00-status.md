@@ -3,17 +3,24 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**61 ADRs** — ADR 0060, typed answers, and ADR 0061, the worker's heartbeat, both added 2026-09-15;
-⚠️ **this said 58 until 2026-09-12** — eleven documents, and **one open issue** on the tracker as
-of 2026-09-16 — #1 the spec. **#17**, the worker's heartbeat window, was built and closed in
+**66 ADRs** — ADR 0062 to ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 61 until
+2026-09-16 and 58 until 2026-09-12** — eleven documents, and **eight open issues** on the tracker as
+of 2026-09-16: #1 the spec and #19 to #25, the pivot. **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
-**#2 through #18 are built** (⚠️ **this said #14 until 2026-09-16**). ⚠️ **The ticket frontier is empty**: every ticket `/to-tickets`
-published is built, and what is owed is **unticketed** — the re-vetting ticket (§ Next) and
-`S12`'s export, which issue #1 puts outside milestone 1.
+**#2 through #18 are built** (⚠️ **this said #14 until 2026-09-16**). ⚠️ **The frontier is
+[#19](https://github.com/yutaasakura96/kioku/issues/19)**, and it was empty for four days before
+that: the 2026-09-16 pivot opened #19 to #25 (§ Next). What stays unticketed is `S12`'s export,
+which issue #1 puts outside milestone 1.
+
+⚠️ **A pivot was decided on 2026-09-16 and everything below this paragraph describes the system it
+changes.** The input becomes chosen words rather than mined prose, vetting leaves the loop, every
+word carries a *domain* and a *level*, the review load gets a brake, and *acceptance rate* retires.
+**Five ADRs, 0062 to 0066, carry it, and the code still does the old thing** — `03`, `04`, `09`, `10`
+and `11` describe what is built and are accurate; each ticket amends its own document as it lands.
 There is a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two
 pages of Japanese and get control back, a worker that wakes up and claims the job, a pipeline that
 turns that paste into *pending notes* one *chunk* at a time, a reader who can see one, judge it in a
@@ -48,13 +55,54 @@ check and `app/components/ReviewAnswer.vue` holds the two fields. `Enter` commit
 `1`–`4` overrule it, and `X` works on the back only. `wanakana` 5.3.1 is the eighth pin (`03` §13.5).
 **One thing the build found and ADR 0060 now carries:** the fold is `toHiragana` with
 `convertLongVowelMark: false`. With the default, every katakana word with a `ー` would have been
-marked wrong. **What is left is the reader's run: a *session* of the 39 *cards* already minted**,
-which gives time-to-first-review and the false-accept rate their first real reading.
+marked wrong.
+⚠️ **2026-09-16: the pivot is decided and written (§ Next, ADRs 0062–0066, issues #19–#25).** Yuta
+said what he wants the app for, and it moved the input, the vetting step and the headline metric.
+**What is left for him is still the reader's run**: a *session* of the 39 *cards* already minted,
+which gives *time-to-first-review* its first real reading. Nothing in the pivot needs that run first,
+and the run is the only thing no session can do for him.
 **Updated:** 2026-09-16
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**2026-09-16 — the pivot is decided: five ADRs and seven issues, no code.** Yuta said what he wants
+the app for, and it moved the input, the vetting step, the headline metric and the daily load. The
+conversation happened on 2026-09-16 and the writing-down happened the same day, which is the working
+agreement rather than a coincidence: the decision log is written as things are decided.
+
+- **[ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)** —
+  retention and consistency are the headline, *flag rate* checks the model, *acceptance rate* and
+  *seconds-per-note* retire. ⚠️ **The cost is real and is named**: ADR 0018's model walk had an
+  instrument that read in an afternoon and now has one that reads in weeks.
+- **[ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md)** — `source.kind`, a pipeline per kind, a
+  `normalise` stage, 25 terms per *chunk*, prose kept and demoted.
+- **[ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)** — mint on arrival, *Vet* is
+  the flag queue, ADR 0052's freeze lifts for a flagged *note*, and the first *scheduling epoch*
+  reset the application will ever write.
+- **[ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md)** —
+  `domain_claim` beside `level_claim`, closed value sets in the *subject*, a filter on the new half
+  only. ⚠️ *Domain* came off **subject**'s `_Avoid_` list in `CONTEXT.md` to do it.
+- **[ADR 0066](adr/0066-the-review-load-has-a-brake.md)** — ten new a day, none above fifty due,
+  counted at composition, local day from 04:00, backlog by retrievability.
+
+**Three things were verified while writing them, rather than asserted:** `compose` and `ts-fsrs` have
+no new-*card* cap anywhere (read in `shared/review/compose.ts` and ADR 0016's configuration, which
+both say so on purpose); `ts-fsrs` exposes `get_retrievability(card, now, false)` as a number
+(context7, 2026-09-16); and **nothing writes a `level_claim` today** — the table, the read path and
+the tests exist and no producer does, which is why ADR 0065 is more work than it looks.
+
+**Issues [#19](https://github.com/yutaasakura96/kioku/issues/19) to
+[#25](https://github.com/yutaasakura96/kioku/issues/25)** carry it, in the order § Next draws.
+⚠️ **#24 (Anki) and #25 (AI-seeded lists) are `needs-triage`**, because the `.apkg` format, shared
+decks' licences and four questions about seeding are all genuinely open.
+
+**Amended in the same commit:** `CONTEXT.md` (six terms retired, moved or added), PRD §2 `S2`–`S10`
+with dated blocks, ADR 0001, ADR 0018, ADR 0037, ADR 0052 and ADR 0056 with amendment sections, and
+`06-decision-log.md`. ⚠️ **`03`, `04`, `09`, `10` and `11` were deliberately left alone**: they
+describe the system that is built, the pivot has not changed it yet, and each ticket amends its own
+document as it lands.
 
 **Phase 6 — the first real run, 2026-09-14 to 2026-09-15, stopped before review.** The source was
 Sōseki's 『夢十夜』 第一夜 and 第二夜 (about 3,400 characters, three *chunks*, `claude-sonnet-5`). It
@@ -1248,43 +1296,67 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-⚠️ **Added 2026-09-16 — a product pivot, agreed in conversation and not yet decided in ADRs.**
-Yuta named what he wants the app for, and it changes the input, the vetting step and the headline
-metric. **The next session writes this as ADRs and issues before any code.** What was agreed:
+⚠️ **The 2026-09-16 pivot is decided. Five ADRs, 0062 to 0066, and seven issues, #19 to #25.**
+It was agreed in conversation on 2026-09-16 and written down the same day. **Read the ADRs, not this
+paragraph** — what follows is an index.
 
-- **Goal:** learn vocabulary and kanji, with tech and business vocabulary in particular. WaniKani
-  has no domains; that gap is the reason for this app.
-- **Input is chosen words, not mined prose.** Three sources: a word list Yuta compiles (one word per
-  line), lists an AI seeds from books or the web by domain and level, and **other people's Anki
-  decks** (`.apkg`). The first run's 474 *pending notes* from ~3,400 characters of prose is the
-  evidence that mining prose floods the queue. ⚠️ **Anki's file format and shared decks' licences
-  are unverified** — that ticket starts with research.
-- **Every word carries a domain and a JLPT level, filled automatically.** ADR 0005 still applies: a
-  level is an attributed claim (a deck's tag, a model's estimate), not an official list.
-- **The model fills fields rather than choosing words**: reading, meaning, example, level, domain.
-  The free dictionary check on the reading stays.
-- **Manual vetting leaves the loop.** Chosen words become *cards* directly; `X` during review is
-  the correction. This reverses the 2026-09-15 handoff's "vetting is his judgement".
-- **Metric:** *acceptance rate* stops being the headline, because nothing is generated for the reader
-  to accept. Retention (typed answers right) and consistency (coming back) replace it, with *flag
-  rate* as a quality check on the model's fields. ⚠️ This supersedes ADR 0001's and ADR 0037's
-  framing and needs its own ADR.
-- **A review-load brake**, the feature that decides whether Yuta keeps using the app: about 10 new
-  *cards* a day, new *cards* paused while due reviews exceed about 50, and an overdue backlog spread
-  over days with the most-forgotten first. ⚠️ Whether `ts-fsrs` or the *session* composer already
-  provides a new-card limit is unverified.
-- **Typed answers (ADR 0060) stay** and are the quiz.
+- **[ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)** —
+  *acceptance rate* and *seconds-per-note* are retired. **Retention** (Good or Easy over reviews of
+  *cards* in the Review state, trailing 30 days) and **consistency** (days studied over 30) are the
+  headline; **flag rate** checks the model's fills; *time-to-first-review* and the cost figures
+  survive. ⚠️ **The cost is named in the ADR**: ADR 0018's model walk loses its fast instrument and
+  gains one that takes weeks.
+- **[ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md)** — `source.kind` is `word_list`, `prose`
+  or `anki`, and the *subject* declares one pipeline per kind. Word lists chunk at 25 terms and run
+  `normalise` instead of tokenisation and candidate extraction. ⚠️ **The 474 *pending notes* become a
+  cache rather than a backlog.**
+- **[ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)** — a chosen word is `accepted`
+  when it is written and mints its *card* in the same transaction, owned by `job.requested_by`.
+  *Vet* becomes the flag queue with fix, keep and drop. ⚠️ **This is the re-vetting ticket ADR 0056
+  owed**, and `note_vetting.flagged_at` finally has a reader. ADR 0052's freeze lifts for a flagged
+  *note* and nothing else.
+- **[ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md)** —
+  *domain* and *level* are attributed claims, filled by the model from closed sets the *subject*
+  declares. `domain_claim` mirrors `level_claim`. ⚠️ **A filtered *session* filters the new half
+  only**: what is owed is owed.
+- **[ADR 0066](adr/0066-the-review-load-has-a-brake.md)** — ten new *cards* a day, none while fifty
+  are due, counted at composition on `review_session.new_count`, over a local day starting 04:00.
+  The backlog is ordered by `get_retrievability` ascending. ⚠️ **Nothing caps due reviews.**
 
-**Recommended order:** word-list upload, then the brake, then domain and level tags with filtered
-*sessions*, then Anki import, then AI-seeded lists. What carries over: the worker, generation and
-its cache, the scheduler, the outbox and typed review.
+**The ticket frontier is [#19](https://github.com/yutaasakura96/kioku/issues/19) alone.** The rest
+are open and blocked or out of order:
+
+```
+#19 word lists ─┬─→ #20 mint on arrival, Vet is the flag queue ─→ #23 stats
+                ├─→ #22 domain and level, filtered sessions
+                └─→ #24 Anki import (research first)
+#21 the brake — independent, buildable now
+#22, #19 ─→ #25 AI-seeded lists (not specified yet)
+```
+
+⚠️ **#24 and #25 are `needs-triage` on purpose.** The Anki format and shared decks' licences are
+unverified and that ticket opens with research; #25's four open questions are in its body.
+
+⚠️ **Two numbers in ADR 0066 are recommendations Yuta approved as a direction, not as figures.** He
+said he did not know what they should be, and ten and fifty are mine. Each has a revisit condition in
+the ADR, and the first fortnight of real use is what settles them.
+
+**What carries over untouched:** the worker and its heartbeat, generation and its cache, the
+scheduler and ADR 0016's configuration, the outbox, typed *review* (ADR 0060), the *modes* rule and
+every keystroke on both screens.
+
 
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-~~⚠️ **The next command is `/implement 14`, in a fresh window.**~~ ⚠️ **#14 is built. There is no
+⚠️ **Amended 2026-09-16: the next command is `/clear`, then `/implement 19`, in a fresh window.**
+The frontier is not empty any more. The paragraph below was true from 2026-09-12 to 2026-09-16 and is
+struck rather than deleted, because the sentence it corrects is the fifth stale number in this
+section's history and the pattern is worth keeping visible.
+
+~~⚠️ **The next command is `/implement 14`, in a fresh window.**~~ ~~⚠️ **#14 is built. There is no
 next `/implement`, because there is no next ticket** — and the thing to do instead is **not a
-command**. `/to-spec` and `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are
+command**.~~ `/to-spec` and `/to-tickets` have both run — issue **#1** is the spec and **#2–#14** are
 the tickets, all built — and `/grill-with-docs` is retired with an empty frontier. ⚠️ **What the
 milestone is now waiting on is the three first-week experiments** (below): they are `S3`'s and
 `S10`'s answers, ADR 0037 makes them a person's job rather than the suite's, and they are in #14's
@@ -1351,6 +1423,11 @@ ticket.**~~ **All three of its remaining items are closed** — the contradictio
 [ADR 0051](adr/0051-the-edit-reaches-the-judgement-fields-and-s6-is-amended-to-say-so.md), the
 freeze in [ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md),
 and the arithmetic in `shared/metrics/acceptance.ts`. See § Done.
+
+⚠️ **Opened 2026-09-16 as [#20](https://github.com/yutaasakura96/kioku/issues/20)**, inside
+ADR 0064 rather than on its own, and its three decisions are settled there (ADR 0056 § Amendment).
+What follows is the statement of the debt, kept because it is still the shortest description of what
+#20 has to build.
 
 ⚠️ **A ticket is owed and nobody has opened it: re-vetting a flagged *note*.**
 [ADR 0056](adr/0056-a-flag-returns-a-note-to-the-queue-through-card-flag-not-by-un-accepting-it.md)
@@ -1636,6 +1713,25 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **`shared/review/compose.ts` carries a comment that is wrong, and ADR 0066 is the correction.**
+  It says a *card* three weeks late has decayed further than one due this morning. That holds only
+  when both have the same stability, and FSRS can answer it exactly through
+  `get_retrievability`. The code is not wrong yet, because the order only matters once the due set
+  is larger than the *session*; the comment's reasoning is what would mislead the next reader.
+  [#21](https://github.com/yutaasakura96/kioku/issues/21) fixes both.
+- ⚠️ **`level_claim` has a table, a read path, an index, a *provenance marker* and tests, and no
+  producer.** Nothing in the pipeline has ever written one. A session that reads the schema will
+  reasonably assume levels are filled and they are not.
+  [#22](https://github.com/yutaasakura96/kioku/issues/22) is where they start being written.
+- ⚠️ **The application has never written a superseded *scheduling epoch*.**
+  `superseded_reason = 'memory_bearing_field_changed'` is in the `CHECK`, `04` §7.4 describes it, and
+  the first one is written by [#20](https://github.com/yutaasakura96/kioku/issues/20) when an edit
+  touches `reading` or `meaning` on a flagged *note*.
+- ⚠️ **There is no notion of *today* anywhere in the app**, and ADR 0066 introduces the first one: a
+  local day starting 04:00, with the zone sent by the client. Every other rule in the project is an
+  interval between two `timestamptz` values, and a session that reaches for `date_trunc('day', …)`
+  in UTC will be writing a different rule than the one that was decided.
 
 - ⚠️ **A fresh database refuses the invited address until its user row is seeded by hand**
   (`08` §3.2, amended 2026-09-13). `disableSignUp: true` does not know who is invited — nothing in
