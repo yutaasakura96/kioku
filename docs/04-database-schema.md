@@ -466,7 +466,7 @@ NOTHING`) because a resume claims the same *ingestion* a second time and must no
 first run paid for (`03` §5.4).
 
 **Example:** `(ingestion 019bd3…, chunk 0, 'complete', 1, null, 09:12Z, 09:13Z)` beside
-`(ingestion 019bd3…, chunk 3, 'failed', 3, 'provider 429 after 3 attempts', 09:14Z, null)` — the
+`(ingestion 019bd3…, chunk 3, 'failed', 1, 'the model provider answered 429 after 3 attempts', 09:14Z, null)` — the
 second is what a resume picks up, and the first is the money already spent that a discard would throw
 away.
 

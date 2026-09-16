@@ -65,7 +65,7 @@ where the suite runs is a Phase 6 question that the plan does not depend on.
 | **Schema** | `test/schema/` | plain Node | **PGlite** | Every constraint, trigger and delete rule in `04`, run by Drizzle's migrations |
 | **Nuxt runtime** | `test/nuxt/` | `// @vitest-environment nuxt` | PGlite | Components, `mountSuspended`, the outbox against a real `localStorage` |
 | **End to end** | `test/e2e/` | a built, running app | **PGlite over a socket** | Rendering, routing, redirects, headers, and the browser tests. ⚠️ **Signed in from 2026-09-11** — see §6.1 |
-| **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container**, for ~~three tests only~~ **forty of 143** | The pipeline end to end, and the three concurrency behaviours. ⚠️ **The count moved twice** — twenty-three with #7, forty with #8 — and ADR 0038 carries a dated amendment for each. **A hundred tests here need neither Docker nor a database**, including the whole pure pipeline |
+| **Worker** | `worker/tests/` | pytest | **a real Postgres 18 container**, for ~~three tests only~~ ~~forty of 143~~ **some of them — `worker/tests/README.md` carries the count** | The pipeline end to end, and the three concurrency behaviours. ⚠️ **The count moved with #7, #8, #9, #15 and #17**, and this row was still saying #8's until 2026-09-16 — which is why the number now lives in one file. **Most tests here need neither Docker nor a database**, including the whole pure pipeline |
 
 ⚠️ **`@nuxt/test-utils/runtime` and `@nuxt/test-utils/e2e` cannot be used in the same file**
 (verification §14.3) — they need different environments. That is why `test/nuxt/` and `test/e2e/` are
@@ -496,8 +496,9 @@ is not a measurement. What is asserted is that the figures are **recorded**.
 *occurrence* append and `04` §6.1's ledger — plus ADR 0046's two new sweep branches and, new in kind,
 **a test of the fixture's own cleanup** (below). The sentence being protected is still untouched: a
 laptop with no Docker runs the entire TypeScript suite *and* the whole pure pipeline, and what goes
-red is the worker's forty, with `worker/tests/conftest.py` printing the reason. The worker suite is
-**143 tests**, of which 103 need neither Docker nor a database.
+red is the worker's container tests, with `worker/tests/conftest.py` printing the reason. ⚠️ **This
+said "the worker's forty" and "143 tests, of which 103" until 2026-09-16**; `worker/tests/README.md`
+carries both numbers now, and this sentence no longer repeats them.
 
 ⚠️ **Amended 2026-09-11 with #7 — "the three tests that need Docker" is now twenty-three**, and
 ADR 0038 carries the argument. The three below are still the three it named; what joined them is

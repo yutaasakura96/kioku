@@ -269,7 +269,10 @@ the value came from — a `14px` gap, then the value at reading size. Fields are
 
 The primary cap holds `space`, not a letter — [ADR 0023](adr/0023-space-is-the-forward-action-and-z-is-the-confirm.md)
 makes `space` the forward action in both modes. It is therefore the widest cap in the legend rather
-than one square among equals.
+than one square among equals. ⚠️ **Amended 2026-09-16:** since
+[ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md) that holds in
+*Vet* only. *Review*'s primary cap is `Enter`, because the reader is typing into a field and `space`
+would be a character in the answer. The styling of the primary state is unchanged.
 
 12px mono, `--k-radius-key`. The label beside it is 15px: `--k-ink` when the key is primary,
 `--k-ink-secondary` otherwise.

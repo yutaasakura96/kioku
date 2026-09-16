@@ -627,8 +627,10 @@ ADR already named; the column that is new is what appears on screen.
 | Uninvited account | A 403 and no path onward | Two independent refusals (§2.2). There is no signup to fall back to |
 
 **What gets logged:** structured JSON lines to stdout on both tiers — Vercel's log drain for the
-app, the terminal for the worker. Every log line carries the ingestion or session id so the two
-sides can be read together.
+app, the terminal for the worker. Every log line about one run or *session* carries its ingestion
+or session id so the two sides can be read together. ⚠️ **Amended 2026-09-16:** this said *every
+log line*, and the worker's lines are all process-level (`started`, `drained`, `swept`,
+`connection_lost`, ADR 0061), so they carry the worker's `owner` instead.
 
 **What is never logged:** source text, note fields, the reader's email (an id instead), any
 connection string, any API key.
@@ -746,8 +748,9 @@ documentation). The rule this paragraph states — *a bot arrives with the first
 afterwards* — is therefore satisfied on both sides, and the first two pins below finally have a file
 to attach to.
 
-**Seven pins that a routine cleanup must not touch**, and one entry below that is deliberately *not*
-one. ⚠️ **Amended 2026-09-12 with #9:** `anthropic` joined `worker/pyproject.toml` as a floor, and it
+**Eight pins that a routine cleanup must not touch**, and one entry below that is deliberately *not*
+one. ⚠️ **Amended 2026-09-16:** this said *seven* after `wanakana` became the eighth on 2026-09-15
+with #18, and the "still seven" below is that earlier count. ⚠️ **Amended 2026-09-12 with #9:** `anthropic` joined `worker/pyproject.toml` as a floor, and it
 is listed for the opposite reason to everything else here — to say that bumping it is safe, and that
 the thing which is **not** safe to move is the model id, which lives in no manifest at all.
 ⚠️ **Amended 2026-09-11:** the PGlite entry

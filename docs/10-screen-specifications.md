@@ -471,17 +471,16 @@ the grade controls beneath it share its exact width (`05` §5).
 
 | State | Footer |
 | --- | --- |
-| Front | The key legend: `space` — reveal (primary cap) · `X` — flag (available-but-aside cap, dashed) |
-| Back | **The four grade controls**, 760px, and beneath them, `12px` down, the `X` — flag legend line alone |
+| Front | The key legend: `Enter` — check (primary cap), for the reading step and then the meaning step |
+| Back | **The four grade controls**, 760px, one marked **proposed**, and beneath them, `12px` down, the legend line: `Enter` — the proposed grade's label · `X` — flag (available-but-aside cap, dashed) |
 
 `Esc` is not repeated in the legend, because the Done cluster in the header names it (§5.2).
 
-⚠️ **Amended 2026-09-15 by [ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md).**
-*Review* is answered by typing, so the front no longer shows `space` — reveal. Its footer legend is
-`Enter` — check, and it covers two steps: the reading, then the meaning. `X` — flag moves to the back
-only. On the back the four grade controls stay, one of them marked **proposed** by the check, and
-`Enter` commits the proposed one. The layout of the two text fields belongs to §5.4 and §5.5, which
-are amended by the ticket that builds this.
+⚠️ **Amended 2026-09-15 by [ADR 0060](adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md),
+and the table above rewritten to match on 2026-09-16.** Until then the table still read
+`space` — reveal · `X` — flag on the front, with this block beside it as the correction. *Review* is
+answered by typing, `X` is on the back only, and `Enter` commits the proposed *grade*. The two text
+fields are laid out in §5.4 and §5.5, amended when #18 was built.
 
 ### 5.2 The Done cluster, and the rail it shares a row with ⚠️
 
@@ -643,7 +642,8 @@ Top to bottom:
    17px `--k-ground`.
 
 ⚠️ **Starting another is one deliberate action and never automatic** (`S7`). `space` is safe here
-because the key before it was a digit (`09` §4.7).
+because the key before it was a digit or `Enter` on the back (`09` §4.7, ADR 0060), and `space` does
+nothing during a *session*.
 
 ### 5.7 The two non-terminal empty states
 

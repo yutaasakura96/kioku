@@ -10,11 +10,20 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **nineteen more ADRs** with it. ⚠️ **This paragraph said "there is still no
+code since 2026-09-09 and **twenty-two more ADRs** with it — **61** as of 2026-09-15 (⚠️ this said
+*nineteen* until 2026-09-16). ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
-**What exists now:** #2 through #14 are built — a Nuxt app with the rendering split enforced by the
+⚠️ **A product pivot was agreed with Yuta on 2026-09-16 and is not yet written down as ADRs.**
+Input becomes **word lists and imported Anki decks** rather than mined prose; every word carries a
+**domain** (tech, business, …) and a **JLPT level**, filled automatically; **manual vetting leaves
+the loop**; and the daily review load gets a **brake** so a break does not bury the reader. The next
+session writes it as ADRs and issues before any code — `docs/00-status.md` § Next carries the
+detail. Until then, read what follows about vetting, *acceptance rate* and prose ingestion as the
+built system, not the direction.
+
+**What exists now:** #2 through #18 are built — a Nuxt app with the rendering split enforced by the
 build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
@@ -32,13 +41,16 @@ reappear on `/vet` until the re-vetting ticket, which owns four decisions rather
 (ADR 0056). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
 `/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
 route that does not exist.
+⚠️ **And, since 2026-09-15, `/review` is answered by typing** (ADR 0060, #18): the reading, then the
+meaning, with the app proposing the *grade*. **And the worker heartbeats while the model streams**
+(ADR 0061, #17), so a long *chunk* no longer has its job silently reclaimed.
 ⚠️ **And, since 2026-09-12, there is an environment to run it in.** Neon project `kioku`
 (`small-hat-90514806`, Postgres 18.6, `aws-ap-southeast-1`) with all twenty-two tables migrated and
-`uuidv7()` live; `.env` and `worker/.env` written and gitignored. **Two values are still empty and
-deliberately so** — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `ANTHROPIC_API_KEY` — because
-creating them is a console visit. `scripts/first-run.sh` walks it. ⚠️ **Nobody has still ever signed
-in**, and `docs/first-run-expectation.md` is the form that must be filled *before* the run rather
-than after it (ADR 0037).
+`uuidv7()` live; `.env` and `worker/.env` written and gitignored. ⚠️ **Every value is filled as of
+2026-09-13** — `scripts/first-run.sh` wrote the Google client and the Anthropic key and each was
+checked live — and **the first sign-in happened that day.** The first run (2026-09-14/15) is
+recorded in `docs/first-run-expectation.md`: 474 *pending notes*, 39 vetted, **no *card* reviewed
+yet**. ⚠️ **This paragraph said both values were empty and nobody had signed in until 2026-09-16.**
 
 **The commands:**
 

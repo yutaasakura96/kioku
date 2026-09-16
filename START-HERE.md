@@ -1,5 +1,11 @@
 # Start here — the prompt for the first build session
 
+> ⚠️ **Superseded as a starting point on 2026-09-16.** §1–§3 describe the repository on 2026-09-08,
+> the day before #2: no code, one ticket on the frontier. **Both are false now** — #2 through #18 are
+> built, and a product pivot is agreed but not yet written (`docs/00-status.md` § Next). **Do not
+> paste §2 and do not run `/implement 2`.** A cold session opens with `docs/00-status.md`, then
+> `CLAUDE.md`, then `CONTEXT.md`. §2's list of rules still holds, and §4–§5 are still true context.
+
 **Rewritten 2026-09-08. §1–§3 amended 2026-09-09.** The previous version of this file opened the
 grilling session. That grilling ran three rounds, closed on 2026-09-07, and produced eleven documents
 and 39 ADRs. It is finished, and this file now opens the phase after it. ⚠️ **The amendment matters:**
@@ -132,9 +138,10 @@ decided and a session that discovers them late will re-order its own work:
   in `11` §6.1 rather than a `curl`, and it falsifies the assumption the whole rendering split rests
   on. Cheap, and cheapest first.
 - **The first commit that adds a dependency manifest owes a bot in the same commit** (`03` §13.5) —
-  a bot has nothing to read until a `package.json` or `requirements.txt` exists. **Six** pins a
-  routine bump must not touch are listed there and in `CLAUDE.md` § Tooling state. ⚠️ **Corrected
-  2026-09-09** — this said *five*; `03` §13.5 is the list and it has six.
+  a bot has nothing to read until a `package.json` or `requirements.txt` exists. The pins a
+  routine bump must not touch are listed there and in `CLAUDE.md` § Tooling state — **eight as of
+  2026-09-15**. ⚠️ **Corrected 2026-09-09** — this said *five*, then *six* until 2026-09-16; count
+  `03` §13.5 rather than this line.
 - **Two experiments stay experiments** and neither blocks anything: one `psycopg.connect()` against
   the direct Neon endpoint, and whether an idle `LISTEN` defers Neon's scale-to-zero. ⚠️ A third
   joins them — **`S3`'s first real run of twenty notes**, which is an experiment rather than a test

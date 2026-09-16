@@ -25,7 +25,9 @@ Single-context repo (most repos):
 
 This is Kioku's layout, and both files are already written: `CONTEXT.md` is 185 lines of
 load-bearing vocabulary (*place*, *mode*, *note*, *card*, *session*, *scheduling epoch*, *facts
-strip*, each with an `_Avoid_` list), and `docs/adr/` holds **39 ADRs**, `0001`–`0039`.
+strip*, each with an `_Avoid_` list), and `docs/adr/` holds **61 ADRs**, `0001`–`0061`, as of
+2026-09-15. ⚠️ **This said 39 until 2026-09-16**; `docs/06-decision-log.md` is the index, so count
+there rather than trusting this line.
 
 Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
 

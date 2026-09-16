@@ -316,7 +316,8 @@ the front is now answered by typing.
 6. After the last position, the end screen: the *session*'s numbers, all ticks filled,
    `review_session.completed_at` set.
 7. **Starting another is one deliberate action, never automatic** (`S7`). `space` on the end screen
-   starts the next one, and the key is safe there because the key before it was a digit.
+   starts the next one, and the key is safe there because the key before it was a digit or `Enter`
+   on the back (ADR 0060) — never `space`, which does nothing during a *session*.
 
 ***Session* size is set on the end screen and on Review's empty states**, never mid-session — the
 current one is snapshotted and a knob that appeared to change it would be lying. `size` is bounded at

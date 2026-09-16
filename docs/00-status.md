@@ -4,15 +4,14 @@
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
 **61 ADRs** — ADR 0060, typed answers, and ADR 0061, the worker's heartbeat, both added 2026-09-15;
-⚠️ **this said 58 until 2026-09-12** — eleven documents, and **two open issues** on the tracker as
-of 2026-09-15 — #1 the spec, and **#17**, the worker's heartbeat window, opened from the first run's
-evidence and ⚠️ **built 2026-09-15 (ADR 0061), closing on merge**. #18, typed answers (ADR 0060),
-is built and closed. ⚠️ **#14 closed
+⚠️ **this said 58 until 2026-09-12** — eleven documents, and **one open issue** on the tracker as
+of 2026-09-16 — #1 the spec. **#17**, the worker's heartbeat window, was built and closed in
+`26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
-**#2 through #14 are built.** ⚠️ **The ticket frontier is empty**: every ticket `/to-tickets`
+**#2 through #18 are built** (⚠️ **this said #14 until 2026-09-16**). ⚠️ **The ticket frontier is empty**: every ticket `/to-tickets`
 published is built, and what is owed is **unticketed** — the re-vetting ticket (§ Next) and
 `S12`'s export, which issue #1 puts outside milestone 1.
 There is a schema, a door, a *subject* declaration both toolchains read, a reader who can paste two
@@ -51,7 +50,7 @@ check and `app/components/ReviewAnswer.vue` holds the two fields. `Enter` commit
 `convertLongVowelMark: false`. With the default, every katakana word with a `ー` would have been
 marked wrong. **What is left is the reader's run: a *session* of the 39 *cards* already minted**,
 which gives time-to-first-review and the false-accept rate their first real reading.
-**Updated:** 2026-09-15
+**Updated:** 2026-09-16
 
 Read `CLAUDE.md` first, then this.
 
@@ -77,6 +76,7 @@ rather than Yuta's (he chose not to make them), and the form says so. Three find
   keeps the queue small.
 - **Typed answers:** the reader wants WaniKani-style recall — type the reading in hiragana, then the
   English, checked by the app. v1 self-grades one recognition *template*. This is the next work.
+  ⚠️ **Built 2026-09-15 as #18 (ADR 0060)**; `/review` no longer self-grades.
   WaniKani-API and Jōyō-kanji import were raised and dropped the same day.
 
 The form is filled in `docs/first-run-expectation.md`, and ADR 0037 carries an amendment with the
@@ -1247,6 +1247,37 @@ Seven findings worth knowing without opening it:
   Python driver.
 
 ## Next
+
+⚠️ **Added 2026-09-16 — a product pivot, agreed in conversation and not yet decided in ADRs.**
+Yuta named what he wants the app for, and it changes the input, the vetting step and the headline
+metric. **The next session writes this as ADRs and issues before any code.** What was agreed:
+
+- **Goal:** learn vocabulary and kanji, with tech and business vocabulary in particular. WaniKani
+  has no domains; that gap is the reason for this app.
+- **Input is chosen words, not mined prose.** Three sources: a word list Yuta compiles (one word per
+  line), lists an AI seeds from books or the web by domain and level, and **other people's Anki
+  decks** (`.apkg`). The first run's 474 *pending notes* from ~3,400 characters of prose is the
+  evidence that mining prose floods the queue. ⚠️ **Anki's file format and shared decks' licences
+  are unverified** — that ticket starts with research.
+- **Every word carries a domain and a JLPT level, filled automatically.** ADR 0005 still applies: a
+  level is an attributed claim (a deck's tag, a model's estimate), not an official list.
+- **The model fills fields rather than choosing words**: reading, meaning, example, level, domain.
+  The free dictionary check on the reading stays.
+- **Manual vetting leaves the loop.** Chosen words become *cards* directly; `X` during review is
+  the correction. This reverses the 2026-09-15 handoff's "vetting is his judgement".
+- **Metric:** *acceptance rate* stops being the headline, because nothing is generated for the reader
+  to accept. Retention (typed answers right) and consistency (coming back) replace it, with *flag
+  rate* as a quality check on the model's fields. ⚠️ This supersedes ADR 0001's and ADR 0037's
+  framing and needs its own ADR.
+- **A review-load brake**, the feature that decides whether Yuta keeps using the app: about 10 new
+  *cards* a day, new *cards* paused while due reviews exceed about 50, and an overdue backlog spread
+  over days with the most-forgotten first. ⚠️ Whether `ts-fsrs` or the *session* composer already
+  provides a new-card limit is unverified.
+- **Typed answers (ADR 0060) stay** and are the quiz.
+
+**Recommended order:** word-list upload, then the brake, then domain and level tags with filtered
+*sessions*, then Anki import, then AI-seeded lists. What carries over: the worker, generation and
+its cache, the scheduler, the outbox and typed review.
 
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
