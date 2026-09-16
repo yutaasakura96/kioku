@@ -1,4 +1,12 @@
 import jlptVocabJson from '../../subjects/jlpt-vocab.json' with { type: 'json' }
+// ⚠️ **The `.ts` is not optional and nothing in this repository's own build can
+// tell you so.** `scripts/print-subject-view.ts` imports this module and is run
+// by `node` for the drift test; Node's ESM resolver will not extension-guess
+// (`ERR_MODULE_NOT_FOUND`), while Vite accepts either form — so an extensionless
+// import here typechecks, bundles, and breaks the one test that compares the two
+// languages (`00-status.md` § Carrying).
+import type { SourceKind } from '../ingest/kind.ts'
+import { SOURCE_KINDS, SUBMITTABLE_SOURCE_KINDS } from '../ingest/kind.ts'
 
 /**
  * The *subject* declaration — ADR 0003 and `03` §6.
@@ -25,7 +33,15 @@ export type SubjectDeclaration = typeof jlptVocabJson
 
 export type SubjectField = SubjectDeclaration['fields'][number]
 export type SubjectTemplate = SubjectDeclaration['templates'][number]
-export type SubjectStage = SubjectDeclaration['stages'][number]
+/**
+ * ⚠️ **One ordered stage list per *source kind*, not one list** — ADR 0063. The
+ * *subject* is the same *subject* whichever way the words arrived: the fields,
+ * the templates, the *identity key* and the dictionary do not change, and what
+ * does change is which stages run. A second declaration would have been one file
+ * copied with two lines different, and the copy would drift the first time a
+ * field was added.
+ */
+export type SubjectPipelines = SubjectDeclaration['pipelines']
 
 /** A *note*'s fields, as they are held in `note.fields` (`04` §5.3). */
 export type FieldName = SubjectField['name']
@@ -48,6 +64,9 @@ export type ErrorCode
     | 'template_unknown_field'
     | 'template_empty_side'
     | 'duplicate_template'
+    | 'no_pipelines'
+    | 'unknown_pipeline_kind'
+    | 'missing_pipeline'
     | 'no_stages'
     | 'duplicate_stage'
 
@@ -98,9 +117,42 @@ export function memoryBearingFieldNames(declaration: SubjectDeclaration): string
   return declaration.fields.filter(field => field.memory_bearing).map(field => field.name)
 }
 
-/** The *pipeline stages* this *subject*'s *ingestion* runs, in order (`03` §5.1). */
-export function stageKeys(declaration: SubjectDeclaration): string[] {
-  return declaration.stages.map(stage => stage.key)
+/**
+ * The *pipeline stages* an *ingestion* of this *kind* runs, in order (`03` §5.1,
+ * ADR 0063).
+ *
+ * ⚠️ **It raises for a kind the declaration does not carry, and that is the
+ * named failure rather than a crash at stage dispatch.** `anki` is in `04`
+ * §5.1's `CHECK` and in no pipeline — the format and the licensing of shared
+ * decks are unverified and #24 opens with the research (ADR 0063) — so a row
+ * that somehow carried it would otherwise reach the worker and find nothing to
+ * run. `checkDeclaration` refuses a declaration missing one of the kinds
+ * *Ingest* can actually submit; this is the same rule one layer down, where it
+ * is the row rather than the declaration that names the kind.
+ */
+export function stageKeys(declaration: SubjectDeclaration, kind: SourceKind): string[] {
+  const pipeline = (declaration.pipelines as Record<string, string[] | undefined>)[kind]
+  if (pipeline === undefined) {
+    throw new Error(
+      `the subject declaration has no pipeline for a source of kind '${kind}' `
+      + `(ADR 0063; ${DECLARATION_PATH} declares ${pipelineKinds(declaration).join(', ')})`,
+    )
+  }
+  return [...pipeline]
+}
+
+/**
+ * The *source kinds* this declaration can ingest, in declaration order.
+ *
+ * ⚠️ **`SourceKind[]` rather than `string[]`, and the narrowing is asserted
+ * rather than assumed.** `Object.keys` answers `string[]`, and a caller that
+ * feeds one of these straight back to `stageKeys` would otherwise need a cast —
+ * which `as never` happily satisfies for *any* string. `checkDeclaration`'s
+ * `unknown_pipeline_kind` is what makes the claim true, and
+ * `test/unit/subject-declaration.test.ts` is what checks it of the real file.
+ */
+export function pipelineKinds(declaration: SubjectDeclaration): SourceKind[] {
+  return Object.keys(declaration.pipelines) as SourceKind[]
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -128,7 +180,7 @@ export function checkDeclaration(value: unknown): ValidationResult {
   if (!isRecord(value))
     return { ok: false, errors: [{ field: null, code: 'not_an_object' }] }
 
-  const { fields, identity_key: identityKey, templates, stages } = value
+  const { fields, identity_key: identityKey, templates, pipelines } = value
 
   if (!Array.isArray(fields) || !fields.every(isRecord))
     return malformed('fields')
@@ -136,8 +188,12 @@ export function checkDeclaration(value: unknown): ValidationResult {
     return malformed('identity_key')
   if (!Array.isArray(templates) || !templates.every(isRecord))
     return malformed('templates')
-  if (!Array.isArray(stages) || !stages.every(isRecord))
-    return malformed('stages')
+  if (!isRecord(pipelines)
+    || !Object.values(pipelines).every(
+      pipeline => Array.isArray(pipeline) && pipeline.every(key => typeof key === 'string'),
+    )) {
+    return malformed('pipelines')
+  }
 
   const errors: ValidationError[] = []
   const required = new Map<string, boolean>()
@@ -193,19 +249,46 @@ export function checkDeclaration(value: unknown): ValidationResult {
     }
   }
 
-  if (stages.length === 0) {
-    errors.push({ field: null, code: 'no_stages' })
+  // ⚠️ **`pipelines`, and the kind is what a stage list belongs to** — ADR 0063.
+  // Four failures, and the third is the one the ADR is about: a *source* whose
+  // kind names no pipeline reaches the worker and finds nothing to run, and the
+  // ADR's rejected alternative — one pipeline whose prose-only stages skip
+  // themselves — is the same silence one layer down.
+  const declaredKinds = Object.keys(pipelines)
+
+  if (declaredKinds.length === 0) {
+    errors.push({ field: null, code: 'no_pipelines' })
   }
   else {
-    const stageKeySet = new Set<string>()
-    for (const stage of stages) {
-      const { key } = stage
-      if (typeof key !== 'string')
-        return malformed('stages')
-      if (stageKeySet.has(key))
-        errors.push({ field: key, code: 'duplicate_stage' })
-      stageKeySet.add(key)
+    for (const kind of declaredKinds) {
+      if (!(SOURCE_KINDS as readonly string[]).includes(kind))
+        errors.push({ field: kind, code: 'unknown_pipeline_kind' })
+
+      const pipeline = pipelines[kind] as string[]
+      if (pipeline.length === 0) {
+        errors.push({ field: kind, code: 'no_stages' })
+        continue
+      }
+
+      const seen = new Set<string>()
+      for (const stage of pipeline) {
+        if (seen.has(stage))
+          errors.push({ field: stage, code: 'duplicate_stage' })
+        seen.add(stage)
+      }
     }
+  }
+
+  // ⚠️ **Only the kinds *Ingest* can submit are required, and `anki` is
+  // deliberately not one.** ADR 0063 puts the `.apkg` format and the licensing
+  // of shared decks in #24 and says in as many words that it does not pre-decide
+  // that ticket's answer — so declaring an `anki` pipeline here to satisfy a
+  // check would be deciding it by the back door. The value is in `04` §5.1's
+  // `CHECK`, nothing produces it, and `stageKeys` names the gap if anything ever
+  // does.
+  for (const kind of SUBMITTABLE_SOURCE_KINDS) {
+    if (!declaredKinds.includes(kind))
+      errors.push({ field: kind, code: 'missing_pipeline' })
   }
 
   return result(errors)

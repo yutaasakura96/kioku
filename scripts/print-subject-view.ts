@@ -23,9 +23,12 @@ import {
   jlptVocab,
   judgementFieldNames,
   memoryBearingFieldNames,
+  pipelineKinds,
   requiredFieldNames,
   stageKeys,
 } from '../shared/subject/declaration.ts'
+import { SOURCE_KINDS, SUBMITTABLE_SOURCE_KINDS } from '../shared/ingest/kind.ts'
+import { BLANK_CLASS } from '../shared/subject/validate.ts'
 
 const view = {
   declaration_path: DECLARATION_PATH,
@@ -35,7 +38,21 @@ const view = {
   required_field_names: requiredFieldNames(jlptVocab),
   judgement_field_names: judgementFieldNames(jlptVocab),
   memory_bearing_field_names: memoryBearingFieldNames(jlptVocab),
-  stage_keys: stageKeys(jlptVocab),
+  // ADR 0063: one stage list per *source kind*, so the drift test compares the
+  // whole map rather than one list. The three constants beside it are the other
+  // cross-language values this file now carries — `04` §5.1's `CHECK`, and which
+  // of those kinds a pipeline is required for.
+  // ⚠️ Not a list derived from the declaration, and here for the same reason
+  // those are: a constant with a twin in the other language and no compiler
+  // between them. ADR 0063 gave the blank class a second job — deciding which
+  // lines of a *word list* are terms — and the two halves have to be one string.
+  blank_class: BLANK_CLASS,
+  source_kinds: [...SOURCE_KINDS],
+  submittable_source_kinds: [...SUBMITTABLE_SOURCE_KINDS],
+  pipeline_kinds: pipelineKinds(jlptVocab),
+  pipelines: Object.fromEntries(
+    pipelineKinds(jlptVocab).map(kind => [kind, stageKeys(jlptVocab, kind)]),
+  ),
   template_keys: jlptVocab.templates.map(template => template.key),
 }
 

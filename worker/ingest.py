@@ -102,6 +102,11 @@ class RunContext:
 
     source_id: str
     subject_id: str
+    #: `source.kind` — ADR 0063, and **the value that chooses the pipeline**. It
+    #: is read from the row rather than inferred from the text, because the
+    #: reader said which it was on *Ingest* and a list of one-word sentences is
+    #: indistinguishable from prose by inspection.
+    kind: str
     #: `ingestion.submitted_by`. ⚠️ Nullable — `04` §6.1 makes it `ON DELETE SET
     #: NULL` so that hard-deleting the reader does not erase the spend ledger.
     owner_id: str | None
@@ -202,6 +207,7 @@ def make_chunk_processor(
         result = run_stages(
             resolved,
             text,
+            kind=run.kind,
             char_start=chunk.char_start,
             corpus=DatabaseCorpus(
                 connection, subject_id=run.subject_id, owner_id=run.owner_id
@@ -241,10 +247,16 @@ def make_chunk_processor(
 
 
 def read_run_context(connection: psycopg.Connection, ingestion_id: str) -> RunContext:
-    """The *source* this run is of, and who asked for it."""
+    """The *source* this run is of, what it is made of, and who asked for it.
+
+    ⚠️ **`source.kind` is joined in rather than read from `ingestion`.** ADR 0063
+    puts the column on the *source* because it is a fact about the material, and
+    a re-ingestion of the same *source* is an ingestion of the same kind — `04`
+    §4's label test, answered the same way `subject_id` was.
+    """
     row = connection.execute(
         """
-        SELECT s.id, i.subject_id, i.submitted_by, s.content
+        SELECT s.id, i.subject_id, s.kind, i.submitted_by, s.content
         FROM ingestion i JOIN source s ON s.id = i.source_id
         WHERE i.id = %s;
         """,
@@ -256,9 +268,13 @@ def read_run_context(connection: psycopg.Connection, ingestion_id: str) -> RunCo
         # is a failed *chunk* and a resumable run (`03` §5.4), not a crash — and
         # `runs.py` turns this raise into exactly that.
         raise LookupError(f"ingestion {ingestion_id} has no source to read")
-    source_id, subject_id, owner_id, content = row
+    source_id, subject_id, kind, owner_id, content = row
     return RunContext(
-        source_id=source_id, subject_id=subject_id, owner_id=owner_id, content=content
+        source_id=source_id,
+        subject_id=subject_id,
+        kind=kind,
+        owner_id=owner_id,
+        content=content,
     )
 
 

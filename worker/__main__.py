@@ -18,11 +18,14 @@ corpus already had, filters what the reader has rejected, **asks a model about
 what is left, writes the *pending notes* that come back, and records what they
 cost** (`04` §6.1, §6.3).
 
-⚠️ **Both refusals happen before anything is claimed.** The direct connection
-string and the provider key are read at startup, so a worker that cannot spend
-says so in one line instead of draining a queue and producing nothing — which
-would settle every run `complete` and report a *source* that made no *notes* as a
-success (PRD §5's zero-new-notes case, arriving as a lie).
+⚠️ **All three refusals happen before anything is claimed.** The direct
+connection string and the provider key are read at startup, so a worker that
+cannot spend says so in one line instead of draining a queue and producing
+nothing — which would settle every run `complete` and report a *source* that made
+no *notes* as a success (PRD §5's zero-new-notes case, arriving as a lie).
+⚠️ **The third arrived with #19**: every stage every *pipeline* names must be one
+something runs (ADR 0063), because the alternative is finding out on the chunk
+that needed it.
 
 Logging is `03` §11: structured JSON lines to stdout. ⚠️ **Every line today is
 about the process, not one job** — `started`, `stopped`, `drained`, `swept`,
@@ -47,9 +50,11 @@ import provider as provider_module
 from ingest import make_chunk_processor, make_generator, resolve_worker_environment
 from jobs import ClaimedJob, drain as drain_jobs, worker_id
 from loop import JOB_CHANNEL, serve
+from pipeline import UnknownStage, check_pipelines
 from pipeline.generate import PROMPT_VERSION
 from pipeline.tokenise import DICTIONARY_VERSION
 from runs import run_ingestion
+from subject import load_declaration, pipeline_kinds
 
 
 def log(event: str, **fields: Any) -> None:
@@ -65,6 +70,19 @@ def main() -> int:
     except db.MisconfiguredWorker as error:
         # ⚠️ The message names the variable and the endpoint; it never echoes the
         # value, which is `03` §13.1's rule and this repository is public.
+        log("worker.misconfigured", reason=str(error))
+        return 1
+
+    # ⚠️ **The third refusal, and it is about the declaration rather than the
+    # environment** (ADR 0063, #19). Every stage every pipeline names has to be
+    # one something runs; a key nobody implemented would otherwise be found by
+    # the first *chunk* that reached it, hours into a run, on a *source* that
+    # then looks like the problem. `03` §10 makes the declaration name the
+    # modules, and this is where that rule is enforced rather than assumed.
+    declaration = load_declaration()
+    try:
+        check_pipelines(declaration)
+    except UnknownStage as error:
         log("worker.misconfigured", reason=str(error))
         return 1
 
@@ -115,7 +133,11 @@ def main() -> int:
         "worker.started",
         owner=owner,
         channel=JOB_CHANNEL,
-        pipeline="stages 1-7",
+        # ADR 0063: one ordered stage list per *source kind*, and which kinds
+        # this declaration can ingest is worth a line — `anki` is in `04` §5.1's
+        # `CHECK` and in no pipeline, so a worker that started is a worker that
+        # would refuse one.
+        pipeline_kinds=pipeline_kinds(declaration),
         dictionary_version=DICTIONARY_VERSION,
         prompt_version=PROMPT_VERSION,
         model_id=provider.model_id,

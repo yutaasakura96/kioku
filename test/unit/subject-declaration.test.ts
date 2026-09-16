@@ -8,6 +8,7 @@ import {
   jlptVocab,
   judgementFieldNames,
   memoryBearingFieldNames,
+  pipelineKinds,
   stageKeys,
 } from '../../shared/subject/declaration'
 
@@ -35,8 +36,11 @@ describe('the JLPT vocabulary declaration', () => {
     expect(jlptVocab.identity_key).toEqual(['term', 'reading'])
   })
 
-  it('names the seven stages of `03` §5.1, in order', () => {
-    expect(stageKeys(jlptVocab)).toEqual([
+  // ADR 0063: the declaration stops naming one ordered stage list and names one
+  // per *source kind*. Prose is `03` §5.1's seven, unchanged.
+  it('names one pipeline per source kind', () => {
+    expect(pipelineKinds(jlptVocab)).toEqual(['prose', 'word_list'])
+    expect(stageKeys(jlptVocab, 'prose')).toEqual([
       'chunk',
       'tokenise',
       'extract_candidates',
@@ -45,6 +49,22 @@ describe('the JLPT vocabulary declaration', () => {
       'generate',
       'write_pending',
     ])
+    expect(stageKeys(jlptVocab, 'word_list')).toEqual([
+      'chunk',
+      'normalise',
+      'deduplicate',
+      'filter_known',
+      'generate',
+      'write_pending',
+    ])
+  })
+
+  // ⚠️ `anki` is in `04` §5.1's `CHECK` and in no pipeline: ADR 0063 leaves the
+  // `.apkg` format and the licensing of shared decks to #24 and says it does not
+  // pre-decide that ticket. A row carrying it has to say so by name rather than
+  // run whichever pipeline happens to be first.
+  it('refuses a kind it has no pipeline for, by name', () => {
+    expect(() => stageKeys(jlptVocab, 'anki')).toThrow(/anki/)
   })
 
   it('names its fields, and which of them vetting foregrounds', () => {
@@ -98,7 +118,10 @@ describe('checkDeclaration', () => {
       { name: 'tail', kind: 'judgement', required: false, memory_bearing: true, label: 'TAIL' },
     ],
     templates: [{ key: 'only', name: 'Only', prompt: ['head'], answer: ['tail'] }],
-    stages: [{ key: 'one', title: 'One' }],
+    // ⚠️ **Both submittable kinds, because the validator requires both**
+    // (ADR 0063), with synthetic stage names for the same reason the fields are
+    // synthetic.
+    pipelines: { word_list: ['one'], prose: ['one', 'two'] },
   }
 
   const withDeclaration = (patch: Record<string, unknown>) => ({ ...valid, ...patch })
@@ -118,7 +141,8 @@ describe('checkDeclaration', () => {
     ['fields', { fields: 'six of them' }],
     ['identity_key', { identity_key: 'term' }],
     ['templates', { templates: {} }],
-    ['stages', { stages: [{ key: 7, title: 'One' }] }],
+    ['pipelines', { pipelines: { prose: [7] } }],
+    ['pipelines', { pipelines: ['prose'] }],
   ])('refuses a malformed %s section without throwing', (section, patch) => {
     expect(checkDeclaration(withDeclaration(patch))).toEqual({
       ok: false,
@@ -186,13 +210,42 @@ describe('checkDeclaration', () => {
     }))).toEqual({ ok: false, errors: [{ field: 'only', code: 'duplicate_template' }] })
   })
 
-  it('refuses a subject with no stages, and two stages wearing one key', () => {
-    expect(checkDeclaration(withDeclaration({ stages: [] }))).toEqual({
+  it('refuses a subject with no pipelines at all', () => {
+    expect(checkDeclaration(withDeclaration({ pipelines: {} }))).toEqual({
       ok: false,
-      errors: [{ field: null, code: 'no_stages' }],
+      errors: [
+        { field: null, code: 'no_pipelines' },
+        { field: 'word_list', code: 'missing_pipeline' },
+        { field: 'prose', code: 'missing_pipeline' },
+      ],
     })
+  })
+
+  it('refuses a pipeline with no stages in it, and two stages wearing one key', () => {
     expect(checkDeclaration(withDeclaration({
-      stages: [{ key: 'one', title: 'One' }, { key: 'one', title: 'Again' }],
+      pipelines: { word_list: [], prose: ['one'] },
+    }))).toEqual({ ok: false, errors: [{ field: 'word_list', code: 'no_stages' }] })
+
+    expect(checkDeclaration(withDeclaration({
+      pipelines: { word_list: ['one', 'one'], prose: ['one'] },
     }))).toEqual({ ok: false, errors: [{ field: 'one', code: 'duplicate_stage' }] })
+  })
+
+  // ⚠️ #19's criterion in its own words: *a declaration with no pipeline for a
+  // kind fails validation with a named error, not a crash at stage dispatch.*
+  it('refuses a declaration missing a pipeline Ingest can submit', () => {
+    expect(checkDeclaration(withDeclaration({ pipelines: { prose: ['one'] } }))).toEqual({
+      ok: false,
+      errors: [{ field: 'word_list', code: 'missing_pipeline' }],
+    })
+  })
+
+  // The other direction, and the one a second *subject* would trip: a pipeline
+  // keyed on something `04` §5.1's `CHECK` would refuse is one nothing can ever
+  // select.
+  it('refuses a pipeline for a kind a source may not be', () => {
+    expect(checkDeclaration(withDeclaration({
+      pipelines: { ...valid.pipelines, epub: ['one'] },
+    }))).toEqual({ ok: false, errors: [{ field: 'epub', code: 'unknown_pipeline_kind' }] })
   })
 })

@@ -15,6 +15,12 @@ is two groups, and it is chunk 1's *note* existing by the time chunk 3 is
 deduplicated that makes the second sighting an `already_known` rather than a
 second thing to pay for.
 
+⚠️ **Since ADR 0063 a *lookup* field can be `generated`.** A word the dictionary
+could not read reaches stage 6 with no reading, the model writes one, and `04`
+§5.4 records that it came from a model rather than from a dictionary — ADR 0004's
+whole sentence is that trust is a property of where a value came from, not of
+which column it sits in.
+
 **One note is four writes**, in this order and all of them idempotent:
 
 1. `note` — ADR 0006's key, `04` §5.3's `UNIQUE (subject_id, identity_key)`.
@@ -112,10 +118,15 @@ def write_pending_note(
     connection: psycopg.Connection, note: GeneratedNote, *, to: Destination
 ) -> Written:
     """The four writes, in order."""
+    # ⚠️ **`note.identity_key`, not `note.group.identity_key`** (ADR 0063). For
+    # every *note* but one they are the same string; the exception is a word the
+    # dictionary could not read, whose reading the model wrote — and `04` §5.3
+    # renders the key from the fields the *note* carries, not from the ones it
+    # was asked about.
     note_id, created = _insert_note(
         connection,
         subject_id=to.subject_id,
-        identity_key=note.group.identity_key,
+        identity_key=note.identity_key,
         fields=note.fields,
         ingestion_id=to.ingestion_id,
     )
@@ -125,6 +136,7 @@ def write_pending_note(
         note_id=note_id,
         declaration=to.declaration,
         is_oov=note.group.candidate.is_oov,
+        generated_lookups=note.generated_lookups,
         provenance=to.provenance,
     )
     _insert_vetting(connection, note_id=note_id, owner_id=to.owner_id)
@@ -136,7 +148,7 @@ def write_pending_note(
         source_chunk_id=to.source_chunk_id,
         ingestion_id=to.ingestion_id,
     )
-    return Written(note_id=note_id, identity_key=note.group.identity_key, created=created)
+    return Written(note_id=note_id, identity_key=note.identity_key, created=created)
 
 
 def append_occurrences(
@@ -233,6 +245,7 @@ def _insert_provenance(
     note_id: str,
     declaration: Declaration,
     is_oov: bool,
+    generated_lookups: frozenset[str],
     provenance: Provenance,
 ) -> None:
     """ADR 0004, per field — *trust is a property of where a value came from.*
@@ -246,7 +259,8 @@ def _insert_provenance(
     ⚠️ **`is_oov` rides on the looked-up rows only** (`04` §5.4, ADR 0019). It is
     the raw signal `kind` was derived from, and it says something about the
     tokeniser's answer — there is nothing for it to say about a sentence the
-    model wrote.
+    model wrote, nor about a reading the model wrote **because** the tokeniser
+    had nothing to say.
 
     ⚠️ **Attempted for every *note*, not only for one this call created**, with
     `ON CONFLICT DO NOTHING` deciding. Gated on *created* instead, a process that
@@ -259,7 +273,14 @@ def _insert_provenance(
     judged = set(judgement_field_names(declaration))
     for field in declaration["fields"]:
         name = field["name"]
-        generated = name in judged
+        # ⚠️ **`generated_lookups` is the second way a field gets here as
+        # `generated`, and ADR 0063 is why.** A *lookup* field is one a
+        # dictionary supplied; a `reading` for a word SudachiPy has never seen
+        # was written by the model, and ADR 0004 makes trust a property of where
+        # the value came from rather than of which column it sits in. Recorded as
+        # `lookup` it would claim a dictionary behind a guess, which is the one
+        # thing `04` §5.4 exists to prevent.
+        generated = name in judged or name in generated_lookups
         connection.execute(
             """
             INSERT INTO note_field_provenance

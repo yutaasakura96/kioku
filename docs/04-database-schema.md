@@ -166,6 +166,7 @@ The ingested material, retained after ingestion because incremental reading requ
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | no | `uuidv7()` | PK |
 | `subject_id` | `text` | no | — | Key into `subjects/`. Not a foreign key — §13 |
+| `kind` | `text` | no | `'prose'` | What the material is made of — `CHECK (kind IN ('prose','word_list','anki'))`. **Chooses the pipeline** (ADR 0063) |
 | `title` | `text` | no | — | Reader-supplied or first line |
 | `content` | `text` | no | — | The material itself. ⚠️ Never logged (`03` §13.4) |
 | `content_hash` | `text` | no | — | SHA-256 hex of NFC-normalised `content` |
@@ -179,11 +180,42 @@ The ingested material, retained after ingestion because incremental reading requ
 `content_hash` is indexed but **not unique**: PRD §5 says resubmitting identical content creates a
 new *source* and offers to open the existing one. Detection, not prevention.
 
+> ⚠️ **`kind` added 2026-09-16 with [#19](https://github.com/yutaasakura96/kioku/issues/19) —
+> [ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md).**
+>
+> The *subject* declaration names one ordered stage list per kind (`03` §5.1, amended), and this
+> column is what selects it. It is on the *source* rather than on the *ingestion* because it is a
+> fact about the material: §4's label test, answered the same way `subject_id` was, and a
+> re-ingestion of the same *source* is an ingestion of the same kind.
+>
+> **It defaults to `prose`, so every row written before the column keep its meaning.** Each of those
+> is prose that was mined, and a default of `word_list` would retroactively claim they were lists.
+> ⚠️ **That default is not *Ingest*'s**: the screen offers `word_list` first, because ADR 0063's
+> whole premise is that the reader supplies the words. The two are deliberately different and each is
+> right where it stands.
+>
+> ⚠️ **`anki` is in the `CHECK` and nothing produces it.** The `.apkg` format and the licensing of
+> shared decks are both unverified, [#24](https://github.com/yutaasakura96/kioku/issues/24) opens
+> with that research, and ADR 0063 says in as many words that it does not pre-decide the answer — so
+> `subjects/jlpt-vocab.json` declares no pipeline for it and `stage_keys` refuses such a row **by
+> name**. A value the schema accepts and no path produces is the honest state of a decision that has
+> been made and not built.
+>
+> **`char_count`'s cap is unchanged and applies to an uploaded `.txt` exactly as it applies to a
+> paste** — the file is read into the same `content` and refused at the same seam, before any row and
+> before any spend.
+
 ### 5.2 `source_chunk`
 
 The deterministic division of a source's content. Chunk boundaries are a function of content, so they
 are shared and stable across re-ingestions; **progress against them is not, and lives in
 `ingestion_chunk`** (§6.2).
+
+⚠️ **Amended 2026-09-16 (ADR 0063): a function of the content *and of `source.kind`*.** There are two
+boundary rules — 1,200 characters broken at the last sentence terminator for `prose`, and 25 terms
+for a `word_list` — and the properties above hold of both: the chunks tile the content exactly,
+blank lines included, and the same content of the same kind gives the same boundaries. The example
+row below is a prose one.
 
 | Column | Type | Null | Default | Notes |
 | --- | --- | --- | --- | --- |

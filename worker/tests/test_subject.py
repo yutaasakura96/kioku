@@ -17,12 +17,14 @@ import pytest
 from subject import (
     DECLARATION_PATH,
     REPO_ROOT,
+    UnknownSourceKind,
     ValidationError,
     check_declaration,
     field_names,
     judgement_field_names,
     load_declaration,
     memory_bearing_field_names,
+    pipeline_kinds,
     render_identity_key,
     required_field_names,
     stage_keys,
@@ -41,7 +43,11 @@ TWO_FIELDS = {
         {"name": "tail", "kind": "judgement", "required": False, "memory_bearing": True, "label": "TAIL"},
     ],
     "templates": [{"key": "only", "name": "Only", "prompt": ["head"], "answer": ["tail"]}],
-    "stages": [{"key": "one", "title": "One"}],
+    # ⚠️ **Both submittable kinds, because the validator requires both**
+    # (ADR 0063). The stage names are synthetic for the same reason the fields
+    # are: a test written against `jlpt-vocab.json`'s real pipelines would pass
+    # for the wrong reason the day the validator hard-codes one of them.
+    "pipelines": {"word_list": ["one"], "prose": ["one", "two"]},
 }
 
 
@@ -61,8 +67,14 @@ class TestLoadDeclaration:
         on_disk = json.loads((REPO_ROOT / DECLARATION_PATH).read_text(encoding="utf-8"))
         assert load_declaration() == on_disk
 
-    def test_names_the_seven_stages_of_03_5_1_in_order(self):
-        assert stage_keys(load_declaration()) == [
+    def test_names_one_pipeline_per_source_kind(self):
+        """ADR 0063: the declaration stops naming one ordered stage list and
+        names one per *kind*. Prose is `03` §5.1's seven, unchanged; a word list
+        runs `normalise` where prose runs `tokenise` and `extract_candidates`.
+        """
+        declaration = load_declaration()
+        assert pipeline_kinds(declaration) == ["prose", "word_list"]
+        assert stage_keys(declaration, "prose") == [
             "chunk",
             "tokenise",
             "extract_candidates",
@@ -71,6 +83,25 @@ class TestLoadDeclaration:
             "generate",
             "write_pending",
         ]
+        assert stage_keys(declaration, "word_list") == [
+            "chunk",
+            "normalise",
+            "deduplicate",
+            "filter_known",
+            "generate",
+            "write_pending",
+        ]
+
+    def test_refuses_a_kind_it_has_no_pipeline_for_by_name(self):
+        """⚠️ **`anki` is in `04` §5.1's `CHECK` and in no pipeline.** ADR 0063
+        leaves the `.apkg` format and the licensing of shared decks to #24 and
+        says in as many words that it does not pre-decide that ticket's answer,
+        so the value exists and the path does not. A row carrying it has to say
+        so rather than run whichever pipeline happens to be first.
+        """
+        with pytest.raises(UnknownSourceKind) as raised:
+            stage_keys(load_declaration(), "anki")
+        assert "anki" in str(raised.value)
 
     def test_names_the_field_list_and_the_judgement_fields(self):
         declaration = load_declaration()
@@ -201,7 +232,8 @@ class TestCheckDeclaration:
             ("fields", {"fields": "six of them"}),
             ("identity_key", {"identity_key": "term"}),
             ("templates", {"templates": {}}),
-            ("stages", {"stages": [{"key": 7, "title": "One"}]}),
+            ("pipelines", {"pipelines": {"prose": [7]}}),
+            ("pipelines", {"pipelines": ["prose"]}),
         ],
     )
     def test_refuses_a_malformed_section_without_raising(self, section, patch):
@@ -261,16 +293,41 @@ class TestCheckDeclaration:
         )
         assert errors(check_declaration(patched)) == [ValidationError("only", "duplicate_template")]
 
-    def test_refuses_a_subject_with_no_stages(self):
-        assert errors(check_declaration(with_declaration(stages=[]))) == [
-            ValidationError(None, "no_stages")
+    def test_refuses_a_subject_with_no_pipelines_at_all(self):
+        assert errors(check_declaration(with_declaration(pipelines={}))) == [
+            ValidationError(None, "no_pipelines"),
+            ValidationError("word_list", "missing_pipeline"),
+            ValidationError("prose", "missing_pipeline"),
         ]
 
+    def test_refuses_a_pipeline_with_no_stages_in_it(self):
+        patched = with_declaration(pipelines={"word_list": [], "prose": ["one"]})
+        assert errors(check_declaration(patched)) == [ValidationError("word_list", "no_stages")]
+
     def test_refuses_two_stages_wearing_one_key(self):
-        patched = with_declaration(
-            stages=[{"key": "one", "title": "One"}, {"key": "one", "title": "Again"}]
-        )
+        patched = with_declaration(pipelines={"word_list": ["one", "one"], "prose": ["one"]})
         assert errors(check_declaration(patched)) == [ValidationError("one", "duplicate_stage")]
+
+    def test_refuses_a_pipeline_for_a_kind_04_5_1_does_not_allow(self):
+        """⚠️ The other direction, and the one a new *subject* would trip: a
+        pipeline keyed on something `source.kind`'s `CHECK` would refuse is a
+        pipeline nothing can ever select.
+        """
+        patched = with_declaration(
+            pipelines={**TWO_FIELDS["pipelines"], "epub": ["one"]}
+        )
+        assert errors(check_declaration(patched)) == [
+            ValidationError("epub", "unknown_pipeline_kind")
+        ]
+
+    def test_refuses_a_declaration_missing_a_pipeline_ingest_can_submit(self):
+        """⚠️ #19's criterion: *a declaration with no pipeline for a kind fails
+        validation with a named error, not a crash at stage dispatch.*
+        """
+        patched = with_declaration(pipelines={"prose": ["one"]})
+        assert errors(check_declaration(patched)) == [
+            ValidationError("word_list", "missing_pipeline")
+        ]
 
 
 # --- ADR 0006's identity key, rendered ---------------------------------------

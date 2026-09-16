@@ -19,6 +19,7 @@
 // consequence of ADR 0013's split rather than a thing to work around.
 
 import { resolveExisting } from '~~/shared/ingest/existing'
+import { INGEST_DEFAULT_SOURCE_KIND, SUBMITTABLE_SOURCE_KINDS } from '~~/shared/ingest/kind'
 
 const event = useRequestEvent()
 const place = usePlace()
@@ -46,6 +47,31 @@ const failure = event?.context.ingestFailure ?? null
  * Prepending one newline makes the eaten one ours.
  */
 const refusedContent = computed(() => `\n${failure?.content ?? ''}`)
+
+/**
+ * ⚠️ **A word list is the default and prose is the other choice** — ADR 0063 §5.
+ * Prose ingestion is kept: it is built, it has tests, it is the only path that
+ * produces *occurrences* in real text, and `S11` still points at it. What it
+ * loses is its place as the default, because mining prose answers *which words
+ * are in this text* and the question is *which words do I want*.
+ *
+ * ⚠️ **The order of the radios is the order of the constant**, so the default is
+ * first on the screen as well as first in the code. `anki` is deliberately not
+ * among them — #24 opens with research the value does not have yet.
+ */
+const kinds = SUBMITTABLE_SOURCE_KINDS
+
+const KIND_LABELS: Record<string, { label: string, hint: string }> = {
+  word_list: { label: 'Word list', hint: 'One term per line.' },
+  prose: { label: 'Prose', hint: 'Mined for the words in it.' },
+}
+
+// A refused submission keeps the reader's answer. Everything else on the form
+// comes back; this must too, or a refusal silently changes what they said the
+// material was.
+const selectedKind = failure?.kind && (kinds as readonly string[]).includes(failure.kind)
+  ? failure.kind
+  : INGEST_DEFAULT_SOURCE_KIND
 
 const counts = await useStartBlockCounts()
 const runs = (await place?.runs()) ?? []
@@ -84,7 +110,11 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
       </ul>
     </section>
 
-    <form method="post" action="/" class="form">
+    <!-- ⚠️ **`enctype` is load-bearing, not decoration.** A urlencoded form sends
+      a file input's *name* and not its bytes, so the `.txt` ADR 0063 asks for
+      needs `multipart/form-data`. `server/middleware/submit-source.ts` reads
+      both encodings, because the resume control above still posts the other. -->
+    <form method="post" action="/" enctype="multipart/form-data" class="form">
       <!--
         ⚠️ **The action is `/`, not `/api/source`.** `09` §1's table said the
         latter and is amended: a refused paste has to be answered with this
@@ -97,6 +127,28 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
         sends the cookie cross-site only for top-level navigations using a safe
         method, which excludes `POST` (`09` §1, verification §12.2).
       -->
+      <!-- `10` §6.2's form, with ADR 0063's question first: what is this? It is
+        above the title because it decides what the other fields mean — a *word
+        list* is read line by line and prose is mined for the words in it, and a
+        reader who answers it last has typed everything under the wrong heading.
+
+        ⚠️ **Radios and not a `<select>`.** Two choices, both worth reading, on a
+        route that ships no JavaScript: a select hides the alternative behind a
+        click and gains nothing when the whole list fits on one line. -->
+      <fieldset class="kinds">
+        <legend class="eyebrow">SOURCE</legend>
+        <label v-for="kind in kinds" :key="kind" class="kind">
+          <input
+            type="radio"
+            name="kind"
+            :value="kind"
+            :checked="kind === selectedKind"
+          >
+          <span class="kind-label">{{ KIND_LABELS[kind]?.label }}</span>
+          <span class="kind-hint">{{ KIND_LABELS[kind]?.hint }}</span>
+        </label>
+      </fieldset>
+
       <label class="field">
         <span class="eyebrow">TITLE</span>
         <input
@@ -131,6 +183,19 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
           :class="{ refused: failure }"
           :value="refusedContent"
         />
+      </label>
+
+      <!-- ⚠️ **A `.txt` reaches the same handler as a paste** (ADR 0063), so
+        there is one submit control and not two: the file is read into the same
+        `content`, `S2`'s cap refuses an over-cap upload before any spend, and
+        the refusal renders on this screen like every other.
+
+        ⚠️ **`accept` is a hint to the file picker and never a check.** The
+        server reads whatever arrives and the cap is what refuses it; a browser
+        will happily post a file whose extension says otherwise. -->
+      <label class="field file">
+        <span class="eyebrow">OR A FILE</span>
+        <input name="file" type="file" accept=".txt,text/plain">
       </label>
 
       <!-- `10` §6.2: the full-width primary control. ⚠️ **Its key hint slot is
@@ -188,7 +253,52 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
   display: block;
 }
 
+/* ⚠️ **No new colour and no new type size** (`05` §2, §4). The kind chooser is
+   made of the eyebrow, the body face and the ink ramp — the accent is for where
+   you are and what costs you the decision, and this costs you neither: choosing
+   wrong is one resubmission. */
+.kinds {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kinds legend {
+  padding: 0;
+  margin-bottom: var(--k-space-2);
+}
+
+.kind {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: var(--k-space-2);
+  font-family: var(--k-face-en);
+  font-size: 15px;
+  color: var(--k-ink);
+  cursor: pointer;
+}
+
+.kind + .kind {
+  margin-top: var(--k-space-2);
+}
+
+.kind-hint {
+  font-size: 13px;
+  color: var(--k-ink-secondary);
+}
+
+/* The file input draws itself; what it gets here is the same eyebrow and the
+   same rhythm as the two fields above it. */
+.file input {
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: 14px;
+}
+
 .field + .field,
+.kinds + .field,
 .refusal + .field {
   margin-top: var(--k-space-6); /* 28px */
 }

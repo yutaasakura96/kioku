@@ -44,6 +44,14 @@ interface IngestFailure {
   message: string
   title: string
   content: string
+  /**
+   * ⚠️ **Raw, not narrowed to a `SourceKind`** — ADR 0063. It is what the reader
+   * sent, and everything else on this value is too: the re-rendered form
+   * reselects it so a refusal does not quietly change what they said the
+   * material was. `readSourceKind` is where it becomes a kind, on the path that
+   * writes a row.
+   */
+  kind: string
 }
 
 declare module 'h3' {

@@ -49,7 +49,13 @@ from .deduplicate import Group
 #: changes what the model was asked, so it changes what may be served from the
 #: cache — bump this in the same commit, or a reworded prompt silently reads
 #: back answers to the old one.
-PROMPT_VERSION = "v1"
+#:
+#: ⚠️ **v2 is ADR 0063's**, #19: a *candidate* with no looked-up reading asks the
+#: model for one instead of handing it one to echo, which changes the prompt for
+#: every chunk that contains such a word and therefore what any of them may be
+#: served. The stored v1 answers are still correct answers to the v1 question and
+#: are simply never asked for again.
+PROMPT_VERSION = "v2"
 
 #: ⚠️ **Keyed by the declaration's own field names, and a judgement field with no
 #: entry here raises.** The declaration says *which* fields exist (ADR 0003); a
@@ -113,6 +119,44 @@ class GeneratedNote:
 
     group: Group
     fields: dict[str, str]
+    #: ⚠️ **The key rendered from the *assembled* fields, which is not always the
+    #: group's** (ADR 0063). A *candidate* the dictionary could not read carries
+    #: an empty reading through stages 4 and 5, and the model fills it here — so
+    #: the *note* that gets written keys on what it actually says. `04` §5.3 is
+    #: explicit that the key is rendered from the fields it names, and a row
+    #: whose `identity_key` disagreed with its own `fields` would be a row no
+    #: re-ingestion could ever match.
+    #:
+    #: ⚠️ **The cost is one paid generation, and it is the honest one.** Stage 5
+    #: filtered on the empty-reading key, so a word the corpus already holds
+    #: under its real key is not caught until this point — `write_pending`'s
+    #: `ON CONFLICT DO NOTHING` then finds the existing *note* and appends the
+    #: *occurrences* to it. The alternative, keying the row on a reading it does
+    #: not carry, buys nothing and breaks `04` §5.3.
+    identity_key: str
+    #: Which *lookup* fields the model wrote rather than echoed — ADR 0063. Stage
+    #: 7 stamps these `generated` instead of `lookup` (`04` §5.4, ADR 0048),
+    #: because *trust is a property of where a value came from* and a reading no
+    #: dictionary supplied is not a looked-up one.
+    generated_lookups: frozenset[str] = frozenset()
+
+
+def needs_a_reading(group: Group) -> bool:
+    """Whether the model must write this *candidate*'s reading — ADR 0063.
+
+    ⚠️ **The empty reading is the signal, and `is_oov` is the reason.** A line
+    the dictionary could not resolve reaches stage 6 with `reading=""` and
+    `is_oov` set (`worker/pipeline/normalise.py`); everything else arrives with
+    a reading SudachiPy supplied and ADR 0045 wrote in the right script. Asking
+    the model for a reading it did not need would let it overwrite the one thing
+    on a *note* that a dictionary is better at than a model.
+
+    ⚠️ **Prose never produces one**, because ADR 0044's allowlist drops what the
+    tokeniser could not read. This is a word-list condition reached through a
+    predicate about the *candidate* rather than about the pipeline, which is what
+    keeps stage 6 one stage rather than two.
+    """
+    return group.candidate.reading == ""
 
 
 def lookup_field_names(declaration: Declaration) -> list[str]:
@@ -173,12 +217,31 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
     wanted = "\n".join(f"- {name}: {FIELD_INSTRUCTIONS[name]}" for name in judged)
     listed = "\n".join(
         f"{index + 1}. term={group.candidate.term}"
-        f" reading={group.candidate.reading}"
+        # ⚠️ **A question mark rather than an empty value** (ADR 0063). A blank
+        # after `reading=` reads as *the reading is nothing*; the model has to
+        # see that it is being asked.
+        f" reading={'?' if needs_a_reading(group) else group.candidate.reading}"
         f" part_of_speech={group.candidate.part_of_speech}"
         f" as_written={group.candidate.surface_form}"
         for index, group in enumerate(groups)
     )
     echoed = ", ".join(identity_key_field_names(declaration))
+    unread = [group for group in groups if needs_a_reading(group)]
+
+    # ⚠️ **Only when there is one, because the prompt is a cache key.** A
+    # paragraph about readings added to every chunk would change the request for
+    # chunks that never needed it, and `04` §6.3's key covers the request.
+    reading_rule = (
+        ""
+        if not unread
+        else (
+            "\n\nREADINGS\nA word listed with `reading=?` is one the dictionary "
+            "does not carry. Write its reading in hiragana, or in katakana if the "
+            "word is itself written in katakana, and echo the `term` back "
+            "unchanged. Every other word's reading is given and must be echoed "
+            "exactly as it stands.\n"
+        )
+    )
 
     return (
         # ⚠️ *Note* and not *card*, and certainly not *flashcard*: `CONTEXT.md`
@@ -194,7 +257,8 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         "WORDS\n"
         "A morphological analyser found these words in the passage. `term` is the "
         "normalised dictionary form and `as_written` is how it appeared.\n"
-        f"{listed}\n\n"
+        f"{listed}"
+        f"{reading_rule}\n\n"
         "WHAT TO WRITE\n"
         f"One entry per listed word, in the listed order. Echo {echoed} back "
         "exactly as given — they identify the entry and must not be corrected, "
@@ -266,20 +330,29 @@ def _matched(
         raise GenerationRefused("the response carries no `notes` array")
 
     by_key = {group.identity_key: group for group in groups}
+    # ⚠️ **The one set of groups matched on the *term* alone** (ADR 0063). A word
+    # the dictionary could not read was sent with `reading=?`, so the key the
+    # model's answer renders to is not the key that was asked with — matching on
+    # it would refuse every chunk containing a loanword. The term is unique among
+    # these within one chunk, because stage 4 folded repeats on a key whose
+    # reading half is empty for all of them, which makes it the term.
+    by_term = {
+        group.candidate.term: group for group in groups if needs_a_reading(group)
+    }
     seen: dict[str, GeneratedNote] = {}
 
     for arrived in payload["notes"]:
         if not isinstance(arrived, dict):
             raise GenerationRefused("a note in the response is not an object")
         key = _identity_key_of(declaration, arrived)
-        group = by_key.get(key)
+        group = by_key.get(key) or by_term.get(_term_of(arrived))
         if group is None:
             if allow_extra:
                 continue
             raise GenerationRefused("the response carries a note for a word that was not asked for")
-        if key in seen:
+        if group.identity_key in seen:
             raise GenerationRefused("the response carries two notes for one word")
-        seen[key] = GeneratedNote(group=group, fields=_assemble(declaration, group, arrived))
+        seen[group.identity_key] = _generated(declaration, group, arrived)
 
     unanswered = [key for key in by_key if key not in seen]
     if unanswered:
@@ -288,6 +361,34 @@ def _matched(
     # In the order the *source* introduced the words, which is the order stage 4
     # preserved and the order the *vetting* queue reads in.
     return tuple(seen[group.identity_key] for group in groups)
+
+
+def _term_of(arrived: Mapping[str, Any]) -> str:
+    """The `term` the model echoed, or a value no *candidate* can carry.
+
+    ``""`` would collide with nothing today and is still the wrong sentinel: a
+    dict lookup for it is a lookup that could one day succeed. ``None`` cannot be
+    a term because :func:`subject.render_identity_key` refuses a non-string.
+    """
+    term = arrived.get("term")
+    return term if isinstance(term, str) else "\x00"
+
+
+def _generated(
+    declaration: Declaration, group: Group, arrived: Mapping[str, Any]
+) -> GeneratedNote:
+    """One assembled *note*, with the key it will actually be written under."""
+    fields = _assemble(declaration, group, arrived)
+    generated_lookups = frozenset({"reading"}) if needs_a_reading(group) else frozenset()
+    return GeneratedNote(
+        group=group,
+        fields=fields,
+        # ⚠️ **Rendered from the fields, not carried from the group.** For every
+        # *note* but ADR 0063's unread ones these are the same string, and the
+        # one case where they differ is the case `04` §5.3 is about.
+        identity_key=_identity_key_of(declaration, fields),
+        generated_lookups=generated_lookups,
+    )
 
 
 def _identity_key_of(declaration: Declaration, arrived: Mapping[str, Any]) -> str:
@@ -302,7 +403,9 @@ def _assemble(
 ) -> dict[str, str]:
     """The tokeniser's fields, then the model's, then the declaration boundary.
 
-    ⚠️ **The candidate's values win and the echo is discarded.** The echo exists
+    ⚠️ **The candidate's values win and the echo is discarded** — except for
+    ADR 0063's unread reading, below, which the candidate does not have. The echo
+    exists
     to identify the entry; a model that "corrected" 引越し to 引っ越し would
     otherwise rewrite `note.identity_key` and re-create the collision ADR 0006
     exists to prevent. The echo has already been used — it is what matched this
@@ -317,6 +420,20 @@ def _assemble(
                 "*candidate* does not carry one; stage 3 is where it would come from"
             )
         fields[name] = getattr(group.candidate, name)
+
+    # ⚠️ **The one exception to *the candidate's values win*, and ADR 0063 is
+    # it.** A *candidate* the dictionary could not read carries no reading to
+    # win with; the model's is the only one there is, and `04` §5.4 records
+    # where it came from (`write_pending` stamps it `generated`). The `term` is
+    # still the candidate's, so the echo cannot rewrite the word itself.
+    if needs_a_reading(group):
+        supplied = arrived.get("reading")
+        if not isinstance(supplied, str) or not supplied:
+            raise GenerationRefused(
+                f"the response gives no reading for {group.candidate.term!r}, "
+                "which was asked for with `reading=?`"
+            )
+        fields["reading"] = supplied
 
     for name in judgement_field_names(declaration):
         if name in arrived:

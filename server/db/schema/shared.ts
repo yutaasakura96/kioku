@@ -65,6 +65,16 @@ export const source = pgTable(
     id: primaryId(),
     /** Key into `subjects/`. ⚠️ Deliberately **not** a foreign key — `04` §13. */
     subjectId: text('subject_id').notNull(),
+    /**
+     * What the material is made of — ADR 0063, and **the column that chooses
+     * the pipeline**: the *subject* declaration names one ordered stage list per
+     * kind and the worker dispatches on this value.
+     *
+     * ⚠️ **It defaults to `prose` so that the rows written before ADR 0063 keep
+     * their meaning.** Every existing *source* is prose that was mined, and a
+     * default of `word_list` would retroactively claim they were lists.
+     */
+    kind: text('kind').notNull().default('prose'),
     title: text('title').notNull(),
     /** The material itself. ⚠️ Never logged (`03` §13.4). */
     content: text('content').notNull(),
@@ -81,6 +91,13 @@ export const source = pgTable(
     // `S2`'s cap as a constraint, refused before any spend. The handler checks
     // it too; this is the schema refusing it as well (`11` §5).
     check('source_char_count_cap', sql`${t.charCount} > 0 AND ${t.charCount} <= 100000`),
+    // ADR 0063's three kinds. ⚠️ **`anki` is here and nothing produces it** —
+    // the format and the licensing of shared decks are both unverified and #24
+    // opens with that research, so the value exists and the path does not.
+    // `shared/ingest/kind.ts` is the list this spells out, and
+    // `test/schema/ingest.test.ts` drives every member of it through this
+    // constraint rather than comparing two strings.
+    check('source_kind', sql`${t.kind} IN ('prose','word_list','anki')`),
     // ⚠️ Not unique. PRD §5: resubmitting identical content creates a new
     // *source* and offers to open the existing one. Detection, not prevention.
     index('source_content_hash_idx').on(t.contentHash),

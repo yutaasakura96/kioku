@@ -15,7 +15,9 @@ import type { SubjectDeclaration, ValidationError, ValidationResult } from './de
  * `\A…\Z`, because Python's `$` also matches before a trailing newline and
  * JavaScript's does not — which would have been the seventh divergence.
  */
-export const BLANK = /^[\t\n\v\f\r\u001C-\u001F \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]*$/
+export const BLANK_CLASS = '\\t\\n\\v\\f\\r\\u001C-\\u001F \\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF'
+
+export const BLANK = new RegExp(`^[${BLANK_CLASS}]*$`)
 
 /**
  * The seam of `03` §6: `validate(declaration, output) → ok | error`, one

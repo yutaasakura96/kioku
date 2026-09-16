@@ -47,6 +47,7 @@ beforeEach(async () => {
 function submission(overrides: Record<string, unknown> = {}) {
   return {
     subjectId: 'jlpt-vocab',
+    kind: 'prose' as const,
     title: '朝日新聞 社説',
     content: '駅の近くに図書館があります。'.repeat(100),
     characterCount: 1400,

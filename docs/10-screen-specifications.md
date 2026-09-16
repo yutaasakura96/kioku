@@ -710,6 +710,29 @@ just did should be above the thing they might do next.
 
 ### 6.2 New components
 
+> ⚠️ **Amended 2026-09-16 with [#19](https://github.com/yutaasakura96/kioku/issues/19) —
+> [ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md). The form gained two things above and below
+> the two fields below.**
+>
+> **The kind chooser**, first on the form, because it decides what the other fields mean and a reader
+> who answers it last has typed everything under the wrong heading. Two radios under one `SOURCE`
+> eyebrow — **Word list** (*One term per line.*) checked, **Prose** (*Mined for the words in it.*) —
+> label at 15px Newsreader 400 `--k-ink`, hint at 13px `--k-ink-secondary`, `8px` between rows.
+> ⚠️ **Radios and not a `<select>`**: two choices, both worth reading, on a route that ships no
+> JavaScript, and a select hides the alternative behind a click for nothing.
+>
+> **A file input**, under an `OR A FILE` eyebrow, below the content field and above Submit. It draws
+> itself — no face, no border — and takes the same rhythm as the two fields. ⚠️ **`accept=".txt"` is
+> a hint to the picker and never a check**: the server reads whatever arrives, and `S2`'s cap is what
+> refuses it, on the same seam and with the same sentence as an over-cap paste (§6.3).
+>
+> ⚠️ **The form is `multipart/form-data` and that attribute is load-bearing** — a urlencoded form
+> sends a file input's *name* and not its bytes.
+>
+> ⚠️ **No new colour and no new type size.** The chooser is the eyebrow, the body face and the ink
+> ramp; `05` §2 spends the accent on where you are and on what costs you the decision, and choosing
+> wrong here costs one resubmission.
+
 **Text field.** Two of them: an optional title, and the content.
 
 | | Value |

@@ -328,6 +328,49 @@ document size.
 > rather than a second thing to pay for. **A run that batched its writes to the end would pay twice
 > for every word that spans chunks.**
 
+> ⚠️ **Amended 2026-09-16 with [#19](https://github.com/yutaasakura96/kioku/issues/19) —
+> [ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md). There are two pipelines now, and the table
+> above is the *prose* one.**
+>
+> A *source* carries a `kind` (`04` §5.1) and the *subject* declaration names one ordered stage list
+> per kind rather than one list. `subjects/jlpt-vocab.json` declares `prose` exactly as the table has
+> it, and **`word_list` as `chunk → normalise → deduplicate → filter_known → generate →
+> write_pending`**:
+>
+> | # | Stage | Differs how |
+> | --- | --- | --- |
+> | 1 | **Accept and chunk the source** | **25 terms per *chunk***, not 1,200 characters. A list has no sentences for ADR 0041's boundary rule to find, so that rule would degenerate into its own hard-break branch and cut mid-term. 25 puts a stage 6 request in the window ADR 0061's keepalive was sized against |
+> | — | **Normalise** | Replaces stages 2 **and** 3. One line is one term, so there is nothing to extract; what is left is the dictionary's — `normalized_form` as the term half of ADR 0006's *identity key*, and ADR 0045's rule for the script its reading is written in. It tokenises **one line at a time**, because a morpheme spanning two lines would be a morpheme spanning two words |
+> | 4–5 | **Deduplicate**, **Filter known and rejected** | Unchanged code. The same term on two lines is one *note* and two *occurrences*; a term whose *note* already exists costs nothing, including one of the 474 the first run paid for. ⚠️ **One exception, below: an unresolved line** |
+> | 6–7 | **Generate**, **Write pending notes** | Unchanged, with one addition below |
+>
+> ⚠️ **A line SudachiPy cannot resolve is kept, not dropped.** It reaches stage 6 with an empty
+> reading and `is_oov` set; the model writes the reading, and `04` §5.4 records it as `generated`
+> rather than `lookup` — ADR 0004's sentence is that trust is a property of where a value came from.
+> Three things fail to resolve: a word the dictionary has never seen, a line ADR 0044's allowlist
+> would not call vocabulary (a numeral among them, because `normalized_form` rewrites 六 to `6` and
+> `04` §5.3 says numerals never reach the key), and a line holding two content words. Each is kept
+> whole rather than half-answered.
+>
+> ⚠️ **An unresolved line is the one thing stage 5 cannot filter, so it is the one
+> thing a re-ingestion pays for twice.** Stage 5 ran against the key with the
+> empty reading; the *note* is written under the key the model's reading renders,
+> so a word the corpus already holds under its real key is not matched until stage
+> 7's `ON CONFLICT DO NOTHING` finds it and appends the *occurrences* to the
+> existing *note*. Nothing is duplicated and one generation is paid for.
+> ⚠️ **Keying the row on the empty reading would fix the cost and break `04`
+> §5.3**, which renders the key from the fields the *note* carries — a row
+> disagreeing with its own `fields` is a row no later run could ever match.
+>
+> ⚠️ **The stage list is dispatched, not written out in Python.** `worker/pipeline/__init__.py` folds
+> the declaration's list; a stage key nothing runs is a **startup failure** (`worker/__main__.py`),
+> because the alternative is discovering it on the chunk that needed it, hours into a run.
+> `PROMPT_VERSION` moved to `v2` in the same commit, because the prompt changed for any chunk holding
+> an unread word and §5.3's cache key covers the request.
+>
+> **Prose ingestion is kept and is not the default.** It is built, it has tests, it is the only path
+> that produces *occurrences* in real text, and `S11` still points at it.
+
 ### 5.2 Two findings that shape stage 2, and neither is optional
 
 Both were measured, both are in verification §7.3, and both will otherwise be rediscovered as bugs.
@@ -601,6 +644,11 @@ kioku/
 > Stages 2 to 5 are the pure ones, which is what `11` §8 means by the seam. Beside `pipeline/` the
 > worker gained `provider.py` — ADR 0018's boundary, the only module that imports an SDK — and
 > `prices.py`, which is §7's price table as configuration with an effective date.
+>
+> ⚠️ **Amended 2026-09-16 with [#19](https://github.com/yutaasakura96/kioku/issues/19):** `pipeline/`
+> holds an eighth module, `normalise.py`, and the declaration names **two** stage lists rather than
+> one (§5.1). `pipeline/__init__.py` folds whichever list the *source*'s `kind` selects, and
+> `check_pipelines` refuses a stage nothing runs **at startup** rather than at dispatch.
 
 `subjects/` sits at the root rather than under either side, because it belongs to neither (§6).
 `worker/` carries its own dependency manifest and its own lockfile — the two ecosystems do not

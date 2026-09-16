@@ -19,13 +19,19 @@ change plus tests, not a row and not a UI flow (ADR 0003).
 | `identity_key` | ADR 0006's tuple — for JLPT vocabulary, dictionary-form term plus reading. `04` §5.3 renders it NFC-normalised and `U+001F`-joined **in the order listed here** |
 | `fields` | The *note*'s field list, in the order *Vet* reads them. Each carries `kind` (ADR 0004's honesty bit: `lookup` or `judgement`), `required`, and `memory_bearing` |
 | `templates` | The *card templates*. v1 ships **recognition only** — term to reading and meaning (`PRD` §6) — and `card.template_key` is a text key into this list |
-| `stages` | The *pipeline stages* an *ingestion* runs, in order (`03` §5.1). ⚠️ **These are also the module names under `worker/pipeline/`** (`03` §10), which is why a stage key has to be a legal Python identifier |
+| `pipelines` | **One ordered list of *pipeline stages* per *source kind*** — `prose` and `word_list` (`03` §5.1, [ADR 0063](../docs/adr/0063-the-input-is-a-chosen-word-list.md)). ⚠️ **These are also the module names under `worker/pipeline/`** (`03` §10), which is why a stage key has to be a legal Python identifier. ⚠️ **A kind with no pipeline here is refused by name** rather than silently running whichever is first — `anki` is in `04` §5.1's `CHECK` and deliberately absent from this list until [#24](https://github.com/yutaasakura96/kioku/issues/24) |
 
 ⚠️ **Keys are `snake_case` throughout, including the note field names.** Both
 sides read this file, `04`'s columns are `snake_case`, the field names appear
 verbatim as keys inside `note.fields`, and a stage key has to be importable from
 Python. `camelCase` would have been one toolchain's convention winning a file
 that belongs to neither.
+
+⚠️ **Amended 2026-09-16 with [#19](https://github.com/yutaasakura96/kioku/issues/19): `stages` became
+`pipelines`.** The declaration used to name one ordered stage list; ADR 0063 makes it one per *source
+kind*, because a word list runs `normalise` where prose runs `tokenise` and `extract_candidates` and
+everything else about the *subject* — the fields, the templates, the *identity key*, the dictionary —
+is the same either way. A second declaration would have been this file copied with two lines changed.
 
 ⚠️ **A field is named by a flag, never by a second list.** `judgement` fields and
 memory-bearing fields are `kind` and `memory_bearing` on the field itself, so

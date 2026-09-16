@@ -36,6 +36,7 @@ beforeEach(async () => {
 async function incompleteRun(): Promise<string> {
   const written = await recordSource(db, {
     subjectId: 'jlpt-vocab',
+    kind: 'prose' as const,
     title: '社説',
     content: '駅の近くに図書館があります。',
     characterCount: 14,

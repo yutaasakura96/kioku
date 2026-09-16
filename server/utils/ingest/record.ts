@@ -31,6 +31,7 @@ import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 
 import * as schema from '../../db/schema'
+import type { SourceKind } from '../../../shared/ingest/kind'
 import { chunkBoundaries } from '../../../shared/ingest/chunk'
 import { notifyJobQueued } from './notify'
 
@@ -44,6 +45,13 @@ export type IngestDatabase = PgDatabase<PgQueryResultHKT, typeof schema>
 
 export interface SourceSubmission {
   subjectId: string
+  /**
+   * What the material is made of — ADR 0063, and **the value that decides both
+   * the chunking rule and the *pipeline*.** It is the reader's answer on
+   * *Ingest*, not an inference from the text: a list of one-word lines and a
+   * poem are the same bytes.
+   */
+  kind: SourceKind
   /** Never blank — `shared/ingest/submission.ts` derives one when the field was. */
   title: string
   /** ⚠️ **NFC already.** The hash, the count and the offsets all assume it. */
@@ -87,7 +95,7 @@ export async function recordSource(
   submission: SourceSubmission,
 ): Promise<RecordedSource> {
   const contentHash = sha256(submission.content)
-  const boundaries = chunkBoundaries(submission.content)
+  const boundaries = chunkBoundaries(submission.content, submission.kind)
 
   // ⚠️ **One pass to code points, then index it** — the same reason
   // `shared/ingest/chunk.ts` does it once rather than per chunk. Calling
@@ -110,6 +118,7 @@ export async function recordSource(
       .insert(schema.source)
       .values({
         subjectId: submission.subjectId,
+        kind: submission.kind,
         title: submission.title,
         content: submission.content,
         contentHash,
@@ -120,8 +129,9 @@ export async function recordSource(
     const sourceId = source!.id
 
     // One statement rather than a loop: a 100,000-character *source* is 84
-    // chunks, and 84 round trips inside a transaction is 84 chances for the
-    // connection to be the thing that fails.
+    // chunks — or, as a word list, one per 25 terms (ADR 0063) — and that many
+    // round trips inside a transaction is that many chances for the connection
+    // to be the thing that fails.
     await tx.insert(schema.sourceChunk).values(
       boundaries.map((boundary, index) => ({
         sourceId,

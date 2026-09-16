@@ -13,9 +13,17 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import AbstractSet, Mapping
 
-from pipeline import run_stages
+import pytest
+
+from pipeline import (
+    STAGE_RUNNERS,
+    STAGES_RUN_ELSEWHERE,
+    UnknownStage,
+    check_pipelines,
+    run_stages,
+)
 from pipeline.tokenise import DICTIONARY_VERSION
-from subject import load_declaration, stage_keys
+from subject import UnknownSourceKind, load_declaration, pipeline_kinds, stage_keys
 
 DECLARATION = load_declaration()
 SENTENCE = "駅の近くに図書館があります。図書館は六時に開く。"
@@ -40,10 +48,12 @@ class FakeCorpus:
         return {key for key in self.declined if key in identity_keys}
 
 
-def stages(*, known_keys=None, rejected_keys=frozenset(), char_start=0):
+def stages(*, known_keys=None, rejected_keys=frozenset(), char_start=0, kind="prose",
+           text=SENTENCE):
     return run_stages(
         DECLARATION,
-        SENTENCE,
+        text,
+        kind=kind,
         char_start=char_start,
         corpus=FakeCorpus(notes=known_keys or {}, declined=rejected_keys),
     )
@@ -63,14 +73,20 @@ def test_a_stage_key_is_also_a_module_name() -> None:
 
     ⚠️ **All seven as of #9**, which is the assertion this one said it was
     waiting for: it asserted the first five while stages 6 and 7 had no module,
-    and `generate.py` and `write_pending.py` are those modules. A `stages` entry
-    added to the declaration with no module now fails here by name.
+    and `generate.py` and `write_pending.py` are those modules. A stage added to
+    the declaration with no module now fails here by name.
+
+    ⚠️ **Since ADR 0063 it is per *source kind***, and both pipelines are
+    asserted whole: the prose one is the seven `03` §5.1 has always named, and
+    the word list runs `normalise` where prose runs `tokenise` and
+    `extract_candidates`.
     """
-    declared = stage_keys(DECLARATION)
     modules = {path.stem for path in (Path(__file__).parent.parent / "pipeline").glob("*.py")}
 
-    assert set(declared) <= modules
-    assert declared == [
+    for kind in pipeline_kinds(DECLARATION):
+        assert set(stage_keys(DECLARATION, kind)) <= modules, kind
+
+    assert stage_keys(DECLARATION, "prose") == [
         "chunk",
         "tokenise",
         "extract_candidates",
@@ -79,6 +95,99 @@ def test_a_stage_key_is_also_a_module_name() -> None:
         "generate",
         "write_pending",
     ]
+    assert stage_keys(DECLARATION, "word_list") == [
+        "chunk",
+        "normalise",
+        "deduplicate",
+        "filter_known",
+        "generate",
+        "write_pending",
+    ]
+
+
+def test_every_declared_stage_is_one_something_runs() -> None:
+    """⚠️ #19's criterion in its own words: *a stage key that has no module is a
+    startup failure, not a silent skip.* `worker/__main__.py` calls this before
+    it claims anything.
+    """
+    check_pipelines(DECLARATION)
+
+    for kind in pipeline_kinds(DECLARATION):
+        for key in stage_keys(DECLARATION, kind):
+            assert key in STAGE_RUNNERS or key in STAGES_RUN_ELSEWHERE, key
+
+
+def test_a_stage_nobody_runs_stops_the_worker_by_name() -> None:
+    """The sabotage, because a guard that a sabotage cannot reach is not a tested
+    guard (`00-status.md` § Carrying). The message names the stage and the kind,
+    which is the difference between this and a `KeyError` at dispatch.
+    """
+    sabotaged = {
+        **DECLARATION,
+        "pipelines": {**DECLARATION["pipelines"], "word_list": ["chunk", "lemmatise"]},
+    }
+
+    with pytest.raises(UnknownStage) as raised:
+        check_pipelines(sabotaged)
+
+    assert "lemmatise" in str(raised.value)
+    assert "word_list" in str(raised.value)
+
+
+def test_a_source_of_an_undeclared_kind_is_refused_by_name() -> None:
+    """⚠️ `anki` is in `04` §5.1's `CHECK` and in no pipeline — ADR 0063 leaves
+    the format and the licensing of shared decks to #24 and does not pre-decide
+    it. A row that carried it must say so rather than run whatever happens to be
+    first.
+    """
+    with pytest.raises(UnknownSourceKind) as raised:
+        stages(kind="anki")
+
+    assert "anki" in str(raised.value)
+
+
+def test_a_word_list_runs_normalise_where_prose_runs_the_tokeniser() -> None:
+    """ADR 0063's pipeline, end to end over the pure stages: one term per line,
+    the dictionary form as the *term*, and ADR 0045's reading.
+
+    ⚠️ **The same two sentences run as a word list produce something else
+    entirely**, which is the point of dispatching on the kind rather than on the
+    text: 図書館 twice is one *note* with two *occurrences* in prose, and two
+    lines of a list are two sightings of one word for the same reason.
+    """
+    result = stages(kind="word_list", text="\n".join(["図書館", "あります", "開いた"]))
+
+    assert [group.candidate.term for group in result.survivors] == [
+        "図書館",
+        "有る",
+        "開く",
+    ]
+    assert [group.candidate.reading for group in result.survivors] == [
+        "としょかん",
+        "ある",
+        "ひらく",
+    ]
+    assert result.extracted == 3
+
+
+def test_a_word_list_deduplicates_and_filters_like_prose_does() -> None:
+    """`deduplicate` and `filter_known` are *unchanged code* (ADR 0063), and this
+    is what says so: the same word on two lines is one *note* and two
+    *occurrences* (ADR 0006), and a term whose *note* already exists — including
+    one of the 474 the first run paid for — costs nothing.
+    """
+    result = stages(
+        kind="word_list",
+        text="\n".join(["駅", "駅", "図書館"]),
+        known_keys={LIBRARY: "note-1"},
+    )
+
+    assert [group.candidate.term for group in result.survivors] == ["駅"]
+    assert result.extracted == 3
+    assert result.deduplicated == 1
+    assert result.already_known == 1
+    collision = next(group for group in result.collisions if group.identity_key == LIBRARY)
+    assert collision.note_id == "note-1"
 
 
 def test_a_chunk_of_japanese_becomes_the_words_in_it() -> None:

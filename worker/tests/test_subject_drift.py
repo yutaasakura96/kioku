@@ -21,12 +21,16 @@ import subprocess
 import pytest
 
 from subject import (
+    BLANK_CLASS,
     DECLARATION_PATH,
     REPO_ROOT,
+    SOURCE_KINDS,
+    SUBMITTABLE_SOURCE_KINDS,
     field_names,
     judgement_field_names,
     load_declaration,
     memory_bearing_field_names,
+    pipeline_kinds,
     required_field_names,
     stage_keys,
 )
@@ -77,7 +81,10 @@ class TestCrossLanguageDeclaration:
             "required_field_names": required_field_names(declaration),
             "judgement_field_names": judgement_field_names(declaration),
             "memory_bearing_field_names": memory_bearing_field_names(declaration),
-            "stage_keys": stage_keys(declaration),
+            "pipeline_kinds": pipeline_kinds(declaration),
+            "pipelines": {
+                kind: stage_keys(declaration, kind) for kind in pipeline_kinds(declaration)
+            },
             "template_keys": [template["key"] for template in declaration["templates"]],
         } == {
             "subject_id": typescript_view["subject_id"],
@@ -85,7 +92,8 @@ class TestCrossLanguageDeclaration:
             "required_field_names": typescript_view["required_field_names"],
             "judgement_field_names": typescript_view["judgement_field_names"],
             "memory_bearing_field_names": typescript_view["memory_bearing_field_names"],
-            "stage_keys": typescript_view["stage_keys"],
+            "pipeline_kinds": typescript_view["pipeline_kinds"],
+            "pipelines": typescript_view["pipelines"],
             "template_keys": typescript_view["template_keys"],
         }
 
@@ -93,7 +101,32 @@ class TestCrossLanguageDeclaration:
         # `03` §10: `worker/pipeline/` is one module per stage, **named by the
         # declaration**. A stage key that cannot be a module name breaks that
         # rule silently, in #8, months from here.
-        for key in stage_keys(load_declaration()):
-            assert key.isidentifier(), key
-            assert not key.startswith("_"), key
-            assert key.islower(), key
+        declaration = load_declaration()
+        for kind in pipeline_kinds(declaration):
+            for key in stage_keys(declaration, kind):
+                assert key.isidentifier(), key
+                assert not key.startswith("_"), key
+                assert key.islower(), key
+
+    def test_the_two_agree_on_what_a_source_may_be_made_of(self, typescript_view):
+        """⚠️ ADR 0063's `source.kind`, which is a cross-language constant with no
+        compiler behind it — `04` §5.1's `CHECK` on one side and
+        `shared/ingest/kind.ts` on the other. It is the same shape as the
+        `kioku_job` channel, and it drifts the same way: silently.
+        """
+        assert list(SOURCE_KINDS) == typescript_view["source_kinds"]
+        assert list(SUBMITTABLE_SOURCE_KINDS) == typescript_view["submittable_source_kinds"]
+
+    def test_the_two_agree_on_what_is_blank(self, typescript_view):
+        """⚠️ **The class now decides which lines of a *word list* are terms**, not
+        only whether a generated field is empty. `shared/ingest/chunk.ts` counts
+        the terms to place a *chunk* boundary and `worker/pipeline/normalise.py`
+        reads them back out of that chunk; a character one language calls
+        whitespace and the other calls content is a chunk holding 25 terms on one
+        side of the repository and 24 on the other.
+
+        The six characters the two languages' own definitions differ on are
+        asserted by behaviour in both suites; this asserts that the *union* they
+        were replaced with is one string rather than two.
+        """
+        assert BLANK_CLASS == typescript_view["blank_class"]

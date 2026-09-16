@@ -67,6 +67,70 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
+**2026-09-16 — [#19](https://github.com/yutaasakura96/kioku/issues/19) is built: the input can be a
+word list.** The first ticket of the pivot, and the first code to move since it was decided. ADR 0063
+in full, minus nothing.
+
+- **`source.kind`**, `text not null default 'prose'` with a three-value `CHECK`, migrated as
+  `0002_source_kind.sql`. ⚠️ **The default is `prose` and *Ingest*'s is `word_list`**, deliberately
+  and for different reasons: the column default is what keeps the rows written before ADR 0063
+  meaning what they meant, and the screen's default is what the pivot is about. `04` §5.1 is amended.
+- **The declaration names one ordered stage list per kind.** `subjects/jlpt-vocab.json`'s `stages`
+  array is a `pipelines` object: `prose` is `03` §5.1's seven unchanged, `word_list` is
+  `chunk → normalise → deduplicate → filter_known → generate → write_pending`. Both toolchains read
+  it and neither restates it (ADR 0003), so the rename touched four places — `shared/subject/
+  declaration.ts`, `worker/subject.py`, both validators, and the worker's dispatch.
+- **The worker dispatches on the declaration rather than on a sequence written out in Python.**
+  `pipeline/__init__.py` folds the stage list over a `StageState`; **a stage key nothing runs is a
+  startup failure**, checked in `worker/__main__.py` before any job is claimed. That is #19's
+  criterion in its own words, and the reason is that the other answer finds the gap on the chunk that
+  needed it, hours into a run.
+- **`normalise`** — one line, one term, through SudachiPy. Measured 2026-09-16 against
+  `SudachiDict-core` 20260723: あります → 有る␟ある (the lemma's reading, ADR 0045, not あり),
+  コーヒー → コーヒー␟コーヒー, ひらがな → 平仮名␟ひらがな, 引越し and 引越 → one *note*. It imports
+  `reading_of` and `is_candidate` rather than repeating either — § Carrying records what the last
+  duplicated reading rule cost.
+- ⚠️ **A line Sudachi cannot resolve is kept, and the model writes its reading.** Three ways to fail:
+  a word the dictionary has never seen, a line ADR 0044 would not call vocabulary (**a numeral among
+  them** — `normalized_form` rewrites 六 to `6` and `04` §5.3 says numerals never reach the key), and
+  a line holding two content words. Each keeps the line whole with an empty reading and `is_oov`;
+  stage 6 asks for the reading with `reading=?`, `04` §5.4 records it as `generated` rather than
+  `lookup`, and **the *note* is keyed on what it says rather than on what was asked**.
+  `PROMPT_VERSION` is `v2` in the same commit, because the prompt changed and `04` §6.3's key covers
+  the request.
+- **Chunking has a second rule**: 25 terms, not ADR 0041's 1,200 characters. Both rules keep all
+  three properties `04` §5.2 states — the chunks tile the content exactly, blank lines included.
+- ⚠️ **The blank-character class got a second job and is now one constant per language.**
+  `shared/ingest/chunk.ts` counts the terms to place a boundary and `worker/pipeline/normalise.py`
+  reads them back out of that chunk, so a character one language calls whitespace and the other calls
+  content is a *chunk* holding 25 terms on one side of the repository and 24 on the other. `BLANK`
+  and `_BLANK` are built from `BLANK_CLASS` / `BLANK_CLASS`, and the drift test compares the two
+  strings.
+- **Ingest asks what the material is, first**, as two radios with `word_list` checked; the form is
+  `multipart/form-data` and takes a `.txt` beside the textarea. The file is read into the same
+  `content`, so `S2`'s cap refuses an over-cap upload at the same seam before any spend — and ⚠️ **the
+  file's text comes back in the textarea**, because no server can repopulate a file input and `09`
+  §4.2's promise has to hold for the input it did not know about.
+- **Amended in the same commit:** `03` §5.1 (the second pipeline, as a table), `04` §5.1 (`kind`),
+  `04` §5.2 (two boundary rules).
+- ⚠️ **What ADR 0063 calls `write_notes` is the existing `write_pending` stage.** The ADR was
+  describing the pipeline *after* [#20](https://github.com/yutaasakura96/kioku/issues/20) mints on
+  arrival; #19 is explicit that minting is out of scope and that this ticket still writes *pending
+  notes*. Renaming the stage would rename the module and the prose pipeline with it, for a behaviour
+  that has not arrived. **#20 is where the name moves, if it moves.**
+- **Suite: 773 TypeScript (was 734) and 267 worker (was 222).** `npm run typecheck` and
+  `npm run build` both clean.
+- ⚠️ **`/code-review` found two defects and both were real.** (1) **する verbs went unresolved** —
+  勉強する is 勉強 + する in C mode and ADR 0044's allowlist contains `動詞,非自立可能` on purpose, so
+  the *two content words* rule called it a phrase and would have minted a **second *note*** beside
+  the 勉強 a prose run had already produced: ADR 0006's exact failure, arriving through the one part
+  of speech that is deliberately both auxiliary and a word. The guard is now narrow on both sides —
+  head `サ変可能`, follower normalising to 為る — so 気をつける and 持ってくる are still kept whole.
+  (2) **`readSourceKind` fell back to `word_list`**, so any post without the radio — a fixture, the
+  resume control's encoding, a future caller — would have written a `word_list` *source* and chunked
+  a pasted passage at 25 terms. It falls back to `04` §5.1's column default now, with a test at both
+  seams.
+
 **2026-09-16 — the pivot is decided: five ADRs and seven issues, no code.** Yuta said what he wants
 the app for, and it moved the input, the vetting step, the headline metric and the daily load. The
 conversation happened on 2026-09-16 and the writing-down happened the same day, which is the working
@@ -1323,16 +1387,23 @@ paragraph** — what follows is an index.
   are due, counted at composition on `review_session.new_count`, over a local day starting 04:00.
   The backlog is ordered by `get_retrievability` ascending. ⚠️ **Nothing caps due reviews.**
 
-**The ticket frontier is [#19](https://github.com/yutaasakura96/kioku/issues/19) alone.** The rest
-are open and blocked or out of order:
+~~**The ticket frontier is [#19](https://github.com/yutaasakura96/kioku/issues/19) alone.**~~
+⚠️ **[#19](https://github.com/yutaasakura96/kioku/issues/19) built 2026-09-16 (§ Done). The frontier
+is [#20](https://github.com/yutaasakura96/kioku/issues/20) and
+[#22](https://github.com/yutaasakura96/kioku/issues/22), and #21 is still buildable beside either.**
+The rest are open and blocked or out of order:
 
 ```
-#19 word lists ─┬─→ #20 mint on arrival, Vet is the flag queue ─→ #23 stats
+#19 word lists ─┬─→ #20 mint on arrival, Vet is the flag queue ─→ #23 stats  ✔ built
                 ├─→ #22 domain and level, filtered sessions
                 └─→ #24 Anki import (research first)
 #21 the brake — independent, buildable now
 #22, #19 ─→ #25 AI-seeded lists (not specified yet)
 ```
+
+⚠️ **#20 before #22, on one argument.** #20 is what makes a chosen word reach a *card* at all, and
+until it lands a word list produces *pending notes* nobody mints — the queue #19 was built to stop
+filling. #22 makes the *notes* better and #20 makes them reachable.
 
 ⚠️ **#24 and #25 are `needs-triage` on purpose.** The Anki format and shared decks' licences are
 unverified and that ticket opens with research; #25's four open questions are in its body.
@@ -1349,7 +1420,10 @@ every keystroke on both screens.
 **Phase 6 — Build.** It is a hand-off: the commands that drive it all carry
 `disable-model-invocation: true`, so **Yuta types them and no session can start one.**
 
-⚠️ **Amended 2026-09-16: the next command is `/clear`, then `/implement 19`, in a fresh window.**
+⚠️ **Amended 2026-09-16 (second time today): #19 is built; the next command is `/clear`, then
+`/implement 20`, in a fresh window.** ⚠️ **This line named `/implement 19` for one commit** — the
+sixth stale number in this section's history, corrected in the commit that built the ticket rather
+than in the one after it, which is the whole of the fix for the pattern.
 The frontier is not empty any more. The paragraph below was true from 2026-09-12 to 2026-09-16 and is
 struck rather than deleted, because the sentence it corrects is the fifth stale number in this
 section's history and the pattern is worth keeping visible.
@@ -1713,6 +1787,77 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **`normalise` decides what a *word list* line is, and the rule is wider than "Sudachi knows
+  it".** Three things make a line unresolved and each keeps the line **whole** with an empty reading
+  and `is_oov`: an out-of-vocabulary word, a head ADR 0044's allowlist would not call vocabulary, and
+  a **second content word on the line** — **except する after a `サ変可能` noun**, which is
+  inflection. ⚠️ **That exception is not a nicety and `/code-review` is what found it missing:**
+  勉強する is 勉強 + する in C mode, `動詞,非自立可能` is in ADR 0044's allowlist on purpose (ある /
+  いる / くる are words), so without it a word list holding 勉強する mints a **second *note*** beside
+  the 勉強 a prose *source* already produced. One word, two *notes*, keyed apart. The guard is narrow
+  on both sides — the head must be `サ変可能` and the follower must normalise to **為る**, not merely
+  be `非自立可能` — which is what keeps 気をつける and 持ってくる whole. The second of those is the one a future session will
+  "simplify": it is what stops 六 becoming the term `6`, because `normalized_form` rewrites numerals
+  (`03` §5.2) and `04` §5.3 says numerals never reach the key. The third is what stops 新しい本
+  becoming a *note* about 新しい. **Taking the head and discarding the rest looks tidier and is the
+  silent half-answer ADR 0063's *kept, not dropped* clause exists to refuse.**
+- ⚠️ **`is_oov` on a word-list *candidate* means *the reading did not come from the dictionary*, not
+  *Sudachi had never heard of it*.** That is the question `04` §5.4 asks the column and the bit ADR
+  0063 makes stage 6 read, so a line that tokenised perfectly and held two words carries it too. A
+  session that reads it as the tokeniser's raw flag — which is what it is on the prose path — will
+  find the two paths disagreeing about a column with one name.
+- ⚠️ **`readSourceKind` falls back to `prose` and *Ingest* pre-checks `word_list`, and the two
+  defaults must stay different.** `04` §5.1's column defaults to `prose` so the rows written before
+  ADR 0063 keep their meaning; the screen offers `word_list` because that is what the pivot is about.
+  ⚠️ **The function that answers a *post* uses the column's.** It reads the form's default for one
+  commit during #19 and `/code-review` caught it: the form always sends a value, so the fallback is
+  only reached by a post that did not come from the form — a fixture, the resume control's encoding,
+  a future caller — and every one of those is submitting prose or submitting nothing. Answering them
+  `word_list` chunks a pasted passage at 25 terms, silently.
+- ⚠️ **A *note* from an unread line is keyed on a reading the model wrote, and stage 5 could not have
+  filtered it.** `filter_known` ran against `term␟` — the key with the empty reading — so a word the
+  corpus already holds under its real key is **not** caught, and the generation is paid for.
+  `write_pending`'s `ON CONFLICT DO NOTHING` then finds the existing *note* and appends the
+  *occurrences* to it, which is correct and is not free. ⚠️ **The fix is not to key the row on the
+  empty reading**: `04` §5.3 renders the key from the fields the *note* carries, and a row
+  disagreeing with its own `fields` is a row no re-ingestion could ever match.
+- ⚠️ **The blank-character class now decides two different things, and only one of them is about a
+  *note*.** It says whether a generated field is empty (`03` §7) **and** which lines of a word list
+  are terms — `shared/ingest/chunk.ts` counts them to place a *chunk* boundary and
+  `worker/pipeline/normalise.py` reads them back out of that chunk. A character one language calls
+  whitespace and the other calls content is now a chunk holding 25 terms on one side of the
+  repository and 24 on the other, which is a **silent** off-by-one in the *identity* of what gets
+  generated. Both languages build their patterns from one `BLANK_CLASS` constant and
+  `test_subject_drift.py` compares the two strings; **do not write the class out a third time.**
+  ⚠️ **Python builds two patterns from it and TypeScript builds one**, and that asymmetry is
+  deliberate rather than an oversight: only Python needs the class as a *strip*, to give each term
+  its span. A `trimBlank` mirrored into TypeScript for symmetry was written and deleted in the same
+  session, on `/code-review`'s finding that nothing called it.
+- ⚠️ **`PROMPT_VERSION` is part of `04` §6.3's cache key and it moved to `v2` with #19.** Every
+  stored `v1` answer is still a correct answer to the `v1` question and will simply never be asked
+  for again — the 474 *pending notes* are unaffected, because they are `note` rows and
+  `filter_known` finds them by key. **The rule the bump is enforcing: any change to `build_prompt` or
+  `FIELD_INSTRUCTIONS` bumps this in the same commit**, or a reworded prompt silently reads back
+  answers to the old one.
+- ⚠️ **`shared/subject/declaration.ts` imports `../ingest/kind.ts` *with the extension*, and nothing
+  in this repository's own build can tell you why.** `scripts/print-subject-view.ts` is run by `node`
+  for the drift test; Node's ESM resolver will not extension-guess, while Vite accepts either form.
+  So an extensionless import there typechecks, bundles, and breaks the one test that compares the two
+  languages. This is § Carrying's existing Node-resolver finding arriving in a second file.
+- ⚠️ **ADR 0063 names the last word-list stage `write_notes` and the stage is called `write_pending`.**
+  The ADR is describing the pipeline *after* [#20](https://github.com/yutaasakura96/kioku/issues/20)
+  mints on arrival; #19 puts minting out of scope and still writes *pending notes*, so renaming the
+  stage would rename the module — and the prose pipeline with it — for a behaviour that has not
+  arrived. **#20 owns the rename if there is one.**
+- ⚠️ **The `anki` kind is in `04` §5.1's `CHECK`, in no pipeline, and produced by nothing.** That is
+  three places where it looks like a gap and is a decision: ADR 0063 says in as many words that it
+  does not pre-decide [#24](https://github.com/yutaasakura96/kioku/issues/24), whose first job is
+  research into the `.apkg` format and the licensing of shared decks. `stageKeys` / `stage_keys`
+  refuse it **by name**, `checkDeclaration` requires a pipeline only for the kinds *Ingest* can
+  submit, and `shared/ingest/chunk.ts` routes it to the word-list branch with a comment saying that
+  is where #24 will disagree. **Declaring an `anki` pipeline to make a check pass would be deciding
+  #24 by the back door.**
 
 - ⚠️ **`shared/review/compose.ts` carries a comment that is wrong, and ADR 0066 is the correction.**
   It says a *card* three weeks late has decayed further than one due this morning. That holds only

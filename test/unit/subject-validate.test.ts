@@ -17,7 +17,11 @@ const twoFields = {
     { name: 'tail', kind: 'judgement', required: false, memory_bearing: true, label: 'TAIL' },
   ],
   templates: [{ key: 'only', name: 'Only', prompt: ['head'], answer: ['tail'] }],
-  stages: [{ key: 'one', title: 'One' }],
+  // ⚠️ **Both submittable kinds, because `checkDeclaration` requires both**
+  // (ADR 0063). Synthetic stage names for the same reason the fields are
+  // synthetic: a test written against the real pipelines would pass for the
+  // wrong reason the day the validator hard-codes one of them.
+  pipelines: { word_list: ['one'], prose: ['one', 'two'] },
 } as SubjectDeclaration
 
 describe('validate', () => {

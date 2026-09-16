@@ -218,6 +218,28 @@ ordinary answer.
 **Nothing about this flow waits.** `S2`'s "returns control immediately" is satisfied by the job row,
 not by a fast worker: the transaction writes four rows and answers.
 
+> ⚠️ **Amended 2026-09-16 with [#19](https://github.com/yutaasakura96/kioku/issues/19) —
+> [ADR 0063](adr/0063-the-input-is-a-chosen-word-list.md). The form has four fields, and the first is
+> what the material is.**
+>
+> `kind` — **a word list by default**, prose as the other choice — is written to `source.kind`
+> (`04` §5.1) and decides both the chunking rule and the *pipeline* (`03` §5.1). A value the form did
+> not offer falls back to the default rather than refusing: the field is a radio on a route that
+> ships no JavaScript, so the only way to send something else is to hand-craft the post, and `04`
+> §5.1's `CHECK` is what actually refuses a bad one.
+>
+> **A `.txt` may be attached instead of pasting**, and it reaches this same handler — the file is
+> read into the same `content`, so **every row of the table above is unchanged for an upload**,
+> including the cap and the identical-content offer. ⚠️ **The file wins when both are given**:
+> choosing a file is the more deliberate action, while a textarea holds whatever the reader last
+> pasted, including text a browser restored on a back navigation.
+>
+> ⚠️ **On a refusal the file's text comes back in the textarea.** No server can repopulate a file
+> input — browsers refuse it, and rightly — so the only way this section's argument holds for an
+> upload is for the material to arrive as text. The refusal also **reselects the kind they chose**,
+> because everything else on the form comes back and a refusal that silently changed what they said
+> the material was would be worse than one that lost it.
+
 ### 4.3 `S3` — Vet a note in one keystroke
 
 **Screen:** `/vet`.

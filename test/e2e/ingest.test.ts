@@ -54,6 +54,24 @@ function form(fields: Record<string, string>) {
   } satisfies RequestInit
 }
 
+/**
+ * The same `POST /`, sent the way a browser sends the form that has a file input
+ * on it — ADR 0063.
+ *
+ * ⚠️ **No `content-type` header is set**, deliberately: `FormData` makes
+ * `undici` write `multipart/form-data` *with its own boundary*, and a header
+ * written by hand here would name a boundary the body does not use.
+ */
+function upload(fields: Record<string, string>, file?: { name: string, text: string }) {
+  const body = new FormData()
+  for (const [name, value] of Object.entries(fields))
+    body.set(name, value)
+  if (file)
+    body.set('file', new Blob([file.text], { type: 'text/plain' }), file.name)
+
+  return { method: 'POST', body } satisfies RequestInit
+}
+
 async function count(table: string): Promise<number> {
   const result = await database.client.query<{ n: number }>(`SELECT count(*)::int AS n FROM ${table};`)
   return result.rows[0]!.n
@@ -359,5 +377,134 @@ describe('⚠️ the resume control — `10` §6.2, owed since #6 and buildable 
 
     expect(response.status).toBe(303)
     expect(await count('job')).toBe(before)
+  })
+})
+
+// ⚠️ ADR 0063, #19: the input is a chosen word list. *Ingest* offers it as the
+// default and prose as the other choice, and a `.txt` upload reaches the same
+// handler as a paste.
+//
+// `11` §8's rule puts these here for the same reason the over-cap paste is here:
+// the enctype, the checked radio and the repopulated textarea are properties of
+// the response body, and there is no seam that holds any of them.
+describe('a word list is what Ingest asks for — ADR 0063', () => {
+  beforeAll(async () => {
+    await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
+  })
+
+  it('offers both kinds, with the word list checked and prose still reachable', async () => {
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).toContain('name="kind"')
+    // The checked one is the default, and the other is on the screen rather than
+    // behind anything — ADR 0063 §5 keeps prose, it just stops being first.
+    expect(html).toMatch(/value="word_list"[^<>]*checked/)
+    expect(html).toContain('value="prose"')
+    expect(html).not.toMatch(/value="prose"[^<>]*checked/)
+  })
+
+  it('⚠️ posts as multipart, because a urlencoded form cannot carry a file', () => {
+    // A urlencoded form sends a file input's *name* and not its bytes. This is
+    // the one attribute that makes the upload below possible at all, and it is
+    // invisible everywhere except in the markup.
+    return asReader('/')
+      .then(response => response.text())
+      .then(html => expect(html).toMatch(/<form[^<>]*enctype="multipart\/form-data"/))
+  })
+
+  it('writes a word_list source, chunked at 25 terms rather than 1200 characters', async () => {
+    const terms = Array.from({ length: 30 }, (_, index) => `語${index}`).join('\n')
+
+    const response = await asReader('/', upload({ kind: 'word_list', title: '語彙', content: terms }))
+
+    expect(response.status).toBe(303)
+    const source = await database.client.query<{ kind: string }>('SELECT kind FROM source;')
+    expect(source.rows[0]).toEqual({ kind: 'word_list' })
+    // 30 terms is two chunks; the same characters as prose would be one.
+    expect(await count('source_chunk')).toBe(2)
+  })
+
+  it('accepts a .txt upload and reaches the same handler as a paste', async () => {
+    await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
+    const terms = ['図書館', 'あります', 'コーヒー'].join('\n')
+
+    const response = await asReader('/', upload(
+      { kind: 'word_list', title: '', content: '' },
+      { name: 'vocab.txt', text: terms },
+    ))
+
+    expect(response.status).toBe(303)
+    const source = await database.client.query<{ content: string, title: string }>(
+      'SELECT content, title FROM source;',
+    )
+    expect(source.rows[0]!.content).toBe(terms)
+    // The derived title is the first line, exactly as it is for a paste — the
+    // file went through `readSubmission` and nothing else.
+    expect(source.rows[0]!.title).toBe('図書館')
+    expect(await count('job')).toBe(1)
+  })
+
+  it("⚠️ refuses an over-cap upload before any row, with the file's text in the box", async () => {
+    await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
+    const marked = `語彙${'あ'.repeat(SOURCE_CHARACTER_CAP)}`
+
+    const response = await asReader('/', upload(
+      { kind: 'word_list', title: '', content: '' },
+      { name: 'too-long.txt', text: marked },
+    ))
+
+    // `S2`'s cap applies to a file exactly as it applies to a paste, and it is
+    // refused before any spend (`03` §13.2).
+    expect(response.status).toBe(200)
+    expect(await count('source')).toBe(0)
+
+    // ⚠️ **And the material comes back as text.** No server can repopulate a
+    // file input, so the only way `09` §4.2's promise holds for an upload is for
+    // the content to arrive in the textarea instead.
+    const html = await response.text()
+    expect(html).toContain('語彙')
+    expect(html).toContain('the cap is 100,000')
+  })
+
+  it('keeps the reader\'s answer about the material when it refuses them', async () => {
+    const html = await asReader('/', form({ kind: 'prose', title: '', content: '   ' }))
+      .then(response => response.text())
+
+    // Everything else on the form comes back; this must too, or a refusal
+    // silently changes what they said the material was.
+    expect(html).toMatch(/value="prose"[^<>]*checked/)
+  })
+
+  it("⚠️ writes prose when the post carried no kind at all", async () => {
+    await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
+
+    // The form always sends one — a radio is pre-checked and a browser cannot
+    // uncheck one — so this is a post that did not come from the form. Every
+    // such post is submitting prose or submitting nothing, and answering it
+    // `word_list` would chunk a pasted passage at 25 terms. `04` §5.1's column
+    // default is `prose` and `readSourceKind` answers with that one, not with
+    // the screen's.
+    const response = await asReader('/', form({
+      title: '社説',
+      content: '駅の近くに図書館があります。'.repeat(50),
+    }))
+
+    expect(response.status).toBe(303)
+    const source = await database.client.query<{ kind: string }>('SELECT kind FROM source;')
+    expect(source.rows[0]).toEqual({ kind: 'prose' })
+  })
+
+  it('still writes prose when prose is what was chosen', async () => {
+    await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
+
+    const response = await asReader('/', form({
+      kind: 'prose',
+      title: '社説',
+      content: '駅の近くに図書館があります。'.repeat(50),
+    }))
+
+    expect(response.status).toBe(303)
+    const source = await database.client.query<{ kind: string }>('SELECT kind FROM source;')
+    expect(source.rows[0]).toEqual({ kind: 'prose' })
   })
 })

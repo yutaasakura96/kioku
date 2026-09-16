@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { CHUNK_TARGET_CHARACTERS, chunkBoundaries } from '../../shared/ingest/chunk'
+import {
+  CHUNK_TARGET_CHARACTERS,
+  CHUNK_TARGET_TERMS,
+  chunkBoundaries,
+} from '../../shared/ingest/chunk'
 import { countCharacters, sliceCharacters } from '../../shared/ingest/text'
 
 // `04` §5.2: "The deterministic division of a source's content. Chunk boundaries
@@ -27,9 +31,15 @@ import { countCharacters, sliceCharacters } from '../../shared/ingest/text'
 
 const TARGET = CHUNK_TARGET_CHARACTERS
 
-/** Every property in note 1, as one assertion, for any content. */
-function expectTiling(content: string) {
-  const chunks = chunkBoundaries(content)
+/**
+ * Every property in note 1, as one assertion, for any content **of any kind**.
+ *
+ * ⚠️ ADR 0063 added a second boundary rule and the three properties are
+ * properties of *chunking*, not of the prose rule — so every word-list case
+ * below goes through this same function.
+ */
+function expectTiling(content: string, kind: 'prose' | 'word_list' = 'prose') {
+  const chunks = chunkBoundaries(content, kind)
   const total = countCharacters(content)
 
   expect(chunks[0]!.charStart).toBe(0)
@@ -114,7 +124,7 @@ describe('a source longer than the target', () => {
 describe('the properties that make the boundaries usable as a cache key', () => {
   it('is deterministic — the same content twice gives the same boundaries', () => {
     const content = `${'駅の近くに図書館があります。'.repeat(300)}`
-    expect(chunkBoundaries(content)).toEqual(chunkBoundaries(content))
+    expect(chunkBoundaries(content, 'prose')).toEqual(chunkBoundaries(content, 'prose'))
   })
 
   it('⚠️ counts in code points, so a character outside the BMP does not shift the offsets', () => {
@@ -136,10 +146,107 @@ describe('the degenerate inputs, which the handler refuses before reaching here'
   // `CHECK (char_end > char_start)` means a zero-width chunk could never be
   // written even if one were produced.
   it('returns no chunks for empty content', () => {
-    expect(chunkBoundaries('')).toEqual([])
+    expect(chunkBoundaries('', 'prose')).toEqual([])
+    expect(chunkBoundaries('', 'word_list')).toEqual([])
   })
 
   it('returns one chunk for content that is entirely a terminator', () => {
-    expect(chunkBoundaries('。')).toEqual([{ ordinal: 0, charStart: 0, charEnd: 1 }])
+    expect(chunkBoundaries('。', 'prose')).toEqual([{ ordinal: 0, charStart: 0, charEnd: 1 }])
+  })
+
+  it('returns one chunk for a word list of nothing but blank lines', () => {
+    // No term is ever counted, so no boundary is ever placed — and the tiling
+    // still has to hold, because it is what makes a position attributable.
+    // `readSubmission` refuses this long before here (`09` §4.2).
+    expect(chunkBoundaries('\n  \n', 'word_list')).toEqual([
+      { ordinal: 0, charStart: 0, charEnd: 4 },
+    ])
+  })
+})
+
+// ⚠️ ADR 0063: a *word list* is one term per line and its boundary is the 25th
+// term. Not ADR 0041's 1200 characters — a list has no sentences for that rule
+// to find, so it would degenerate into its own hard-break branch and cut
+// mid-term.
+describe('a word list', () => {
+  const list = (terms: number, from = 1) =>
+    Array.from({ length: terms }, (_, index) => `語${from + index}`).join('\n')
+
+  it('is one chunk when it holds no more terms than the target', () => {
+    const chunks = expectTiling(list(CHUNK_TARGET_TERMS), 'word_list')
+    expect(chunks).toHaveLength(1)
+  })
+
+  it('breaks after the 25th term, and the newline belongs to the chunk it ends', () => {
+    const content = list(CHUNK_TARGET_TERMS + 1)
+    const chunks = expectTiling(content, 'word_list')
+
+    expect(chunks).toHaveLength(2)
+    // 25 terms of three characters each, plus the newline that ends each of
+    // them — the boundary falls after the 25th newline, so the second chunk
+    // opens on a term rather than on a line ending.
+    const first = sliceCharacters(content, chunks[0]!.charStart, chunks[0]!.charEnd)
+    expect(first.split('\n').filter(Boolean)).toHaveLength(CHUNK_TARGET_TERMS)
+    const second = sliceCharacters(content, chunks[1]!.charStart, chunks[1]!.charEnd)
+    expect(second).toBe('語26')
+  })
+
+  it('counts terms and not lines, so blank lines do not shorten a chunk', () => {
+    // ⚠️ The count is `BLANK` — the class Python's `is_blank` uses too. A blank
+    // line one language counted and the other did not would be a chunk holding
+    // 25 terms on one side of the repository and 24 on the other.
+    const content = list(CHUNK_TARGET_TERMS).split('\n').join('\n\n')
+    const chunks = expectTiling(content, 'word_list')
+
+    expect(chunks).toHaveLength(1)
+  })
+
+  it('tiles a long list exactly, at 25 terms a chunk', () => {
+    const content = list(CHUNK_TARGET_TERMS * 3 + 4)
+    const chunks = expectTiling(content, 'word_list')
+
+    expect(chunks).toHaveLength(4)
+    const counted = chunks.map(chunk =>
+      sliceCharacters(content, chunk.charStart, chunk.charEnd)
+        .split('\n')
+        .filter(line => line.trim().length > 0).length,
+    )
+    expect(counted).toEqual([
+      CHUNK_TARGET_TERMS,
+      CHUNK_TARGET_TERMS,
+      CHUNK_TARGET_TERMS,
+      4,
+    ])
+  })
+
+  it('is deterministic, which is what makes the chunk hash a cache key', () => {
+    const content = list(CHUNK_TARGET_TERMS * 2)
+    expect(chunkBoundaries(content, 'word_list'))
+      .toEqual(chunkBoundaries(content, 'word_list'))
+  })
+
+  it('⚠️ counts in code points, like the prose rule', () => {
+    // 𠮟 is U+20B9F — one code point, two UTF-16 units. The boundary after the
+    // 25th term therefore falls one **unit** earlier than `.length` would put
+    // it, and Python slices the chunk back out by these offsets
+    // (`shared/ingest/text.ts`).
+    const lines = ['𠮟', ...list(CHUNK_TARGET_TERMS).split('\n')]
+    const content = lines.join('\n')
+    const chunks = expectTiling(content, 'word_list')
+
+    expect(chunks).toHaveLength(2)
+
+    // The first 25 lines, and the newline that ends the 25th.
+    const head = `${lines.slice(0, CHUNK_TARGET_TERMS).join('\n')}\n`
+    expect(chunks[0]!.charEnd).toBe(countCharacters(head))
+    expect(chunks[0]!.charEnd).toBeLessThan(head.length)
+  })
+
+  it('⚠️ chunks the same content differently from prose, which is the point', () => {
+    const content = list(CHUNK_TARGET_TERMS * 2)
+
+    expect(chunkBoundaries(content, 'word_list')).toHaveLength(2)
+    // The same characters as prose are well under the 1200-character target.
+    expect(chunkBoundaries(content, 'prose')).toHaveLength(1)
   })
 })

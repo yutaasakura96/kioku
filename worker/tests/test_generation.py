@@ -534,6 +534,9 @@ def write_one_note(
             "example_sentence": "図書館です。",
             "example_gloss": "It is a library.",
         },
+        # ADR 0063: the key the *note* is written under is rendered from the
+        # fields, and for a word the dictionary could read it is the group's.
+        identity_key=LIBRARY,
     )
 
     return write_pending_note(
@@ -773,3 +776,103 @@ def test_an_ingestion_that_produces_no_new_notes_is_a_success(connection):
     assert provider.calls == []
     assert (extracted, deduplicated, known, rejected) == (7, 0, 7, 0)
     assert spend(connection, ingestion_id)[4] is None
+
+
+def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(connection):
+    """⚠️ ADR 0063, #19: *the reading later written with provenance `generated`
+    rather than `lookup`.*
+
+    A word list holds words SudachiPy has never seen — a list of tech loanwords
+    is going to — and `worker/pipeline/normalise.py` keeps such a line with an
+    empty reading rather than dropping it. The model writes the reading, and
+    ADR 0004's sentence is that trust is a property of where a value came from:
+    recorded as `lookup` this row would claim a dictionary behind a guess.
+    """
+    from pipeline.deduplicate import Group
+    from pipeline.extract_candidates import Candidate
+    from pipeline.generate import GeneratedNote
+    from pipeline.write_pending import Destination, Provenance, write_pending_note
+    from subject import load_declaration, render_identity_key
+
+    make_run(connection)
+    source_id, chunk_id = connection.execute(
+        "SELECT source_id, id FROM source_chunk ORDER BY ordinal LIMIT 1;"
+    ).fetchone()
+    ingestion_id = connection.execute("SELECT id FROM ingestion LIMIT 1;").fetchone()[0]
+
+    term = "コンテナオーケストレーション"
+    reading = "コンテナオーケストレーション"
+    declaration = load_declaration()
+
+    # What `normalise` produces for an unresolvable line: no reading, `is_oov`,
+    # and a key rendered from the empty reading.
+    candidate = Candidate(
+        term=term,
+        reading="",
+        part_of_speech="名詞",
+        surface_form=term,
+        char_start=0,
+        char_end=len(term),
+        is_oov=True,
+        identity_key=render_identity_key(declaration, {"term": term, "reading": ""}),
+    )
+    fields = {
+        "term": term,
+        "reading": reading,
+        "part_of_speech": "名詞",
+        "meaning": "container orchestration",
+        "example_sentence": "コンテナオーケストレーションを学ぶ。",
+        "example_gloss": "I am learning container orchestration.",
+    }
+
+    written = write_pending_note(
+        connection,
+        GeneratedNote(
+            group=Group(
+                identity_key=candidate.identity_key,
+                candidate=candidate,
+                sightings=(candidate,),
+                note_id=None,
+            ),
+            fields=fields,
+            identity_key=render_identity_key(declaration, fields),
+            generated_lookups=frozenset({"reading"}),
+        ),
+        to=Destination(
+            declaration=declaration,
+            subject_id="jlpt-vocab",
+            owner_id=OWNER,
+            source_id=source_id,
+            source_chunk_id=chunk_id,
+            ingestion_id=ingestion_id,
+            provenance=Provenance(
+                model_id=MODEL,
+                prompt_version=PROMPT_VERSION,
+                dictionary_version=DICTIONARY_VERSION,
+            ),
+        ),
+    )
+
+    rows = connection.execute(
+        """
+        SELECT field_name, kind, model_id, dictionary_version, is_oov
+        FROM note_field_provenance WHERE note_id = %s ORDER BY field_name;
+        """,
+        (written.note_id,),
+    ).fetchall()
+    by_field = {row[0]: row[1:] for row in rows}
+
+    # The model wrote it, so the model and the prompt are what there is to
+    # record — and `is_oov` stays off the row, because it says something about
+    # the tokeniser's answer and there was none.
+    assert by_field["reading"] == ("generated", MODEL, None, None)
+    # ⚠️ And `term` is still the dictionary's, which is what keeps the flag
+    # meaningful: the model was never free to write the word itself.
+    assert by_field["term"] == ("lookup", None, DICTIONARY_VERSION, True)
+
+    # ⚠️ **The row is keyed on what it says, not on what was asked** (`04` §5.3).
+    key = connection.execute(
+        "SELECT identity_key FROM note WHERE id = %s;", (written.note_id,)
+    ).fetchone()[0]
+    assert key == render_identity_key(declaration, fields)
+    assert key != candidate.identity_key

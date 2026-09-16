@@ -11,8 +11,9 @@ and it derives the same lists by its own route; that they agree is
 `tests/test_subject_drift.py`.
 
 ⚠️ **Nothing here restates the declaration.** `field_names`, `stage_keys` and
-their siblings read the file; the field list and the seven stages live in
-`subjects/jlpt-vocab.json` and nowhere else.
+their siblings read the file; the field list and the *pipelines* — one ordered
+stage list per *source kind* since ADR 0063 — live in `subjects/jlpt-vocab.json`
+and nowhere else.
 """
 
 from __future__ import annotations
@@ -34,6 +35,22 @@ DECLARATION_PATH = "subjects/jlpt-vocab.json"
 #: ADR 0004's honesty bit, at declaration time: looked up, or judged.
 FIELD_KINDS = ("lookup", "judgement")
 
+#: `04` §5.1's `CHECK` — what a *source* may be made of (ADR 0063).
+#:
+#: ⚠️ **TypeScript has the same list in `shared/ingest/kind.ts` and the two are
+#: compared by `tests/test_subject_drift.py`.** It is the same shape as the
+#: `kioku_job` channel: a cross-language constant that drifts is silent, and here
+#: the silence would be a *source* whose kind names a pipeline on one side and
+#: nothing on the other.
+SOURCE_KINDS = ("prose", "word_list", "anki")
+
+#: The kinds *Ingest* can actually submit, and therefore the kinds a declaration
+#: owes a pipeline for. ⚠️ **`anki` is in :data:`SOURCE_KINDS` and not here**:
+#: ADR 0063 leaves the `.apkg` format and the licensing of shared decks to #24
+#: and says it does not pre-decide that ticket, so requiring a pipeline for it
+#: would decide it here instead.
+SUBMITTABLE_SOURCE_KINDS = ("word_list", "prose")
+
 #: ⚠️ **Emptiness is spelled out because ``str.strip()`` and JavaScript's
 #: ``trim()`` do not agree** — measured 2026-09-10 across the whole BMP. Six
 #: characters differ: Python strips ``U+001C``–``U+001F`` and ``U+0085``,
@@ -46,12 +63,59 @@ FIELD_KINDS = ("lookup", "judgement")
 #: ⚠️ ``\A``/``\Z`` and not ``^``/``$``: Python's ``$`` also matches before a
 #: trailing newline and JavaScript's does not, which would have been the seventh
 #: divergence.
-_BLANK = re.compile(
-    "\\A[\\t\\n\\v\\f\\r\\u001C-\\u001F \\u0085\\u00A0\\u1680"
-    "\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]*\\Z"
+#: ⚠️ **The class is a constant and both patterns are built from it.**
+#: ADR 0063 gave it a second reader — a *word list* is one term per line, and
+#: both languages have to agree on which lines are terms and where each term
+#: begins (:func:`strip_blank`). A class copied for that second job is exactly
+#: the drift the first job exists to close.
+BLANK_CLASS = (
+    "\\t\\n\\v\\f\\r\\u001C-\\u001F \\u0085\\u00A0\\u1680"
+    "\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF"
 )
 
+_BLANK = re.compile("\\A[" + BLANK_CLASS + "]*\\Z")
+
+#: The same class at the two ends of a string — what a ``str.strip()`` that
+#: agreed with JavaScript's ``trim()`` would remove.
+_BLANK_EDGES = re.compile(
+    "\\A[" + BLANK_CLASS + "]+|[" + BLANK_CLASS + "]+\\Z"
+)
+
+
 Declaration = dict[str, Any]
+
+
+def is_blank(value: str) -> bool:
+    """Whether a value is empty by the class both languages agree about.
+
+    ⚠️ **Public since ADR 0063**, because the class now decides something outside
+    this module: which lines of a *word list* are terms. ``shared/subject/
+    validate.ts``'s ``BLANK`` is the other half, and a line one language calls
+    blank while the other calls it a word is a *chunk* that holds 24 terms on one
+    side of the repository and 25 on the other.
+    """
+    return _BLANK.match(value) is not None
+
+
+def strip_blank(value: str) -> str:
+    """``value.strip()``, over the class both languages agree about.
+
+    ⚠️ **Not ``str.strip()``.** It strips ``U+001C``–``U+001F`` — including the
+    character `04` §5.3 joins the *identity key* with — and does not strip
+    ``U+FEFF``, which a `.txt` file pasted out of Windows begins with. The
+    JavaScript half is ``trimBlank``.
+    """
+    return _BLANK_EDGES.sub("", value)
+
+
+class UnknownSourceKind(LookupError):
+    """A *source* whose `kind` the *subject* declaration has no pipeline for.
+
+    ⚠️ **A named failure rather than a `KeyError` at stage dispatch**, which is
+    the acceptance criterion #19 states in those words. It is raised at the top
+    of a chunk's processing, so `worker/runs.py` marks the *chunk* `failed` and
+    the run stays resumable (`03` §5.4) with a message that names the kind.
+    """
 
 
 @dataclass(frozen=True)
@@ -115,12 +179,32 @@ def memory_bearing_field_names(declaration: Declaration) -> list[str]:
     return [field["name"] for field in declaration["fields"] if field["memory_bearing"]]
 
 
-def stage_keys(declaration: Declaration) -> list[str]:
-    """The *pipeline stages* this *subject*'s *ingestion* runs, in order (`03` §5.1).
+def pipeline_kinds(declaration: Declaration) -> list[str]:
+    """The *source kinds* this declaration can ingest, in declaration order."""
+    return list(declaration["pipelines"])
 
-    ⚠️ These are also the module names under ``worker/pipeline/`` (`03` §10).
+
+def stage_keys(declaration: Declaration, kind: str) -> list[str]:
+    """The *pipeline stages* an *ingestion* of this *kind* runs, in order.
+
+    `03` §5.1 and ADR 0063. ⚠️ These are also the module names under
+    ``worker/pipeline/`` (`03` §10).
+
+    ⚠️ **It raises for a kind the declaration does not carry, and the raise is
+    the point.** ADR 0063 rejected the alternative — one pipeline whose
+    prose-only stages skip themselves on a word list — because *a stage that
+    silently does nothing* is the failure `03` §5.1 is built to avoid. A *source*
+    of an undeclared kind is the same silence one layer up, and `anki` is exactly
+    that today: in `04` §5.1's `CHECK`, in no pipeline, produced by nothing.
     """
-    return [stage["key"] for stage in declaration["stages"]]
+    pipelines = declaration["pipelines"]
+    if kind not in pipelines:
+        raise UnknownSourceKind(
+            f"the subject declaration has no pipeline for a source of kind "
+            f"{kind!r} (ADR 0063; {DECLARATION_PATH} declares "
+            f"{', '.join(pipeline_kinds(declaration))})"
+        )
+    return list(pipelines[kind])
 
 
 #: ADR 0006's key is rendered by joining its fields with U+001F — `04` §5.3.
@@ -196,7 +280,7 @@ def check_declaration(value: Any) -> ValidationResult:
     fields = value.get("fields")
     identity_key = value.get("identity_key")
     templates = value.get("templates")
-    stages = value.get("stages")
+    pipelines = value.get("pipelines")
 
     if not _is_record_list(fields):
         return _malformed("fields")
@@ -204,8 +288,10 @@ def check_declaration(value: Any) -> ValidationResult:
         return _malformed("identity_key")
     if not _is_record_list(templates):
         return _malformed("templates")
-    if not _is_record_list(stages):
-        return _malformed("stages")
+    if not isinstance(pipelines, dict) or not all(
+        _is_string_list(pipeline) for pipeline in pipelines.values()
+    ):
+        return _malformed("pipelines")
 
     errors: list[ValidationError] = []
     required: dict[str, bool] = {}
@@ -259,17 +345,36 @@ def check_declaration(value: Any) -> ValidationResult:
             if name not in required:
                 errors.append(ValidationError(name, "template_unknown_field"))
 
-    if not stages:
-        errors.append(ValidationError(None, "no_stages"))
+    # ⚠️ **`pipelines`, and the kind is what a stage list belongs to** —
+    # ADR 0063. Four failures, and the third is the one the ADR is about: a
+    # *source* whose kind names no pipeline reaches the worker and finds nothing
+    # to run, and the ADR's rejected alternative — one pipeline whose prose-only
+    # stages skip themselves — is the same silence one layer down.
+    declared_kinds = list(pipelines)
+
+    if not declared_kinds:
+        errors.append(ValidationError(None, "no_pipelines"))
     else:
-        stage_key_set: set[str] = set()
-        for stage in stages:
-            key = stage.get("key")
-            if not isinstance(key, str):
-                return _malformed("stages")
-            if key in stage_key_set:
-                errors.append(ValidationError(key, "duplicate_stage"))
-            stage_key_set.add(key)
+        for kind in declared_kinds:
+            if kind not in SOURCE_KINDS:
+                errors.append(ValidationError(kind, "unknown_pipeline_kind"))
+
+            pipeline = pipelines[kind]
+            if not pipeline:
+                errors.append(ValidationError(kind, "no_stages"))
+                continue
+
+            seen: set[str] = set()
+            for stage in pipeline:
+                if stage in seen:
+                    errors.append(ValidationError(stage, "duplicate_stage"))
+                seen.add(stage)
+
+    # ⚠️ **Only the kinds *Ingest* can submit are required, and `anki` is
+    # deliberately not one** — :data:`SUBMITTABLE_SOURCE_KINDS` says why.
+    for kind in SUBMITTABLE_SOURCE_KINDS:
+        if kind not in declared_kinds:
+            errors.append(ValidationError(kind, "missing_pipeline"))
 
     return _result(errors)
 

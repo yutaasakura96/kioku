@@ -21,6 +21,7 @@ import type { PGlite } from '@electric-sql/pglite'
 import { JOB_CHANNEL } from '../../server/utils/ingest/notify'
 import { recordSource } from '../../server/utils/ingest/record'
 import { CHUNK_TARGET_CHARACTERS } from '../../shared/ingest/chunk'
+import { SOURCE_KINDS } from '../../shared/ingest/kind'
 import { freshDatabase, reset } from './harness'
 import type { SchemaDatabase } from './harness'
 
@@ -70,13 +71,7 @@ async function count(table: string): Promise<number> {
 
 describe('the four rows, in one transaction', () => {
   it('writes source, source_chunk, ingestion(queued) and job(queued)', async () => {
-    const written = await recordSource(db, {
-      subjectId: 'jlpt-vocab',
-      title: '朝日新聞 社説',
-      content: TWO_PAGES,
-      characterCount: 5600,
-      submittedBy: ownerId,
-    })
+    const written = await recordSource(db, submission())
 
     expect(await count('source')).toBe(1)
     expect(await count('source_chunk')).toBe(written.chunkCount)
@@ -193,6 +188,55 @@ describe('the cap, which the schema refuses as well', () => {
   })
 })
 
+// ADR 0063: a *source* declares what it is made of, and `04` §5.1's `CHECK` is
+// what refuses anything else. The values are `shared/ingest/kind.ts`'s; these
+// drive every one of them through the production path rather than comparing the
+// constant with the constraint's text.
+describe('source.kind — ADR 0063', () => {
+  it.each(SOURCE_KINDS)('accepts %s, which `04` §5.1 allows', async (kind) => {
+    await recordSource(db, { ...submission(), kind })
+    expect(await row<{ kind: string }>('SELECT kind FROM source;')).toEqual({ kind })
+  })
+
+  it('refuses a kind the CHECK does not name, and takes the whole run with it', async () => {
+    await expectRefusal(
+      recordSource(db, { ...submission(), kind: 'epub' as 'prose' }),
+      /source_kind/,
+    )
+
+    expect(await count('source')).toBe(0)
+    expect(await count('job')).toBe(0)
+  })
+
+  it('⚠️ defaults to prose, so the rows written before ADR 0063 keep their meaning', async () => {
+    // The column default, not the form's — *Ingest* offers `word_list` first
+    // (`shared/ingest/kind.ts`). Every *source* that existed when the column
+    // arrived was prose that was mined, and a default of `word_list` would
+    // retroactively claim they were lists.
+    await client.exec(`
+      INSERT INTO source (subject_id, title, content, content_hash, char_count)
+      VALUES ('jlpt-vocab', '古い', '駅', 'abc', 1);
+    `)
+    expect(await row<{ kind: string }>('SELECT kind FROM source;')).toEqual({ kind: 'prose' })
+  })
+
+  it('chunks a word list at 25 terms rather than at 1200 characters', async () => {
+    // The two rules in one assertion at the write: `recordSource` hands the
+    // kind to `chunkBoundaries`, so the same characters become a different
+    // number of `source_chunk` rows.
+    const terms = Array.from({ length: 60 }, (_, index) => `語${index}`).join('\n')
+
+    const written = await recordSource(db, {
+      ...submission(),
+      kind: 'word_list',
+      content: terms,
+      characterCount: terms.length,
+    })
+
+    expect(written.chunkCount).toBe(3)
+  })
+})
+
 describe('an identical source resubmitted — PRD §5', () => {
   it('⚠️ creates a new source and reports the earlier one, rather than refusing', async () => {
     // `04` §5.1: `content_hash` is indexed and **not** unique. "Detection, not
@@ -273,6 +317,10 @@ describe('a source short enough to be one chunk', () => {
 function submission() {
   return {
     subjectId: 'jlpt-vocab',
+    // ⚠️ **Prose, because this file's fixture is two pages of it.** ADR 0063
+    // makes `word_list` *Ingest*'s default and leaves `04` §5.1's column default
+    // at `prose`; the fixture says which it means rather than leaning on either.
+    kind: 'prose' as const,
     title: '朝日新聞 社説',
     content: TWO_PAGES,
     characterCount: 5600,

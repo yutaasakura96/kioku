@@ -336,3 +336,168 @@ def test_a_cached_response_that_no_longer_validates_is_a_miss() -> None:
     del payload["notes"][0]["meaning"]
 
     assert notes_for_cached(DECLARATION, GROUPS, payload) is None
+
+
+# ---------------------------------------------------------------------------
+# ADR 0063 — a word the dictionary could not read
+# ---------------------------------------------------------------------------
+
+#: What `worker/pipeline/normalise.py` hands stage 6 for a line SudachiPy could
+#: not resolve: the line as the reader wrote it, no reading, `is_oov`.
+UNREAD = group("コンテナオーケストレーション", "", is_oov=True)
+
+
+def answered(*notes: dict) -> dict:
+    return {"notes": list(notes)}
+
+
+def judged(**overrides: str) -> dict:
+    fields = {
+        "meaning": "container orchestration",
+        "example_sentence": "コンテナオーケストレーションを学ぶ。",
+        "example_gloss": "I am learning container orchestration.",
+    }
+    return {**fields, **overrides}
+
+
+class TestTheReadingIsAskedFor:
+    """⚠️ ADR 0063: *it goes to the model with an empty reading, the reading comes
+    back as provenance `generated` rather than `lookup`.*
+    """
+
+    def test_the_prompt_marks_the_word_and_says_what_to_write(self) -> None:
+        prompt = build_prompt(DECLARATION, TEXT, (LIBRARY, UNREAD))
+
+        assert "reading=?" in prompt
+        assert "READINGS" in prompt
+        # ⚠️ And the word that *has* a reading is still handed one to echo — the
+        # dictionary is better at this than a model, and ADR 0045 already decided
+        # the script it is written in.
+        assert "reading=としょかん" in prompt
+
+    def test_a_chunk_with_no_unread_word_is_asked_the_older_question(self) -> None:
+        """⚠️ **The prompt is a cache key** (`04` §6.3). A paragraph about
+        readings added to every chunk would change the request for chunks that
+        never needed it, and every one of them would re-pay.
+        """
+        prompt = build_prompt(DECLARATION, TEXT, GROUPS)
+
+        assert "READINGS" not in prompt
+        assert "reading=?" not in prompt
+
+    def test_the_answer_is_matched_on_the_term_because_the_key_has_moved(self) -> None:
+        """The model was asked with `reading=?`, so the key its answer renders to
+        is not the key it was asked with. Matching on the key alone would refuse
+        every chunk containing a loanword.
+        """
+        notes = notes_from(
+            DECLARATION,
+            (UNREAD,),
+            answered({
+                "term": "コンテナオーケストレーション",
+                "reading": "コンテナオーケストレーション",
+                **judged(),
+            }),
+        )
+
+        assert len(notes) == 1
+        assert notes[0].fields["reading"] == "コンテナオーケストレーション"
+
+    def test_the_note_is_keyed_on_what_it_actually_says(self) -> None:
+        """⚠️ `04` §5.3 renders the *identity key* from the fields the *note*
+        carries. A row whose key disagreed with its own `fields` is a row no
+        re-ingestion could ever match.
+        """
+        notes = notes_from(
+            DECLARATION,
+            (UNREAD,),
+            answered({
+                "term": "コンテナオーケストレーション",
+                "reading": "コンテナオーケストレーション",
+                **judged(),
+            }),
+        )
+
+        assert notes[0].identity_key == render_identity_key(DECLARATION, notes[0].fields)
+        assert notes[0].identity_key != UNREAD.identity_key
+
+    def test_the_reading_is_recorded_as_generated_rather_than_looked_up(self) -> None:
+        """ADR 0004 and `04` §5.4: trust is a property of where a value came
+        from. `write_pending` reads this to stamp the *provenance* row.
+        """
+        notes = notes_from(
+            DECLARATION,
+            (UNREAD, LIBRARY),
+            answered(
+                {
+                    "term": "コンテナオーケストレーション",
+                    "reading": "コンテナオーケストレーション",
+                    **judged(),
+                },
+                {
+                    "term": "図書館",
+                    "reading": "としょかん",
+                    "meaning": "library",
+                    "example_sentence": "図書館です。",
+                    "example_gloss": "It is a library.",
+                },
+            ),
+        )
+
+        by_term = {note.fields["term"]: note for note in notes}
+        assert by_term["コンテナオーケストレーション"].generated_lookups == frozenset({"reading"})
+        # ⚠️ And the word that was read by the dictionary keeps `lookup`, which
+        # is what keeps the flag meaningful.
+        assert by_term["図書館"].generated_lookups == frozenset()
+
+    def test_a_term_the_model_rewrote_is_still_the_candidates(self) -> None:
+        """The reading is the one exception to *the candidate's values win*; the
+        `term` is not, because a model free to write it is free to change
+        `note.identity_key` (ADR 0006).
+        """
+        notes = notes_from(
+            DECLARATION,
+            (UNREAD,),
+            answered({
+                "term": "コンテナオーケストレーション",
+                "reading": "コンテナオーケストレーション",
+                **judged(),
+            }),
+        )
+
+        assert notes[0].fields["term"] == UNREAD.candidate.term
+
+    @pytest.mark.parametrize("reading", ["", None, 7])
+    def test_an_answer_with_no_reading_for_an_unread_word_is_refused(self, reading) -> None:
+        """⚠️ **Refused rather than written empty.** `reading` is `required` in
+        the declaration and *memory-bearing* (ADR 0011); a *note* carrying an
+        empty one would key on `term␟` and put a blank on the answer side of a
+        *card*.
+        """
+        with pytest.raises(GenerationRefused):
+            notes_from(
+                DECLARATION,
+                (UNREAD,),
+                answered({
+                    "term": "コンテナオーケストレーション",
+                    "reading": reading,
+                    **judged(),
+                }),
+            )
+
+    def test_a_cached_answer_to_the_same_question_still_matches(self) -> None:
+        """`04` §6.3's cache is keyed on the *chunk*, and a chunk with an unread
+        word is asked the same way every time — so a hit has to match the same
+        way too.
+        """
+        notes = notes_for_cached(
+            DECLARATION,
+            (UNREAD,),
+            answered({
+                "term": "コンテナオーケストレーション",
+                "reading": "コンテナオーケストレーション",
+                **judged(),
+            }),
+        )
+
+        assert notes is not None and len(notes) == 1

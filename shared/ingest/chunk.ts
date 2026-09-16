@@ -40,7 +40,16 @@
  *    cache key (`04` §6.3).
  *  - **Every offset is a code point**, not a UTF-16 unit — `shared/ingest/text.ts`
  *    carries that argument, and it is the one that crosses to Python.
+ *
+ * ⚠️ **Since ADR 0063 there are two rules and the *source*'s `kind` chooses.**
+ * Everything above is the prose rule and is unchanged. A *word list* is one term
+ * per line and its boundary is the 25th term, because a list has no sentences
+ * for the rule above to find — `wordListBoundaries` at the foot of this file.
+ * All three properties hold of both.
  */
+
+import type { SourceKind } from './kind'
+import { BLANK } from '../subject/validate'
 
 /**
  * The target and the hard maximum, in characters. `04` §5.2's worked example.
@@ -75,16 +84,35 @@ export interface ChunkBoundary {
 }
 
 /**
- * Divides content into chunks. Total: empty content gives no chunks rather than
- * throwing, so the caller's ordering is not load-bearing. The handler refuses
- * empty content long before this (`09` §4.2).
+ * Divides content into chunks, **by the kind of material it is** — ADR 0063.
+ * Total: empty content gives no chunks rather than throwing, so the caller's
+ * ordering is not load-bearing. The handler refuses empty content long before
+ * this (`09` §4.2).
+ *
+ * ⚠️ **Two rules, chosen by the kind, and neither is the other's special case.**
+ * Prose has sentences and its boundary is the last terminator before 1200
+ * characters; a word list has lines and its boundary is the 25th term. ADR 0063
+ * rejected one rule that adapted itself, for the reason it rejected one pipeline
+ * whose stages skip themselves: the first bug either shape produces reads as
+ * *the chunker is broken* rather than *the chunker ran the wrong rule*.
  */
-export function chunkBoundaries(content: string): ChunkBoundary[] {
+export function chunkBoundaries(content: string, kind: SourceKind): ChunkBoundary[] {
   // One pass to code points, then everything below indexes that array. Doing it
   // per chunk would be quadratic on a 100,000-character paste.
   const characters = Array.from(content)
-  const total = characters.length
 
+  if (kind === 'prose')
+    return proseBoundaries(characters)
+
+  // ⚠️ `anki` reaches this branch and nothing produces an `anki` *source* — #24
+  // opens with the research and ADR 0063 does not pre-decide it. A `.apkg` is
+  // not newline-separated text, so when that ticket lands this `if` is where it
+  // says so rather than inheriting a rule that happens to run.
+  return wordListBoundaries(characters)
+}
+
+function proseBoundaries(characters: string[]): ChunkBoundary[] {
+  const total = characters.length
   const chunks: ChunkBoundary[] = []
   let start = 0
 
@@ -115,4 +143,75 @@ function nextBoundary(characters: string[], start: number, total: number): numbe
   }
 
   return limit
+}
+
+/**
+ * ADR 0063's number: **25 terms per *chunk*** on a word list.
+ *
+ * ⚠️ **Not ADR 0041's 1200 characters**, which is a sentence-boundary rule with
+ * nothing to hold onto here — a list has no sentences, so that rule degenerates
+ * into its own hard-break branch and cuts mid-term. 25 is chosen to put a stage
+ * 6 request in the same few minutes the prose *chunks* took, which is the window
+ * [ADR 0061](../../docs/adr/0061-the-worker-heartbeats-while-the-model-streams.md)'s
+ * keepalive was sized against.
+ *
+ * ⚠️ **Moving it costs what moving `CHUNK_TARGET_CHARACTERS` costs** — every
+ * word list ingested afterwards gets different `source_chunk.content_hash`
+ * values, so `04` §6.3's cache stops answering for them. A cost, not a
+ * corruption: boundaries never reach `normalized_form`.
+ */
+export const CHUNK_TARGET_TERMS = 25
+
+/**
+ * A word list's boundaries: one *chunk* per 25 terms — ADR 0063.
+ *
+ * ⚠️ **The chunks still tile the content exactly**, blank lines included, and
+ * that is not bookkeeping for its own sake: `04` §5.5 attributes every
+ * *occurrence* to the `source_chunk` that found it, and a gap makes a position
+ * unattributable. A blank line produces no term and rides along inside whichever
+ * chunk it falls in.
+ *
+ * ⚠️ **`BLANK` and not `.trim()`.** `worker/pipeline/normalise.py` re-splits this
+ * same text to produce the *candidates*, and the two languages disagree about
+ * six whitespace characters (`00-status.md` § Carrying). Counting terms with one
+ * definition and reading them with another is a chunk that holds 25 terms on one
+ * side of the repository and 24 on the other.
+ */
+function wordListBoundaries(characters: string[]): ChunkBoundary[] {
+  const total = characters.length
+  const chunks: ChunkBoundary[] = []
+
+  let start = 0
+  let terms = 0
+  let lineStart = 0
+
+  for (let index = 0; index <= total; index++) {
+    // The end of a line: a newline, or the end of the content when the last
+    // line has none.
+    if (index < total && characters[index] !== '\n')
+      continue
+
+    if (!BLANK.test(characters.slice(lineStart, index).join('')))
+      terms++
+
+    // The boundary falls *after* the newline, so the terminator belongs to the
+    // chunk it ends — the same rule as the prose branch.
+    const lineEnd = Math.min(index + 1, total)
+    lineStart = lineEnd
+
+    if (terms === CHUNK_TARGET_TERMS && lineEnd < total) {
+      chunks.push({ ordinal: chunks.length, charStart: start, charEnd: lineEnd })
+      start = lineEnd
+      terms = 0
+    }
+  }
+
+  // Whatever is left — the tail, and on a list of fewer than 25 terms the whole
+  // of it. ⚠️ Content that is entirely blank lands here as one chunk rather than
+  // none, so the tiling holds for it too; `readSubmission` has already refused
+  // it long before this (`09` §4.2).
+  if (start < total)
+    chunks.push({ ordinal: chunks.length, charStart: start, charEnd: total })
+
+  return chunks
 }
