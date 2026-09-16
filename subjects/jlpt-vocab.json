@@ -68,7 +68,7 @@
       "deduplicate",
       "filter_known",
       "generate",
-      "write_pending"
+      "write_notes"
     ],
     "word_list": [
       "chunk",
@@ -76,7 +76,7 @@
       "deduplicate",
       "filter_known",
       "generate",
-      "write_pending"
+      "write_notes"
     ]
   }
 }

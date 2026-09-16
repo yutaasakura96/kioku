@@ -12,7 +12,7 @@ for each time that moved.** What joined the three is SQL rather than concurrency
 #7's chunk queue, `04` §6.2's resume query, the settle and the drain, then #8's
 corpus lookup, rejected filter, *occurrence* append and ledger, ADR 0046's two
 sweep branches and `test_scratch_cleanup.py`, then #9's generation cache, spend
-ledger and *pending note* writes. All of it needs a database rather than a second
+ledger and *note* writes. All of it needs a database rather than a second
 session, and in Python that is the same container.
 
 ⚠️ **The count is not written in this file**, and that is deliberate: it lived in
@@ -94,6 +94,14 @@ SCRATCH_TABLES = (
     # nothing, so it goes first and alone.
     "generation_cache",
     "occurrence",
+    # ⚠️ **`card` is here since #20, and it was deliberately absent before.**
+    # Until ADR 0064 the worker minted nothing, so a `card` left standing meant a
+    # test had written one by hand and `04` §9's `RESTRICT` on `note` refusing
+    # was the right failure. Now `write_notes` mints on arrival, and a run's
+    # *cards* are as much its scratch as its *notes* are. `scheduling_epoch` and
+    # `card_flag` are still absent: the worker writes neither, so one left
+    # standing is still a test that did something it should say.
+    "card",
     "note_vetting",
     "note_field_provenance",
     "level_claim",
@@ -102,9 +110,7 @@ SCRATCH_TABLES = (
     "ingestion",
     "source_chunk",
     "source",
-    # Last: every child of `note` above it is gone by now, and `card` is not in
-    # this list on purpose — a `card` still standing means `04` §9's `RESTRICT`
-    # refuses, which is the failure this ordering exists to produce.
+    # Last: every child of `note` above it is gone by now.
     "note",
 )
 
@@ -122,7 +128,7 @@ stale-claim sweep, and a LISTEN torn down and recovered by the poll. Those three
 need a second database session, which PGlite cannot give them. The rest need a
 database rather than a second session — #7's chunk queue, resume query, settle
 and drain, #8's corpus lookup, rejected filter, *occurrence* append and ledger,
-and #9's generation cache, spend ledger and *pending note* writes — and in Python
+and #9's generation cache, spend ledger and *note* writes — and in Python
 that is the same container. ADR 0038 carries a dated amendment for each time the
 number moved.
 

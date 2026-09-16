@@ -1,14 +1,21 @@
 /**
- * `04` §12's first query — **the *Vet* queue**: pending *notes* for this owner,
- * with their fields, provenance and *level claims*. It is the one query that
- * runs between keystrokes, and `S3` gives it a five-second median to live
- * inside.
+ * **The *Vet* queue, which since #20 is the flag queue** (ADR 0064 §3): accepted
+ * *notes* whose *card* carries an open `card_flag` for this owner, with their
+ * fields, provenance and *level claims*. It is the one query that runs between
+ * keystrokes.
  *
- * ⚠️ **The order is `note_vetting.created_at`, oldest first, and that is what
- * makes ADR 0033's undo free.** `Z` returns a *note* "to *pending* at the head of
- * the queue"; a *note* just decided is older than every *note* still waiting,
- * because the queue is drained in the order it was filled — so putting it back
- * at the head is what this `ORDER BY` already does, with nothing to remember.
+ * ⚠️ **A *pending* *note* never appears on it.** The 474 of them are a cache
+ * for stage 5 now (ADR 0063), and a chosen word is accepted when it is written
+ * (ADR 0064), so nothing reaches *Vet* except a *card* the reader flagged.
+ *
+ * ⚠️ **The order is the oldest open `card_flag.flagged_at`** (ADR 0049's
+ * oldest-first, unchanged), **and that is what makes ADR 0033's undo free.** `Z`
+ * reopens a resolution's flags with the instants they were raised at, so the
+ * *note* lands back where it was offered, with nothing to remember.
+ * ⚠️ **Not `note_vetting.flagged_at`**, which `X` stamps once and never clears:
+ * a *note* flagged, kept, and flagged again a month later would sort by the
+ * first flag, ahead of everything raised since. The column is read for `10`
+ * §4.3's aside instead, which closes #10's carried bullet.
  * Any other ordering would need the undo to carry a position, and a position is
  * client state on the one screen whose undo reads from the database precisely so
  * it survives a reload (ADR 0033).
@@ -26,13 +33,11 @@
  * `04` §12's own amendment for the dedup lookup applied to the read side.
  */
 
-import { and, asc, count, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, asc, count, eq, exists, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import { openRunTally, sweepIdleRuns } from './run'
-import { runDetail } from '../../../shared/ingest/run-detail'
 import type { IngestDatabase } from '../ingest/record'
-import type { RunStatus } from '../../../shared/ingest/run-detail'
 
 /**
  * How many *notes* the client holds ahead of the reader.
@@ -66,36 +71,78 @@ export interface VetNoteView {
   levels: LevelClaimView[]
   /** The *source* name in the chrome bar (`05` §7). Null once hard-deleted. */
   sourceTitle: string | null
-  /** ⚠️ `S9`'s second look — `10` §4.3's `returned by a flag` aside. */
+  /**
+   * ⚠️ `S9`'s second look — `10` §4.3's `returned by a flag` aside, read from
+   * `note_vetting.flagged_at`. True of every *note* the flag queue holds, and
+   * kept on the view rather than assumed by the screen, because the column is
+   * what says it.
+   */
   flagged: boolean
-}
-
-/** What `10` §4.5's states 2 and 3 put under their statement. */
-export interface RunningIngestion {
-  title: string
-  status: RunStatus
-  /** `shared/ingest/run-detail.ts` — **one formatter**, so `/` and `/vet` agree. */
-  detail: string
 }
 
 export interface VetQueue {
   notes: VetNoteView[]
-  /** The chrome bar's `N pending` — every *note* waiting, not just this batch. */
-  pending: number
-  /** Decisions in the open run — `10` §4.5 state 3's `18 vetted in this run`. */
+  /** The chrome bar's `N flagged` — every *note* waiting, not just this batch. */
+  flagged: number
+  /** Decisions in the open run — `10` §4.5 state 2's `3 resolved in this run`. */
   vetted: number
-  /** ⚠️ Rejections in the open run. ADR 0033's confirmation appears only above zero. */
+  /** ⚠️ Drops in the open run. ADR 0033's confirmation appears only above zero. */
   rejections: number
-  /** Null when nothing is queued or running — which is what separates state 1 from state 2. */
-  running: RunningIngestion | null
 }
 
-/** The chrome bar's figure — every *note* waiting for this reader. */
-export async function pendingCount(db: IngestDatabase, ownerId: string): Promise<number> {
+/**
+ * `EXISTS` an open `card_flag` on the row's *note* for this reader — `04` §11's
+ * `card_flag (note_id) WHERE resolved_at IS NULL`, the index that has said since
+ * Phase 4 how *Vet* finds a flagged *note*.
+ *
+ * ⚠️ **Owner-scoped**, unlike the freeze's lift in `server/utils/note/fields.ts`.
+ * A flag is personal (`04` §4): another reader's flag on the shared *note* is
+ * not this reader's reason to be asked about it.
+ */
+export function openFlagFor(tx: IngestDatabase, ownerId: string) {
+  return exists(
+    tx
+      .select({ one: sql`1` })
+      .from(schema.cardFlag)
+      .where(
+        and(
+          eq(schema.cardFlag.noteId, schema.noteVetting.noteId),
+          eq(schema.cardFlag.ownerId, ownerId),
+          isNull(schema.cardFlag.resolvedAt),
+        ),
+      ),
+  )
+}
+
+/** The instant the oldest still-open flag on the row's *note* was raised. */
+function oldestOpenFlag(db: IngestDatabase, ownerId: string) {
+  return sql`(${db
+    .select({ at: sql`min(${schema.cardFlag.flaggedAt})` })
+    .from(schema.cardFlag)
+    .where(
+      and(
+        eq(schema.cardFlag.noteId, schema.noteVetting.noteId),
+        eq(schema.cardFlag.ownerId, ownerId),
+        isNull(schema.cardFlag.resolvedAt),
+      ),
+    )})`
+}
+
+/** On the flag queue: accepted, with an open flag on this owner's *card*. */
+function onTheQueue(db: IngestDatabase, ownerId: string) {
+  return and(
+    eq(schema.noteVetting.ownerId, ownerId),
+    eq(schema.noteVetting.state, 'accepted'),
+    openFlagFor(db, ownerId),
+  )
+}
+
+/** The chrome bar's figure — every flagged *note* waiting for this reader. */
+export async function flaggedCount(db: IngestDatabase, ownerId: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(schema.noteVetting)
-    .where(and(eq(schema.noteVetting.ownerId, ownerId), eq(schema.noteVetting.state, 'pending')))
+    .where(onTheQueue(db, ownerId))
 
   return row?.n ?? 0
 }
@@ -121,7 +168,6 @@ export async function queueBatch(
       noteId: schema.note.id,
       fields: schema.note.fields,
       flagged: isNotNull(schema.noteVetting.flaggedAt),
-      createdAt: schema.noteVetting.createdAt,
       sourceTitle: schema.ingestion.sourceTitle,
     })
     .from(schema.noteVetting)
@@ -130,13 +176,10 @@ export async function queueBatch(
     // delete, because a *note* outlives the run that made it (`04` §9) — an
     // inner join here would drop those *notes* out of the queue entirely.
     .leftJoin(schema.ingestion, eq(schema.ingestion.id, schema.note.originIngestionId))
-    .where(
-      and(
-        eq(schema.noteVetting.ownerId, ownerId),
-        eq(schema.noteVetting.state, 'pending'),
-      ),
-    )
-    .orderBy(asc(schema.noteVetting.createdAt), asc(schema.noteVetting.noteId))
+    .where(onTheQueue(db, ownerId))
+    // `note_id` breaks the tie so two flags in one instant order the same way
+    // twice.
+    .orderBy(asc(oldestOpenFlag(db, ownerId)), asc(schema.noteVetting.noteId))
     .limit(limit)
 
   if (rows.length === 0)
@@ -182,79 +225,6 @@ export async function queueBatch(
   }))
 }
 
-/**
- * The *ingestion* that might still add to the queue — `09` §7's table, and what
- * separates `10` §4.5's state 1 from its state 2.
- *
- * ⚠️ **`queued` and `running` only.** `incomplete` is resumable (`04` §6.1) but
- * nothing is coming for it until somebody presses resume, so reporting it here
- * would tell a reader to wait for something that is not on its way.
- *
- * ⚠️ **No `owner_id` filter, and that is `04` §4 rather than an omission.** A
- * *source* and an *ingestion* are shared entities; `server/utils/ingest/queries.ts`
- * carries the argument in full.
- */
-export async function runningIngestion(
-  db: IngestDatabase,
-  now: Date = new Date(),
-): Promise<RunningIngestion | null> {
-  const chunk = schema.sourceChunk
-  const done = schema.ingestionChunk
-
-  const [row] = await db
-    .select({
-      title: schema.ingestion.sourceTitle,
-      status: schema.ingestion.status,
-      submittedAt: schema.ingestion.submittedAt,
-      claimedAt: sql<Date | null>`(${db
-        .select({ claimedAt: schema.job.claimedAt })
-        .from(schema.job)
-        .where(eq(schema.job.ingestionId, schema.ingestion.id))
-        .orderBy(desc(schema.job.createdAt))
-        .limit(1)})`,
-      totalChunks: sql<number>`(${db
-        .select({ n: count() })
-        .from(chunk)
-        .where(eq(chunk.sourceId, schema.ingestion.sourceId))})::int`,
-      completeChunks: sql<number>`(${db
-        .select({ n: count() })
-        .from(done)
-        .where(and(eq(done.ingestionId, schema.ingestion.id), eq(done.status, 'complete')))})::int`,
-      notesProduced: sql<number>`(${db
-        .select({ n: count() })
-        .from(schema.note)
-        .where(eq(schema.note.originIngestionId, schema.ingestion.id))})::int`,
-    })
-    .from(schema.ingestion)
-    .where(or(eq(schema.ingestion.status, 'queued'), eq(schema.ingestion.status, 'running')))
-    .orderBy(desc(schema.ingestion.submittedAt))
-    .limit(1)
-
-  if (!row)
-    return null
-
-  const status = row.status as RunStatus
-
-  return {
-    title: row.title,
-    status,
-    detail: runDetail(
-      {
-        status,
-        submittedAt: row.submittedAt,
-        // The scalar subquery's decoder does not know the column's type, so it
-        // arrives as the driver's raw value — the same note as `recentRuns`.
-        claimedAt: row.claimedAt ? new Date(row.claimedAt) : null,
-        totalChunks: row.totalChunks,
-        completeChunks: row.completeChunks,
-        failedChunks: 0,
-        notesProduced: row.notesProduced,
-      },
-      now,
-    ),
-  }
-}
-
 /** Everything one `GET /api/vet/queue` answers with. */
 export async function vetQueue(db: IngestDatabase, ownerId: string): Promise<VetQueue> {
   await sweepIdleRuns(db, ownerId)
@@ -262,25 +232,24 @@ export async function vetQueue(db: IngestDatabase, ownerId: string): Promise<Vet
   // ⚠️ **Sequential, and `Promise.all` here is a bug you can only find in the
   // e2e tier.** Measured 2026-09-12: `@electric-sql/pglite-socket` fronts a
   // **single-connection** PGlite (`test/schema/harness.ts` says so about the
-  // schema tier and it is just as true of the socket), so four reads issued at
-  // once make `node-postgres` open four connections and the server resets three
-  // of them — the request answers `500` and the only symptom in the browser is
-  // an empty queue. Production would have been fine, which is exactly what makes
-  // it worth writing down rather than quietly fixing.
+  // schema tier and it is just as true of the socket), so several reads issued
+  // at once make `node-postgres` open several connections and the server resets
+  // all but one — the request answers `500` and the only symptom in the browser
+  // is an empty queue. Production would have been fine, which is exactly what
+  // makes it worth writing down rather than quietly fixing.
   //
-  // The cost is three extra round trips on a read the reader never waits on: the
-  // client paints the next *note* from the batch it already holds (`S3`), and
-  // this answer is what corrects the counts behind it.
+  // ⚠️ **Three reads, not four, since #20.** The running *ingestion* went: an
+  // *ingestion* mints *cards* now and never adds to this queue, so `10` §4.5's
+  // "nothing to vet yet" state would have told the reader to wait for something
+  // that is not on its way.
   const notes = await queueBatch(db, ownerId)
-  const pending = await pendingCount(db, ownerId)
+  const flagged = await flaggedCount(db, ownerId)
   const run = await openRunTally(db, ownerId)
-  const running = await runningIngestion(db)
 
   return {
     notes,
-    pending,
+    flagged,
     vetted: run?.vetted ?? 0,
     rejections: run?.rejections ?? 0,
-    running,
   }
 }

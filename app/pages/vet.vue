@@ -3,6 +3,12 @@
 // navigation, and exactly one way out: `Esc`, and a Done control present on
 // every viewport, because a phone has no `Esc` (ADR 0026, ADR 0032).
 //
+// ⚠️ **Since #20 this is the flag queue** (ADR 0064). A chosen word is minted on
+// arrival, so the only *note* that reaches this screen is one whose *card* the
+// reader flagged in *Review* — and `space`, `E` and `R` resolve the flag as
+// keep, fix and drop. **The keystrokes did not move** (ADR 0064 §6); the labels
+// in the legend did, because they name what the key now does.
+//
 // ⚠️ **The key handlers bind to the mode container, never to `document` or
 // `window`** (ADR 0025, `10` §4.1). Focus lives there so keystrokes land
 // somewhere and a reload restores it — and because ADR 0023's map is all
@@ -33,9 +39,6 @@ import type { VetQueue } from '../../server/utils/vet/queries'
 
 const route = useRoute()
 const origin = computed(() => resolveOrigin(route.query.from))
-
-/** `10` §4.5: states 2 and 3 are the only self-updating screens in the app. */
-const POLL_INTERVAL = 5_000
 
 /** `10` §4.8: below this a statement flashing is worse than quiet ground. */
 const LOADING_THRESHOLD = 500
@@ -71,29 +74,24 @@ const visible = computed(() =>
 )
 
 const note = computed(() => visible.value[0] ?? null)
-const pending = computed(() => Math.max(0, (queue.value?.pending ?? 0) - inFlight.value.length))
+const flagged = computed(() => Math.max(0, (queue.value?.flagged ?? 0) - inFlight.value.length))
 const vetted = computed(() => (queue.value?.vetted ?? 0) + inFlight.value.length)
 const rejections = computed(() =>
   (queue.value?.rejections ?? 0) + inFlight.value.filter(d => d.action === 'reject').length,
 )
-const running = computed(() => queue.value?.running ?? null)
-
 /**
- * `10` §4.5 — ***Vet* has three empty states, not one**, and the difference
- * between the first two is the difference between leaving and waiting thirty
- * seconds (`09` §8).
+ * `10` §4.5 — ***Vet* has two empty states since #20, not three.**
  *
- * ⚠️ **State 3 is not a repeat of state 2.** `S2` promises the first *note* is
- * vettable while the rest generate, so the queue running dry mid-run is a normal
- * event rather than an ending — the reader has done work, and *nothing yet* and
- * *caught up* are different feelings about the same database.
+ * ⚠️ **"Nothing to vet yet" retired with the running *ingestion* it reported.**
+ * An *ingestion* mints *cards* now and never adds to this queue (ADR 0064), so a
+ * screen saying *wait, a source is still generating* would be telling the
+ * reader to wait for something that is not on its way. What is left is the
+ * difference between arriving to nothing and having done the work.
  */
 const empty = computed(() => {
   if (note.value)
     return null
-  if (!running.value)
-    return 'nothing' as const
-  return vetted.value === 0 ? ('not-yet' as const) : ('caught-up' as const)
+  return vetted.value === 0 ? ('nothing' as const) : ('caught-up' as const)
 })
 
 // -- The edit ---------------------------------------------------------------
@@ -398,8 +396,6 @@ function backToQueue() {
 
 // -- Lifecycle --------------------------------------------------------------
 
-let poll: ReturnType<typeof setInterval> | undefined
-
 onMounted(async () => {
   const threshold = setTimeout(() => (slow.value = true), LOADING_THRESHOLD)
 
@@ -407,30 +403,10 @@ onMounted(async () => {
   clearTimeout(threshold)
   focusContainer()
 
-  // ⚠️ **The screen polls while an *ingestion* could still add to it, and only
-  // then** — which is `09` §7's row for `/vet` ("Notes keep arriving; the count
-  // in the chrome bar rises") rather than `10` §4.5's narrower reading.
-  //
-  // The two documents look like they disagree and do not: §4.5's claim is that
-  // *Vet*'s empty states are **the only self-updating screens in the
-  // application*, which is a statement about the three *places* never
-  // refreshing (`09` §2) — not a rule that this screen stops noticing arrivals
-  // the moment it has a *note* to show. Polling only when empty would leave the
-  // chrome bar's count frozen in front of a reader who is reading rather than
-  // pressing, which is the one thing that row promises does not happen.
-  //
-  // When nothing is queued or running there is nothing that could arrive: a
-  // *mode* has no path to Ingest, so the poll would be a request per five
-  // seconds for a number that cannot change.
-  poll = setInterval(() => {
-    if (running.value)
-      void enqueue(load)
-  }, POLL_INTERVAL)
-})
-
-onBeforeUnmount(() => {
-  if (poll)
-    clearInterval(poll)
+  // ⚠️ **No poll since #20.** It ran while an *ingestion* could add to the
+  // queue, and nothing can now: a flag is written by *Review*, which is another
+  // *mode*, and reaching this screen from it is a document load that reads the
+  // queue afresh (`10` §4.5, amended).
 })
 </script>
 
@@ -459,13 +435,13 @@ onBeforeUnmount(() => {
       <span class="gap" />
 
       <span v-if="note" class="counts">
-        <span class="figure">{{ pending }}</span>
-        <span class="word">pending</span>
+        <span class="figure">{{ flagged }}</span>
+        <span class="word">flagged</span>
         <span class="dot" aria-hidden="true">·</span>
         <!--
           `05` §7's "*note* index", read as **the position in this run** — the
           only monotone number on the screen, and the one that answers "how much
-          have I done". The pending count beside it already answers "how much is
+          have I done". The flagged count beside it already answers "how much is
           left".
         -->
         <span class="figure">#{{ vetted + 1 }}</span>
@@ -510,7 +486,7 @@ onBeforeUnmount(() => {
                bar standing. -->
           <EmptyBlock v-if="confirming">
             <template #statement>
-              {{ rejections }} rejection{{ rejections === 1 ? ' becomes' : 's become' }} permanent.
+              {{ rejections }} drop{{ rejections === 1 ? ' becomes' : 's become' }} permanent.
             </template>
             <template #body>
               Re-ingesting a <i>source</i> will not surface {{ rejections === 1 ? 'it' : 'them' }} again.
@@ -560,7 +536,7 @@ onBeforeUnmount(() => {
               Nothing to vet.
             </template>
             <template #body>
-              Everything ingested has been judged.
+              No card is flagged. A card you flag in review comes back here.
             </template>
 
             <!--
@@ -576,22 +552,12 @@ onBeforeUnmount(() => {
             </NuxtLink>
           </EmptyBlock>
 
-          <EmptyBlock v-else-if="empty === 'not-yet'">
-            <template #statement>
-              Nothing to vet yet.
-            </template>
-            <template #body>
-              <span lang="ja">{{ running?.title }}</span> — {{ running?.detail }}.
-            </template>
-          </EmptyBlock>
-
           <EmptyBlock v-else>
             <template #statement>
               Caught up.
             </template>
             <template #body>
-              <span lang="ja">{{ running?.title }}</span> — {{ running?.detail }}.
-              {{ vetted }} vetted in this run.
+              {{ vetted }} resolved in this run.
             </template>
           </EmptyBlock>
         </div>
@@ -622,7 +588,7 @@ onBeforeUnmount(() => {
         -->
         <template v-else-if="edit">
           <span class="keys">
-            <KeyCap cap="Enter" label="accept" variant="primary" />
+            <KeyCap cap="Enter" label="fix" variant="primary" />
             <KeyCap cap="Tab" label="next field" />
             <KeyCap cap="Esc" label="cancel edit" />
           </span>
@@ -639,9 +605,9 @@ onBeforeUnmount(() => {
         -->
         <template v-else-if="note">
           <span class="keys">
-            <KeyCap cap="space" label="accept" variant="primary" />
-            <KeyCap cap="E" label="edit" />
-            <KeyCap cap="R" label="reject" />
+            <KeyCap cap="space" label="keep" variant="primary" />
+            <KeyCap cap="E" label="fix" />
+            <KeyCap cap="R" label="drop" />
             <KeyCap cap="Z" label="undo" />
           </span>
 

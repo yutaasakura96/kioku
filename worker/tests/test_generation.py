@@ -6,7 +6,7 @@ it proves the prompt carried what stage 7 then needs — a provider that could n
 find a word in the prompt could not answer about it.
 
 Needs the container: what is under test is the SQL around stages 6 and 7 — the
-cache lookup, the spend ledger, and the four writes one *pending note* is.
+cache lookup, the spend ledger, and the writes one minted *note* is.
 
 ⚠️ **Nothing here asserts a threshold on *acceptance rate* or on output
 quality**, and the absence is deliberate (ADR 0037, ADR 0018): the number has to
@@ -79,8 +79,14 @@ class FakeProvider:
         )
 
 
-def run(connection: psycopg.Connection, provider, *, environment: str = "laptop") -> int:
-    generate = make_generator(provider, worker_environment=environment)
+def run(
+    connection: psycopg.Connection, provider, *, environment: str = "laptop", log=None
+) -> int:
+    generate = make_generator(
+        provider,
+        worker_environment=environment,
+        **({} if log is None else {"log": log}),
+    )
     return drain(
         connection,
         owner="w",
@@ -111,18 +117,19 @@ def forget_the_corpus(connection: psycopg.Connection) -> None:
     the other way round.
     """
     connection.execute("DELETE FROM occurrence;")
+    connection.execute("DELETE FROM card;")
     connection.execute("DELETE FROM note_vetting;")
     connection.execute("DELETE FROM note_field_provenance;")
     connection.execute("DELETE FROM note;")
 
 
 # ---------------------------------------------------------------------------
-# Stage 7 — what one *pending note* is
+# Stage 7 — what one minted *note* is (ADR 0064)
 # ---------------------------------------------------------------------------
 
 
-def test_a_generated_note_is_written_pending_with_its_lookup_fields_intact(connection):
-    """`04` §5.3 and §7.2 — the *note*, and the row that puts it in the queue.
+def test_a_generated_note_is_written_accepted_with_its_lookup_fields_intact(connection):
+    """`04` §5.3 and §7.2 — the *note*, and the row that says the reader has it.
 
     ⚠️ **`term`, `reading` and `part_of_speech` are the tokeniser's** (ADR 0004),
     and the model echoed the first two only so this note could be matched to the
@@ -147,8 +154,67 @@ def test_a_generated_note_is_written_pending_with_its_lookup_fields_intact(conne
         """,
         (LIBRARY, OWNER),
     ).fetchone()
-    assert state == "pending"
+    assert state == "accepted"
     assert str(origin) == str(ingestion_id)
+
+
+def test_a_chosen_word_mints_its_card_in_the_write(connection):
+    """ADR 0064 §1: *the `note`, its provenance rows, its occurrences, a
+    `note_vetting` row and the `card`* — and nobody is asked.
+
+    ⚠️ **`seconds_to_vet` and `vetting_session_id` are null, not zero.** No
+    person and no run was involved, and a zero is a measurement of something
+    that did not happen.
+
+    ⚠️ **And no *scheduling epoch*.** `scheduling_epoch.card_id` is `RESTRICT`,
+    and the first epoch belongs to the *grade* that first schedules the *card*
+    (`server/utils/review/grade.ts`), exactly as it did when acceptance was a
+    keystroke.
+    """
+    make_run(connection)
+
+    run(connection, FakeProvider())
+
+    vetting = connection.execute(
+        """
+        SELECT v.state, v.edited, v.seconds_to_vet, v.vetting_session_id, v.vetted_at IS NOT NULL
+        FROM note_vetting v JOIN note n ON n.id = v.note_id
+        WHERE n.identity_key = %s AND v.owner_id = %s;
+        """,
+        (LIBRARY, OWNER),
+    ).fetchone()
+    assert vetting == ("accepted", False, None, None, True)
+
+    cards = connection.execute(
+        """
+        SELECT c.owner_id, c.template_key, c.suspended_at FROM card c
+        JOIN note n ON n.id = c.note_id WHERE n.identity_key = %s;
+        """,
+        (LIBRARY,),
+    ).fetchall()
+    assert cards == [(OWNER, "recognition", None)]
+    assert connection.execute("SELECT count(*) FROM scheduling_epoch;").fetchone()[0] == 0
+
+
+def test_the_card_belongs_to_whoever_asked_for_the_job(connection):
+    """ADR 0064 §2 amends `04` §4: `job.requested_by` owns what the run mints.
+
+    ⚠️ **Not `ingestion.submitted_by`**, which stays an audit line. The two are
+    the same reader in every row the app writes today, so the only way to tell
+    which one the worker read is to make them differ.
+    """
+    connection.execute(
+        """
+        INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
+        VALUES ('usr_requester', 'Requester', 'requester@example.test', true, now(), now());
+        """
+    )
+    make_run(connection, requested_by="usr_requester")
+
+    run(connection, FakeProvider())
+
+    owners = connection.execute("SELECT DISTINCT owner_id FROM card;").fetchall()
+    assert owners == [("usr_requester",)]
 
 
 def test_provenance_is_recorded_per_field_and_says_who_produced_it(connection):
@@ -215,18 +281,27 @@ def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection):
     assert rows == [(5, 8, "図書館"), (14, 17, "図書館")]
 
 
-def test_a_run_whose_reader_was_deleted_writes_notes_and_no_vetting(connection):
-    """`04` §6.1 makes `submitted_by` nullable with `ON DELETE SET NULL` so a
-    hard delete does not erase the spend ledger. The consequence is honest and
-    is asserted rather than discovered: such a run's *notes* belong to the
-    corpus and to no queue, because `note_vetting.owner_id` is `NOT NULL`.
+def test_a_run_nobody_owns_writes_notes_mints_nothing_and_says_so(connection):
+    """ADR 0064 §2: *if `requested_by` is null, the run writes its notes and
+    mints nothing, and says so in the log.*
+
+    `04` §6.4 makes `requested_by` nullable with `ON DELETE SET NULL`, so the
+    case is reachable. ⚠️ **Guessing the reader from the allowlist is the
+    shortcut refused**: it is correct until the day ADR 0012's revisit condition
+    fires, and then it mints one reader's words into another's deck.
     """
     make_run(connection, owner=None)
+    said: list[tuple[str, dict]] = []
 
-    run(connection, FakeProvider())
+    run(connection, FakeProvider(), log=lambda event, **fields: said.append((event, fields)))
 
     assert LIBRARY in notes(connection)
     assert connection.execute("SELECT count(*) FROM note_vetting;").fetchone()[0] == 0
+    assert connection.execute("SELECT count(*) FROM card;").fetchone()[0] == 0
+    assert [event for event, _ in said] and all(
+        event == "ingest.unowned" for event, _ in said
+    )
+    assert all(fields["minted"] == 0 and fields["notes"] > 0 for _, fields in said)
 
 
 # ---------------------------------------------------------------------------
@@ -504,7 +579,7 @@ def write_one_note(
     from pipeline.deduplicate import Group
     from pipeline.extract_candidates import Candidate
     from pipeline.generate import GeneratedNote
-    from pipeline.write_pending import Destination, Provenance, write_pending_note
+    from pipeline.write_notes import Destination, Provenance, write_note
     from subject import load_declaration
 
     source_id, chunk_id = connection.execute(
@@ -539,7 +614,7 @@ def write_one_note(
         identity_key=LIBRARY,
     )
 
-    return write_pending_note(
+    return write_note(
         connection,
         note,
         to=Destination(
@@ -627,6 +702,65 @@ def test_an_accepted_notes_fields_survive_a_later_write(connection):
         (accepted.note_id,),
     ).fetchall()
     assert [position for (position,) in positions] == [5, 40]
+
+
+def test_a_note_left_pending_before_the_pivot_is_minted_when_it_is_chosen(connection):
+    """⚠️ **The 474 *pending notes* are a cache, and a cache hit still mints.**
+
+    ADR 0063 leaves them pending and unreachable from the loop; ADR 0064 says a
+    chosen word is accepted when it is written. A word the reader chooses that
+    is already one of those rows is still a chosen word — leaving it `pending`
+    would give him a word list that silently produced nothing for every word the
+    corpus had seen, which is the queue #19 was built to stop filling.
+    """
+    make_run(connection)
+    first = write_one_note(connection, char_start=5)
+    connection.execute(
+        "UPDATE note_vetting SET state = 'pending', vetted_at = NULL WHERE note_id = %s;",
+        (first.note_id,),
+    )
+    connection.execute("DELETE FROM card;")
+
+    write_one_note(connection, char_start=40)
+
+    assert connection.execute(
+        "SELECT state FROM note_vetting WHERE note_id = %s;", (first.note_id,)
+    ).fetchone() == ("accepted",)
+    assert connection.execute(
+        "SELECT count(*) FROM card WHERE note_id = %s;", (first.note_id,)
+    ).fetchone() == (1,)
+
+
+def test_a_rejected_note_stays_rejected_and_mints_nothing(connection):
+    """`S5`, which ADR 0064 moves to *Vet*'s drop: *the reader still says no once
+    and means it.* A write that reaches a rejected row — a resume, a concurrent
+    run — must not turn the no into a *card*.
+    """
+    make_run(connection)
+    written = write_one_note(connection, char_start=5)
+    connection.execute("DELETE FROM card;")
+    connection.execute(
+        "UPDATE note_vetting SET state = 'rejected' WHERE note_id = %s;", (written.note_id,)
+    )
+
+    write_one_note(connection, char_start=40)
+
+    assert connection.execute(
+        "SELECT state FROM note_vetting WHERE note_id = %s;", (written.note_id,)
+    ).fetchone() == ("rejected",)
+    assert connection.execute("SELECT count(*) FROM card;").fetchone() == (0,)
+
+
+def test_writing_a_note_twice_mints_one_card(connection):
+    """`04` §7.3's `UNIQUE (owner_id, note_id, template_key)`, reached through
+    `mint_cards`' `ON CONFLICT DO NOTHING` — a resumed *chunk* re-writes the
+    *notes* that landed before it failed (`03` §5.4)."""
+    make_run(connection)
+
+    write_one_note(connection, char_start=5)
+    write_one_note(connection, char_start=40)
+
+    assert connection.execute("SELECT count(*) FROM card;").fetchone() == (1,)
 
 
 def test_a_long_model_request_keeps_its_claim_alive(connection):
@@ -791,7 +925,7 @@ def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(conn
     from pipeline.deduplicate import Group
     from pipeline.extract_candidates import Candidate
     from pipeline.generate import GeneratedNote
-    from pipeline.write_pending import Destination, Provenance, write_pending_note
+    from pipeline.write_notes import Destination, Provenance, write_note
     from subject import load_declaration, render_identity_key
 
     make_run(connection)
@@ -825,7 +959,7 @@ def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(conn
         "example_gloss": "I am learning container orchestration.",
     }
 
-    written = write_pending_note(
+    written = write_note(
         connection,
         GeneratedNote(
             group=Group(

@@ -179,6 +179,12 @@ def memory_bearing_field_names(declaration: Declaration) -> list[str]:
     return [field["name"] for field in declaration["fields"] if field["memory_bearing"]]
 
 
+def template_keys(declaration: Declaration) -> list[str]:
+    """One *card* per declared template (`04` §7.3, ADR 0002) — what
+    `mint_cards` is handed, from the declaration both toolchains read."""
+    return [template["key"] for template in declaration["templates"]]
+
+
 def pipeline_kinds(declaration: Declaration) -> list[str]:
     """The *source kinds* this declaration can ingest, in declaration order."""
     return list(declaration["pipelines"])

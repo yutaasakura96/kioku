@@ -1,4 +1,9 @@
-"""Stage 7 — *Write pending notes* (`03` §5.1, `04` §5.3, §5.4, §5.5, §7.2).
+"""Stage 7 — *Write notes*, and mint them (`03` §5.1, `04` §5.3, §5.4, §5.5, §7.2, §7.3).
+
+⚠️ **Renamed from `write_pending` with #20**, because ADR 0064 changed what it
+does rather than what it is called: a chosen word is `accepted` when it is
+written and its *card* is minted in the same transaction. ADR 0063 already named
+the stage `write_notes`; #19 kept the old name until the behaviour arrived.
 
 ⚠️ **This stage is not pure, and `03` §5.1 always said so.** Stages 2 to 5 are
 the pure ones (`11` §8); stage 6 is the LLM and **stage 7 writes**. It lives here
@@ -7,8 +12,8 @@ named by the declaration, and a stage 7 that did not write would be a module
 named after work happening somewhere else.
 
 ⚠️ **Written as produced, not at the end** (`03` §5.1, `S2`). One *chunk*'s notes
-are written the moment that chunk's generation returns, so the first is vettable
-while later chunks are still generating — which is what keeps
+are written the moment that chunk's generation returns, so the first is
+reviewable while later chunks are still generating — which is what keeps
 *time-to-first-review* off the mercy of document size. It is also what closes
 cross-chunk duplication: tokenisation is per chunk, so a word in chunks 1 and 3
 is two groups, and it is chunk 1's *note* existing by the time chunk 3 is
@@ -21,12 +26,23 @@ could not read reaches stage 6 with no reading, the model writes one, and `04`
 whole sentence is that trust is a property of where a value came from, not of
 which column it sits in.
 
-**One note is four writes**, in this order and all of them idempotent:
+**One note is five writes**, in this order and all of them idempotent:
 
 1. `note` — ADR 0006's key, `04` §5.3's `UNIQUE (subject_id, identity_key)`.
 2. `note_field_provenance` — ADR 0004, per field, `04` §5.4.
-3. `note_vetting` at `pending` — `04` §7.2, and what puts it in the *Vet* queue.
-4. `occurrence`, one per sighting — `04` §5.5, from `group.sightings`.
+3. `note_vetting` at `accepted` — `04` §7.2, with no stamp and no run, because
+   nobody vetted it (ADR 0064).
+4. `card`, through the database's `mint_cards` — `04` §7.3, ADR 0067.
+5. `occurrence`, one per sighting — `04` §5.5, from `group.sightings`.
+
+⚠️ **One transaction per *note*, and it is this module's.** The worker's
+connection is `autocommit=True` (ADR 0027), and `runs.run_ingestion`'s own
+transaction wraps only the candidate ledger and the *chunk*'s `complete` mark
+(ADR 0061 §3), so without `write_note`'s own block every statement above would
+commit alone — and a worker killed between the `note_vetting` row and the mint
+would leave an accepted *note* with no *card*, the state `decide.ts` puts its
+two writes in one transaction to prevent. **Per *note*, not per *chunk***:
+`S2` wants the first *note* studyable while the rest are still being written.
 """
 
 from __future__ import annotations
@@ -37,7 +53,7 @@ from typing import Iterable, Sequence
 
 import psycopg
 
-from subject import Declaration, judgement_field_names
+from subject import Declaration, judgement_field_names, template_keys
 
 from .extract_candidates import Candidate
 from .generate import GeneratedNote
@@ -80,8 +96,8 @@ class Destination:
 
     declaration: Declaration
     subject_id: str
-    #: ⚠️ Nullable — `04` §6.1 makes `ingestion.submitted_by` `ON DELETE SET
-    #: NULL`, and :func:`_insert_vetting` says what that means for a *note*.
+    #: `job.requested_by` (ADR 0064). ⚠️ Nullable — `04` §6.4 makes it `ON DELETE
+    #: SET NULL`, and :func:`accept_and_mint` says what that means for a *note*.
     owner_id: str | None
     source_id: str
     source_chunk_id: str
@@ -101,23 +117,30 @@ class Written:
     created: bool
 
 
-def write_pending_notes(
+def write_notes(
     connection: psycopg.Connection, notes: Sequence[GeneratedNote], *, to: Destination
 ) -> tuple[Written, ...]:
     """One *chunk*'s notes — the verb stage 7 is named after.
 
-    ⚠️ **The loop is the stage.** `03` §5.1 calls stage 7 *write pending notes*,
+    ⚠️ **The loop is the stage.** `03` §5.1 calls stage 7 *write notes*,
     plural, and this is where the "as produced, not at the end" of that row is
     true: it is reached once per *chunk*, the moment that chunk's generation
     returns.
     """
-    return tuple(write_pending_note(connection, note, to=to) for note in notes)
+    return tuple(write_note(connection, note, to=to) for note in notes)
 
 
-def write_pending_note(
+def write_note(
     connection: psycopg.Connection, note: GeneratedNote, *, to: Destination
 ) -> Written:
-    """The four writes, in order."""
+    """The five writes, in order, in one transaction."""
+    with connection.transaction():
+        return _write_note(connection, note, to=to)
+
+
+def _write_note(
+    connection: psycopg.Connection, note: GeneratedNote, *, to: Destination
+) -> Written:
     # ⚠️ **`note.identity_key`, not `note.group.identity_key`** (ADR 0063). For
     # every *note* but one they are the same string; the exception is a word the
     # dictionary could not read, whose reading the model wrote — and `04` §5.3
@@ -139,7 +162,9 @@ def write_pending_note(
         generated_lookups=note.generated_lookups,
         provenance=to.provenance,
     )
-    _insert_vetting(connection, note_id=note_id, owner_id=to.owner_id)
+    accept_and_mint(
+        connection, note_id=note_id, owner_id=to.owner_id, declaration=to.declaration
+    )
     append_occurrences(
         connection,
         note_id=note_id,
@@ -300,32 +325,62 @@ def _insert_provenance(
         )
 
 
-def _insert_vetting(
-    connection: psycopg.Connection, *, note_id: str, owner_id: str | None
-) -> None:
-    """`04` §7.2 — the row that makes a *note* *pending* for a reader.
+def accept_and_mint(
+    connection: psycopg.Connection,
+    *,
+    note_id: str,
+    owner_id: str | None,
+    declaration: Declaration,
+) -> bool:
+    """ADR 0064 §1 — the *note* is `accepted` for this reader, and its *cards*
+    are minted.
 
-    ⚠️ **This, not the absence of a decision, is what puts a note in the *Vet*
-    queue** (`04` §12's first query), so a note written without it is a note
-    nobody can ever see.
+    ⚠️ **This is what puts a word in front of the reader**, and since #20 the
+    route is *Review*, not *Vet*. A *note* written without it is a *note* nobody
+    will ever study.
 
-    ⚠️ **No owner means no row**, which is the same answer stage 5 gives
-    (`ingest.DatabaseCorpus.rejected`). `04` §6.1 makes `submitted_by` nullable
-    with `ON DELETE SET NULL` so a hard-deleted reader does not erase the spend
-    ledger; the consequence is that such a run's *notes* belong to the corpus
-    and to no queue. `owner_id` on `note_vetting` is `NOT NULL` and `RESTRICT`,
-    so there is nothing else to write.
+    ⚠️ **No owner means no row and no *card*** (ADR 0064 §2), which is the same
+    answer stage 5 gives (`ingest.DatabaseCorpus.rejected`). `04` §6.4 makes
+    `requested_by` nullable with `ON DELETE SET NULL` so a hard-deleted reader
+    does not erase the spend ledger; such a run's *notes* belong to the corpus
+    and to no deck. The caller logs it — this returns `False` so it can.
 
-    ⚠️ `ON CONFLICT DO NOTHING` because the state is the **reader's**: a resume
-    must not return a note they already accepted to `pending`.
+    ⚠️ **`pending` is upgraded and `rejected` is not.** The 474 *pending notes*
+    ADR 0063 keeps as a cache are *notes* the reader never chose; choosing one
+    now is the acceptance. A rejection is `S5` — *say no once and mean it* — and
+    a re-ingestion turning it into a *card* is the one thing that sentence
+    forbids. An `accepted` row is left exactly as it is: a resume must not
+    restamp `vetted_at`, and a *note* re-accepted after *Vet*'s fix keeps its
+    `edited`.
+
+    ⚠️ **`seconds_to_vet` and `vetting_session_id` stay null**: no person and no
+    run was involved, and a zero is a measurement of something that did not
+    happen (ADR 0064 §1).
+
+    ⚠️ **The mint is `mint_cards`, and nothing here spells an `INSERT INTO
+    card`** (ADR 0067). `server/utils/vet/decide.ts` calls the same function, so
+    `04` §7.3's *minting its cards* is still one statement in one place. It is
+    asked only when the row reads `accepted` after the upsert, which is what
+    keeps a rejected *note* card-less.
     """
     if owner_id is None:
-        return
+        return False
     connection.execute(
         """
-        INSERT INTO note_vetting (note_id, owner_id, state)
-        VALUES (%s, %s, 'pending')
-        ON CONFLICT (note_id, owner_id) DO NOTHING;
+        INSERT INTO note_vetting (note_id, owner_id, state, vetted_at)
+        VALUES (%s, %s, 'accepted', now())
+        ON CONFLICT (note_id, owner_id) DO UPDATE
+          SET state = 'accepted', vetted_at = now()
+          WHERE note_vetting.state = 'pending';
         """,
         (note_id, owner_id),
     )
+    connection.execute(
+        """
+        SELECT mint_cards(v.note_id, v.owner_id, %s::text[])
+        FROM note_vetting v
+        WHERE v.note_id = %s AND v.owner_id = %s AND v.state = 'accepted';
+        """,
+        (template_keys(declaration), note_id, owner_id),
+    )
+    return True

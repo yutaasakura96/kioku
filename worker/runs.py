@@ -180,7 +180,7 @@ def run_ingestion(
     ⚠️ **Not "the seven stages are pure".** `03` §5.1's table does not say that
     and three of its rows contradict it: stage 1 is *accept and chunk the
     source*, which is whole-document and the app already did it in #6; stage 6 is
-    the **LLM**; stage 7 **writes** the pending notes, streamed as produced. What
+    the **LLM**; stage 7 **writes** the notes and mints them, streamed as produced. What
     is pure is stages 2 to 5 — tokenise, extract, deduplicate, filter — and those
     are the ones `11` §8 means.
     """

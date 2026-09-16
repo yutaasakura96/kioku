@@ -46,12 +46,13 @@ class Recorder:
         self.terms.extend(group.candidate.term for group in groups)
 
 
-def run(connection: psycopg.Connection, *, generate=None) -> int:
+def run(connection: psycopg.Connection, *, generate=None, log=None) -> int:
+    extra = {} if log is None else {"log": log}
     return drain(
         connection,
         owner="w",
         handle=lambda conn, job: run_ingestion(
-            conn, job, process_chunk=make_chunk_processor(job, generate=generate)
+            conn, job, process_chunk=make_chunk_processor(job, generate=generate, **extra)
         ),
     )
 
@@ -83,7 +84,7 @@ def test_a_claimed_job_runs_every_chunk_to_the_edge_of_generation(connection):
     # for the same reason — neither chunk repeats a word inside itself.
     #
     # ⚠️ **#9 is what closes it, and closes it through the corpus rather than
-    # here.** `03` §5.1 stage 7 writes *pending notes* **streamed — as produced,
+    # here.** `03` §5.1 stage 7 writes *notes* **streamed — as produced,
     # not at the end** — so by the time chunk 1's 図書館 reaches chunk 2 it is a
     # `note`, and `DatabaseCorpus.known_notes` answers with it. The streaming is
     # therefore not only `S2`'s time-to-first-review; it is also what keeps a
@@ -112,7 +113,7 @@ def test_a_collision_appends_an_occurrence_at_every_position_it_appeared(connect
     """ADR 0006, and `04` §5.5's columns.
 
     図書館 is in both *chunks* — at character 5 of the *source* and again at 14 —
-    so the run appends two *occurrences* to the existing *note* and vets nothing.
+    so the run appends two *occurrences* to the existing *note*.
     ⚠️ The second position is in the second chunk, which is what proves the
     chunk's own `char_start` reached the row: within its chunk 図書館 begins at 0.
     """
@@ -129,6 +130,57 @@ def test_a_collision_appends_an_occurrence_at_every_position_it_appeared(connect
         (note_id,),
     ).fetchall()
     assert rows == [(5, 8, "図書館", True, True), (14, 17, "図書館", True, True)]
+
+
+def test_a_word_the_corpus_already_has_is_still_minted_for_this_reader(connection):
+    """ADR 0064 on the cache-hit path: **a chosen word is accepted when it is
+    written, and the corpus already holding it is not a reason to skip the
+    reader.** ADR 0063 makes the 474 *pending notes* a cache for exactly this
+    lookup, so the hit is the common case for a list of everyday words — and
+    without this, a word list of them produces occurrences and no *cards*.
+    """
+    make_run(connection)
+    note_id = seed_note(connection, LIBRARY)
+
+    run(connection)
+
+    assert connection.execute(
+        "SELECT state FROM note_vetting WHERE note_id = %s AND owner_id = %s;",
+        (note_id, OWNER),
+    ).fetchone() == ("accepted",)
+    assert connection.execute(
+        "SELECT owner_id FROM card WHERE note_id = %s;", (note_id,)
+    ).fetchall() == [(OWNER,)]
+
+
+def test_a_run_nobody_owns_says_so_on_the_hit_path_too(connection):
+    """ADR 0064 §2's *and says so*, where the generator never runs: a *chunk*
+    whose every word the corpus already held mints nothing and would otherwise
+    log nothing."""
+    make_run(connection, owner=None)
+    seed_note(connection, LIBRARY)
+    said: list[tuple[str, dict]] = []
+
+    run(connection, log=lambda event, **fields: said.append((event, fields)))
+
+    assert connection.execute("SELECT count(*) FROM card;").fetchone() == (0,)
+    assert said and all(event == "ingest.unowned" and fields["minted"] == 0 for event, fields in said)
+
+
+def test_a_word_this_reader_rejected_is_not_minted_by_a_later_run(connection):
+    """`S5` through the hit path. Stage 5 drops the candidate before generation,
+    and the *occurrence* is still appended (it is shared data), but a rejection
+    is a claim about the reader and it must not become a *card*.
+    """
+    make_run(connection)
+    note_id = seed_note(connection, LIBRARY, rejected_by=OWNER)
+
+    run(connection)
+
+    assert connection.execute(
+        "SELECT state FROM note_vetting WHERE note_id = %s;", (note_id,)
+    ).fetchall() == [("rejected",)]
+    assert connection.execute("SELECT count(*) FROM card;").fetchone() == (0,)
 
 
 def test_re_running_a_source_appends_no_occurrence_it_already_has(connection):

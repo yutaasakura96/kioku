@@ -28,7 +28,25 @@ LIBRARY = "図書館" + chr(31) + "としょかん"
 OWNER = "usr_ingest"
 
 
-def make_run(connection: psycopg.Connection, *, owner: str | None = OWNER) -> str:
+#: ``make_run``'s default for ``requested_by``: the job was asked for by the same
+#: reader who submitted the run, which is what `server/utils/ingest/record.ts`
+#: writes.
+SAME_AS_OWNER = object()
+
+
+def make_run(
+    connection: psycopg.Connection,
+    *,
+    owner: str | None = OWNER,
+    requested_by: object = SAME_AS_OWNER,
+) -> str:
+    """One queued run of `CONTENT`.
+
+    ⚠️ **`requested_by` is on the job, and it is the owner of what the run
+    mints** (ADR 0064). `owner` is `ingestion.submitted_by`, the audit line; the
+    two are separate here so a test can tell which one the worker read.
+    """
+    requester = owner if requested_by is SAME_AS_OWNER else requested_by
     connection.execute(
         """
         INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
@@ -60,8 +78,11 @@ def make_run(connection: psycopg.Connection, *, owner: str | None = OWNER) -> st
         (source_id, owner),
     ).fetchone()[0]
     connection.execute(
-        "INSERT INTO job (kind, ingestion_id, state) VALUES ('ingest', %s, 'queued');",
-        (ingestion_id,),
+        """
+        INSERT INTO job (kind, ingestion_id, state, requested_by)
+        VALUES ('ingest', %s, 'queued', %s);
+        """,
+        (ingestion_id, requester),
     )
     return ingestion_id
 

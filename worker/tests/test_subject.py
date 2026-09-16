@@ -81,7 +81,7 @@ class TestLoadDeclaration:
             "deduplicate",
             "filter_known",
             "generate",
-            "write_pending",
+            "write_notes",
         ]
         assert stage_keys(declaration, "word_list") == [
             "chunk",
@@ -89,7 +89,7 @@ class TestLoadDeclaration:
             "deduplicate",
             "filter_known",
             "generate",
-            "write_pending",
+            "write_notes",
         ]
 
     def test_refuses_a_kind_it_has_no_pipeline_for_by_name(self):

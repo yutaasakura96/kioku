@@ -263,15 +263,22 @@ describe('startBlockCounts', () => {
   it('is two zeros for a reader with nothing — and both controls still render', async () => {
     // ADR 0032, ADR 0035: **neither start control is ever disabled**, so zero is
     // a number this function returns rather than a state it signals.
-    expect(await startBlockCounts(db, OWNER)).toEqual({ pending: 0, due: 0 })
+    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 0 })
   })
 
-  it('counts pending notes and nothing else', async () => {
+  // ⚠️ #20: *Vet* is the flag queue (ADR 0064), so its entrance counts what the
+  // queue holds. A pending *note* is a cache row now and counts for nothing.
+  it('counts flagged notes and nothing else', async () => {
     await seedVetting('pending')
     await seedVetting('accepted', '駅␟えき')
     await seedVetting('rejected', '本␟ほん')
+    const { cardId } = await seedDueCard({ due: `now() + interval '1 day'`, identityKey: '開く␟ひらく' })
+    await client.exec(`
+      INSERT INTO card_flag (card_id, note_id, owner_id)
+      SELECT id, note_id, owner_id FROM card WHERE id = '${cardId}';
+    `)
 
-    expect((await startBlockCounts(db, OWNER)).pending).toBe(1)
+    expect((await startBlockCounts(db, OWNER)).flagged).toBe(1)
   })
 
   it('counts a card due now', async () => {
@@ -317,7 +324,7 @@ describe('startBlockCounts', () => {
     await seedVetting('pending')
     await seedDueCard({ due: `now() - interval '1 hour'` })
 
-    expect(await startBlockCounts(db, 'usr_other')).toEqual({ pending: 0, due: 0 })
+    expect(await startBlockCounts(db, 'usr_other')).toEqual({ flagged: 0, due: 0 })
   })
 })
 

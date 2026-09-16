@@ -371,6 +371,24 @@ document size.
 > **Prose ingestion is kept and is not the default.** It is built, it has tests, it is the only path
 > that produces *occurrences* in real text, and `S11` still points at it.
 
+> ⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20) —
+> [ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md). Stage 7 is *Write notes*, and it
+> mints.** The module is `worker/pipeline/write_notes.py` and the stage key in both pipelines is
+> `write_notes`, the name ADR 0063 gave it. #19 kept `write_pending` until the behaviour arrived.
+> A *note* is written `accepted` for `job.requested_by` (with no `seconds_to_vet` and no run), and
+> its *card* is minted in the same transaction, one per *note*, through `mint_cards`, the database function
+> `decide()` also calls ([ADR 0067](adr/0067-minting-is-a-database-function-because-two-toolchains-mint.md)).
+> "Notes stream into the *vetting* queue" above now reads "*cards* stream into *Review*": the first
+> chunk's words are studyable while the rest generate, which keeps `S2`'s point and moves its screen.
+>
+> ⚠️ **A stage 4 collision mints too.** A word the corpus already holds, including one of the 474
+> *pending notes* ADR 0063 keeps as a cache, is accepted and minted for the requester when a later
+> run meets it. A `pending` row is upgraded and a `rejected` one is left alone. Without this, a list
+> of everyday words would produce *occurrences* and no *cards*.
+>
+> ⚠️ **No requester, no *cards*.** `job.requested_by` is `ON DELETE SET NULL`; such a run writes
+> its *notes*, mints nothing, and logs `ingest.unowned` once per *chunk*.
+
 ### 5.2 Two findings that shape stage 2, and neither is optional
 
 Both were measured, both are in verification §7.3, and both will otherwise be rediscovered as bugs.
@@ -640,7 +658,8 @@ kioku/
 > ⚠️ **Amended 2026-09-12 with [#9](https://github.com/yutaasakura96/kioku/issues/9).** `pipeline/`
 > now holds all seven stages, and `worker/tests/test_pipeline.py` asserts the correspondence for all
 > seven rather than for the five that existed. **Two of the seven are not pure and never were**
-> (§5.1): `generate.py` builds a request and validates an answer, and `write_pending.py` **writes**.
+> (§5.1): `generate.py` builds a request and validates an answer, and `write_pending.py` **writes**
+> (`write_notes.py` since #20, which also mints).
 > Stages 2 to 5 are the pure ones, which is what `11` §8 means by the seam. Beside `pipeline/` the
 > worker gained `provider.py` — ADR 0018's boundary, the only module that imports an SDK — and
 > `prices.py`, which is §7's price table as configuration with an effective date.

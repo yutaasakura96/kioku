@@ -73,7 +73,7 @@ def test_a_stage_key_is_also_a_module_name() -> None:
 
     ⚠️ **All seven as of #9**, which is the assertion this one said it was
     waiting for: it asserted the first five while stages 6 and 7 had no module,
-    and `generate.py` and `write_pending.py` are those modules. A stage added to
+    and `generate.py` and `write_notes.py` are those modules. A stage added to
     the declaration with no module now fails here by name.
 
     ⚠️ **Since ADR 0063 it is per *source kind***, and both pipelines are
@@ -93,7 +93,7 @@ def test_a_stage_key_is_also_a_module_name() -> None:
         "deduplicate",
         "filter_known",
         "generate",
-        "write_pending",
+        "write_notes",
     ]
     assert stage_keys(DECLARATION, "word_list") == [
         "chunk",
@@ -101,7 +101,7 @@ def test_a_stage_key_is_also_a_module_name() -> None:
         "deduplicate",
         "filter_known",
         "generate",
-        "write_pending",
+        "write_notes",
     ]
 
 

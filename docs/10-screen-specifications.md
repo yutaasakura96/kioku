@@ -177,6 +177,11 @@ state — with one change:
 **Both controls read their count and neither is ever disabled** (ADR 0032): `Vet · 47 pending`,
 `Review · 12 due`. `href` is `/vet?from=<current place>` and `/review?from=<current place>`.
 
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): `Vet · 2
+flagged`.** *Vet* is the flag queue (ADR 0064), so its entrance counts what the queue holds, from the
+same function the chrome bar uses (`flaggedCount`). The two figures can't disagree. A *pending* count
+here would read 474 in front of a queue that holds none of them.
+
 ⚠️ **The accent `→` is dropped here, and it is the one departure from `05` §7's affordance.** `05` §2
 spends the accent on where you are and what costs you the decision. On empty *Vet* the affordance is
 the only thing on the screen and the arrow is the sentence; in a block of two, side by side, above a
@@ -283,6 +288,9 @@ beside it already answers *how much is left*, and a second figure counting the s
 be one of them restated. ⚠️ **In every empty state the counts are absent entirely** (§4.5) — there is
 no *note* to be at a position in.
 
+⚠️ **Amended 2026-09-17 with #20: the pending count is the flagged count, rendered `2 flagged`**,
+and the *note* index is the position in this run as before, now counting resolutions.
+
 ⚠️ **A *note* returned by a flag carries one more thing**, and nothing else in the project named it:
 a 13px Newsreader italic aside in `--k-ink-secondary`, `12px` after the *source* name, reading
 **`returned by a flag`**. `X` in *Review* sets `note_vetting.flagged_at` and puts the *note* back in
@@ -354,6 +362,20 @@ exempts type sizes. `05` §7 carries the same amendment.
 | **2. Nothing to vet yet** | `Nothing to vet yet.` | What is running, and how far — chunks done of total, from `ingestion` and `ingestion_chunk` (`04` §6.1, §6.2). Or, unclaimed: `Queued for 4 minutes, not yet picked up` | **Nothing.** The rule is the last thing on the screen |
 | **3. The queue ran dry mid-run** | `Caught up.` | The same progress line, plus what this run has done: `18 vetted in this run` | **Nothing** |
 
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): two states,
+and the table above is history.** *Vet* is the flag queue (ADR 0064), and an *ingestion* mints
+*cards* rather than adding to it, so state 2 would tell the reader to wait for something that is not
+on its way. It is gone, along with the poll and `vetQueue`'s running-*ingestion* read.
+
+| | Statement (46px) | Body (18px) | After the rule |
+| --- | --- | --- | --- |
+| **1. Nothing to vet** | `Nothing to vet.` | No card is flagged. A card you flag in review comes back here. | The quiet Ingest affordance, unchanged |
+| **2. Caught up** | `Caught up.` | `3 resolved in this run.` | **Nothing** |
+
+The choice between them is whether the run holds a decision, not whether anything is running.
+**Nothing on *Vet* self-updates any more**: a flag is written by *Review*, another *mode*, and getting
+from there to here is a document load that reads the queue again.
+
 **Why 2 and 3 offer nothing after the rule.** The affordance says "go and ingest something", and in
 both of those states a *source* is already ingesting — it would be wrong advice, delivered as the
 one thing on screen. Done is in the chrome bar and is the honest way out.
@@ -385,7 +407,7 @@ It is the empty-state block again, in the same 560px column:
 
 | | |
 | --- | --- |
-| Statement, 46px Newsreader 300 | **`3 rejections become permanent.`** The number is the point of the screen (ADR 0033), so it is in the statement and not in the body |
+| Statement, 46px Newsreader 300 | **`3 rejections become permanent.`** The number is the point of the screen (ADR 0033), so it is in the statement and not in the body. ⚠️ **Since #20: `3 drops become permanent.`**, because `R` is drop on the flag queue |
 | Body, 18px `--k-ink-secondary` | One sentence: re-ingestion will not surface them again (ADR 0006) |
 | Rule | full-width `--k-rule`, `32px` clearance |
 | After it | Two key caps with labels, `28px` apart: **`space` — end the run** (primary cap: `--k-ink-ground` face, `--k-ground` ink, label 15px `--k-ink`) and **`Z` — back to the queue** (secondary cap, label 15px `--k-ink-secondary`) |
@@ -405,6 +427,10 @@ label 15px — `--k-ink` beside the primary cap, `--k-ink-secondary` beside the 
 
 `space` accept (primary cap — the widest, per ADR 0023) · `E` edit · `R` reject · `Z` undo ·
 `X` — not present here; `X` is *Review*'s key.
+
+⚠️ **Amended 2026-09-17 with #20: `space` keep · `E` fix · `R` drop · `Z` undo**, and inside an
+edit `Enter` **fix**. The caps and their order are unchanged (ADR 0064 §6). Only the labels moved, because
+a label names what the key does, and on the flag queue `space` does not accept anything.
 
 ⚠️ **Amended 2026-09-12, while building [#10](https://github.com/yutaasakura96/kioku/issues/10) —
 this section and §4.4 disagreed, and the legend is not one fixed row.** §4.4 says "while an edit is

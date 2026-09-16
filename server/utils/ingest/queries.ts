@@ -46,6 +46,7 @@ import { and, count, desc, eq, isNull, lte, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 
 import * as schema from '../../db/schema'
+import { flaggedCount } from '../vet/queries'
 import type { RunStatus } from '../../../shared/ingest/run-detail'
 import type { IngestDatabase } from './record'
 
@@ -215,8 +216,8 @@ export async function allSources(db: IngestDatabase): Promise<SourceRow[]> {
 }
 
 export interface StartBlockCounts {
-  /** `Vet · N pending` — `10` §3.2. */
-  pending: number
+  /** `Vet · N flagged` — `10` §3.2, amended with #20: *Vet* is the flag queue (ADR 0064). */
+  flagged: number
   /** `Review · N due` — due **now**, which is what the control offers to start. */
   due: number
 }
@@ -232,10 +233,11 @@ export async function startBlockCounts(
   db: IngestDatabase,
   ownerId: string,
 ): Promise<StartBlockCounts> {
-  const [pending] = await db
-    .select({ n: count() })
-    .from(schema.noteVetting)
-    .where(and(eq(schema.noteVetting.ownerId, ownerId), eq(schema.noteVetting.state, 'pending')))
+  // ⚠️ **The same count *Vet*'s chrome bar shows, from the same function**, so
+  // the entrance and the screen cannot disagree about what is waiting behind it.
+  // It counted `state = 'pending'` until #20, which would now read 474 in front
+  // of a queue that holds none of them.
+  const flagged = await flaggedCount(db, ownerId)
 
   const [due] = await db
     .select({ n: count() })
@@ -256,7 +258,7 @@ export async function startBlockCounts(
       ),
     )
 
-  return { pending: pending?.n ?? 0, due: due?.n ?? 0 }
+  return { flagged, due: due?.n ?? 0 }
 }
 
 /**

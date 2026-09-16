@@ -10,8 +10,9 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **twenty-seven more ADRs** with it — **66** as of 2026-09-16, the last five
-being the pivot (no ADR was needed to build #19 — ADR 0063 had already decided it) (⚠️ this said *61* until 2026-09-16 and *nineteen* until the day before). ⚠️ **This paragraph said "there is still no
+code since 2026-09-09 and **twenty-eight more ADRs** with it — **67** as of 2026-09-17: five are the
+pivot, and ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
+languages (⚠️ this said *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day before). ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
@@ -21,13 +22,15 @@ decks** rather than mined prose (ADR 0063); every word carries a **domain** and 
 filled automatically (ADR 0065); **manual vetting leaves the loop** and *Vet* becomes the flag queue
 (ADR 0064); the daily review load gets a **brake** (ADR 0066); and *acceptance rate* retires in
 favour of **retention, consistency and flag rate** (ADR 0062).
-⚠️ **The first ticket of the pivot is built: #19 landed 2026-09-16.** A *source* declares its `kind`,
-the declaration names one pipeline per kind, `normalise` turns a line into a term, and *Ingest* offers
-a word list first and takes a `.txt`. ⚠️ **Everything below about vetting and *acceptance rate* is
-still the built system** — minting on arrival is #20's and the metrics are #23's — and prose
-ingestion is still there, demoted rather than removed. `docs/00-status.md` § Next holds the ticket
-order, and the frontier is **#20 and #22**, with **#21** buildable beside either.
-⚠️ **This paragraph said "no code has moved yet" until 2026-09-16.**
+⚠️ **Two tickets of the pivot are built: #19 (2026-09-16) and #20 (2026-09-17).** A *source* declares
+its `kind`, the declaration names one pipeline per kind, and *Ingest* offers a word list first. **A
+chosen word is `accepted` and minted when the worker writes it**, owned by `job.requested_by`,
+through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue** with keep, fix and
+drop. ⚠️ **Everything below about vetting a *pending note* and *acceptance rate* is history or
+unreachable**: the metrics are #23's to retire. `docs/00-status.md` § Next holds the ticket order, and
+the frontier is **#22 and #23**, with **#21** buildable beside either.
+⚠️ **This paragraph said "no code has moved yet" until 2026-09-16, and named #20 as the frontier
+until 2026-09-17.**
 
 **What exists now:** #2 through #18 are built — a Nuxt app with the rendering split enforced by the
 build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
@@ -45,9 +48,8 @@ became [#19](https://github.com/yutaasakura96/kioku/issues/19), and is
 [#20](https://github.com/yutaasakura96/kioku/issues/20) and
 [#22](https://github.com/yutaasakura96/kioku/issues/22) since #19 was built the same day**; `S12`'s
 export is the one thing still unticketed, and `docs/00-status.md` § Next names the rest.
-⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.** A flagged *note* does not
-reappear on `/vet` until [#20](https://github.com/yutaasakura96/kioku/issues/20), which ADR 0064
-settled the decisions for (ADR 0056 § Amendment 2026-09-16). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
+~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
+flagged *note* started returning to `/vet`. ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
 `/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
 route that does not exist.
 ⚠️ **And, since 2026-09-15, `/review` is answered by typing** (ADR 0060, #18): the reading, then the
@@ -64,7 +66,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 773 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 790 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

@@ -21,9 +21,27 @@
  * refusal is caught here and surfaced as `reviewed` — `10` §4.8 renders it in
  * place of the footer legend, and **not on a timer**, because the reader's eyes
  * are on the *term*.
+ *
+ * ⚠️ **On the flag queue `Z` never deletes a *card*** (#20, ADR 0064 §6). A
+ * keep, a fix or a drop acts on a *card* minted long before this run, usually
+ * with a history; what `Z` reverses is the resolution — the flags it resolved
+ * are reopened, a *card* it unsuspended is suspended again, and the *note* goes
+ * back to `accepted` with no run, which puts it back on the queue. **The fields
+ * and any *scheduling epoch* reset stay**, for the reason `edited` stays below:
+ * the *note* is shared (`04` §4) and the undo is personal. ⚠️ **The reset stays
+ * because the fields do.** It exists because the memorised text changed, and
+ * the text is still changed; restoring the superseded epoch would schedule a
+ * memory of a meaning the *note* no longer carries. The un-mint path is
+ * still here, for a *pending* *note* accepted inside the run.
+ *
+ * ⚠️ **Which kind of decision it was is read from `card_flag`, not stored.**
+ * `decide()` stamps `resolved_at` and `vetted_at` with the same transaction's
+ * `now()`, so the flags a keystroke resolved are exactly the ones whose
+ * `resolved_at` equals that *note*'s `vetted_at`. None means the decision was
+ * an acceptance or a rejection of a *pending* *note*.
  */
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import { findOpenRun } from './run'
@@ -86,7 +104,11 @@ export async function undoLastDecision(
         return { ok: false, reason: 'nothing_to_undo' }
 
       const [last] = await tx
-        .select({ noteId: schema.noteVetting.noteId, state: schema.noteVetting.state })
+        .select({
+          noteId: schema.noteVetting.noteId,
+          state: schema.noteVetting.state,
+          vettedAt: schema.noteVetting.vettedAt,
+        })
         .from(schema.noteVetting)
         .where(
           and(
@@ -99,6 +121,9 @@ export async function undoLastDecision(
 
       if (!last)
         return { ok: false, reason: 'nothing_to_undo' }
+
+      if (await reopenResolvedFlags(tx, ownerId, last.noteId))
+        return { ok: true, noteId: last.noteId }
 
       // ⚠️ **The delete comes first**, so a `RESTRICT` refusal aborts before the
       // *note* has been returned to *pending*. The other order leaves a reader
@@ -139,4 +164,78 @@ export async function undoLastDecision(
 
     throw error
   }
+}
+
+/**
+ * Reverse a flag resolution, if the last decision was one.
+ *
+ * ⚠️ **The instant is compared in the database**, against the row's own
+ * `vetted_at`, rather than round-tripped through a JS `Date`: a `timestamptz`
+ * carries microseconds and a `Date` carries milliseconds, so the equality would
+ * fail on almost every keystroke and `Z` would fall through to the un-mint.
+ *
+ * ⚠️ **The suspension is restored at the earliest reopened flag**, because the
+ * instant a *card* left scheduling is a fact about its first flag (`04` §7.8)
+ * and keep erased it. `suspended_at IS NULL` in the `WHERE` leaves a drop's
+ * *card*, which never came back, exactly as it is.
+ *
+ * @returns `false` when nothing was resolved by the last decision, and nothing
+ * was written.
+ */
+async function reopenResolvedFlags(
+  tx: IngestDatabase,
+  ownerId: string,
+  noteId: string,
+): Promise<boolean> {
+  const resolvedByIt = and(
+    eq(schema.cardFlag.noteId, noteId),
+    eq(schema.cardFlag.ownerId, ownerId),
+    isNotNull(schema.cardFlag.resolvedAt),
+    eq(
+      schema.cardFlag.resolvedAt,
+      tx
+        .select({ vettedAt: schema.noteVetting.vettedAt })
+        .from(schema.noteVetting)
+        .where(and(eq(schema.noteVetting.noteId, noteId), eq(schema.noteVetting.ownerId, ownerId))),
+    ),
+  )
+
+  const [first] = await tx
+    .select({ flaggedAt: min(schema.cardFlag.flaggedAt) })
+    .from(schema.cardFlag)
+    .where(resolvedByIt)
+
+  if (!first?.flaggedAt)
+    return false
+
+  await tx
+    .update(schema.cardFlag)
+    .set({ resolvedAt: null })
+    .where(resolvedByIt)
+
+  await tx
+    .update(schema.card)
+    .set({ suspendedAt: first.flaggedAt, suspendedReason: 'flagged' })
+    .where(
+      and(
+        eq(schema.card.noteId, noteId),
+        eq(schema.card.ownerId, ownerId),
+        isNull(schema.card.suspendedAt),
+      ),
+    )
+
+  await tx
+    .update(schema.noteVetting)
+    .set({
+      state: 'accepted',
+      secondsToVet: null,
+      vettingSessionId: null,
+      // ⚠️ **Null, and that loses the instant the *note* was first accepted.**
+      // The run is what `Z` walks back through, so the row has to leave it; the
+      // alternative is a second column for a fact nothing reads.
+      vettedAt: null,
+    })
+    .where(and(eq(schema.noteVetting.noteId, noteId), eq(schema.noteVetting.ownerId, ownerId)))
+
+  return true
 }

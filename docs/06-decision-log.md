@@ -1489,6 +1489,12 @@ new `review_session.new_count` column, over a local day starting at 04:00. The b
 in `compose.ts` that assumed equal stability. Nothing caps how many due *cards* may be answered.
 → [ADR 0066](adr/0066-the-review-load-has-a-brake.md)
 
+### [2026-09-17] Minting is a database function, because two toolchains mint
+`mint_cards(note_id, owner_id, template_keys)`, created by migration `0003`, is the one mint path.
+`decide()` and the worker's `write_notes` both call it. ADR 0064 requires the path to be reused
+rather than copied, and a TypeScript function can't be called from Python.
+→ [ADR 0067](adr/0067-minting-is-a-database-function-because-two-toolchains-mint.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

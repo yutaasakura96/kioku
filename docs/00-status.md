@@ -3,8 +3,9 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**66 ADRs** — ADR 0062 to ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 61 until
-2026-09-16 and 58 until 2026-09-12** — eleven documents, and **eight open issues** on the tracker as
+**67 ADRs** — ADR 0067, minting as a database function, added 2026-09-17 with #20; ADR 0062 to
+ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 66 until 2026-09-17, 61 until 2026-09-16
+and 58 until 2026-09-12** — eleven documents, and **eight open issues** on the tracker as
 of 2026-09-16: #1 the spec and #19 to #25, the pivot. **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
@@ -66,6 +67,49 @@ and the run is the only thing no session can do for him.
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**2026-09-17 — [#20](https://github.com/yutaasakura96/kioku/issues/20) is built: a chosen word mints
+its *card* on arrival, and *Vet* is the flag queue.** ADR 0064 in full, and the re-vetting ticket
+ADR 0056 had owed since #13. **One new ADR, 0067**, because "reuse the mint path" had no answer
+across two languages.
+
+- **`write_pending` is `write_notes`**, the module and the stage key in both pipelines, the
+  deviation #19 carried. A *note* is written `accepted` for **`job.requested_by`**, with `vetted_at`
+  stamped and no `seconds_to_vet` or run, and its *card* is minted **in one transaction per *note***.
+  ⚠️ The worker's connection is autocommit and `runs.py`'s transaction wraps only the ledger, so
+  that block is `write_note`'s own. The first draft wrapped nothing, and `/code-review` found it. A
+  null requester writes the *notes*, mints nothing and logs `ingest.unowned`.
+- **`mint_cards(note_id, owner_id, template_keys)`**, migration `0003`, is the one mint path. It is
+  called by `decide.ts` and the worker, it is not a trigger, and it never writes an epoch
+  ([ADR 0067](adr/0067-minting-is-a-database-function-because-two-toolchains-mint.md)).
+- ⚠️ **A stage 4 collision mints as well, and this goes beyond the ticket's wording.** A word the
+  corpus already holds is accepted and minted for the requester: a `pending` row is upgraded, and a
+  `rejected` one is left alone with no *card*. ADR 0064 says *a chosen word*, and the 474 *pending
+  notes* are the cache stage 5 hits for everyday words, so without this a list of them produces
+  *occurrences* and no *cards*. **The 474 stay pending until a run chooses them**, which is the
+  ticket's out-of-scope line read as "no migration of them", not as "never mint them". Prose
+  collisions mint too.
+- ***Vet* is the flag queue.** It holds accepted *notes* with an open `card_flag` for this owner,
+  ordered by the oldest open flag. `space`/`E`/`R` are **keep/fix/drop** in `decide()`, on the same
+  wire. All three resolve every open flag, keep and fix unsuspend a `flagged` suspension, and drop
+  writes `rejected`. The start block and the chrome bar both count **flagged**, from one function.
+  **State 2 ("nothing to vet yet") and the poll are gone**, because an *ingestion* no longer adds to
+  this screen. `10` §3.2 and §4 are amended.
+- **ADR 0052's freeze gains its condition**: `writeNoteFields` succeeds while the *note*'s *card*
+  carries an open flag, from any owner, like the freeze itself.
+- **The first *scheduling epoch* reset** is `server/utils/review/epoch.ts`. A fix that changes a
+  *memory-bearing field* supersedes every live epoch of the *note*'s *cards* and starts ordinal n+1
+  in the new state. `nextOrdinal` moved there from `grade.ts`.
+- **`Z` on a resolution** reopens the flags whose `resolved_at` equals the row's `vetted_at` (one
+  transaction, one `now()`), suspends the *card* again, and deletes nothing. `Z` still un-mints on
+  the *pending* path.
+- **Tests:** 790 TypeScript (was 773) and 275 worker, **73 of them needing Docker** (was 267/65).
+  The freeze lift and the epoch reset were **each checked by sabotage**. Removing either one turned
+  its tests red and nothing else.
+- ⚠️ **Migration `0003_mint_cards.sql` is not applied to the Neon database.** `decide()` and the
+  worker both call `mint_cards`, so both fail against Neon until `npm run db:migrate` runs there.
+- **Amended:** `03` §5.1, `04` §4/§6.4/§7.3/§7.4/§7.8/§9/§12, `09` §4.3/§4.5/§4.6/§4.9/§7/§8,
+  `10` §3.2/§4.3/§4.5/§4.6/§4.7, `11` §5/§7, `worker/tests/README.md`.
 
 **2026-09-16 — [#19](https://github.com/yutaasakura96/kioku/issues/19) is built: the input can be a
 word list.** The first ticket of the pivot, and the first code to move since it was decided. ADR 0063
@@ -1387,6 +1431,12 @@ paragraph** — what follows is an index.
   are due, counted at composition on `review_session.new_count`, over a local day starting 04:00.
   The backlog is ordered by `get_retrievability` ascending. ⚠️ **Nothing caps due reviews.**
 
+⚠️ **[#20](https://github.com/yutaasakura96/kioku/issues/20) built 2026-09-17 (§ Done). The frontier
+is [#22](https://github.com/yutaasakura96/kioku/issues/22) and
+[#23](https://github.com/yutaasakura96/kioku/issues/23), with #21 buildable beside either.** #23
+(stats) was blocked only by #20. ⚠️ **The next command is `/clear`, then `/implement 22`**, in a fresh
+window. #22 before #23 because #23's metrics are easier to read once *notes* carry a *level*.
+
 ~~**The ticket frontier is [#19](https://github.com/yutaasakura96/kioku/issues/19) alone.**~~
 ⚠️ **[#19](https://github.com/yutaasakura96/kioku/issues/19) built 2026-09-16 (§ Done). The frontier
 is [#20](https://github.com/yutaasakura96/kioku/issues/20) and
@@ -1788,6 +1838,31 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **`Z` on a flag resolution finds its flags by `card_flag.resolved_at = note_vetting.vetted_at`**,
+  and that equality only holds because `decide()` writes both with the same transaction's `now()`.
+  Stamp either from the application clock, or split the writes into two transactions, and `Z` stops
+  matching and falls through to the *pending* path's un-mint. That path deletes nothing on an
+  `accepted` row, so the undo answers `ok` and does nothing, with no error. The comparison is in SQL
+  on purpose, because a JS `Date` drops the microseconds.
+- ⚠️ **The worker's writes are autocommit unless something opens a transaction.** `db.py` connects
+  with `autocommit=True` (ADR 0027), and `runs.run_ingestion`'s transaction covers only the ledger
+  and the `complete` mark. `write_note` and each collision's accept-and-mint open their own. **A new
+  multi-statement write in the worker owes the same block**, and a green test suite won't show that
+  one is missing, because nothing in the tests kills the process between statements.
+- ⚠️ **The freeze lifts for an open flag from any owner, while the queue offers only this owner's
+  flags.** Both are deliberate: the fields are shared (ADR 0052) and a flag is personal (`04` §4).
+  Neither is reachable while ADR 0012 invites one reader.
+- ⚠️ **An epoch reset is reachable only through `meaning` today.** `reading` is memory-bearing, but
+  `10` §4.4's edit reaches the *judgement fields* only, and `reading` is a *lookup*. A word-list
+  *note* whose model-written reading is wrong (ADR 0063's unresolved line) can be dropped and not
+  fixed. Widening the edit is a screen decision, not a bug.
+- ⚠️ **A resolution overwrites `vetted_at`, `vetting_session_id` and `seconds_to_vet`**, and `Z`
+  leaves `vetted_at` null on an `accepted` row (`04` §7.8, amended). Until #23 retires *acceptance
+  rate* and *seconds-per-note*, a resolution counts as a vetting decision in both.
+- ⚠️ **`card` is in `worker/tests/conftest.py`'s scratch list now, and `scheduling_epoch` and
+  `card_flag` still are not.** The worker mints, so its *cards* are scratch. It writes neither of the
+  other two, so a leftover row still means a test did something it should say.
+
 - ⚠️ **`normalise` decides what a *word list* line is, and the rule is wider than "Sudachi knows
   it".** Three things make a line unresolved and each keeps the line **whole** with an empty reading
   and `is_oov`: an out-of-vocabulary word, a head ADR 0044's allowlist would not call vocabulary, and
@@ -1845,7 +1920,8 @@ Nothing.
   for the drift test; Node's ESM resolver will not extension-guess, while Vite accepts either form.
   So an extensionless import there typechecks, bundles, and breaks the one test that compares the two
   languages. This is § Carrying's existing Node-resolver finding arriving in a second file.
-- ⚠️ **ADR 0063 names the last word-list stage `write_notes` and the stage is called `write_pending`.**
+- ~~⚠️ **ADR 0063 names the last word-list stage `write_notes` and the stage is called `write_pending`.**~~
+  **Paid 2026-09-17 by #20**: it is `write_notes`, and it mints.
   The ADR is describing the pipeline *after* [#20](https://github.com/yutaasakura96/kioku/issues/20)
   mints on arrival; #19 puts minting out of scope and still writes *pending notes*, so renaming the
   stage would rename the module — and the prose pipeline with it — for a behaviour that has not
@@ -1869,7 +1945,8 @@ Nothing.
   producer.** Nothing in the pipeline has ever written one. A session that reads the schema will
   reasonably assume levels are filled and they are not.
   [#22](https://github.com/yutaasakura96/kioku/issues/22) is where they start being written.
-- ⚠️ **The application has never written a superseded *scheduling epoch*.**
+- ~~⚠️ **The application has never written a superseded *scheduling epoch*.**~~ **Paid 2026-09-17 by
+  #20** (`server/utils/review/epoch.ts`).
   `superseded_reason = 'memory_bearing_field_changed'` is in the `CHECK`, `04` §7.4 describes it, and
   the first one is written by [#20](https://github.com/yutaasakura96/kioku/issues/20) when an edit
   touches `reading` or `meaning` on a flagged *note*.
@@ -2095,7 +2172,9 @@ Nothing.
   owner-scoped rule lets a second reader rewrite the first reader's *cards* under them. Unreachable
   while ADR 0012 invites one reader. **Not a trigger**, deliberately: `04` §7.5 has exactly one and
   ADR 0011 names exactly one irreplaceable thing.
-- ⚠️ **`note_vetting.flagged_at` is written now and still nothing reads it.** ⚠️ **Amended
+- ~~⚠️ **`note_vetting.flagged_at` is written now and still nothing reads it.**~~ **Paid 2026-09-17 by
+  #20**: the queue reads it for the aside and orders by the oldest open `card_flag` instead (§ Carrying,
+  top). ⚠️ **Amended
   2026-09-12 by #13**, which is the half of this bullet that moved: `X` stamps it, and the *Vet*
   queue still selects `state = 'pending'` — so `10` §4.3's `returned by a flag` aside is drawn, the
   column is set, and the *note* does not come back. The query that would find it is `04` §11's

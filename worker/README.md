@@ -45,7 +45,7 @@ manager documentation.
 | `jobs.py` | `04` §6.4 — the claim, the heartbeat, the stale sweep |
 | `runs.py` | The chunk queue, `04` §6.2's resume query, and what a claimed job turns into |
 | `__main__.py` | The process: signals, JSON logging, and wiring the four together |
-| `pipeline/` | One module per stage, **named by the declaration** — all seven since #9. ⚠️ **Stages 2 to 5 are the pure ones** (`11` §8): no database, no clock, and the corpus arrives as two plain collections. `generate.py` builds a request and validates an answer, and `write_pending.py` **writes** — `03` §5.1 always said so |
+| `pipeline/` | One module per stage, **named by the declaration** — all seven since #9. ⚠️ **Stages 2 to 5 are the pure ones** (`11` §8): no database, no clock, and the corpus arrives as two plain collections. `generate.py` builds a request and validates an answer, and `write_notes.py` **writes** — `03` §5.1 always said so |
 | `provider.py` | ADR 0018's boundary, and **the only module here that imports an SDK**. Streaming, never batch; the model id is an environment variable because the walk is the point |
 | `prices.py` | `03` §7's price table as **configuration with an effective date**, and the arithmetic `S10` reports. A price change is a new entry, never an edit |
 | `ingest.py` | The stages wired to the database — the corpus lookup, the rejected filter, the *occurrence* append, `04` §6.3's cache and `04` §6.1's two ledgers. This is `run_ingestion`'s `process_chunk` |

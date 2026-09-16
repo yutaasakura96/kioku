@@ -47,7 +47,7 @@ describe('the JLPT vocabulary declaration', () => {
       'deduplicate',
       'filter_known',
       'generate',
-      'write_pending',
+      'write_notes',
     ])
     expect(stageKeys(jlptVocab, 'word_list')).toEqual([
       'chunk',
@@ -55,7 +55,7 @@ describe('the JLPT vocabulary declaration', () => {
       'deduplicate',
       'filter_known',
       'generate',
-      'write_pending',
+      'write_notes',
     ])
   })
 

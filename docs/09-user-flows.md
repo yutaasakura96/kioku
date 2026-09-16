@@ -279,6 +279,23 @@ the fields are single-line; `Enter` as commit assumes they are.
 **Leaving mid-queue loses nothing** (PRD §5). Vetting is a queue, not a *session*; every *note*
 commits on its keystroke. What leaving does cost is the undo, and that is §5.3.
 
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): the loop above
+runs on the flag queue, and `S3` retires** ([ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)).
+A chosen word is accepted and minted when the worker writes it, so the only *note* that reaches
+`/vet` is an accepted one whose *card* the reader flagged in *Review* (§4.9). The keys did not move;
+what they do did:
+
+| Key | On a flagged *note* |
+| --- | --- |
+| `space` | **Keep.** Resolve the flag and unsuspend the *card*. The fields are left as they are |
+| `E`, then `Enter` | **Fix.** Write the edit, resolve the flag and unsuspend the *card*. An edit to a *memory-bearing field* starts the *card*'s next *scheduling epoch* (`04` §7.4) |
+| `R` | **Drop.** Resolve the flag, leave the *card* suspended, and write the *note* `rejected`, which is §4.5 |
+| `Z` | Reverse the last resolution: the flags reopen, the *card* is suspended again, and the *note* returns to the head of the queue. **No *card* is deleted on this path.** The edit and any epoch reset stay |
+
+Step 1's chrome bar shows the **flagged** count. `seconds_to_vet` is still stamped at the keystroke,
+and nothing reads it (ADR 0062 retires *seconds-per-note*). A *pending* *note* is still decided the
+old way if a stale client sends one, and that is the only path on which `Z` un-mints a *card*.
+
 ### 4.4 `S4` — Only look at what needs looking at
 
 **Screen:** `/vet`. No flow of its own; it is what §4.3 step 1 renders.
@@ -305,6 +322,15 @@ filtered and by which filter, from `ingestion.candidates_*` (§7). PRD §5 calls
 is what `S5`'s "the fiftieth *source* asks about fewer *notes* than the fifth" looks like from the
 outside.
 
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): the rejection
+is *Vet*'s drop now** ([ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md) §3). A
+*note* is never rejected before it is studied, because nobody vets on arrival; the reader says no by
+flagging a *card* in *Review* and pressing `R` on it in *Vet*. That resolves the flag, leaves the
+*card* suspended and sets `state = 'rejected'`, and from then on stage 5 drops the term exactly as
+above. **The worker also refuses to turn a rejection back into a *card***: when a later run meets a
+rejected *note*, it appends the *occurrence* and mints nothing (`03` §5.1, amended). The rejection
+is reversible with `Z` until the run ends, and permanent after (§5.3).
+
 ### 4.6 `S6` — Fix a note before accepting it
 
 **Screen:** `/vet`, the `E` branch of §4.3.
@@ -312,6 +338,14 @@ outside.
 Once *accepted*, the *note*'s fields are frozen. A later *source* implying something different
 appends an *occurrence* and raises a flag rather than rewriting (ADR 0006, ADR 0011). There is no
 re-edit path in v1: the way back to a bad *note* is `S9`'s flag, which returns it to the queue.
+
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): `S6` moves to
+the other side of the loop and becomes *fix a card after flagging it*** (ADR 0064). It uses the same
+editor and the same `E` branch, and the queue it runs on is the flag queue (§4.3, amended). **The freeze lifts for
+a *note* whose *card* carries an unresolved flag, and for nothing else**
+([ADR 0052](adr/0052-an-accepted-note-is-frozen-against-every-writer-and-any-readers-acceptance-freezes-it.md)
+§ Amendment). The guard in `server/utils/note/fields.ts` keeps its `NOT EXISTS` and gains that one
+condition. Once the flag is resolved the fields are frozen again.
 
 ### 4.7 `S7` — Study a session that ends
 
@@ -393,6 +427,12 @@ nothing to do with `S9` — so the queue finds a flagged *note* through `04` §1
 `pending`, ADR 0052 freezes an accepted *note*'s fields, and editing a *memory-bearing field* resets
 the *card* (`04` §7.4) — three decisions that belong to the re-vetting ticket. **After #13 a flagged
 *note* does not yet reappear on `/vet`**, and the sentence above describes where it is going.
+⚠️ **Amended 2026-09-17 with #20: it reappears, because the queue is built** and `/vet` holds
+nothing else (§4.3, amended). The three decisions are ADR 0064's: `decide()` resolves an `accepted`
+*note* with an open flag, ADR 0052's freeze lifts for it, and a fix to a *memory-bearing field*
+writes the application's first epoch reset. `card_flag.resolved_at` is written by all three
+resolutions, the queue orders by the oldest open flag, and `note_vetting.flagged_at` drives the
+`returned by a flag` aside.
 
 ⚠️ **The rail needs a third mark.** A flagged position is passed but not answered, so a twenty-card
 *session* can end with nineteen answers. `05` §7 gives the rail three fills (graded, current, not
@@ -617,6 +657,11 @@ shell (§2). The reader who wants to watch reloads; the reader who wants to work
 | `failed` | The chunk failed after bounded retries. **The provider is never named at the reader** (`03` §11) | Same |
 | Queued, never claimed | Queued for *n* minutes, not yet picked up | "Nothing to vet yet — an ingestion is queued" |
 
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): the `/vet`
+column above no longer holds.** An *ingestion* mints *cards* (ADR 0064) and never adds to *Vet*, so
+`/vet` neither polls nor reports a run. What a running *ingestion* grows is the new-*card* count
+behind *Review*, and *Review* reads it when a *session* is composed. The `/` column is unchanged.
+
 **The worker that is not running is the last row, and the honest statement is the one the job table
 can support.** `job.heartbeat_at` is refreshed every 30 seconds *while working* (`04` §6.4), so an
 idle worker looks exactly like an absent one. There is no liveness signal in the schema and this
@@ -650,7 +695,12 @@ PRD §4 makes these requirements. Two of them gained a case while this document 
 | **Sources** | Nothing ingested | "Nothing ingested." Points at Ingest | The nav |
 | **Stats** | Under 20 vetted *notes* | Raw counts, ratios suppressed, **and a line saying why** | The nav |
 
-⚠️ ***Vet* has three empty states, not one.** PRD §4 wrote one, and the difference between "nothing
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): *Vet* has two
+empty states, and the three rows above are history.** Nothing running can add to the flag queue, so
+"nothing to vet yet" retired. What is left: **nothing flagged** (`Nothing to vet.`, the Ingest
+affordance) and **caught up** (resolved some in this run, the queue is empty). `10` §4.5 owns both.
+
+⚠️ ***Vet* had three empty states, not one.** PRD §4 wrote one, and the difference between "nothing
 to vet" and "nothing to vet yet" is the difference between leaving and waiting thirty seconds. `S2`
 promises the first *note* is vettable while the rest are still generating, which means the queue
 running dry mid-run is a normal event and not an ending. `10-screen-specifications.md` owns all

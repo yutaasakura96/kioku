@@ -24,6 +24,10 @@
 // than re-running.** That is ADR 0037's principle applied to a different
 // subject: where the thing you care about cannot be asserted, assert its
 // observable consequence, and say which one you did.
+//
+// ⚠️ **Since #20 the *note* on screen is a flagged one** (ADR 0064): *Vet* is the
+// flag queue, so the fixture is an accepted *note* whose *card* is suspended
+// with an open `card_flag`, and the keystrokes are drop and keep.
 
 import { fileURLToPath } from 'node:url'
 import { createPage, setup, url } from '@nuxt/test-utils/e2e'
@@ -60,6 +64,7 @@ let noteId: string
 
 beforeAll(async () => {
   await database.client.exec(`
+    DELETE FROM card_flag;
     DELETE FROM card;
     DELETE FROM note_vetting;
     DELETE FROM vetting_session;
@@ -74,7 +79,12 @@ beforeAll(async () => {
   noteId = inserted.rows[0]!.id
 
   await database.client.exec(`
-    INSERT INTO note_vetting (note_id, owner_id) VALUES ('${noteId}', '${reader.userId}');
+    INSERT INTO note_vetting (note_id, owner_id, state, vetted_at, flagged_at)
+    VALUES ('${noteId}', '${reader.userId}', 'accepted', now() - interval '1 day', now());
+    INSERT INTO card (note_id, owner_id, template_key, suspended_at, suspended_reason)
+    VALUES ('${noteId}', '${reader.userId}', 'recognition', now(), 'flagged');
+    INSERT INTO card_flag (card_id, note_id, owner_id)
+    SELECT id, note_id, owner_id FROM card WHERE note_id = '${noteId}';
   `)
 })
 
@@ -86,7 +96,8 @@ async function state(): Promise<string> {
 }
 
 /**
- * The *state* and the *card* count as **one value, read in one statement** —
+ * The *state*, the open flags and the suspended *cards* as **one value, read in
+ * one statement** —
  * [ADR 0059](../../docs/adr/0059-the-e2e-tier-has-no-transaction-isolation-so-a-test-reads-the-pair-in-one-statement.md).
  *
  * ⚠️ **`database.client` and the app's socket connection are one backend
@@ -97,16 +108,19 @@ async function state(): Promise<string> {
  * `note_vetting` update and the `mint()` behind it, and counted zero. ⚠️ **A
  * committed `accepted` with no *card* is impossible — `decide()` is one
  * transaction by construction — which is why the failure read as a missing
- * `await` for as long as it went unexplained.**
+ * `await` for as long as it went unexplained.** A keep has the same shape
+ * with three writes in it: the row, the flag, the suspension.
  *
- * Reading the pair in one statement makes a straddling read return
- * `accepted/0`, which is not the expected value, so the poll keeps going
+ * Reading them in one statement makes a straddling read return something like
+ * `accepted/0/1`, which is not the expected value, so the poll keeps going
  * instead of passing a wrong answer through. **The rule for the tier: what the
  * app writes in one transaction, the test reads in one statement.**
  */
 async function shape(): Promise<string> {
   const result = await database.client.query<{ shape: string }>(
-    `SELECT v.state || '/' || (SELECT count(*) FROM card WHERE note_id = v.note_id) AS shape
+    `SELECT v.state
+            || '/' || (SELECT count(*) FROM card_flag WHERE note_id = v.note_id AND resolved_at IS NULL)
+            || '/' || (SELECT count(*) FROM card WHERE note_id = v.note_id AND suspended_at IS NOT NULL) AS shape
        FROM note_vetting v WHERE v.note_id = '${noteId}';`,
   )
   return result.rows[0]!.shape
@@ -136,7 +150,7 @@ describe('the key handlers bind to the mode container', () => {
   it('does nothing while focus is on the Done control, and acts when it is back', async () => {
     const page = await openVet()
 
-    expect(await state()).toBe('pending')
+    expect(await state()).toBe('accepted')
 
     // Step 2 — focus **out of the mode container**. `11` §6.2: the browser's own
     // chrome is not reachable, so the Done control's anchor stands in, and it is
@@ -146,7 +160,7 @@ describe('the key handlers bind to the mode container', () => {
     await page.waitForTimeout(250)
 
     // Step 3 — a `document`-bound handler passes this keypress through.
-    expect(await state(), 'a keystroke acted while focus was outside the mode container').toBe('pending')
+    expect(await state(), 'a keystroke acted while focus was outside the mode container').toBe('accepted')
 
     // Step 4 — focus back on the container, same key.
     await page.locator('.container').focus()
@@ -157,12 +171,14 @@ describe('the key handlers bind to the mode container', () => {
   })
 })
 
-describe('one keystroke, one decision', () => {
-  it('accepts, mints the card, and stamps the time at the keystroke', async () => {
+describe('one keystroke, one resolution', () => {
+  it('keeps: resolves the flag, unsuspends the card, and stamps the time at the keystroke', async () => {
     await database.client.exec(`
-      DELETE FROM card;
       UPDATE note_vetting
-         SET state = 'pending', vetted_at = null, seconds_to_vet = null, vetting_session_id = null;
+         SET state = 'accepted', vetted_at = now() - interval '1 day', seconds_to_vet = null,
+             vetting_session_id = null;
+      UPDATE card_flag SET resolved_at = null;
+      UPDATE card SET suspended_at = now(), suspended_reason = 'flagged';
       UPDATE vetting_session SET ended_at = now() WHERE ended_at IS NULL;
     `)
 
@@ -175,15 +191,14 @@ describe('one keystroke, one decision', () => {
     await expect
       .poll(shape, {
         timeout: 5_000,
-        message: 'acceptance mints the card — `04` §7.3, read as one value per ADR 0059',
+        message: 'keep resolves and unsuspends — ADR 0064 §3, read as one value per ADR 0059',
       })
-      .toBe('accepted/1')
+      .toBe('accepted/0/0')
 
-    // ⚠️ **Safe as a second statement only because the pair already landed.**
+    // ⚠️ **Safe as a second statement only because the triple already landed.**
     // `seconds_to_vet` is set by the same `UPDATE` that set the state, so once
-    // `accepted/1` has been read there is no torn state left for this to fall
-    // into — unlike the *card* count, which sat on the far side of a socket
-    // round trip.
+    // `accepted/0/0` has been read there is no torn state left for this to fall
+    // into.
     const stamped = await database.client.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM note_vetting
         WHERE note_id = '${noteId}' AND seconds_to_vet IS NOT NULL;`,

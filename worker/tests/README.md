@@ -4,7 +4,12 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for sixty-four of the two hundred and twenty-two tests here.**
+⚠️ **Docker is required for seventy-three of the two hundred and seventy-five tests here.**
+⚠️ **Re-counted 2026-09-17 with #20 (ADR 0064):** it said sixty-four of two hundred and twenty-two,
+and the suite was sixty-five of two hundred and sixty-seven before #20 touched it — #18 and #19 moved
+both numbers and neither was recorded here. #20 added eight, and all eight need the container: they
+are what `write_notes` mints, which is SQL. Counted with `DOCKER_HOST` pointed at nothing, which
+errors exactly the tests that take the fixture.
 ⚠️ **Re-counted 2026-09-15 with #17 (ADR 0061):** it said sixty of two hundred and eleven. #17 added
 eleven, four of which need the container — three in `test_runs.py` and one in `test_generation.py`.
 ADR 0038 carried a dated amendment for each time the container count moved —
@@ -38,7 +43,7 @@ ADR 0038 said *three*, naming the three concurrency behaviours. What joined them
 is SQL that is not a concurrency behaviour — #7's chunk queue, `04` §6.2's resume
 query, the settle and the drain, then #8's corpus lookup, rejected filter,
 *occurrence* append and ledger, then #9's generation cache, spend ledger and
-*pending note* writes — and testing Python's SQL needs a database, which
+*note* writes — and testing Python's SQL needs a database, which
 in Python means a container. **The sentence that was
 being protected is untouched:** a laptop without Docker runs the whole TypeScript
 suite and gets the worker's database tests red, visibly and for a stated reason —
@@ -122,5 +127,5 @@ Not run by Vitest, and the whole file list is now:
 | `test_generate.py` | no | Stage 6's request and its answer — what the model is asked, what the declaration boundary refuses, and what `04` §6.3's cache may serve. ⚠️ **From `fixtures/generation-response.json`; it cannot reach a provider** |
 | `test_provider.py` | no | ADR 0018's boundary — the startup refusal without a key, the model id as a variable, streaming with the declaration as the output schema, a refusal or a truncation not parsed as an answer, and ⚠️ **that an SDK exception never reaches the run row**: `03` §11's *the provider is not named at the reader*, which `runs.py` could only promise and this module has to keep |
 | `test_ingest.py` | **yes** | The stages against real SQL — the corpus lookup, the owner-scoped rejected filter, *occurrence* idempotence, and the ledger |
-| `test_generation.py` | **yes** | Stages 6 and 7 against real SQL — `04` §6.3's four-part key, a cache hit spending nothing, `04` §6.1's spend ledger, and the four writes one *pending note* is. ⚠️ **The provider is a stand-in that answers from the prompt**, so a prompt that failed to list a *candidate* fails the test |
+| `test_generation.py` | **yes** | Stages 6 and 7 against real SQL — `04` §6.3's four-part key, a cache hit spending nothing, `04` §6.1's spend ledger, and the five writes one minted *note* is (ADR 0064). ⚠️ **The provider is a stand-in that answers from the prompt**, so a prompt that failed to list a *candidate* fails the test |
 | `test_scratch_cleanup.py` | **yes** | ⚠️ **That the `connection` fixture's own cleanup cannot reach `review_log`.** It could, until #8: `TRUNCATE … CASCADE` walked `ingestion` → `note` → `card` → `review_log`, and `CASCADE` was not optional — without it Postgres refuses the statement outright |

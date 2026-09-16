@@ -206,6 +206,22 @@ guarding something no other test would notice:
 | Exactly one trigger | One row in `pg_trigger`, on `review_log` | `04` §14. A second trigger is a decision someone owes an argument for |
 | The note's identity | A second `(subject_id, identity_key)` is refused, and the other reading is a different note | ADR 0006 — the `開く␟ひらく` / `開く␟あく` pair the ADR exists to keep apart |
 
+⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20) — the flag
+queue, in `test/schema/vet.test.ts`** ([ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)).
+These are behavioural rather than structural, and they sit in this tier because each is decided by a
+`WHERE` or a constraint that only Postgres can run:
+
+| Test | Asserts | From |
+| --- | --- | --- |
+| The queue is the flag queue | Accepted *notes* with an open `card_flag` for this owner, ordered by the **oldest open** `card_flag.flagged_at`, so a *note* flagged a second time is not ranked by its first. **A *pending* *note* never appears**, and neither does one whose flags are all resolved | ADR 0064 §3, `04` §7.8 as amended |
+| Three resolutions | Keep resolves and unsuspends; fix edits, resolves and unsuspends; drop resolves, leaves the *card* suspended and writes `rejected`. Each resolves **every** open flag, and a `source_deleted` suspension is left standing | ADR 0064 §3 |
+| ⚠️ The freeze, both directions | `writeNoteFields` succeeds on an accepted *note* while its *card* carries an open flag, and **refuses** one never flagged and one whose flag is resolved | ADR 0052 § Amendment |
+| ⚠️ The first epoch reset | A fix to `meaning` supersedes the live epoch with `memory_bearing_field_changed` and starts ordinal 2 in the new state, **and the `review_log` row still points at ordinal 1**. A fix to `example_sentence`, a `meaning` committed unchanged, a keep, and a *card* never scheduled each leave the epochs alone | `04` §7.4, ADR 0064 §5 |
+| `Z` on a resolution | Reopens exactly the flags its keystroke resolved, suspends the *card* again, returns the *note* to the head of the queue, and **deletes no *card*** even when that *card* has a review history | ADR 0033, `04` §7.8 as amended |
+
+⚠️ **`Z`'s un-mint tests stay, against a *pending* *note***. `decide()` still answers one, and that path
+is the only one on which `Z` deletes a *card*.
+
 ---
 
 ## 6. The three things that were open, closed
@@ -481,7 +497,7 @@ which is this document's job; the arithmetic is not.
 | Re-ingestion spends nothing | **yes** | `03` §11's *identical source resubmitted: no LLM spend*. ⚠️ And the hit adds **nothing** to `04` §6.1's spend columns — it had no response of its own |
 | A refused answer is never cached | **yes** | It would be served back forever and the chunk could never succeed (`03` §7) |
 | Provenance, per field | **yes** | ADR 0004 and ADR 0048 — the tokeniser's three are `lookup` with the dictionary version and `is_oov`, the model's three are `generated` with the model and prompt. Six rows, one per declared field |
-| A *pending note* is four writes | **yes** | `note`, its provenance, `note_vetting` at `pending`, and one *occurrence* per sighting — and **a run whose reader was deleted writes the first, third omitted**, because `note_vetting.owner_id` is `NOT NULL` |
+| ~~A *pending note* is four writes~~ **A minted *note* is five writes** (#20, ADR 0064) | **yes** | `note`, its provenance, `note_vetting` at **`accepted`** with no stamp and no run, the **`card`** through `mint_cards`, and one *occurrence* per sighting, with **no *scheduling epoch***. The *card*'s owner is **`job.requested_by`**, not `ingestion.submitted_by`, and a test makes the two differ to tell. **A run nobody owns writes its *notes*, no row and no *card*, and logs `ingest.unowned`**. A leftover *pending* row is upgraded and minted, a *rejected* one is left alone, a *note* written twice mints one *card*, and a stage 4 collision mints for the requester (`test_ingest.py`) |
 | ⚠️ The streamed write | **yes** | 図書館 is in both *chunks* and is generated **once**: chunk 0's *note* exists by the time chunk 1 is deduplicated, so chunk 1's sighting is an `already_known`. **A run that batched its writes to the end would pay twice** |
 | Failure part-way | **yes** | One *chunk* refused: the other keeps its *notes*, the run settles `incomplete`, and **a resume re-runs only the chunk that failed** (`03` §5.4, PRD §5) |
 | Zero new notes is a success | **yes** | Every word already in the corpus: the run is `complete`, the provider is **never asked**, and the four counters say by which filter (PRD §5, `03` §11) |

@@ -154,6 +154,14 @@ and both assert something about the material. This distinction is the thing to h
 reader is ever invited — at which point the label stops being a label and starts being enforced
 (ADR 0012's revisit condition).
 
+⚠️ **Amended 2026-09-17 with #20: `job.requested_by` is also the owner of what the run mints**
+([ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md) §2). A chosen word is accepted
+when it is written, and the *cards* minted for it are personal from the first row, while a *source*
+carries no owner (ADR 0012). The column is promoted for that one purpose and stays nullable. **If it
+is null the run writes its *notes* and mints nothing**, and says so in the worker's log, rather than
+guessing the reader from the allowlist. `ingestion.submitted_by` is unchanged and stays an audit
+line. ADR 0064's revisit condition is a second reader, at which point this needs a real owner column.
+
 ---
 
 ## 5. The corpus — shared
@@ -566,7 +574,7 @@ ADR 0028: **the job table is the truth and `NOTIFY` only shortens latency.**
 | `heartbeat_at` | `timestamptz` | yes | — | **The column that survives the laptop closing** |
 | `attempts` | `integer` | no | `0` | |
 | `last_error` | `text` | yes | — | |
-| `requested_by` | `text` | **yes** | — | → `auth."user".id`, `ON DELETE SET NULL`. Audit line, not an owner |
+| `requested_by` | `text` | **yes** | — | → `auth."user".id`, `ON DELETE SET NULL`. Audit line, **and since #20 the owner of the *cards* the run mints** — §4, ADR 0064 |
 | `created_at` | `timestamptz` | no | `now()` | |
 | `finished_at` | `timestamptz` | yes | — | |
 
@@ -701,13 +709,20 @@ lives in §7.4, for the reason given there.
 | `template_key` | `text` | no | — | Key into the subject declaration. **Not a foreign key** — §13 |
 | `suspended_at` | `timestamptz` | yes | — | *Suspended*: withdrawn from scheduling, **history untouched** |
 | `suspended_reason` | `text` | yes | — | `CHECK (suspended_reason IN ('flagged','source_deleted'))` — `S9` and `S11` are the only two |
-| `created_at` | `timestamptz` | no | `now()` | Minted at acceptance, never before |
+| `created_at` | `timestamptz` | no | `now()` | Minted at acceptance, never before — by `mint_cards`, the one mint path (ADR 0067) |
 
 **`UNIQUE (owner_id, note_id, template_key)`** — one card per note per template per reader. v1 ships
 exactly one template, so this constraint is doing nothing today and is the thing that stops a second
 template from silently minting duplicates when it arrives (ADR 0002).
 
 **A card is never deleted.** `S9` and `S11` both suspend. §9.
+
+⚠️ **Amended 2026-09-17 with #20: acceptance has two triggers and one mint.** *Vet* accepting a
+*pending* *note* is the first; the worker writing a chosen word is the second, because ADR 0064 makes
+that *note* `accepted` on arrival. Both call `mint_cards(note_id, owner_id, template_keys)`, a SQL
+function from migration `0003`. It is one `INSERT … ON CONFLICT DO NOTHING` per template, it never
+writes an epoch, and it is a function, not a trigger, so §7.5's count of one trigger stands
+([ADR 0067](adr/0067-minting-is-a-database-function-because-two-toolchains-mint.md)).
 
 **Example:** `(019bd3…, note 019bd3…, 'usr_7f…', 'recognition', null, null, 2026-09-06T10:02Z)`
 
@@ -747,6 +762,16 @@ path of an update.
 
 **`UNIQUE (card_id) WHERE superseded_at IS NULL`** — a partial unique index enforcing exactly one
 live epoch per card. Without it "the current epoch" is a convention; with it, it is a constraint.
+
+⚠️ **Amended 2026-09-17 with #20: the application writes resets now.** A fix on *Vet* that changes
+a *memory-bearing field* (`reading` or `meaning` for `jlpt-vocab`) supersedes the live epoch of every
+*card* of the *note*, with `superseded_reason = 'memory_bearing_field_changed'`, and inserts ordinal
+n+1 in `ts-fsrs`'s new state, due now (`server/utils/review/epoch.ts`). An edit to any other field,
+or a commit that changes no value, leaves the epoch alone. A *card* with no live epoch gets none,
+because its first epoch belongs to the *grade*. ⚠️ **Every reader's *card* is reset, not only the
+editor's**, because `note.fields` is shared. That is unreachable while ADR 0012 invites one reader.
+⚠️ **Only `meaning` is reachable from the screen today**: `10` §4.4's edit reaches the *judgement
+fields*, and `reading` is a *lookup* field.
 
 **Example — a reset, as two rows:**
 
@@ -860,7 +885,7 @@ records the flag **against the note's source and prompt version.**
 | `model_id` | `text` | yes | — | Denormalised, same reason |
 | `review_session_id` | `uuid` | yes | — | → `review_session`, `SET NULL` |
 | `flagged_at` | `timestamptz` | no | `now()` | |
-| `resolved_at` | `timestamptz` | yes | — | Set when the note is re-vetted |
+| `resolved_at` | `timestamptz` | yes | — | Set when the flag is resolved on *Vet* — keep, fix or drop (ADR 0064) |
 
 **Example:** `(019bd3…, card 019bd3…, note 019bd3…, 'usr_7f…', source 019bd3…, 'v3', 'claude-sonnet-5', session 019bd3…, 2026-09-06T08:36Z, null)` — an example sentence that survived vetting and was caught a month later, which is `S9` working.
 
@@ -882,6 +907,37 @@ of the ratio in the line above **and lower its denominator at the same time**, s
 *false-accept rate* twice — and it would take the *note* out of *acceptance rate*'s numerator too
 (`11` §3). §11's `card_flag (note_id) WHERE resolved_at IS NULL` index is how the *Vet* queue finds
 a flagged *note*, and that query is the re-vetting ticket's rather than #13's.
+
+⚠️ **Amended 2026-09-17 with #20: the query is built, and *Vet* is nothing but it**
+([ADR 0064](adr/0064-a-chosen-word-mints-its-cards-on-arrival.md) §3). A *note* is on the queue when
+its `note_vetting` row is `accepted` and an unresolved `card_flag` for the same owner exists. Each of
+the three resolutions writes `resolved_at` on **every** open flag on the *note*, in one transaction
+with the `note_vetting` row:
+
+| Resolution | Key | `card_flag` | `card` | `note_vetting` | `note.fields` |
+| --- | --- | --- | --- | --- | --- |
+| **Keep** | `space` | resolved | unsuspended if `suspended_reason = 'flagged'` | `accepted`, stamped with the run | unchanged |
+| **Fix** | `E`, `Enter` | resolved | unsuspended likewise | `accepted`, `edited = true` | edited; a *memory-bearing field* resets the epoch, §7.4 |
+| **Drop** | `R` | resolved | left suspended | `rejected`, which is `S5`'s filter | unchanged |
+
+⚠️ **`resolved_at` and `note_vetting.vetted_at` are the same `now()`**, and `Z` depends on it: the
+flags a keystroke resolved are the ones whose `resolved_at` equals that *note*'s `vetted_at`. `Z`
+reopens them, suspends the *card* again at the earliest reopened `flagged_at`, and returns the row to
+`accepted` with no run. **It deletes no *card* on this path.** The edit and any epoch reset stay,
+because the *note* is shared and the undo is personal.
+
+⚠️ **The queue orders by the oldest open `card_flag.flagged_at`**, oldest first (ADR 0049's rule,
+now applied to flags). `Z` reopens flags with the instants they were raised at, so a *note* it
+returns lands back at the head. **Not `note_vetting.flagged_at`**: `X` stamps that once and nothing
+clears it, so a *note* kept and later flagged again would sort by its first flag. That column is read
+for `10` §4.3's aside.
+
+⚠️ **A resolution overwrites `vetted_at`, `vetting_session_id` and `seconds_to_vet`** with the
+resolving run's values, because `Z` and `04` §7.1's idle sweep both walk a run through them. The
+original acceptance instant is lost, and `Z` on a resolution sets `vetted_at` to null on a row that
+stays `accepted`. Nothing reads the instant for an accepted *note*. The two metrics that read
+`seconds_to_vet` and the run count a resolution as a vetting decision until #23 retires them
+(ADR 0062).
 
 ⚠️ **`flagged_at` on both tables is guarded by `IS NULL` on write.** A second flag on the same *card*
 is a second row here (`11` §3), but the instants a *card* left scheduling and a *note* came back to
@@ -966,7 +1022,7 @@ default.** Each one below was chosen.
 | `card_flag` → `source` | `SET NULL` | The actionable half — prompt version and model id — is denormalised and survives |
 | `card_flag` → `review_session` | `SET NULL` | |
 | **every** `owner_id` → `auth."user".id` | **`RESTRICT`** | §3. The user row cannot be deleted while any history references it |
-| `ingestion.submitted_by`, `job.requested_by` → `auth."user".id` | `SET NULL` | Audit lines, not owners |
+| `ingestion.submitted_by`, `job.requested_by` → `auth."user".id` | `SET NULL` | Audit lines. ⚠️ `job.requested_by` also owns what its run mints (§4, amended), and a null one mints nothing |
 
 ### 9.1 What each delete actually does
 
@@ -1070,6 +1126,9 @@ Stated as behaviour, not SQL. If a later change makes one of these awkward, the 
    with nothing to remember. The batch is what keeps `S3`'s keystroke off a round trip, and it is
    three queries rather than one — provenance and *level claims* are a row per field and a row per
    authority, so joining them to the batch would multiply it.
+   ⚠️ **Amended 2026-09-17 with #20: flagged *notes*, not pending ones, ordered
+   by the oldest open `card_flag.flagged_at`** (ADR 0064 §3, §7.8 above). A *pending* *note* never appears;
+   the 474 are a cache for query 2 (ADR 0063). The batch and the three reads are unchanged.
 2. **The dedup lookup** — does `(subject_id, identity_key)` exist? Once per candidate, in the worker,
    before any spend (ADR 0010). ⚠️ **Amended 2026-09-12 with #8: once per *chunk*, for all of that
    chunk's keys at once** — `identity_key = ANY($2)` rather than a round trip each. §12's own rule is

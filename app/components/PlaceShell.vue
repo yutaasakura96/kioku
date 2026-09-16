@@ -17,7 +17,7 @@ import type { Place } from '~~/shared/utils/origin'
 withDefaults(
   defineProps<{
     origin: Place
-    pending: number
+    flagged: number
     due: number
     /** `05` §5's measure for this *place* — `10` §2.2. */
     measure?: string
@@ -31,7 +31,7 @@ withDefaults(
     <ShellBar />
 
     <main :style="{ '--measure': measure }">
-      <StartBlock :origin="origin" :pending="pending" :due="due" />
+      <StartBlock :origin="origin" :flagged="flagged" :due="due" />
 
       <slot />
     </main>

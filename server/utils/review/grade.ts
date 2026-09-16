@@ -31,12 +31,13 @@
  * failures the reader can actually fix.
  */
 
-import { and, desc, eq, gte, isNull, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import { checkStamp } from '../../../shared/review/stamp'
 import { completeSession } from './session'
 import { freshEpoch, schedule } from '../../../shared/review/scheduler'
+import { nextOrdinal } from './epoch'
 import { isFinished } from '../../../shared/review/snapshot'
 import { snapshotOf } from './queries'
 import type { EpochState, Grade } from '../../../shared/review/scheduler'
@@ -282,17 +283,5 @@ async function advanceEpoch(
     .returning({ id: schema.schedulingEpoch.id })
 
   return { id: minted!.id, log }
-}
-
-/** `04` §7.4's 1-based `ordinal`, unique per *card*. */
-async function nextOrdinal(tx: IngestDatabase, cardId: string): Promise<number> {
-  const [last] = await tx
-    .select({ ordinal: schema.schedulingEpoch.ordinal })
-    .from(schema.schedulingEpoch)
-    .where(eq(schema.schedulingEpoch.cardId, cardId))
-    .orderBy(desc(schema.schedulingEpoch.ordinal))
-    .limit(1)
-
-  return (last?.ordinal ?? 0) + 1
 }
 

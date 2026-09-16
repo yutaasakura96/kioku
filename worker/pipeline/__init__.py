@@ -4,7 +4,7 @@ One flat module per *stage*, **named by the declaration**: `subjects/jlpt-vocab.
 pipeline entries are these module names (`03` §10), and `tests/test_pipeline.py`
 asserts the two lists are the same list rather than trusting that they are.
 
-⚠️ **Stages 6 and 7 arrived with #9** — `generate.py` and `write_pending.py`, so
+⚠️ **Stages 6 and 7 arrived with #9** — `generate.py` and `write_notes.py`, so
 the seven modules and the seven stage keys are now the same seven, and
 `tests/test_pipeline.py` asserts all of them rather than the first five.
 
@@ -235,11 +235,11 @@ STAGE_RUNNERS: Mapping[str, StageRunner] = {
 #: `shared/ingest/chunk.ts` writes `source_chunk` rows before a worker has
 #: claimed anything, and a second implementation would be a second answer to
 #: *where does chunk 3 begin* (`pipeline/chunk.py`). `generate` and
-#: `write_pending` are `worker/ingest.py`'s generator hook, called once per chunk
+#: `write_notes` are `worker/ingest.py`'s generator hook, called once per chunk
 #: with that chunk's whole surviving set (ADR 0047) — after this function has
 #: returned, because everything that shrinks the work happens before anything
 #: that spends (ADR 0010).
-STAGES_RUN_ELSEWHERE = frozenset({"chunk", "generate", "write_pending"})
+STAGES_RUN_ELSEWHERE = frozenset({"chunk", "generate", "write_notes"})
 
 
 def check_pipelines(declaration: Declaration) -> None:

@@ -1,5 +1,16 @@
 /**
- * One keystroke, one transaction — `S3`'s accept, reject and accept-with-edit.
+ * One keystroke, one transaction — `S3`'s accept, reject and accept-with-edit,
+ * and since #20 the flag queue's **keep, drop and fix** (ADR 0064 §3).
+ *
+ * ⚠️ **The keystrokes did not move and neither did the wire** (ADR 0064 §6).
+ * `space` is `accept`, `R` is `reject`, `Enter` out of an edit is `accept` with
+ * edits — and what they mean is decided by the row the keystroke lands on. A
+ * *pending* *note* is decided exactly as it always was: acceptance mints. An
+ * *accepted* *note* whose *card* carries an open flag is resolved: keep
+ * unsuspends, fix edits and unsuspends, drop leaves the *card* suspended and
+ * writes the *note* `rejected`. **All three resolve every open flag on the
+ * *note*.** The *Vet* queue only offers the second kind; the first is still
+ * reachable by a stale client, and it is the path `Z`'s un-mint belongs to.
  *
  * ⚠️ **Acceptance mints the *card*, and minting is what acceptance means**
  * (`04` §7.3, "minted at acceptance, never before"). The two writes are in one
@@ -16,6 +27,15 @@
  * card with no `review_log` and no `scheduling_epoch`". The epoch belongs to the
  * *session* that first schedules the *card*, which is #12's.
  *
+ * ⚠️ **Minting is `mint_cards`, a database function** (ADR 0067), because the
+ * worker mints too since ADR 0064 and #20's criterion is that the path is
+ * reused rather than copied. This file no longer spells the `INSERT`.
+ *
+ * ⚠️ **A fix to a *memory-bearing field* resets the *card*** (`04` §7.4,
+ * ADR 0064 §5) — the application's first *scheduling epoch* reset, in
+ * `server/utils/review/epoch.ts`. An edit that changes nothing memory-bearing
+ * leaves the history standing.
+ *
  * ⚠️ **An edit writes `human` provenance for the fields that actually changed,
  * and for no others** (ADR 0048: `kind` records the mechanism that produced the
  * value). `09` §4.3 sets `note_vetting.edited` on the **commit**, so a reader who
@@ -29,11 +49,13 @@
  * which is exactly what `S6` counts.
  */
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, or, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
-import { jlptVocab } from '../../../shared/subject/declaration'
+import { jlptVocab, memoryBearingFieldNames } from '../../../shared/subject/declaration'
+import { openFlagFor } from './queries'
 import { openOrStartRun } from './run'
+import { resetForMemoryBearingChange } from '../review/epoch'
 import { writeNoteFields } from '../note/fields'
 import type { IngestDatabase } from '../ingest/record'
 import type { SubjectDeclaration } from '../../../shared/subject/declaration'
@@ -61,16 +83,19 @@ export async function decide(
   decision: VetDecision,
 ): Promise<DecideOutcome> {
   return db.transaction(async (tx): Promise<DecideOutcome> => {
-    // ⚠️ **`state = 'pending'` is in the `WHERE`, not asserted afterwards.** It
+    // ⚠️ **What is decidable is in the `WHERE`, not asserted afterwards.** It
     // is what makes a second keystroke on a *note* already decided — a held key,
     // a stale tab, a client that got ahead of itself — answer "not pending"
-    // instead of stamping a second `seconds_to_vet` over the first.
+    // instead of stamping a second `seconds_to_vet` over the first. A resolved
+    // flag is decided in exactly that sense: the *note* is accepted with no open
+    // flag, and it matches neither half.
     const [current] = await tx
       .select({
         noteId: schema.note.id,
         subjectId: schema.note.subjectId,
         fields: schema.note.fields,
         edited: schema.noteVetting.edited,
+        state: schema.noteVetting.state,
       })
       .from(schema.noteVetting)
       .innerJoin(schema.note, eq(schema.note.id, schema.noteVetting.noteId))
@@ -78,7 +103,10 @@ export async function decide(
         and(
           eq(schema.noteVetting.noteId, decision.noteId),
           eq(schema.noteVetting.ownerId, ownerId),
-          eq(schema.noteVetting.state, 'pending'),
+          or(
+            eq(schema.noteVetting.state, 'pending'),
+            and(eq(schema.noteVetting.state, 'accepted'), openFlagFor(tx, ownerId)),
+          ),
         ),
       )
       .limit(1)
@@ -90,8 +118,10 @@ export async function decide(
     if (!declaration)
       return { ok: false, reason: 'unknown_subject' }
 
+    const resolving = current.state === 'accepted'
+
     if (decision.edits) {
-      const applied = await applyEdit(
+      const changed = await applyEdit(
         tx,
         current.noteId,
         current.fields as Record<string, string>,
@@ -103,8 +133,12 @@ export async function decide(
       // acceptance that quietly dropped the correction would be an acceptance
       // of the value the reader had just said was wrong — which is the failure
       // `S6` exists to prevent, arriving as a success.
-      if (!applied)
+      if (!changed)
         return { ok: false, reason: 'frozen' }
+
+      const memoryBearing = new Set(memoryBearingFieldNames(declaration))
+      if (changed.some(name => memoryBearing.has(name)))
+        await resetForMemoryBearingChange(tx, current.noteId)
     }
 
     const runId = await openOrStartRun(tx, ownerId)
@@ -125,11 +159,58 @@ export async function decide(
         ),
       )
 
-    if (decision.action === 'accept')
+    if (resolving)
+      await resolveFlags(tx, ownerId, current.noteId, decision.action === 'accept')
+    else if (decision.action === 'accept')
       await mint(tx, ownerId, current.noteId, declaration)
 
     return { ok: true }
   })
+}
+
+/**
+ * ADR 0064 §3's three resolutions, after the *note* row has been written.
+ *
+ * ⚠️ **`resolved_at` is `now()`, and `now()` is the transaction's instant** —
+ * the same one the `note_vetting.vetted_at` beside it was stamped with. That
+ * equality is what `Z` reads to find the flags this keystroke resolved
+ * (`server/utils/vet/undo.ts`), so both writes must stay in one transaction and
+ * both must say `now()` rather than a client or application clock.
+ *
+ * ⚠️ **Only a `flagged` suspension is lifted.** `S11`'s `source_deleted` is a
+ * different reason with a different way back, and `flag.ts` already refuses to
+ * overwrite it.
+ */
+async function resolveFlags(
+  tx: IngestDatabase,
+  ownerId: string,
+  noteId: string,
+  unsuspend: boolean,
+): Promise<void> {
+  await tx
+    .update(schema.cardFlag)
+    .set({ resolvedAt: sql`now()` })
+    .where(
+      and(
+        eq(schema.cardFlag.noteId, noteId),
+        eq(schema.cardFlag.ownerId, ownerId),
+        isNull(schema.cardFlag.resolvedAt),
+      ),
+    )
+
+  if (!unsuspend)
+    return
+
+  await tx
+    .update(schema.card)
+    .set({ suspendedAt: null, suspendedReason: null })
+    .where(
+      and(
+        eq(schema.card.noteId, noteId),
+        eq(schema.card.ownerId, ownerId),
+        eq(schema.card.suspendedReason, 'flagged'),
+      ),
+    )
 }
 
 /**
@@ -138,9 +219,15 @@ export async function decide(
  * and the day a second template is declared, accepting a *note* mints both
  * without anybody remembering to come back here.
  *
- * `ON CONFLICT DO NOTHING` because `Z` and a re-acceptance are a legal
- * round trip (ADR 0033), and the second acceptance must not fail on the *card*
- * the first one minted if the delete was ever refused.
+ * `mint_cards`' `ON CONFLICT DO NOTHING` is there because `Z` and a
+ * re-acceptance are a legal round trip (ADR 0033), and the second acceptance
+ * must not fail on the *card* the first one minted if the delete was ever
+ * refused.
+ *
+ * ⚠️ **The template keys are an `ARRAY[…]` of parameters, not one parameter.**
+ * Drizzle's `sql` template expands a JS array into a comma-separated list, so
+ * handing it the array directly would call the function with one argument per
+ * template.
  */
 async function mint(
   tx: IngestDatabase,
@@ -148,14 +235,9 @@ async function mint(
   noteId: string,
   declaration: SubjectDeclaration,
 ): Promise<void> {
-  await tx
-    .insert(schema.card)
-    .values(declaration.templates.map(template => ({
-      noteId,
-      ownerId,
-      templateKey: template.key,
-    })))
-    .onConflictDoNothing()
+  const keys = sql.join(declaration.templates.map(template => sql`${template.key}`), sql`, `)
+
+  await tx.execute(sql`SELECT mint_cards(${noteId}::uuid, ${ownerId}, ARRAY[${keys}]::text[])`)
 }
 
 /**
@@ -169,25 +251,25 @@ async function mint(
  * changing them is not a rewrite — and `writeNoteFields` is what makes *the only
  * window* a guard rather than a description.
  *
- * @returns `false` when the freeze refused the write. Committing nothing is
- * already true of an edit that changed nothing, which returns `true`: there was
- * no write to refuse.
+ * @returns the names of the fields that changed, or `null` when the freeze
+ * refused the write. Committing nothing is already true of an edit that changed
+ * nothing, which returns `[]`: there was no write to refuse.
  */
 async function applyEdit(
   tx: IngestDatabase,
   noteId: string,
   fields: Record<string, string>,
   edits: Record<string, string>,
-): Promise<boolean> {
+): Promise<string[] | null> {
   const changed = Object.entries(edits).filter(([name, value]) => fields[name] !== value)
 
   if (changed.length === 0)
-    return true
+    return []
 
   const written = await writeNoteFields(tx, noteId, { ...fields, ...Object.fromEntries(changed) })
 
   if (!written)
-    return false
+    return null
 
   await tx
     .insert(schema.noteFieldProvenance)
@@ -211,5 +293,5 @@ async function applyEdit(
       },
     })
 
-  return true
+  return changed.map(([name]) => name)
 }

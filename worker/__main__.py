@@ -15,7 +15,7 @@ the sweep, #8 was the *pipeline* up to the edge of generation, and #9 is the
 spend: a claimed run reads its *source*, tokenises every *chunk*, extracts
 *candidates*, deduplicates against the corpus, appends *occurrences* for what the
 corpus already had, filters what the reader has rejected, **asks a model about
-what is left, writes the *pending notes* that come back, and records what they
+what is left, writes and mints the *notes* that come back, and records what they
 cost** (`04` §6.1, §6.3).
 
 ⚠️ **All three refusals happen before anything is claimed.** The direct
@@ -36,16 +36,14 @@ connection string and no API key.**
 
 from __future__ import annotations
 
-import json
 import signal
 import sys
 import threading
-import time
-from typing import Any
 
 import psycopg
 
 import db
+from events import log
 import provider as provider_module
 from ingest import make_chunk_processor, make_generator, resolve_worker_environment
 from jobs import ClaimedJob, drain as drain_jobs, worker_id
@@ -55,11 +53,6 @@ from pipeline.generate import PROMPT_VERSION
 from pipeline.tokenise import DICTIONARY_VERSION
 from runs import run_ingestion
 from subject import load_declaration, pipeline_kinds
-
-
-def log(event: str, **fields: Any) -> None:
-    """One JSON line per event, on stdout — the worker's half of `03` §11."""
-    print(json.dumps({"t": time.time(), "event": event, **fields}), flush=True)
 
 
 def main() -> int:

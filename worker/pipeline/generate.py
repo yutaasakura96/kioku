@@ -110,7 +110,7 @@ class GenerationRequest:
 
 @dataclass(frozen=True)
 class GeneratedNote:
-    """One *pending note*, assembled and validated, not yet written.
+    """One *note*, assembled and validated, not yet written.
 
     ``group`` is what asked for it — stage 7 writes one *occurrence* per sighting
     in it (`04` §5.5), which is why a group carries every sighting and not only
@@ -129,7 +129,7 @@ class GeneratedNote:
     #:
     #: ⚠️ **The cost is one paid generation, and it is the honest one.** Stage 5
     #: filtered on the empty-reading key, so a word the corpus already holds
-    #: under its real key is not caught until this point — `write_pending`'s
+    #: under its real key is not caught until this point — `write_notes`'s
     #: `ON CONFLICT DO NOTHING` then finds the existing *note* and appends the
     #: *occurrences* to it. The alternative, keying the row on a reading it does
     #: not carry, buys nothing and breaks `04` §5.3.
@@ -424,7 +424,7 @@ def _assemble(
     # ⚠️ **The one exception to *the candidate's values win*, and ADR 0063 is
     # it.** A *candidate* the dictionary could not read carries no reading to
     # win with; the model's is the only one there is, and `04` §5.4 records
-    # where it came from (`write_pending` stamps it `generated`). The `term` is
+    # where it came from (`write_notes` stamps it `generated`). The `term` is
     # still the candidate's, so the echo cannot rewrite the word itself.
     if needs_a_reading(group):
         supplied = arrived.get("reading")

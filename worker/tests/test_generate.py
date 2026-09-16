@@ -423,7 +423,7 @@ class TestTheReadingIsAskedFor:
 
     def test_the_reading_is_recorded_as_generated_rather_than_looked_up(self) -> None:
         """ADR 0004 and `04` §5.4: trust is a property of where a value came
-        from. `write_pending` reads this to stamp the *provenance* row.
+        from. `write_notes` reads this to stamp the *provenance* row.
         """
         notes = notes_from(
             DECLARATION,

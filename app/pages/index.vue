@@ -92,7 +92,7 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
 <template>
   <PlaceShell
     origin="/"
-    :pending="counts.pending"
+    :flagged="counts.flagged"
     :due="counts.due"
     measure="var(--k-measure-object)"
   >

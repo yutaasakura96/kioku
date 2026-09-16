@@ -14,8 +14,9 @@
 //
 // ⚠️ **Neither control is ever disabled** (ADR 0032, ADR 0035). A zero on Review
 // is how the reader reaches the empty state that tells them when the next *card*
-// is due, and a zero on Vet is how they find out whether an *ingestion* is still
-// running (`09` §8). Disabling the entrances would make PRD §4's written empty
+// is due, and a zero on Vet is how they reach the line saying nothing is flagged
+// (`10` §4.5, amended with #20 — it said an *ingestion* was still running, and
+// an *ingestion* no longer adds to *Vet*). Disabling the entrances would make PRD §4's written empty
 // states unreachable — ADR 0032 refused a disabled start control once already.
 //
 // ⚠️ **The origin travels in `from`** and is matched against three strings on
@@ -27,7 +28,7 @@ import type { Place } from '~~/shared/utils/origin'
 const props = defineProps<{
   /** The *place* this block is on — becomes `?from=`. */
   origin: Place
-  pending: number
+  flagged: number
   due: number
 }>()
 
@@ -41,8 +42,8 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
       <NuxtLink :to="vet" class="control">
         <span class="label">Vet</span>
         <span class="dot" aria-hidden="true">·</span>
-        <span class="count">{{ pending }}</span>
-        <span class="word">pending</span>
+        <span class="count">{{ flagged }}</span>
+        <span class="word">flagged</span>
       </NuxtLink>
 
       <NuxtLink :to="review" class="control">
@@ -93,7 +94,7 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
   color: var(--k-ink);
 }
 
-/* The *Vet* chrome bar's own pending-count treatment — `05` §7. */
+/* The *Vet* chrome bar's own count treatment — `05` §7. */
 .dot {
   color: var(--k-dot);
 }

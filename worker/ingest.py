@@ -19,7 +19,7 @@ not once per group. `04` §6.3 keys the cache on the *chunk*'s `content_hash`, s
 one call per candidate would put every candidate in a chunk under one four-tuple
 — see :func:`make_generator` and ADR 0047.
 
-⚠️ **The writes stage 7 does are not here.** `pipeline/write_pending.py` owns
+⚠️ **The writes stage 7 does are not here.** `pipeline/write_notes.py` owns
 them, because `03` §10 asks for one module per stage named by the declaration.
 What is still here is the SQL that is *around* the stages — the corpus lookup,
 the rejected filter, `04` §6.1's two ledgers, and `04` §6.3's cache.
@@ -34,6 +34,7 @@ from typing import AbstractSet, Any, Callable, Mapping, Optional, Sequence
 
 import psycopg
 
+import events
 import prices
 from db import MisconfiguredWorker
 from jobs import KEEPALIVE_EVERY_SECONDS, ClaimedJob, keepalive
@@ -46,11 +47,12 @@ from pipeline.generate import (
     request_for,
 )
 from pipeline.tokenise import DICTIONARY_VERSION
-from pipeline.write_pending import (
+from pipeline.write_notes import (
     Destination,
     Provenance,
+    accept_and_mint,
     append_occurrences,
-    write_pending_notes,
+    write_notes,
 )
 from provider import Generation, Provider, ProviderRefused
 from runs import Chunk, ChunkFinish, ChunkProcessor
@@ -107,8 +109,11 @@ class RunContext:
     #: reader said which it was on *Ingest* and a list of one-word sentences is
     #: indistinguishable from prose by inspection.
     kind: str
-    #: `ingestion.submitted_by`. ⚠️ Nullable — `04` §6.1 makes it `ON DELETE SET
-    #: NULL` so that hard-deleting the reader does not erase the spend ledger.
+    #: `job.requested_by` — ⚠️ **the owner of what the run mints** (ADR 0064 §2,
+    #: which amends `04` §4). Not `ingestion.submitted_by`, which stays an audit
+    #: line; a resume is asked for by whoever pressed resume. Nullable — `04`
+    #: §6.4 makes it `ON DELETE SET NULL` so that hard-deleting the reader does
+    #: not erase the spend ledger.
     owner_id: str | None
     content: str
 
@@ -176,6 +181,7 @@ def make_chunk_processor(
     generate: Optional[Generate] = None,
     declaration: Optional[Declaration] = None,
     keepalive_every: float = KEEPALIVE_EVERY_SECONDS,
+    log: Callable[..., None] = events.log,
 ) -> ChunkProcessor:
     """`runs.ChunkProcessor` for one claimed job.
 
@@ -199,7 +205,7 @@ def make_chunk_processor(
 
     def process_chunk(connection: psycopg.Connection, chunk: Chunk) -> ChunkFinish:
         if "run" not in cached:
-            cached["run"] = read_run_context(connection, job.ingestion_id)
+            cached["run"] = read_run_context(connection, job.ingestion_id, job_id=job.id)
         run = cached["run"]
 
         text = chunk_text(run.content, chunk.char_start, chunk.char_end)
@@ -214,7 +220,9 @@ def make_chunk_processor(
             ),
         )
 
-        append_corpus_occurrences(connection, job.ingestion_id, run, chunk, result)
+        append_corpus_occurrences(
+            connection, job.ingestion_id, run, chunk, result, declaration=resolved, log=log
+        )
 
         # ⚠️ **Not called for an empty survivor set**, and that is ADR 0010 at
         # its most literal: a *chunk* whose every word the corpus already carries
@@ -246,8 +254,14 @@ def make_chunk_processor(
     return process_chunk
 
 
-def read_run_context(connection: psycopg.Connection, ingestion_id: str) -> RunContext:
+def read_run_context(
+    connection: psycopg.Connection, ingestion_id: str, *, job_id: str
+) -> RunContext:
     """The *source* this run is of, what it is made of, and who asked for it.
+
+    ⚠️ **"Who asked" is the job's `requested_by`** (ADR 0064 §2). A **left**
+    join, because a job row that has gone is not a reason to fail a *chunk* —
+    it is a run nobody owns, which writes its *notes* and mints nothing.
 
     ⚠️ **`source.kind` is joined in rather than read from `ingestion`.** ADR 0063
     puts the column on the *source* because it is a fact about the material, and
@@ -256,11 +270,12 @@ def read_run_context(connection: psycopg.Connection, ingestion_id: str) -> RunCo
     """
     row = connection.execute(
         """
-        SELECT s.id, i.subject_id, s.kind, i.submitted_by, s.content
+        SELECT s.id, i.subject_id, s.kind, j.requested_by, s.content
         FROM ingestion i JOIN source s ON s.id = i.source_id
+        LEFT JOIN job j ON j.id = %s
         WHERE i.id = %s;
         """,
-        (ingestion_id,),
+        (job_id, ingestion_id),
     ).fetchone()
     if row is None:
         # ⚠️ `04` §6.1 makes `ingestion.source_id` nullable so a hard delete does
@@ -284,14 +299,25 @@ def append_corpus_occurrences(
     run: RunContext,
     chunk: Chunk,
     result: StageResult,
+    *,
+    declaration: Declaration,
+    log: Callable[..., None] = events.log,
 ) -> None:
-    """ADR 0006: *on a key match the second sighting appends an occurrence.*
+    """ADR 0006: *on a key match the second sighting appends an occurrence* —
+    and, since ADR 0064, **the reader gets the word**.
 
     ⚠️ **Only for words the corpus already had.** A *note* this run is about to
     create does not exist until stage 7 writes it, and its occurrences are
     written there, from the same `sightings` tuple and through the same function
-    — `pipeline.write_pending.append_occurrences`. Two copies of `04` §5.5's
+    — `pipeline.write_notes.append_occurrences`. Two copies of `04` §5.5's
     insert would be two places for its unique constraint to be spelled wrong.
+
+    ⚠️ **A hit is accepted and minted, through the same function stage 7 uses.**
+    ADR 0063 keeps the 474 *pending notes* as a cache for stage 5, which makes a
+    hit the common case for a list of everyday words; a chosen word the corpus
+    already held is still a chosen word, and skipping the mint would give the
+    reader occurrences and no *cards*. `accept_and_mint` leaves a rejection
+    alone, which is why a rejected *note* can still collide here safely.
 
     ⚠️ **Every sighting, including the sightings of a *note* this reader has
     rejected.** An *occurrence* is **shared** data — a fact about the material
@@ -299,14 +325,31 @@ def append_corpus_occurrences(
     dropping the position because of the decision would confuse the two.
     """
     for group in result.collisions:
-        append_occurrences(
-            connection,
-            note_id=group.note_id,
-            sightings=group.sightings,
-            source_id=run.source_id,
-            source_chunk_id=chunk.source_chunk_id,
-            ingestion_id=ingestion_id,
-        )
+        # One transaction per hit, for the reason `write_notes.write_note` gives:
+        # the connection is autocommit, and an accepted row with no *card* is the
+        # state `04` §7.3 exists to rule out.
+        with connection.transaction():
+            append_occurrences(
+                connection,
+                note_id=group.note_id,
+                sightings=group.sightings,
+                source_id=run.source_id,
+                source_chunk_id=chunk.source_chunk_id,
+                ingestion_id=ingestion_id,
+            )
+            accept_and_mint(
+                connection,
+                note_id=group.note_id,
+                owner_id=run.owner_id,
+                declaration=declaration,
+            )
+
+    # ⚠️ ADR 0064 §2 on the hit path: *mints nothing, and says so.* The generator
+    # says it for the *notes* it writes; a *chunk* whose every word the corpus
+    # already held never reaches the generator, so this is the only place that
+    # can.
+    if run.owner_id is None and result.collisions:
+        log("ingest.unowned", ingestion=str(ingestion_id), hits=len(result.collisions), minted=0)
 
 
 def record_candidate_ledger(
@@ -366,7 +409,12 @@ class CacheKey:
     model_id: str
 
 
-def make_generator(provider: Provider, *, worker_environment: str | None = None) -> Generate:
+def make_generator(
+    provider: Provider,
+    *,
+    worker_environment: str | None = None,
+    log: Callable[..., None] = events.log,
+) -> Generate:
     """Stage 6 and stage 7, bound to one provider — `03` §5.1, §7, ADR 0018.
 
     ⚠️ **The order is cache, provider, ledger, validate, cache-store, write**,
@@ -426,7 +474,7 @@ def make_generator(provider: Provider, *, worker_environment: str | None = None)
             notes = notes_from(context.declaration, groups, generation.payload)
             write_generation_cache(connection, key, generation)
 
-        write_pending_notes(
+        written = write_notes(
             connection,
             notes,
             to=Destination(
@@ -443,6 +491,18 @@ def make_generator(provider: Provider, *, worker_environment: str | None = None)
                 ),
             ),
         )
+
+        # ⚠️ ADR 0064 §2: *the run writes its notes and mints nothing, and says
+        # so.* Once per *chunk* rather than once per run, because the chunk is
+        # the unit that commits — a run that dies half way has said it for
+        # exactly the *notes* that landed.
+        if context.run.owner_id is None:
+            log(
+                "ingest.unowned",
+                ingestion=str(context.ingestion_id),
+                notes=len(written),
+                minted=0,
+            )
 
     return generate
 
