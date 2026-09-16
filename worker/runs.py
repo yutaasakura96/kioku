@@ -205,7 +205,8 @@ def run_ingestion(
             # ⚠️ `03` §13.4: never source text. ⚠️ `03` §11: never the provider's
             # name — this column is read straight onto the run row (`10` §6.2).
             _mark_chunk(connection, job.ingestion_id, chunk, "failed", error=str(error))
-        # `04` §6.4 step 3, in the one place a run is long enough to need it.
+        # `04` §6.4 step 3, between *chunks*. The other heartbeat is the keepalive
+        # a model request calls while it streams (ADR 0061, `ingest.py`).
         heartbeat(connection, job)
 
     settle_run(connection, job.ingestion_id)

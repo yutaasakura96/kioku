@@ -25,7 +25,8 @@ const props = defineProps<{
   fields: Record<string, string>
   declaration: SubjectDeclaration
   templateKey: string
-  /** `10` §5.1's two states. The front is the *term* alone. */
+  /** `10` §5.1's two states. The front is the *term* with the answer fields
+   *  under it (ADR 0060), passed in through the default slot. */
   face: 'front' | 'back'
 }>()
 
@@ -66,9 +67,10 @@ const JAPANESE = new Set(['term', 'reading', 'example_sentence'])
 
 <template>
   <article class="card" :class="face">
-    <!-- The front: the *term* alone at 104px, centred both ways. On the back it
-         is the same element at the same size, which is what makes the reveal a
-         change of what is *under* it rather than a new screen. -->
+    <!-- The front: the *term* at 104px, with the answer fields under it (the
+         default slot, ADR 0060). On the back it is the same element at the same
+         size, which is what makes the card turning a change of what is *under*
+         it rather than a new screen. -->
     <div class="prompt">
       <p
         v-for="name in prompt"
@@ -124,8 +126,8 @@ const JAPANESE = new Set(['term', 'reading', 'example_sentence'])
   box-shadow: var(--k-shadow-card);
 }
 
-/* The front is the *term* alone, centred both ways — so the prompt takes the
-   whole card until there is an answer under it. */
+/* The front centres the *term* in the space the answer fields beneath it leave
+   (ADR 0060) — the prompt grows to fill the card above them. */
 .card.front .prompt {
   flex: 1;
   display: flex;

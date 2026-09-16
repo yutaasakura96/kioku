@@ -8,9 +8,10 @@
 // desktop keeps `Esc` and gains a visible way out (ADR 0026), so a control that
 // does not say `Esc` teaches the keyboard reader nothing.
 //
-// ⚠️ **The primary cap holds `space`, not a letter** (ADR 0023), so it is the
-// widest cap in the legend rather than one square among equals. That is a
-// consequence of the key map, not a size that was chosen.
+// ⚠️ **The primary cap holds `space` in *Vet*** (ADR 0023) **and `Enter` in
+// *Review*** (ADR 0060), so it is the widest cap in the legend rather than one
+// square among equals. That is a consequence of the key map, not a size that
+// was chosen.
 
 withDefaults(defineProps<{
   /** What is printed on the cap — `space`, `E`, `Esc`. */

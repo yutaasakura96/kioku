@@ -234,19 +234,6 @@ class AnthropicProvider:
         )
 
 
-def _why(stop_reason: str | None, request: GenerationRequest) -> str:
-    """What to put on the run row — `10` §6.2 renders it, so it is a sentence.
-
-    ⚠️ The default arm names the raw `stop_reason`, which is an API constant and
-    not a vendor: enough to act on, and nothing `03` §11 forbids.
-    """
-    if stop_reason == "refusal":
-        return "the model declined this chunk"
-    if stop_reason == "max_tokens":
-        return f"the answer was cut off at {request.max_tokens} output tokens"
-    return f"the answer stopped at {stop_reason!r} rather than finishing"
-
-
 def require_provider(environ: dict[str, str] | None = None) -> AnthropicProvider:
     """The provider, or a refusal at startup that names the variable.
 

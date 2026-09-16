@@ -24,8 +24,10 @@ says so in one line instead of draining a queue and producing nothing — which
 would settle every run `complete` and report a *source* that made no *notes* as a
 success (PRD §5's zero-new-notes case, arriving as a lie).
 
-Logging is `03` §11: structured JSON lines to stdout, carrying the ingestion or
-job id. ⚠️ **Never source text, never a note field, never the reader's email, no
+Logging is `03` §11: structured JSON lines to stdout. ⚠️ **Every line today is
+about the process, not one job** — `started`, `stopped`, `drained`, `swept`,
+`connection_lost` — so each carries the worker's `owner` rather than an ingestion
+or job id; a per-job line would carry that id. ⚠️ **Never source text, never a note field, never the reader's email, no
 connection string and no API key.**
 """
 
@@ -101,8 +103,9 @@ def main() -> int:
 
     # ⚠️ The dictionary is **not** constructed here. `03` §3.4 says once per
     # process, and `pipeline.tokenise.dictionary` builds it on first use — a
-    # worker that is started and never claims anything should not pay 58 ms and
-    # 93 MB for a *source* that never arrives. Naming the version costs nothing
+    # worker that is started and never claims anything should not pay a dictionary
+    # load (9 ms warm, about 60 ms cold, measured 2026-09-16) and its memory
+    # mapping for a *source* that never arrives. Naming the version costs nothing
     # and is what a log line is for.
     # ⚠️ **The model id and the prompt version are logged and the key is not**
     # (`03` §11, §13.1). Which model ran is the thing ADR 0018's walk is about,

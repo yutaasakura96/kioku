@@ -229,9 +229,11 @@ def heartbeat(connection: psycopg.Connection, job: ClaimedJob) -> None:
 class Keepalive:
     """A heartbeat the stream may call on every event, written once an interval.
 
-    ⚠️ **The interval starts when the keepalive is made**, which is the start of
-    a *chunk* — right after `runs.run_ingestion` heartbeated the previous one, or
-    right after the claim stamped `heartbeat_at`.
+    ⚠️ **The interval starts when the keepalive is made**, which is when a
+    *chunk* reaches generation (`ingest.make_chunk_processor`) — after stages 2
+    to 5, which take well under a second, and only for a *chunk* with survivors.
+    The last heartbeat before it was `runs.run_ingestion`'s, between *chunks*, or
+    the claim's own `heartbeat_at`.
 
     ⚠️ **One query keeps two things alive** (ADR 0061): the claim, which the
     sweep reclaims after `STALE_AFTER`, and the compute, which Neon Free

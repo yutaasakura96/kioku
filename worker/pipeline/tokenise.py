@@ -110,7 +110,9 @@ def dictionary() -> Dictionary:
     """The one dictionary this process has, built on first use.
 
     ⚠️ **Lazily, and behind a lock.** Lazily because importing this module must
-    not cost 58 ms and 93 MB in a test that never tokenises anything; behind a
+    not cost a dictionary load in a test that never tokenises anything — 9 ms
+    warm, about 60 ms on a cold file cache (measured 2026-09-16; `03` §3.4 has
+    the warm figure), plus the mapping's memory; behind a
     lock because two threads racing here would build two dictionaries and the
     second mapping is the whole cost `03` §3.4 is protecting against. The worker
     is single-threaded today (`03` §3.1) — the lock is what stops that from

@@ -8,7 +8,10 @@ functions over candidates (`11` §8), and everything that knows a query is here.
 
 ⚠️ **#8 changed nothing in `runs.py`.** The seam was one argument and it still
 is; what arrived is a `process_chunk` to pass to it. #9 added `sc.content_hash`
-to that module's resume query and nothing else.
+to that module's resume query. ⚠️ **#17 changed the seam's return type**
+(ADR 0061): a processor may hand back a `runs.ChunkFinish`, the writes that
+commit with the *chunk*'s completion, and this one hands back the candidate
+ledger.
 
 ⚠️ **Stage 6 and stage 7 arrived with #9**, and the shape of the hook changed
 with them: ``generate`` is called **once per chunk with all of its survivors**,
@@ -38,7 +41,6 @@ from pipeline import Corpus, StageResult, chunk_text, run_stages
 from pipeline.deduplicate import Group
 from pipeline.generate import (
     PROMPT_VERSION,
-    GenerationRefused,
     notes_for_cached,
     notes_from,
     request_for,
@@ -175,7 +177,7 @@ def make_chunk_processor(
     ⚠️ **A closure over the job, because the seam's signature has no room for
     it.** `run_ingestion` hands the processor a connection and a `Chunk`; the
     *ingestion* it belongs to is known before the first chunk is, and binding it
-    here is what keeps `runs.py` unchanged.
+    here is what keeps the job out of `runs.py`'s seam.
 
     ⚠️ **The declaration and the run context are read once each**, not once per
     chunk. The declaration is a file read (ADR 0003) and the context is a query;

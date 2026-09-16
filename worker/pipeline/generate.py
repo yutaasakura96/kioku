@@ -71,8 +71,8 @@ FIELD_INSTRUCTIONS: Mapping[str, str] = {
     "example_gloss": "A plain English translation of that example sentence.",
 }
 
-#: Enough room for a chunk's worth of notes and no more. `04` §5.2 caps a chunk
-#: at ADR 0041's 1200 characters, so a chunk that somehow produced this many
+#: Enough room for a chunk's worth of notes and no more. ADR 0041 caps a chunk
+#: at 1200 characters (`shared/ingest/chunk.ts`; `04` §5.2 carries no constraint), so a chunk that somehow produced this many
 #: output tokens has gone wrong in a way a bigger ceiling would only make
 #: costlier.
 MAX_OUTPUT_TOKENS = 16_000
