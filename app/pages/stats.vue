@@ -4,11 +4,15 @@
 // produces thirty good *cards* and no measurement has shown that the code runs,
 // not that the thesis holds.
 //
-// ⚠️ **Six figures, each a query over rows written by the code that produced
-// them.** There are no metrics tables (`04` §13), so every way a number can be
-// wrong is a bug rather than a fact about a corpus — which is why the arithmetic
-// is a tested seam (`shared/metrics/`) and the rows are a tested query
-// (`server/utils/stats/queries.ts`), and this file is neither.
+// ⚠️ **Five figures and a ledger, each a query over rows written by the code
+// that produced them.** There are no metrics tables (`04` §13), so every way a
+// number can be wrong is a bug rather than a fact about a corpus — which is why
+// the arithmetic is a tested seam (`shared/metrics/`) and the rows are a tested
+// query (`server/utils/stats/queries.ts`), and this file is neither.
+//
+// ⚠️ **Rebuilt rather than edited by #23** (ADR 0062): *acceptance rate* and
+// median *seconds-per-note* are retired, **retention** and **consistency** are
+// the headline, and *false-accept rate* is **flag rate**.
 //
 // ⚠️ **Three interaction states, not five** (ADR 0035, `10` §3.3). This *place*
 // ships no JavaScript, so loading is the browser's and an error is a re-rendered
@@ -30,12 +34,17 @@ import { summarise } from '~~/shared/metrics/stats'
 const counts = await useStartBlockCounts()
 const stats = await usePlace()?.stats()
 
-// ⚠️ **Imported, never re-derived here.** § Carrying: *the acceptance rate
-// arithmetic is a pure module and Stats must not re-derive it in SQL* — and a
-// second copy in a `<script setup>` would be the same mistake with a shorter
-// fuse. `summarise` is the one function that turns the rows into figures, and
-// it is unit-tested over fixture rows (`11` §8).
-const view = computed(() => (stats ? summarise(stats.rows) : null))
+// ⚠️ **Imported, never re-derived here.** § Carrying: *the arithmetic is a pure
+// module and Stats must not re-derive it in SQL* — and a second copy in a
+// `<script setup>` would be the same mistake with a shorter fuse. `summarise`
+// is the one function that turns the rows into figures, and it is unit-tested
+// over fixture rows (`11` §8).
+//
+// ⚠️ **The clock and the zone come back with the rows**, not from a `new Date()`
+// here: the trailing window and ADR 0066's day boundary have to be read against
+// the instant the rows were read, and `09` §2's *as of this page load* is one
+// instant rather than two.
+const view = computed(() => (stats ? summarise(stats.rows, stats.context) : null))
 </script>
 
 <template>

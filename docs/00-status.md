@@ -3,19 +3,22 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**67 ADRs** — ADR 0067, minting as a database function, added 2026-09-17 with #20; ADR 0062 to
-ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 66 until 2026-09-17, 61 until 2026-09-16
-and 58 until 2026-09-12** — eleven documents, and **eight open issues** on the tracker as
-of 2026-09-16: #1 the spec and #19 to #25, the pivot. **#17**, the worker's heartbeat window, was built and closed in
+**67 ADRs** — ⚠️ **#23 added none**, and instead **corrected ADR 0037**, whose amended table
+contradicted ADR 0066 about where a day starts. ADR 0067, minting as a database function, added
+2026-09-17 with #20; ADR 0062 to ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 66 until
+2026-09-17, 61 until 2026-09-16 and 58 until 2026-09-12** — eleven documents, and **five open
+issues**: #1 the spec, and #21, #24 and #25 of the pivot (⚠️ **this said eight until 2026-09-18**). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
-**#2 through #18 are built** (⚠️ **this said #14 until 2026-09-16**). ⚠️ **The frontier is
-[#19](https://github.com/yutaasakura96/kioku/issues/19)**, and it was empty for four days before
-that: the 2026-09-16 pivot opened #19 to #25 (§ Next). What stays unticketed is `S12`'s export,
-which issue #1 puts outside milestone 1.
+**#2 through #20, #22 and #23 are built** (⚠️ **this said "#2 through #18" until 2026-09-18 and
+"#14" until 2026-09-16**). ⚠️ **The frontier is
+[#21](https://github.com/yutaasakura96/kioku/issues/21)**, the review-load brake — which since
+2026-09-18 also carries the reader's **timezone**, without which *consistency* buckets a Tokyo
+evening into the wrong day (§ Next, § Carrying). What stays unticketed is `S12`'s export, which
+issue #1 puts outside milestone 1.
 
 ⚠️ **A pivot was decided on 2026-09-16 and everything below this paragraph describes the system it
 changes.** The input becomes chosen words rather than mined prose, vetting leaves the loop, every
@@ -62,11 +65,101 @@ said what he wants the app for, and it moved the input, the vetting step and the
 **What is left for him is still the reader's run**: a *session* of the 39 *cards* already minted,
 which gives *time-to-first-review* its first real reading. Nothing in the pivot needs that run first,
 and the run is the only thing no session can do for him.
-**Updated:** 2026-09-16
+⚠️ **2026-09-18: #23 is built and the numbers that measure the run have changed under it.**
+*Acceptance rate* and *seconds-per-note* are gone from the screen and from the code; retention,
+consistency and flag rate are what `/stats` now reads. ⚠️ **All three need *reviews*, and there have
+been none** — so the run is worth more than it was this morning, and it is still the only thing no
+session can do for him. ⚠️ **And migrations `0003` and `0004` are still unapplied to Neon**, which
+blocks the run before any of this matters.
+**Updated:** 2026-09-18
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**2026-09-18 — [#23](https://github.com/yutaasakura96/kioku/issues/23) is built: retention,
+consistency and flag rate are the numbers, and *acceptance rate* is gone from the code.** ADR 0062 in
+full. No new ADR — but **one document was found to be wrong and corrected**, which is below.
+
+- **`shared/metrics/acceptance.ts` is deleted**, with `test/unit/acceptance-rate.test.ts`. ADR 0064
+  leaves no accept event to count, so the rate is 100% by construction. *Seconds-per-note* went the
+  same way. ⚠️ **Removed, not shrunk** — ADR 0062: *a number nobody acts on is a number somebody will
+  eventually act on by accident.*
+- **Retention** is `rating >= 3` over `count(*)`, **filtered to `state = 2`**, over the trailing 30
+  days of `reviewed_at`. States 0, 1 and 3 each have their own schema-tier test. Sabotaged: dropping
+  the state filter reddens three.
+- **Consistency** is days studied over days there were to study, capped at 30 and floored at the days
+  since the first *grade*. ⚠️ **It reads `reviewed_at`, not `received_at`** — the outbox can replay a
+  Tuesday-night *grade* on Wednesday morning and the reader studied on Tuesday. Sabotaged: reading
+  `received_at` reddens five.
+- **Flag rate** is `count(distinct card_flag.card_id)` over `count(card)`. ⚠️ **Distinct is the one
+  line that changed from *false-accept rate***, whose `count(*)` was correct over its own
+  denominator; a share of the deck cannot exceed one. Sabotaged: `count(*)` reddens four. No
+  `resolved_at IS NULL` filter, and a test refuses one.
+- **[`shared/time/local-day.ts`](../shared/time/local-day.ts) is new, and it is the project's first
+  notion of *today*** (ADR 0066 §4): a day running 04:00 to 04:00 in the reader's zone, bucketed
+  through `Intl` rather than through `date_trunc`. ⚠️ **[#21](https://github.com/yutaasakura96/kioku/issues/21)
+  is its second importer and the module is shaped for it.** Three sabotages: midnight instead of
+  04:00 reddens seven, the tempting `instant − 4h` one-liner reddens exactly the daylight-saving
+  test, and a non-inclusive window reddens one here and three in the metrics.
+- **Suppression moved onto the `Figure`**, because ADR 0062 gives each ratio its own evidence — twenty
+  qualifying reviews, fourteen days, twenty minted *cards*. ⚠️ **ADR 0058 survives the move intact**:
+  what it refused was *suppressing by not computing*, and every value is still filled whether or not
+  it will be shown, which is what keeps the boundary observable at nineteen and twenty from the seam.
+  `StatsFigures.vue` is still the only file that **reads** the flag. Sabotaged both ways.
+- ***Time-to-first-review* is gated on minted *cards* rather than on a threshold of its own**, and
+  the ticket did not say so. It was gated on twenty *vetted notes* — the size of the corpus rather
+  than anything about the figure — and *cards minted* is that quantity in the word that still means
+  something. Its **pair** is still *sources*.
+- **The aside is rewritten and ADR 0058's argument is not.** *A rate over seventeen is noise* is
+  carried verbatim; the rule in front of it named a boundary and a noun that no longer exist, and it
+  now names only the ratios actually withheld — and disappears when none is.
+- ⚠️ **ADR 0037's amended table was wrong and is corrected in place.** It said *two grades either
+  side of midnight are two days*, which is the opposite of ADR 0066 §4's own worked example. **It
+  was caught by writing the test from the table rather than from the code** — the assertion failed,
+  and the failure was the document's. ADR 0037 carries a dated correction.
+- **Tests:** 846 TypeScript (was 808), across four tiers; seven guards checked by sabotage, every one
+  red for its own reason. Worker unchanged at 288.
+- ⚠️ **`/code-review` found four defects in the tests and two wrong comments, and the tests were the
+  worse half.** All are fixed; each is worth carrying because three of them are the *same* class:
+  - ⚠️ **`toContain('5%')` on the *whole document* passes on retention's `75%`.** Measured:
+    `'75%'.includes('5%')` is true. The flag-rate assertion held whatever that column rendered — or
+    failed to render. § Carrying has carried the **negative** form of this since 2026-09-12 (*a
+    `not.toContain` over markup is an assertion about a haystack*); **the positive form has the same
+    defect**, and `/stats` is where it bites, because four of five columns render a percentage and
+    every one is a substring of some other. `test/e2e/stats.test.ts` now reads each figure through
+    its own eyebrow.
+  - ⚠️ **And that fix immediately exposed a second one**: the assertion that
+    *time-to-first-review* reads `5d` was passing on the scoped-style attribute `data-v-5de4d6b0`.
+    The figure is **suppressed** at nineteen *cards* and the test never noticed.
+  - ⚠️ **The e2e fixture was wall-clock flaky.** Five *grades* were written at `now() - 6 days`
+    plus 105 to 133 minutes; a run between roughly 01:47 and 04:00 UTC pushes them over the cutoff
+    into a **sixteenth** day and 71% becomes 76%. **A fixture that depends on the hour is a test
+    that fails at night.** They share one instant now — the fifteen spine rows are exactly 24 hours
+    apart, which is what makes the day count independent of when the suite runs.
+  - ⚠️ **A unit test asserted `toBe(1)` for both Tokyo and UTC** and so passed with the zone ignored
+    entirely. The two instants now differ by a day in one zone and not in the other.
+  - ⚠️ **Consistency could exceed 100%, and the window was the reason.** It had a near end and no
+    far end: `reviewed_at` is the **client's** stamp and `03` §8.2 accepts it two minutes ahead
+    (ADR 0054), so a *grade* given just before the cutoff on a fast laptop buckets into tomorrow —
+    a day `daysPossible` does not contain. Sabotaged: it reads `15 / 14`.
+  - ⚠️ **Two comments asserted things from memory**, which is the failure CLAUDE.md § Working
+    agreements exists for and the second time this project has shipped one beside measured claims.
+    *`hour12: false` can yield `24` in some engines* — measured on the pinned Node 24.11.0, it
+    returns `"00"`; the `% 24` stays as defence and now says so. And *`Intl` is the only thing in
+    either language that knows a zone's offset at an instant* — Postgres `AT TIME ZONE` does too,
+    and the real argument was always the missing input rather than a missing capability.
+- **Amended:** `CONTEXT.md` (*Consistency*), `02` §2 `S10`, `03` §12, `10` §8.1/§8.2, `11` §3,
+  ADR 0037, and the `note_field_provenance` index comment in `server/db/schema/shared.ts`.
+- ⚠️ **What it does not do: `/stats` has no zone, so consistency's day boundary is 04:00 UTC** —
+  13:00 in Tokyo. See § Carrying; it is #21's to close and it is one line.
+- ⚠️ **Two places where the ticket's letter was not met, both deliberate and both named here rather
+  than quietly.** #23 asks for state 0 and state 3 to be excluded *"each with its own unit test"*;
+  the filter is **SQL**, so the tests are at the schema tier, and a unit test could only assert a
+  duplicate of the filter. And #23 says *time-to-first-review* is *"carried over untouched"*, which
+  its arithmetic is — but its **gate** had to move, because the old one was twenty *vetted notes*
+  and there is no such thing after ADR 0064. It shares flag rate's twenty *cards*; its pair is
+  still *sources*.
 
 **2026-09-17 — [#22](https://github.com/yutaasakura96/kioku/issues/22) is built: every word carries a
 *domain* and a *level*, and a *session* can be filtered on the new half.** ADR 0065 in full. No new
@@ -1467,10 +1560,22 @@ paragraph** — what follows is an index.
   are due, counted at composition on `review_session.new_count`, over a local day starting 04:00.
   The backlog is ordered by `get_retrievability` ascending. ⚠️ **Nothing caps due reviews.**
 
-⚠️ **[#22](https://github.com/yutaasakura96/kioku/issues/22) built 2026-09-17 (§ Done). The frontier
+⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
+is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone**, and everything else open is
+`needs-triage` or unspecified: #24 opens with research and #25 has four open questions in its body.
+**The next command is `/clear`, then `/implement 21`.**
+
+⚠️ **#21 is no longer only the brake — it is also what makes consistency read correctly.** ADR 0066
+§4 puts `Intl.DateTimeFormat().resolvedOptions().timeZone` on the *session* request, and #23 built
+the day boundary against a zone it has no way to obtain: `/stats` ships no JavaScript and nothing
+stores one, so the reader's day currently starts at 04:00 **UTC**. The moment #21 lands a stored
+zone, `server/middleware/shell-data.ts` is the one line that changes. **This was not in either
+ticket** and it is in § Carrying.
+
+~~⚠️ **[#22](https://github.com/yutaasakura96/kioku/issues/22) built 2026-09-17 (§ Done). The frontier
 is [#23](https://github.com/yutaasakura96/kioku/issues/23), with
 [#21](https://github.com/yutaasakura96/kioku/issues/21) buildable beside it.** The next command is
-`/clear`, then `/implement 23`.
+`/clear`, then `/implement 23`.~~
 
 ~~⚠️ **[#20](https://github.com/yutaasakura96/kioku/issues/20) built 2026-09-17 (§ Done). The frontier
 is [#22](https://github.com/yutaasakura96/kioku/issues/22) and
@@ -1485,10 +1590,10 @@ is [#20](https://github.com/yutaasakura96/kioku/issues/20) and
 The rest are open and blocked or out of order:
 
 ```
-#19 word lists ─┬─→ #20 mint on arrival, Vet is the flag queue ─→ #23 stats  ✔ built
-                ├─→ #22 domain and level, filtered sessions
+#19 word lists ─┬─→ #20 mint on arrival, Vet is the flag queue ─→ #23 stats  ✔ all built
+                ├─→ #22 domain and level, filtered sessions             ✔ built
                 └─→ #24 Anki import (research first)
-#21 the brake — independent, buildable now
+#21 the brake — independent, and now also the zone #23 needs   ← the frontier
 #22, #19 ─→ #25 AI-seeded lists (not specified yet)
 ```
 
@@ -1879,6 +1984,57 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **`/stats` has no zone, so *consistency*'s day starts at 04:00 UTC — 13:00 in Tokyo.** ADR 0066
+  §4 puts the reader's zone on the *session* request and validates it server-side; `/stats` ships no
+  JavaScript (ADR 0020) and no column stores one, so `server/middleware/shell-data.ts` passes
+  `resolveZone(null)` and the fallback is UTC. **The arithmetic is right and the input is wrong**,
+  which is the shape that gets mistaken for a bug: `test/unit/local-day.test.ts` proves the boundary
+  in four zones, and the screen still buckets a Tokyo reader's evening into the wrong day.
+  [#21](https://github.com/yutaasakura96/kioku/issues/21) lands the zone and **one line changes**.
+  ⚠️ **Do not "fix" it by reading `Accept-Language` or by adding a `<script>` to `/stats`** — the
+  first carries no zone and the second is the property ADR 0020 exists to hold.
+- ⚠️ **`note_vetting.seconds_to_vet` is written by three paths and read by nothing**, from
+  2026-09-18. It is the exact mirror of the `flagged_at` bullet #20 closed, one step in the other
+  direction: `app/pages/vet.vue` measures it, `shared/vet/decision.ts` validates it,
+  `server/utils/vet/decide.ts` stores it, `server/utils/vet/undo.ts` clears it, and #23 took away
+  the only reader. **It is kept rather than dropped** because ADR 0062 retires the *figure*, not the
+  measurement, and a column that is still being written costs nothing while a schema change costs a
+  migration. ⚠️ **A session that "tidies" it away is deciding that `S3` can never be re-asked.**
+- ⚠️ **The em dash on `/stats` is reachable through *time-to-first-review* alone**, and that is a
+  property of the new boundaries rather than an oversight. Retention, consistency and flag rate are
+  each gated on their own denominator, so a figure that is shown at all has a denominator above
+  nineteen and cannot be `null`. *Time-to-first-review* is gated on minted *cards* and divided over
+  *sources studied* — so a reader who has minted twenty and reviewed none sees it, **which is exactly
+  the state the first run left the database in** (39 minted, none reviewed).
+- ⚠️ **`date_trunc('day', …)` is the shortest way to write the wrong rule, and it is one keystroke
+  from where the right one goes.** ADR 0066's day is 04:00 in the reader's zone; `date_trunc` is
+  midnight in the database's. The bucketing is therefore in TypeScript
+  (`shared/time/local-day.ts`) and the query hands over **instants** — truncated to the minute, which
+  is a size reduction that cannot move an instant across a boundary, where truncating to the *hour*
+  would, in Kolkata. A session that pushes the bucketing "down into SQL for speed" changes the rule.
+- ⚠️ **Shifting the *instant* by four hours and formatting that is the tempting one-liner, and it is
+  wrong once a year for four hours.** The offset four hours earlier is not the offset now across a
+  daylight-saving transition. `localDayKey` reads the local hour first and steps the **calendar date**
+  back, which has no such case, and the New York spring-forward test is the only thing that tells the
+  two apart — it was written by sabotaging the right implementation into the wrong one.
+- ⚠️ **A suppression threshold on *consistency* belongs to the denominator, not the numerator.** A
+  reader on day three who studied all three days is at 100%, and a threshold on *days studied* would
+  publish that as a finding while withholding a reader who has been going a month and missed half of
+  it. It is the one of the three boundaries where the two readings differ, and both look reasonable.
+- ⚠️ **ADR 0058's "suppression is a fact about the screen" survived #23 by moving, and the thing it
+  actually refuses is narrower than it sounds.** `suppressed` is now a field on each `Figure` rather
+  than one flag on the view, because ADR 0062 gives each ratio its own evidence. **What ADR 0058
+  refused was returning `null` below the boundary** — throwing the value away makes nineteen and
+  twenty indistinguishable from the seam, which is the one place `11` §3 asks for them to be told
+  apart. Every value is still computed. **Do not read the ADR as forbidding the flag; read it as
+  forbidding the discard.**
+- ⚠️ **A document can be wrong, and #23 found one by writing the test from it.** ADR 0037's amended
+  table said *two grades either side of midnight are two days*; ADR 0066 §4 says a run from 23:40 to
+  00:10 is one sitting. The test asserting the table failed, and the failure was the document's. **The
+  general rule worth carrying: when a test written from a document fails, the document is a suspect
+  too** — here the deciding ADR and the index ADR disagreed, and the index was the one that had been
+  written from memory of a midnight boundary.
+
 - ⚠️ **`Z` on a flag resolution finds its flags by `card_flag.resolved_at = note_vetting.vetted_at`**,
   and that equality only holds because `decide()` writes both with the same transaction's `now()`.
   Stamp either from the application clock, or split the writes into two transactions, and `Z` stops
@@ -1897,9 +2053,11 @@ Nothing.
   `10` §4.4's edit reaches the *judgement fields* only, and `reading` is a *lookup*. A word-list
   *note* whose model-written reading is wrong (ADR 0063's unresolved line) can be dropped and not
   fixed. Widening the edit is a screen decision, not a bug.
-- ⚠️ **A resolution overwrites `vetted_at`, `vetting_session_id` and `seconds_to_vet`**, and `Z`
+- ~~⚠️ **A resolution overwrites `vetted_at`, `vetting_session_id` and `seconds_to_vet`**, and `Z`
   leaves `vetted_at` null on an `accepted` row (`04` §7.8, amended). Until #23 retires *acceptance
-  rate* and *seconds-per-note*, a resolution counts as a vetting decision in both.
+  rate* and *seconds-per-note*, a resolution counts as a vetting decision in both.~~ **Paid
+  2026-09-18 by #23**: neither figure exists, so the overwrite reaches no reader. ⚠️ **The writes
+  themselves still happen** — see the `seconds_to_vet` bullet below.
 - ⚠️ **`card` is in `worker/tests/conftest.py`'s scratch list now, and `scheduling_epoch` and
   `card_flag` still are not.** The worker mints, so its *cards* are scratch. It writes neither of the
   other two, so a leftover row still means a test did something it should say.
@@ -2156,6 +2314,13 @@ Nothing.
   Stats (#14) computed as *graded ÷ size* is correct only because of this, and would be silently
   wrong under the other reading.
 
+- ~~⚠️ **The *acceptance rate* arithmetic is a pure module and Stats must not re-derive it in SQL.**~~
+  ⚠️ **The figure was retired 2026-09-18 by #23 and the file is deleted (ADR 0062) — but the rule
+  outlived it and is worth restating in the new nouns: the arithmetic is
+  `shared/metrics/stats.ts` and `server/utils/stats/queries.ts` must not re-derive a rate in SQL.**
+  The one thing in that query module that looks like an exception and is not is
+  `count(distinct card_id)`, which is **deduplication** and has to happen where the rows are. The
+  original follows, because the SQL shape it names is still the one that looks most reasonable:
 - ⚠️ **The *acceptance rate* arithmetic is a pure module and Stats must not re-derive it in SQL.**
   ⚠️ **Held 2026-09-12 by #14**, and the bullet was one word too narrow: `shared/metrics/stats.ts`
   **imports** `acceptanceRate` and `notesGenerated`, and a second copy in TypeScript would have been

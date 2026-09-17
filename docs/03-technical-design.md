@@ -728,19 +728,37 @@ move in ADR 0022, and Vercel's Hobby retention, whatever it turns out to be.
 
 ## 12. Observability is the product, not the plumbing
 
-`S10` makes four numbers the *output* of v1 rather than reporting added to it: *acceptance rate*,
-*time-to-first-review*, *false-accept rate* and median *seconds-per-note*, plus tokens and cost per
-ingestion. All six are written as rows at the moment they happen, because none can be reconstructed
-afterwards:
+⚠️ **Amended 2026-09-18 by [#23](https://github.com/yutaasakura96/kioku/issues/23)
+([ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)).**
+*Acceptance rate* and median *seconds-per-note* are retired; **retention** and **consistency** are
+the headline and **flag rate** replaces *false-accept rate*. The original paragraph is below the
+list, struck, because the argument it makes — *written as rows at the moment they happen* — is
+unchanged and is the reason any of this survives ADR 0022's move.
 
-- *Seconds-per-note* is stamped at *vetting*, per note, from day one.
-- *Time-to-first-review* needs the submit instant and the first grade instant on the same clock.
-- *False-accept rate* needs the `S9` flag recorded **against the note's source and prompt version**
-  — without the third part you learn "some cards are bad" rather than "prompt v3 writes bad example
-  sentences", and only the second is actionable (ADR 0004).
+`S10` makes four numbers the *output* of v1 rather than reporting added to it: **retention**,
+**consistency**, **flag rate** and *time-to-first-review*, plus tokens and cost per ingestion. All
+are written as rows at the moment they happen, because none can be reconstructed afterwards:
+
+- **Retention** needs `review_log.state` — the state *before* the grade — or a lapse cannot be told
+  from a first answer. A `count(*)` over every row is the naive query and it reads low, always.
+- **Consistency** needs the **client's** stamp, `review_log.reviewed_at`: the outbox can replay a
+  Tuesday-night grade on Wednesday morning (ADR 0039) and the reader studied on Tuesday. ⚠️ And it
+  needs a day boundary, which is [ADR 0066](adr/0066-the-review-load-has-a-brake.md)'s 04:00 in the
+  reader's zone and the only notion of *today* in the system.
+- *Time-to-first-review* needs the submit instant and the first grade instant on the same clock, so
+  it is the one figure that reads `received_at` rather than `reviewed_at`.
+- **Flag rate** needs the `S9` flag recorded **against the note's source and prompt version** —
+  without the third part you learn "some cards are bad" rather than "prompt v3 writes bad example
+  sentences", and only the second is actionable (ADR 0004). ⚠️ And **distinct cards**: a share of
+  the deck cannot exceed one.
 - Tokens and cost come from the API response, per ingestion (§7).
 
-Below 20 vetted notes the ratios are suppressed and only raw counts show (`S10`).
+Each ratio is suppressed under its own evidence, showing the raw pair and a line saying why
+(`S10`, ADR 0058): twenty qualifying reviews, fourteen days, twenty minted cards.
+
+~~*Acceptance rate*, *time-to-first-review*, *false-accept rate* and median *seconds-per-note*, plus
+tokens and cost per ingestion. Below 20 vetted notes the ratios are suppressed and only raw counts
+show.~~
 
 ⚠️ **Early *time-to-first-review* figures are measured against a laptop and are not comparable
 across the move to a server** (ADR 0022). Recorded on the number, not just in this paragraph.

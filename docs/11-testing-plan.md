@@ -94,7 +94,7 @@ about the export and it is true of all twelve.
 | **S3** One keystroke | `space` writes `note_vetting.state='accepted'`, stamps `seconds_to_vet` and mints the *card* — **one keystroke, no confirmation, no focus change**; `R` and `E` likewise. ⚠️ The **median is not asserted** (ADR 0037) | nuxt + schema |
 | **S4** Only what needs looking at | The *provenance marker* is filled when `level_claim.authority_key IS NOT NULL` and hollow when null (`04` §14); ⚠️ **the *authority*'s name is in the DOM, not behind a hover** (`09` §4.4) | nuxt |
 | **S5** Say no once | Stage 5 drops an already-*rejected* `identity_key` **before** stage 6 spends money (`03` §5.1); re-ingesting the same *source* asks about fewer *notes* | worker |
-| **S6** Fix before accepting | `Enter` commits and accepts with `edited = true`; ⚠️ an edited accept counts as an **edit, not an acceptance**, in *acceptance rate* (§8's seam, `shared/metrics/acceptance.ts`); an *accepted* note's fields are frozen — **in the `WHERE` of both write paths**, the app's and the worker's, each sabotaged to red (ADR 0052) | unit + schema + nuxt + worker |
+| **S6** Fix before accepting | `Enter` commits and accepts with `edited = true`; an *accepted* note's fields are frozen — **in the `WHERE` of both write paths**, the app's and the worker's, each sabotaged to red (ADR 0052). ⚠️ **Amended 2026-09-18 by #23**: the *acceptance rate* half of this row is gone with the figure (ADR 0062), and `edited` is now written and read by nothing on `/stats` | unit + schema + nuxt + worker |
 | **S7** A session that ends | `review_session.size` rows in `review_session_card`, composed due-first; `snapshot_taken_at` is **server-side**; a graded *card* leaves and never returns; ⚠️ the end screen **never starts the next session** | schema + e2e |
 | **S8** Not lose grades | ADR 0039's five properties, browser side. A *session* completed with the network off loses nothing when it returns | nuxt + e2e |
 | **S9** Catch a bad card | `X` does **four things in one transaction** (`04` §7.8): `card_flag` with `prompt_version` and `model_id` denormalised, `suspended_at`, `note_vetting.flagged_at`, advance without a *grade*. ⚠️ **History untouched** | schema |
@@ -112,14 +112,24 @@ test list.
 **There are no metrics tables** (`04` §13). Every number is a query over rows written by the code
 that produced them, so every way it can be wrong is a bug rather than a fact about a corpus.
 
+⚠️ **Amended 2026-09-18 by [#23](https://github.com/yutaasakura96/kioku/issues/23)
+([ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)).**
+Two rows go, one is redefined, two arrive. ADR 0037's argument is untouched — the suite asserts the
+**recording**, never a threshold — and the 2026-09-12 amendment below is kept because two of the
+three things it settled still hold.
+
 | Number | Asserted | The failure it catches |
 | --- | --- | --- |
-| *Acceptance rate* | An edited accept is an **edit**, not an acceptance (`S6`); the denominator is *notes generated*, not notes seen | The most likely arithmetic error in the app, and the one that would flatter the thesis |
-| Median *seconds-per-note* | Stamped **per note at the keystroke**; over **unedited accepts only**; an even count takes the mean of the middle two | A median computed over all accepts silently includes the slow edits |
-| *False-accept rate* | `count(card_flag) ÷ count(note_vetting WHERE state='accepted')`; a second flag on the same *card* is a **second row**, and ⚠️ **a replayed outbox entry is not a second flag** (`04` §7.8) | Deduplicating flags would under-report exactly the signal `S9` exists for — and counting a retry would inflate it, which is the same error with the sign flipped |
-| *Time-to-first-review* | `source.submitted_at` → the first `review_log` for a *card* **from that source** — not the first grade of any card | The near-miss implementation, which is wrong the moment a second *source* exists |
+| **Retention** | `rating >= 3` over `count(*)`, **filtered to `state = 2`** — the state *before* the grade. A first answer (state 0) and a relearning answer (state 3) are each excluded, with a test of its own | ⚠️ A `count(*)` with no state filter counts an answer about nothing retained, and lets **one** act of forgetting push the number down twice. It is the naive query and it reads low, always |
+| **Consistency** | Days with at least one *grade* over days there were to study, capped at 30; days run **04:00 to 04:00 in the reader's zone** (ADR 0066); the denominator is the days since the first *grade* while that is fewer | ⚠️ `date_trunc('day', …)` in UTC is a different rule written in the shortest SQL — midnight, in the wrong zone. And a fixed denominator of 30 reads a reader three days in as 10% rather than suppressing them |
+| **Flag rate** | `count(distinct card_id)` over *cards minted*; a second flag on one *card* does **not** move the numerator, and ⚠️ **a replayed outbox entry is not a flag at all** (`04` §7.8) | Counting rows lets a reader who flagged one *card* three times read 150% of a two-*card* deck — *a share of the deck cannot exceed one*. The sign is flipped from *false-accept rate*, whose `count(*)` was correct |
+| *Time-to-first-review* | `source.submitted_at` → the first `review_log` for a *card* **from that source** — not the first grade of any card; **`received_at`, never `reviewed_at`** | The near-miss implementation, which is wrong the moment a second *source* exists; and a client stamp, which gives a negative duration on a laptop an hour fast |
 | Tokens and cost | From the API response, **never estimated** (`04` §6.1); `worker_environment` is on the row | ADR 0018's price table has an effective date; a hard-coded constant lies silently |
-| **The suppression boundary** | **Nineteen suppresses, twenty reports**, with raw counts and a line saying why | ⚠️ The only branch in `S10`, and off by default in every naive implementation |
+| **The suppression boundaries** | **Nineteen suppresses, twenty reports** for retention and flag rate; **thirteen suppresses, fourteen reports** for consistency — each with raw counts and a line saying why | ⚠️ The only branches in `S10`, and a boundary is off by default in every naive implementation. ADR 0058: the value is computed **anyway**, or the boundary cannot be observed from the seam at all |
+
+⚠️ **The two rows that left**, kept named so nobody re-adds them: *acceptance rate* and median
+*seconds-per-note*. `shared/metrics/acceptance.ts` and `test/unit/acceptance-rate.test.ts` are
+deleted — ADR 0064 leaves no accept event to count, so the rate is 100% by construction.
 
 ⚠️ **Amended 2026-09-12 by #14 — three things this table left to the implementation, all now
 decided and all now tested.** *Time-to-first-review* is per *source* and this table gives it one
@@ -503,9 +513,10 @@ which is this document's job; the arithmetic is not.
 | Zero new notes is a success | **yes** | Every word already in the corpus: the run is `complete`, the provider is **never asked**, and the four counters say by which filter (PRD §5, `03` §11) |
 | The spend ledger | **yes** | Tokens from the response, cost from the dated table, `price_table_effective_date` and `worker_environment` on the row — all accumulated across chunks (`04` §6.1, `03` §12) |
 
-⚠️ **No test asserts a threshold on *acceptance rate* or on output quality**, and the absence is
+⚠️ **No test asserts a threshold on any of `S10`'s figures or on output quality**, and the absence is
 deliberate (ADR 0037, ADR 0018): the number has to be free to fall, because a number that cannot fall
-is not a measurement. What is asserted is that the figures are **recorded**.
+is not a measurement. (⚠️ This named *acceptance rate* until 2026-09-18; ADR 0062 retired the figure
+and left the rule exactly as it was.) What is asserted is that the figures are **recorded**.
 
 ⚠️ **Amended again 2026-09-12 with #8 — twenty-three is now forty**, and the reason has not changed:
 #8's SQL is the *pipeline* wired to the database — the corpus lookup, the rejected filter, the
@@ -656,7 +667,21 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   `ratiosSuppressed`, asserted at **nineteen and twenty**. ⚠️ **Every ratio is computed whether or
   not it will be shown**: suppression is a fact about the screen, and computing conditionally would
   put `S10`'s only branch inside the seam and make the boundary unobservable from the one place it is
-  cheap to observe (ADR 0058). The rows behind it are `test/schema/stats.test.ts` and the grid is
+  cheap to observe (ADR 0058).
+  ⚠️ **Rewritten 2026-09-18 with [#23](https://github.com/yutaasakura96/kioku/issues/23)
+  (ADR 0062), and the split above is history.** `shared/metrics/acceptance.ts` and
+  `test/unit/acceptance-rate.test.ts` are **deleted**; `shared/metrics/stats.ts` holds `retention`,
+  `consistency`, `flagRate`, the median and the cost conversion, and each ratio carries its own
+  `suppressed` — twenty qualifying reviews, fourteen days, twenty minted *cards*, each asserted
+  either side. ⚠️ **ADR 0058's rule survives the move**: the *value* is still computed below the
+  boundary, which is what the ADR actually refused throwing away.
+- ⚠️ **The local day**, added 2026-09-18 with #23 — `shared/time/local-day.ts` and
+  `test/unit/local-day.test.ts`. ADR 0066 §4's 04:00-to-04:00 day in the reader's zone, and **the
+  project's only notion of *today***. It is its own seam rather than part of the metric arithmetic
+  because [#21](https://github.com/yutaasakura96/kioku/issues/21)'s daily allowance imports the same
+  rule, and because the failures are calendar failures: a half-hour zone, a daylight-saving morning,
+  a month end. ⚠️ **The assertion that distinguishes it from `date_trunc('day', …)` is that midnight
+  is *not* a boundary.** The rows behind it are `test/schema/stats.test.ts` and the grid is
   `test/nuxt/stats-figures.test.ts`; `test/e2e/stats.test.ts` is the only place the three meet, and
   it crosses the boundary **by one decision** rather than with two fixtures.
 

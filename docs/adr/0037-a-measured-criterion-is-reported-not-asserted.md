@@ -116,7 +116,7 @@ The table above is re-pointed:
 | The number | What the suite asserts |
 | --- | --- |
 | Retention | Only `review_log.state = 2` rows count. A first answer (state 0) is not retention and a relearning answer (state 3) is not a second failure |
-| Consistency | Days are counted in the reader's local day starting 04:00 (ADR 0066), so two *grades* either side of midnight are two days and two either side of 02:00 are one |
+| Consistency | Days are counted in the reader's local day starting 04:00 (ADR 0066), so two *grades* either side of **04:00** are two days and two either side of midnight are one |
 | *Flag rate* | Distinct *cards* flagged, over *cards* minted. A second flag on one *card* is a second row and not a second flag |
 | *Time-to-first-review* | Unchanged (ADR 0057), with the *source* now usually a word list |
 | Tokens and cost | Unchanged |
@@ -128,3 +128,16 @@ Real numbers exist and stabilise — at which point a **regression** assertion b
 because there is a measured baseline to regress from. That is a different assertion from the one
 refused here: "not materially worse than the last fifty runs" is a fact about the code; "under five
 seconds" is a fact about the reader.
+
+## Correction — 2026-09-18, while building #23
+
+⚠️ **The consistency row above said *two grades either side of midnight are two days*, and that is
+the opposite of what [ADR 0066](0066-the-review-load-has-a-brake.md) §4 decided.** A 04:00 cutoff has
+exactly one boundary in it, and ADR 0066 gives this very case in its own words — *a run that starts
+at 23:40 and ends at 00:10 is one sitting to the person doing it*. The row was written for a midnight
+boundary and half-corrected; it is corrected in place above.
+
+**It was caught by writing the test from the table rather than from the code**, which is the only
+reason it was caught at all: the assertion failed, and the failure was the document's rather than the
+implementation's. `test/unit/local-day.test.ts` now asserts the rule ADR 0066 states, and names this
+correction at the line.

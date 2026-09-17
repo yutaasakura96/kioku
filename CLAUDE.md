@@ -12,7 +12,9 @@ dev / networking / cloud terminology follow.
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
 code since 2026-09-09 and **twenty-eight more ADRs** with it — **67** as of 2026-09-17: five are the
 pivot, and ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
-languages (⚠️ this said *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day before). ⚠️ **This paragraph said "there is still no
+languages (⚠️ this said *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
+before). ⚠️ **#23 added no ADR and corrected one**: ADR 0037's amended table said a day boundary was
+midnight where ADR 0066 says 04:00. ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
 every session opened by being told the opposite of what it would find.
 
@@ -22,16 +24,21 @@ decks** rather than mined prose (ADR 0063); every word carries a **domain** and 
 filled automatically (ADR 0065); **manual vetting leaves the loop** and *Vet* becomes the flag queue
 (ADR 0064); the daily review load gets a **brake** (ADR 0066); and *acceptance rate* retires in
 favour of **retention, consistency and flag rate** (ADR 0062).
-⚠️ **Three tickets of the pivot are built: #19 (2026-09-16), #20 and #22 (both 2026-09-17).**
+⚠️ **Four tickets of the pivot are built: #19 (2026-09-16), #20 and #22 (both 2026-09-17), and
+#23 (2026-09-18)** — ⚠️ this said *three* until 2026-09-18.
 **Every generated word carries a model-estimated *level* and *domain*** (`level_claim`,
 `domain_claim`, from the *subject*'s closed `levels` and `domains` sets), and *Review*'s end screen and
 empty states carry a filter that narrows the **new** half of the next *session* only (ADR 0065). A *source* declares
 its `kind`, the declaration names one pipeline per kind, and *Ingest* offers a word list first. **A
 chosen word is `accepted` and minted when the worker writes it**, owned by `job.requested_by`,
 through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue** with keep, fix and
-drop. ⚠️ **Everything below about vetting a *pending note* and *acceptance rate* is history or
-unreachable**: the metrics are #23's to retire. `docs/00-status.md` § Next holds the ticket order, and
-the frontier is **#23**, with **#21** buildable beside it (⚠️ it named #22 until 2026-09-17).
+drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **retention**,
+**consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
+`shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
+*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and the frontier
+is **#21** alone (⚠️ it named #23 until 2026-09-18 and #22 until 2026-09-17) — which now carries the
+reader's **timezone** as well as the brake, because without it *consistency*'s day starts at 04:00
+UTC.
 ⚠️ **This paragraph said "no code has moved yet" until 2026-09-16, and named #20 as the frontier
 until 2026-09-17.**
 
@@ -45,14 +52,21 @@ four *grades* under a *progress rail* that knows its own length — and, since 2
 *session* that survives the network**: an outbox in `localStorage` carrying two kinds of entry, so
 every answer is durable before the screen moves and the stream replays in order when the connection
 returns, and `X`, which suspends a bad *card* and leaves its *review* history standing. And, since
-2026-09-12, **the numbers get read**: `/stats` computes all six, suppresses the four ratios under
-twenty vetted *notes* and says why (ADR 0057, ADR 0058). ⚠️ **The frontier was empty from 2026-09-12 to 2026-09-16,
-became [#19](https://github.com/yutaasakura96/kioku/issues/19), and is
-[#20](https://github.com/yutaasakura96/kioku/issues/20) and
-[#22](https://github.com/yutaasakura96/kioku/issues/22) since #19 was built the same day**; `S12`'s
-export is the one thing still unticketed, and `docs/00-status.md` § Next names the rest.
+2026-09-12, **the numbers get read**: `/stats` computes them, suppresses each ratio under its own
+evidence and says why (ADR 0057, ADR 0058, and ADR 0062 since 2026-09-18 — ⚠️ **this said "all six"
+and "the four ratios under twenty vetted *notes*" until then**). ⚠️ **And since 2026-09-18 the
+project has a notion of *today***: `shared/time/local-day.ts`, a day running 04:00 to 04:00 in the
+reader's zone (ADR 0066 §4), which #21 is the second importer of — and which `/stats` currently
+feeds **UTC**, because a `noScripts` *place* has no client to ask (`docs/00-status.md` § Carrying).
+⚠️ **The frontier was empty from 2026-09-12 to 2026-09-16, became
+[#19](https://github.com/yutaasakura96/kioku/issues/19), and is
+[#21](https://github.com/yutaasakura96/kioku/issues/21) alone since #23 was built on 2026-09-18**
+(⚠️ it named #20 and #22 until 2026-09-17 and #23 until 2026-09-18); `S12`'s export is the one thing
+still unticketed, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
-flagged *note* started returning to `/vet`. ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
+flagged *note* started returning to `/vet`. ⚠️ **And one thing three paths write and nothing reads
+since #23: `note_vetting.seconds_to_vet`** — the same bullet pointing the other way, kept because
+ADR 0062 retires the figure rather than the measurement (§ Carrying). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
 `/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
 route that does not exist.
 ⚠️ **And, since 2026-09-15, `/review` is answered by typing** (ADR 0060, #18): the reading, then the
@@ -69,7 +83,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 808 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 846 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

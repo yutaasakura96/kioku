@@ -421,9 +421,17 @@ export const noteFieldProvenance = pgTable(
       'note_field_provenance_kind',
       sql`${t.kind} IN ('lookup','judgement','generated','human')`,
     ),
-    // ⚠️ **The query that decided ADR 0029** — acceptance rate grouped by model
-    // and prompt, and ADR 0004's "prompt v3 writes bad example sentences".
-    // A GIN index over a blob serves containment, not `GROUP BY`.
+    // ⚠️ **The query that decided ADR 0029** — the model-and-prompt comparison,
+    // and ADR 0004's "prompt v3 writes bad example sentences". A GIN index over
+    // a blob serves containment, not `GROUP BY`.
+    //
+    // ⚠️ **The figure it groups changed with #23 and the index did not.** It was
+    // *acceptance rate*, which ADR 0062 retired; ADR 0018's instrument is now
+    // **flag rate**, whose own `model_id` and `prompt_version` are on
+    // `card_flag` (`04` §7.8) — so the grouping this index serves is the
+    // *provenance* side of the same question, *which model wrote the field that
+    // was flagged*. Keeping it is `00-status.md` § Carrying's rule that an
+    // unused index is a decision somebody already made.
     index('note_field_provenance_model_prompt_idx').on(t.modelId, t.promptVersion),
   ],
 )

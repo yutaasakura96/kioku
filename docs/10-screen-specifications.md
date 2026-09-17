@@ -1017,15 +1017,31 @@ the component takes a column count — five here, four on *Review*'s end screen 
 about it changes: `8px` apart, a 10px Plex Mono eyebrow at 0.14em in `--k-ink-secondary`, `8px` down
 a 38px Newsreader 300 figure in `--k-ink`.
 
+⚠️ **Amended 2026-09-18 by [#23](https://github.com/yutaasakura96/kioku/issues/23)
+([ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)).**
+The grid is still five columns and nothing about the *session tally* moved; **what changed is which
+five.** The superseded table is struck below it.
+
 The five, and where each is read from (`09` §4.10, `03` §12):
 
 | Eyebrow | Figure | Read from |
 | --- | --- | --- |
-| `ACCEPTANCE RATE` | a percentage | `note_vetting.state = 'accepted' AND edited = false` ÷ notes generated |
-| `FALSE-ACCEPT RATE` | a percentage | `count(card_flag)` ÷ `count(note_vetting WHERE state='accepted')` |
-| `SECONDS PER NOTE` | a median | `note_vetting.seconds_to_vet`, unedited accepts only |
+| `RETENTION` | a percentage | `review_log.rating >= 3` ÷ `count(*)`, ⚠️ **filtered to `state = 2`**, over the trailing 30 days of `reviewed_at` |
+| `CONSISTENCY` | a percentage | days with a *grade* ÷ days there were to study — a day running 04:00 to 04:00 in the reader's zone (ADR 0066) |
+| `FLAG RATE` | a percentage | `count(distinct card_flag.card_id)` ÷ `count(card)` |
 | `TIME TO FIRST REVIEW` | a duration | `source.submitted_at` → the first `review_log` for a *card* from that *source* |
-| `NOTES VETTED` | a count | `note_vetting` |
+| `CARDS MINTED` | a count | `card` |
+
+~~| `ACCEPTANCE RATE` | a percentage | `note_vetting.state = 'accepted' AND edited = false` ÷ notes generated |~~
+~~| `FALSE-ACCEPT RATE` | a percentage | `count(card_flag)` ÷ `count(note_vetting WHERE state='accepted')` |~~
+~~| `SECONDS PER NOTE` | a median | `note_vetting.seconds_to_vet`, unedited accepts only |~~
+~~| `NOTES VETTED` | a count | `note_vetting` |~~
+
+⚠️ **`RETENTION` renders `>99%` rather than `100%` where the value is short of one**, for the mirror
+of the reason `FLAG RATE` renders `<1%` rather than `0%`: a rounded `100%` over 199 of 200 is the
+screen claiming a perfect record the rows do not show, and a rounded `0%` over one flag in three
+hundred reads as *nothing has ever been wrong*. A measured value is never rendered as its own
+boundary.
 
 ⚠️ ***Time-to-first-review* carries `worker_environment` on the number itself** (`04` §6.1) — a 12px
 Plex Mono `--k-ink-secondary` line beneath the figure reading `laptop`. Figures measured against a
@@ -1042,7 +1058,17 @@ line beneath the figure carries **every** environment behind the measured durati
 `·` — two names mean the figure already spans ADR 0022's move, which is the state the line exists to
 make visible.
 
-### 8.2 The suppressed state — under twenty vetted *notes*
+### 8.2 The suppressed state — each ratio under its own evidence
+
+⚠️ **Amended 2026-09-18 by #23 (ADR 0062): there is no single boundary any more.** Each ratio is
+withheld under its own evidence — **retention** under twenty qualifying reviews, **consistency**
+under fourteen days to have been consistent over, **flag rate** and *time-to-first-review* under
+twenty minted *cards*. Everything else in this section is unchanged, including the pair and the slot.
+
+⚠️ ***Time-to-first-review* shares flag rate's gate rather than holding one of its own**, and that
+is the old rule in the word that still means something: it was withheld under twenty *vetted notes*,
+which was the size of the corpus rather than anything about the figure, and *cards minted* is that
+quantity after ADR 0064. Its **pair** is still *sources*, because that is its evidence.
 
 PRD §4 and `S10`: raw counts, ratios suppressed, **and a line saying why**. This is the state Stats is
 in on day one, and it is why ADR 0031 did not make Stats the landing route.
@@ -1050,8 +1076,17 @@ in on day one, and it is why ADR 0031 did not make Stats the landing route.
 **The ratio columns keep their eyebrows and their 38px slot, and show their raw pair instead of a
 percentage** — `4 / 17`, in the same 38px Newsreader 300. Not hidden, not dashed out: the reader can
 see the numbers accumulating toward the threshold. Beneath the grid, `20px` down, a 13px Newsreader
-italic aside in `--k-ink-secondary`: `Ratios appear at twenty vetted notes. A rate over seventeen is
+italic aside in `--k-ink-secondary`, naming **only** the ratios actually withheld:
+`Each ratio appears once there is enough behind it: retention at 20 reviews of a learned card,
+consistency at 14 days, flag rate and time to first review at 20 cards. A rate over seventeen is
 noise.`
+
+⚠️ **The second sentence is ADR 0058's and is carried across unparaphrased; the first is the rule and
+the rule is what #23 changed**, because *Ratios appear at twenty vetted notes* names a boundary and a
+noun that no longer exist. ⚠️ **The lead-in is load-bearing, not decoration**: written as a bare list
+the first clause has to be capitalised, so one withheld ratio would read two different ways depending
+on which others were withheld beside it. ⚠️ **The aside disappears entirely once nothing is
+withheld** — it is a line saying why, and with nothing to explain it would be furniture.
 
 ⚠️ **Amended 2026-09-12 by #14: what the pair is, for all four.** Two of the four columns are
 percentages with an obvious numerator and denominator; the other two are **medians**, and a median
@@ -1060,18 +1095,22 @@ withheld** ([ADR 0058](adr/0058-a-suppressed-ratio-shows-the-evidence-behind-it-
 
 | Column | `have` | `possible` |
 | --- | --- | --- |
-| `ACCEPTANCE RATE` | unedited accepts | *notes generated* |
-| `FALSE-ACCEPT RATE` | flags | accepted *notes* |
-| `SECONDS PER NOTE` | unedited accepts carrying a `seconds_to_vet` stamp | unedited accepts |
+| `RETENTION` | *grades* of Good or Easy | *grades* given to a *card* in the Review state |
+| `CONSISTENCY` | days studied | days there were to study |
+| `FLAG RATE` | distinct *cards* flagged | *cards* minted |
 | `TIME TO FIRST REVIEW` | *sources* with a first *review* | *sources* ingested |
+
+~~| `ACCEPTANCE RATE` | unedited accepts | *notes generated* |~~
+~~| `FALSE-ACCEPT RATE` | flags | accepted *notes* |~~
+~~| `SECONDS PER NOTE` | unedited accepts carrying a `seconds_to_vet` stamp | unedited accepts |~~
 
 For the two percentages this is exactly the `4 / 17` above. For the two medians it answers the
 question the suppressed state is for — *how thin is this* — and **it is also what makes ADR 0057's
 exclusion visible**: a median over the two *sources* the reader studied, out of five they pasted,
 reads `2 / 5`.
 
-⚠️ `NOTES VETTED` is **never** suppressed. It is the count the boundary is measured on, and how the
-reader watches it approach twenty.
+⚠️ `CARDS MINTED` is **never** suppressed. It is the count two of the three boundaries are measured
+on, and how the reader watches them approach twenty. (⚠️ It was `NOTES VETTED` until #23.)
 
 ### 8.3 The ledger
 

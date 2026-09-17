@@ -1,13 +1,15 @@
 /**
- * `S10`'s six figures, as arithmetic over counts — `11` §3 and §8.
+ * `S10`'s figures, as arithmetic over counts — `11` §3 and §8.
  *
- * ⚠️ **This is the other half of the seam `shared/metrics/acceptance.ts` opened.**
- * #11 took *acceptance rate* because it was #11's own acceptance criterion and
- * left a note saying the remaining three numbers and **the suppression boundary**
- * are Stats'. They are here, and *acceptance rate* is **imported rather than
- * re-derived** — § Carrying names re-deriving it in SQL as the failure that
- * "looks entirely reasonable in a diff", and re-deriving it in a second TypeScript
- * module would be the same mistake with a shorter fuse.
+ * ⚠️ **Rebuilt rather than edited by [#23](https://github.com/yutaasakura96/kioku/issues/23)**
+ * ([ADR 0062](../../docs/adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)).
+ * *Acceptance rate* and median *seconds-per-note* are **retired**, not demoted,
+ * and `shared/metrics/acceptance.ts` went with them: after
+ * [ADR 0064](../../docs/adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)
+ * there is no accept event to count, so the rate is 100% by construction and a
+ * number that is always 100% is decoration. **Retention** and **consistency**
+ * are the headline; **flag rate** is *false-accept rate* with a denominator that
+ * still means something; *time-to-first-review*, tokens and cost are untouched.
  *
  * ⚠️ **There are no metrics tables** (`04` §13). Every input below is a count or
  * a sample read straight off the rows the code that produced them wrote, so
@@ -18,43 +20,118 @@
  *
  * ⚠️ **No threshold, anywhere, ever** (ADR 0037, ADR 0018). Nothing here
  * compares a figure against a target and nothing in the suite asserts one. ADR
- * 0018 walks the model *down* until *acceptance rate* degrades, so every number
- * has to be free to fall; a test that reddens when it does turns the experiment
- * into a regression. **Do not add one later "to be safe".**
+ * 0062 names the cost this exacts — the model walk has traded a fast instrument
+ * for a slow one — and the answer is still that every number has to be free to
+ * fall. **Do not add one later "to be safe".**
  */
 
-import type { VettingCounts } from './acceptance'
-import { acceptanceRate, notesGenerated } from './acceptance'
+import { distinctLocalDays, localDayKey, localDaysBetween, windowStartKey } from '../time/local-day'
 
 /**
- * `S10`, PRD §4, `11` §3 — **nineteen suppresses, twenty reports.**
+ * **Retention's evidence threshold: twenty qualifying reviews** (ADR 0062).
  *
- * ⚠️ It counts ***vetted*** *notes*, not generated ones: a hundred *pending
- * notes* and nineteen decisions is still suppressed, because what is thin is the
- * evidence rather than the corpus.
+ * ⚠️ **Qualifying, not total.** A reader with two hundred first-ever answers has
+ * no retention reading at all, because none of them asked whether anything was
+ * retained — and the pair on the screen is what says so.
  */
-export const RATIOS_APPEAR_AT = 20
+export const RETENTION_APPEARS_AT = 20
 
-/** Every *note* the reader has decided — accepted either way, or rejected. */
-export function notesVetted(counts: VettingCounts): number {
-  return counts.acceptedUnedited + counts.acceptedWithEdit + counts.rejected
+/**
+ * **Consistency's: fourteen days to have been consistent over** (ADR 0062).
+ *
+ * ⚠️ It is a threshold on the **denominator**, not on the numerator. A reader on
+ * day three who has studied all three days is at 100% and that is not a finding.
+ */
+export const CONSISTENCY_APPEARS_AT = 14
+
+/**
+ * **Flag rate's, and *time-to-first-review*'s: twenty minted *cards***.
+ *
+ * ⚠️ **Twenty *cards* is the old boundary in the word that still means
+ * something.** `RATIOS_APPEAR_AT` was twenty *vetted notes* — the size of the
+ * thing the reader had built — and ADR 0064 took vetting out of the loop
+ * without changing what the number was standing in for. This is the same move
+ * ADR 0062 makes for flag rate's denominator, applied to the boundary.
+ *
+ * ⚠️ ***Time-to-first-review* is governed by it too, and the ticket did not say
+ * so.** #23 names a threshold for the three figures it redefines and calls this
+ * one "carried over untouched"; untouched includes its suppression, which was
+ * the corpus-size boundary rather than one of its own. Its `have / possible` is
+ * still *sources*, because that is its evidence (ADR 0058) — what is shared is
+ * only the gate.
+ */
+export const CARDS_APPEAR_AT = 20
+
+/**
+ * The trailing window both headline numbers are read over — ADR 0062.
+ *
+ * ⚠️ **The two read it differently, and that is the ADR's split rather than an
+ * inconsistency.** Retention is "over a trailing 30 days" — an interval, and the
+ * query cuts it as one, because a rate over a rolling 720 hours is a rate.
+ * Consistency is "days with at least one grade in the last 30, over 30" —
+ * **days**, which have to be local days or the unit is not the one the reader
+ * experiences. So retention's cut is in SQL against an instant and consistency's
+ * is here against a day key, and a session that "unifies" them has to decide
+ * which of ADR 0062's two sentences to discard.
+ */
+export const WINDOW_DAYS = 30
+
+/**
+ * **Retention** — of the *grades* given to a *card* that was already in the
+ * Review state, the share that were Good or Easy (ADR 0062).
+ *
+ * ⚠️ **The filtering is the query's and the division is this function's**
+ * (`11` §8: *counts in, a rate out*). What `state = 2` means, and why states 0
+ * and 3 are excluded, is on the query.
+ *
+ * @returns `null` over nothing — **not zero**, which would be a claim that the
+ * reader has forgotten everything they have been asked.
+ */
+export function retention({ recalled, qualifying }: { recalled: number, qualifying: number }): number | null {
+  if (qualifying === 0)
+    return null
+
+  return recalled / qualifying
 }
 
 /**
- * Every accepted *note* — **the denominator of *false-accept rate***.
+ * **Consistency** — days with at least one *grade*, over days there were to
+ * study (ADR 0062).
  *
- * ⚠️ **An edited accept is in it.** `S6`'s split belongs to *acceptance rate*,
- * which asks whether the pipeline wrote *notes* worth keeping as they came.
- * *False-accept rate* asks whether *vetting* has become theatre, and a *note*
- * the reader fixed and then accepted is a *note* they vouched for.
+ * ⚠️ **Not a streak, and the reason is the whole decision.** A streak is zero
+ * the morning after one missed day, which is the exact morning the number is
+ * being read, and an app whose job is to survive the reader's Thursday must not
+ * punish them for coming back.
+ *
+ * @returns `null` before the first *grade*. A reader who has never studied is
+ * not 0% consistent; there is nothing to be consistent about yet.
  */
-export function acceptedNotes(counts: VettingCounts): number {
-  return counts.acceptedUnedited + counts.acceptedWithEdit
+export function consistency({ daysStudied, daysPossible }: { daysStudied: number, daysPossible: number }): number | null {
+  if (daysPossible === 0)
+    return null
+
+  return daysStudied / daysPossible
 }
 
-/** `S10`'s only branch — the one thing on the screen that is an `if`. */
-export function ratiosSuppressed(counts: VettingCounts): boolean {
-  return notesVetted(counts) < RATIOS_APPEAR_AT
+/**
+ * **Flag rate** — distinct *cards* flagged, over *cards* minted (ADR 0062).
+ *
+ * ⚠️ **Distinct *cards*, and that is the one thing this changes from
+ * *false-accept rate*.** The old numerator counted rows, which was right when
+ * the denominator was acceptances; here it is wrong, because **a share of the
+ * deck cannot exceed one**. A second flag on one *card* is the reader finding
+ * the same fault twice, not a second bad *card*. The deduplication happens in
+ * SQL, where the rows are; this function only divides.
+ *
+ * ⚠️ **It is therefore bounded by one, where its predecessor deliberately was
+ * not** — and nothing clamps it, because a value above one would mean the
+ * `count(distinct …)` had been lost and a clamp would hide that.
+ */
+export function flagRate({ flaggedCards, cardsMinted }: { flaggedCards: number, cardsMinted: number }): number | null {
+  if (cardsMinted === 0)
+    return null
+
+  return flaggedCards / cardsMinted
 }
 
 /**
@@ -65,7 +142,7 @@ export function ratiosSuppressed(counts: VettingCounts): boolean {
  * half a sample the rest, with nothing on the screen to show it.
  *
  * @returns `null` over nothing — **not zero**, which would be a claim that the
- * reader is vetting instantly.
+ * first *card* was answered the instant the list was pasted.
  */
 export function median(samples: number[]): number | null {
   if (samples.length === 0)
@@ -80,25 +157,6 @@ export function median(samples: number[]): number | null {
     return sorted[middle]!
 
   return (sorted[middle - 1]! + sorted[middle]!) / 2
-}
-
-/**
- * *False-accept rate* — `count(card_flag) ÷ count(note_vetting WHERE
- * state='accepted')` (`04` §7.8).
- *
- * ⚠️ **It is not bounded by one and must not be clamped.** A second flag on the
- * same *card* is a second row (`11` §3), so a corpus the reader keeps finding
- * faults in reads above 100% — which is exactly the corpus `S9` exists to
- * report. A clamp would hide it.
- *
- * ⚠️ **A flagged *note* stays `accepted`** (ADR 0056), which is what keeps this
- * denominator from moving every time the numerator does.
- */
-export function falseAcceptRate({ flags, accepted }: { flags: number, accepted: number }): number | null {
-  if (accepted === 0)
-    return null
-
-  return flags / accepted
 }
 
 /**
@@ -121,10 +179,8 @@ export function costUsd(microUsd: bigint | null): number | null {
  * A duration, in the units `CONTEXT.md` states the criterion in: *minutes from
  * submitting a source to answering the first card generated from it*.
  *
- * ⚠️ `<1m` rather than `0m`. The number this renders is the one the thesis turns
- * on — "above roughly ten minutes, Kioku is a different chore" — and a zero
- * where a real duration was measured reads as a broken figure rather than a fast
- * one.
+ * ⚠️ `<1m` rather than `0m`. A zero where a real duration was measured reads as
+ * a broken figure rather than a fast one.
  */
 export function formatDuration(seconds: number): string {
   if (seconds < 60)
@@ -149,12 +205,25 @@ export function formatDuration(seconds: number): string {
  * `11` §8's "the seam is counts in, a rate out".
  */
 export interface StatsRows {
-  /** `note_vetting`, in four buckets — the shape `acceptance.ts` declares. */
-  vetting: VettingCounts
-  /** `note_vetting.seconds_to_vet`, ⚠️ **unedited accepts only** (`11` §3). */
-  secondsPerNote: number[]
-  /** `count(card_flag)` — ⚠️ a second flag on the same *card* is a second row. */
-  flags: number
+  /** `review_log` over the trailing window, ⚠️ **state 2 only** (ADR 0062). */
+  retention: { recalled: number, qualifying: number }
+  /**
+   * The distinct minutes the reader graded in, over the trailing window.
+   *
+   * ⚠️ **Instants rather than days, because the zone is not the database's.**
+   * The bucketing is `shared/time/local-day.ts`'s, and it is truncated to the
+   * minute in SQL only to keep a long month's rows down — every real day
+   * boundary falls on a whole minute, so nothing can cross one.
+   *
+   * ⚠️ **`reviewed_at`, not `received_at`** — see the query.
+   */
+  gradeMinutes: Date[]
+  /** The reader's first *grade* ever, or `null`. Consistency's denominator. */
+  firstGradeAt: Date | null
+  /** ⚠️ `count(distinct card_id)` over `card_flag` — ADR 0062. */
+  flaggedCards: number
+  /** Every *card* the reader owns, suspended ones included. */
+  cardsMinted: number
   /** Seconds, one per *source* that has a first *review* — ADR 0057. */
   timeToFirstReview: number[]
   /** Every *source* ingested, including soft-deleted ones (`S11`). */
@@ -169,7 +238,17 @@ export interface StatsRows {
  * ⚠️ **`have` and `possible` are not debug output — they are what the screen
  * renders below the boundary** (ADR 0058). `10` §8.2: the ratio columns keep
  * their eyebrows and their 38px slot and "show their raw pair instead of a
- * percentage", so the reader can watch the numbers accumulate toward twenty.
+ * percentage", so the reader can watch the numbers accumulate toward the
+ * threshold.
+ *
+ * ⚠️ **`suppressed` moved onto the figure with #23, and ADR 0058's argument
+ * survives the move intact.** It was one flag on the whole view while all four
+ * ratios shared one boundary; ADR 0062 gives each its own, so a screen-wide
+ * boolean would have to be four. What ADR 0058 actually refused was
+ * *suppressing by not computing* — `value` is filled here whether or not it will
+ * be shown, which is what keeps the boundary observable at the one seam `11` §3
+ * asks for it to be tested at nineteen **and** twenty.
+ * `app/components/StatsFigures.vue` is still the only file that **reads** it.
  */
 export interface Figure {
   /** `null` where there is nothing to compute it from. **Never zero.** */
@@ -178,62 +257,91 @@ export interface Figure {
   have: number
   /** How much there could have been. */
   possible: number
+  /** ⚠️ Computed, never a reason not to compute `value`. */
+  suppressed: boolean
 }
 
 /** The whole screen, as numbers — `10` §8.1 and §8.2. */
 export interface StatsView {
-  /** ⚠️ `S10`'s only branch: nineteen suppresses, twenty reports. */
-  suppressed: boolean
-  /** The one figure the boundary never withholds — a raw count (`10` §8.1). */
-  notesVetted: number
-  acceptance: Figure
-  falseAccept: Figure
-  /** Seconds; the median. */
-  secondsPerNote: Figure
+  /** The one figure no boundary withholds — a raw count (`10` §8.1). */
+  cardsMinted: number
+  retention: Figure
+  consistency: Figure
+  flagRate: Figure
   /** Seconds; the median across *sources* (ADR 0057). */
   timeToFirstReview: Figure
   /** ⚠️ Rendered **on** *time-to-first-review*, not in a paragraph (`03` §12). */
   workerEnvironments: string[]
 }
 
+/** What the arithmetic needs that is not a row: the clock and the reader's zone. */
+export interface StatsContext {
+  /** ⚠️ The request instant. `09` §2 stamps every figure "as of this page load". */
+  now: Date
+  /**
+   * ⚠️ **Already resolved** — `resolveZone` is the door, and it is the caller's
+   * to walk through, because a zone that fell back is a fact about the request
+   * rather than about the arithmetic.
+   */
+  zone: string
+}
+
 /**
- * The six figures.
+ * The figures.
  *
  * ⚠️ **Every ratio is computed whether or not it will be shown.** Suppression is
- * a fact about the screen, not about the arithmetic — computing them only above
- * the boundary would make the boundary unobservable from this seam, which is the
- * one place `11` §3 asks for it to be tested at both nineteen and twenty.
+ * a fact about what is rendered, not about the arithmetic — computing them only
+ * above the boundary would make the boundary unobservable from this seam, which
+ * is the one place `11` §3 asks for it to be tested at both nineteen and twenty
+ * (ADR 0058).
  */
-export function summarise(rows: StatsRows): StatsView {
-  const { vetting } = rows
-  const accepted = acceptedNotes(vetting)
+export function summarise(rows: StatsRows, { now, zone }: StatsContext): StatsView {
+  // ⚠️ The window is counted in **local days**, so the last of thirty is a day
+  // and not a rolling 720 hours. The query hands over a slightly wider set of
+  // instants than the window needs and the trimming happens here, because only
+  // this side knows the zone.
+  //
+  // ⚠️ **Both ends, and the far end is not symmetry.** `reviewed_at` is the
+  // *client's* stamp and `03` §8.2 accepts it up to two minutes ahead of the
+  // server (ADR 0054), so a *grade* given seconds before the cutoff on a
+  // slightly fast laptop buckets into **tomorrow** — a day `daysPossible` does
+  // not contain, and consistency reads 15/14. Dropping it is the window doing
+  // its job at the end it was missing, not a clamp: a clamp would hide the same
+  // arithmetic going wrong for a different reason.
+  const earliest = windowStartKey(now, zone, WINDOW_DAYS)
+  const latest = localDayKey(now, zone)
+  const daysStudied = [...distinctLocalDays(rows.gradeMinutes, zone)]
+    .filter(key => key >= earliest && key <= latest)
+    .length
+
+  const daysPossible = rows.firstGradeAt === null
+    ? 0
+    : localDaysBetween(rows.firstGradeAt, now, zone, WINDOW_DAYS)
 
   return {
-    suppressed: ratiosSuppressed(vetting),
-    notesVetted: notesVetted(vetting),
+    cardsMinted: rows.cardsMinted,
 
-    // ⚠️ **Imported, not re-derived.** § Carrying: the counts are #14's, the
-    // rate is #11's, and a `COUNT(*) FILTER (WHERE state = 'accepted')` written
-    // straight into a query here is the failure it names.
-    acceptance: {
-      value: acceptanceRate(vetting),
-      have: vetting.acceptedUnedited,
-      possible: notesGenerated(vetting),
+    retention: {
+      value: retention(rows.retention),
+      have: rows.retention.recalled,
+      possible: rows.retention.qualifying,
+      suppressed: rows.retention.qualifying < RETENTION_APPEARS_AT,
     },
 
-    falseAccept: {
-      value: falseAcceptRate({ flags: rows.flags, accepted }),
-      have: rows.flags,
-      possible: accepted,
+    consistency: {
+      value: consistency({ daysStudied, daysPossible }),
+      have: daysStudied,
+      possible: daysPossible,
+      // ⚠️ On the **denominator**: there have to have been fourteen days to have
+      // been consistent over before the share of them means anything.
+      suppressed: daysPossible < CONSISTENCY_APPEARS_AT,
     },
 
-    secondsPerNote: {
-      value: median(rows.secondsPerNote),
-      have: rows.secondsPerNote.length,
-      // ⚠️ The stamp is owed by every unedited accept, so this pair reads as
-      // *how many of them carry one* — a median over three of twenty is thin,
-      // and the pair is the only thing that would say so.
-      possible: vetting.acceptedUnedited,
+    flagRate: {
+      value: flagRate({ flaggedCards: rows.flaggedCards, cardsMinted: rows.cardsMinted }),
+      have: rows.flaggedCards,
+      possible: rows.cardsMinted,
+      suppressed: rows.cardsMinted < CARDS_APPEAR_AT,
     },
 
     timeToFirstReview: {
@@ -243,6 +351,8 @@ export function summarise(rows: StatsRows): StatsView {
       // excluded from the median rather than counted as a long one. The pair is
       // what keeps that exclusion visible instead of flattering.
       possible: rows.sourcesIngested,
+      // ⚠️ Gated on *cards*, not on its own pair — see `CARDS_APPEAR_AT`.
+      suppressed: rows.cardsMinted < CARDS_APPEAR_AT,
     },
 
     workerEnvironments: rows.workerEnvironments,

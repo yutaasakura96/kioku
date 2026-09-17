@@ -1,42 +1,58 @@
 /**
  * Everything `/stats` reads — `10` §8, `09` §4.10, `03` §12.
  *
+ * ⚠️ **Rebuilt by [#23](https://github.com/yutaasakura96/kioku/issues/23)**
+ * ([ADR 0062](../../../docs/adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)).
+ * The *vetting* reads are gone with *acceptance rate* and *seconds-per-note*:
+ * after [ADR 0064](../../../docs/adr/0064-a-chosen-word-mints-its-cards-on-arrival.md)
+ * a chosen word is accepted when it is written, so `note_vetting` no longer
+ * records a judgement anyone is measuring. **Do not reintroduce a count over it
+ * to fill the fifth column** — `card` is the count that means something now.
+ *
  * ⚠️ **There are no metrics tables** (`04` §13). Every figure below is a query
- * over rows the code that produced them wrote — *acceptance rate* and
- * *seconds-per-note* from `note_vetting`, *false-accept rate* from `card_flag`,
+ * over rows the code that produced them wrote — retention and consistency from
+ * `review_log`, flag rate from `card_flag` over `card`,
  * *time-to-first-review* from `source.submitted_at` to the first
  * `review_log.received_at`, tokens and cost from `ingestion`. That is what makes
  * the numbers survive ADR 0022's move, and it is also why **every way one can be
  * wrong is a bug rather than a fact about a corpus.**
  *
  * ⚠️ **Counts out, no rates.** `11` §8: the seam is *counts in, a rate out*, and
- * the rate lives in `shared/metrics/`. In particular **`acceptance.ts` is the
- * *acceptance rate* arithmetic and this module must not re-derive it in SQL**
- * (§ Carrying) — a `COUNT(*) FILTER (WHERE state = 'accepted')` divided here
- * would drop `S6`'s edited accept and every *pending note*, flatter the thesis,
- * and look entirely reasonable in a diff.
+ * the rate lives in `shared/metrics/stats.ts`. The one thing that looks like an
+ * exception and is not: `count(distinct card_id)` for flag rate's numerator is
+ * **deduplication, not arithmetic** — it has to happen where the rows are, and
+ * ADR 0062 makes it the difference between a share of the deck and a count of
+ * complaints.
+ *
+ * ⚠️ **The day boundary is *not* here.** ADR 0066 puts it at 04:00 in the
+ * reader's zone, and Postgres cannot be told the zone on a route that ships no
+ * JavaScript. This module hands over **instants** and
+ * `shared/time/local-day.ts` buckets them. A `date_trunc('day', …)` written
+ * here would be a different rule — midnight, in UTC — in the shortest possible
+ * SQL.
  *
  * ⚠️ **Every read is sequential, and that is not style.** Measured 2026-09-12
  * (§ Carrying): the end-to-end tier's database is a single-connection PGlite
  * behind `@electric-sql/pglite-socket`, so a `Promise.all` in a request handler
- * opens four connections, three are reset, the route answers `500`, and nothing
- * in the test output names the cause. `server/utils/vet/queries.ts` and
+ * opens several connections, the rest are reset, the route answers `500`, and
+ * nothing in the test output names the cause. `server/utils/vet/queries.ts` and
  * `server/utils/review/queries.ts` are sequential for the same reason.
  *
  * ⚠️ **Personal rows are owner-scoped; shared rows are not** (`04` §4).
- * `note_vetting`, `card_flag`, `card` and `review_log` carry an owner, so every
- * read of them is filtered. `source` and `ingestion` assert something about the
- * material rather than about the reader — `ingestion.submitted_by` is documented
- * as "an audit line, not an owner" — so the ledger and the *source* count have
- * no filter, exactly as `recentRuns` has none. **Adding one would be a product
- * change**, not a fix.
+ * `card_flag`, `card` and `review_log` carry an owner, so every read of them is
+ * filtered. `source` and `ingestion` assert something about the material rather
+ * than about the reader — `ingestion.submitted_by` is documented as "an audit
+ * line, not an owner" — so the ledger and the *source* count have no filter,
+ * exactly as `recentRuns` has none. **Adding one would be a product change**,
+ * not a fix.
  */
 
-import { and, count, desc, eq, isNotNull, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import type { IngestDatabase } from '../ingest/record'
-import type { StatsRows } from '../../../shared/metrics/stats'
+import { WINDOW_DAYS } from '../../../shared/metrics/stats'
+import type { StatsContext, StatsRows } from '../../../shared/metrics/stats'
 
 /** One row of `10` §8.3's spend ledger. */
 export interface LedgerRow {
@@ -58,26 +74,44 @@ export interface LedgerRow {
 export interface StatsData {
   rows: StatsRows
   ledger: LedgerRow[]
+  /**
+   * ⚠️ **The clock and the zone travel with the rows**, so the arithmetic on
+   * the page reads the window against the instant the rows were read rather
+   * than against a second `new Date()` a few milliseconds later. `09` §2's *as
+   * of this page load* is one instant, not two.
+   */
+  context: StatsContext
 }
 
 /**
- * The five figures' inputs, in five sequential reads.
+ * The figures' inputs, in seven sequential reads.
  *
  * ⚠️ Nothing here is cached: `09` §2 stamps every figure "as of this page load",
  * and a *place* ships no JavaScript so it cannot poll. The request *is* the
- * instant.
+ * instant — which is also why `now` is a parameter rather than a `new Date()`
+ * taken inside: the window and the day bucketing have to be read against **one**
+ * instant, and a test that cannot choose it cannot assert a boundary.
  */
-export async function statsRows(db: IngestDatabase, ownerId: string): Promise<StatsRows> {
-  const vetting = await vettingCounts(db, ownerId)
-  const secondsPerNote = await secondsToVetSamples(db, ownerId)
-  const flags = await flagCount(db, ownerId)
+export async function statsRows(db: IngestDatabase, ownerId: string, now: Date): Promise<StatsRows> {
+  const retention = await retentionCounts(db, ownerId, daysBefore(now, WINDOW_DAYS))
+  // ⚠️ **A day wider than the window, deliberately.** The trimming is done in
+  // local days by `summarise`, and a zone is up to fourteen hours from UTC — so
+  // a set cut to exactly thirty days here would be missing the far end of the
+  // reader's thirtieth day. Handing over one extra day costs a few rows and
+  // makes the two ends agree.
+  const gradeMinutes = await gradeMinuteSamples(db, ownerId, daysBefore(now, WINDOW_DAYS + 1))
+  const firstGradeAt = await firstGrade(db, ownerId)
+  const flaggedCards = await flaggedCardCount(db, ownerId)
+  const cardsMinted = await cardCount(db, ownerId)
   const durations = await firstReviewPerSource(db, ownerId)
   const sourcesIngested = await sourceCount(db)
 
   return {
-    vetting,
-    secondsPerNote,
-    flags,
+    retention,
+    gradeMinutes,
+    firstGradeAt,
+    flaggedCards,
+    cardsMinted,
     timeToFirstReview: durations.map(row => row.seconds),
     sourcesIngested,
     // ⚠️ The environments **behind the measured durations**, not every
@@ -88,83 +122,148 @@ export async function statsRows(db: IngestDatabase, ownerId: string): Promise<St
   }
 }
 
-/**
- * `note_vetting` in the four buckets `shared/metrics/acceptance.ts` declares.
- *
- * ⚠️ **The split is `edited`, not `state`.** `04` §7.2 stores an edited accept
- * as `state = 'accepted'` with `edited = true`, and `S6` says it counts as an
- * **edit**. One `FILTER` clause is the difference between the number the project
- * exists to answer and a number that flatters it.
- */
-async function vettingCounts(db: IngestDatabase, ownerId: string) {
-  const [counts] = await db
-    .select({
-      acceptedUnedited: sql<number>`count(*) filter (where ${schema.noteVetting.state} = 'accepted' and not ${schema.noteVetting.edited})::int`,
-      acceptedWithEdit: sql<number>`count(*) filter (where ${schema.noteVetting.state} = 'accepted' and ${schema.noteVetting.edited})::int`,
-      rejected: sql<number>`count(*) filter (where ${schema.noteVetting.state} = 'rejected')::int`,
-      pending: sql<number>`count(*) filter (where ${schema.noteVetting.state} = 'pending')::int`,
-    })
-    .from(schema.noteVetting)
-    .where(eq(schema.noteVetting.ownerId, ownerId))
-
-  return (
-    counts ?? { acceptedUnedited: 0, acceptedWithEdit: 0, rejected: 0, pending: 0 }
-  )
+function daysBefore(now: Date, days: number): Date {
+  return new Date(now.getTime() - days * 86_400_000)
 }
 
 /**
- * `S3`'s stamps — ⚠️ **over unedited accepts only** (`11` §3).
+ * Retention's two counts — ADR 0062.
  *
- * An edited accept took longer because it was edited, so a median that includes
- * it measures the editing rather than the vetting. The `IS NOT NULL` matters as
- * much: the column is nullable, and a missing stamp read as zero would pull the
- * median toward an instant nobody spent.
+ * ⚠️ **`state = 2` is the whole of the decision and it is the part to get
+ * right.** `review_log.state` is the state the *card* was in **before** the
+ * grade (`04` §7.5, and the column says so). State 0 is a first-ever answer:
+ * nothing had been retained, so it is not a failure to retain. State 3 is a
+ * relearning answer, and counting it lets **one** act of forgetting push the
+ * number down twice — once when the *card* lapsed and again on every step back
+ * up. Anki's true-retention table splits on the same line. A `count(*)` with no
+ * `state` filter is the naive implementation and it reads low, always.
+ *
+ * ⚠️ **`rating >= 3` is Good or Easy** (`1 Forgot · 2 Hard · 3 Good · 4 Easy`,
+ * ADR 0034). Hard is a recall the reader struggled through and it counts against
+ * retention, which is the convention the number is only comparable under.
+ *
+ * ⚠️ **The window is on `reviewed_at`, not `received_at`.** This is the one
+ * place the two columns disagree in a way that matters: the outbox can replay a
+ * Tuesday-night *grade* on Wednesday morning (ADR 0039), and the reader answered
+ * it on Tuesday. `03` §8.2's validator is what makes the client stamp usable —
+ * a clock more than two minutes out is refused rather than recorded (ADR 0054).
+ * *Time-to-first-review* keeps `received_at` for the opposite reason: it is a
+ * **difference** between two instants, and those have to be on one clock.
  */
-async function secondsToVetSamples(db: IngestDatabase, ownerId: string): Promise<number[]> {
-  const rows = await db
-    .select({ seconds: schema.noteVetting.secondsToVet })
-    .from(schema.noteVetting)
+async function retentionCounts(db: IngestDatabase, ownerId: string, since: Date) {
+  const [counts] = await db
+    .select({
+      recalled: sql<number>`count(*) filter (where ${schema.reviewLog.rating} >= 3)::int`,
+      qualifying: sql<number>`count(*)::int`,
+    })
+    .from(schema.reviewLog)
     .where(
       and(
-        eq(schema.noteVetting.ownerId, ownerId),
-        eq(schema.noteVetting.state, 'accepted'),
-        eq(schema.noteVetting.edited, false),
-        isNotNull(schema.noteVetting.secondsToVet),
+        eq(schema.reviewLog.ownerId, ownerId),
+        eq(schema.reviewLog.state, REVIEW_STATE),
+        gte(schema.reviewLog.reviewedAt, since),
       ),
     )
 
-  // `numeric` arrives as a string from both drivers — the type that survives a
-  // value `double precision` could not represent, and the conversion belongs
-  // here rather than in the arithmetic.
-  return rows.map(row => Number(row.seconds))
+  return counts ?? { recalled: 0, qualifying: 0 }
 }
 
 /**
- * *False-accept rate*'s numerator.
- *
- * ⚠️ **A second flag on the same *card* is a second row** (`11` §3), so this is
- * `count(*)` and never `count(distinct card_id)` — deduplicating would
- * under-report exactly the signal `S9` exists for. The duplicate that *is*
- * refused is a **replayed outbox entry**, and it is refused at the write
- * (`server/utils/review/flag.ts`, ADR 0056) rather than here, because by the
- * time a row exists the two are indistinguishable.
- *
- * ⚠️ **No `resolved_at IS NULL` filter, and the re-vetting ticket must not add
- * one.** Nothing sets `resolved_at` today, so the two readings agree — and they
- * stop agreeing the moment it ships. `04` §7.8 defines the numerator as
- * `count(card_flag)`, unfiltered, because **re-vetting a *note* does not
- * un-happen the false accept**: a ratio that fell every time the reader fixed
- * something would report a *vetting* step that has become theatre as a *vetting*
- * step that is working, which is the exact inversion `CONTEXT.md` says this
- * number exists to catch.
+ * ⚠️ **`ts-fsrs`'s `State.Review`, written out because the number is the
+ * contract.** `04` §7.5 stores the enum's integer and nothing in this repository
+ * imports the enum to read it back; 0 is New, 1 Learning, 2 Review, 3
+ * Relearning (verification §1.1).
  */
-async function flagCount(db: IngestDatabase, ownerId: string): Promise<number> {
-  const [flags] = await db
-    .select({ n: count() })
+const REVIEW_STATE = 2
+
+/**
+ * The distinct minutes the reader graded in — consistency's numerator, before
+ * it has been bucketed into days.
+ *
+ * ⚠️ **Minutes, and the truncation is a size reduction that cannot change an
+ * answer.** Every day boundary this project can produce falls on a whole minute:
+ * 04:00 in a zone whose offset is a whole number of hours, half-hours or
+ * quarter-hours is still :00, :30 or :45 past the hour in UTC. Truncating to the
+ * **hour** would be the same reduction and it *would* move an instant across the
+ * boundary in Kolkata — `test/unit/local-day.test.ts` has that case.
+ *
+ * ⚠️ **It is not `date_trunc('day', …)`,** which is the obvious version of this
+ * query and answers a different question in the wrong zone. See the head of the
+ * file.
+ */
+async function gradeMinuteSamples(db: IngestDatabase, ownerId: string, since: Date): Promise<Date[]> {
+  const rows = await db
+    .selectDistinct({
+      // Single-table query, so the bare identifier an interpolated column emits
+      // (§ Carrying, drizzle-orm 0.45.2) cannot bind to the wrong table.
+      minute: sql<string | Date>`date_trunc('minute', ${schema.reviewLog.reviewedAt})`,
+    })
+    .from(schema.reviewLog)
+    .where(and(eq(schema.reviewLog.ownerId, ownerId), gte(schema.reviewLog.reviewedAt, since)))
+
+  return rows.map(row => new Date(row.minute))
+}
+
+/**
+ * The reader's first *grade* ever — consistency's denominator.
+ *
+ * ⚠️ **Not windowed.** *Days there were to study* is capped at thirty by the
+ * arithmetic, and a reader three days in has three days rather than thirty —
+ * which is the difference between 3/3 suppressed and 3/30 reported as 10%.
+ */
+async function firstGrade(db: IngestDatabase, ownerId: string): Promise<Date | null> {
+  const [first] = await db
+    .select({ at: sql<string | Date | null>`min(${schema.reviewLog.reviewedAt})` })
+    .from(schema.reviewLog)
+    .where(eq(schema.reviewLog.ownerId, ownerId))
+
+  return first?.at ? new Date(first.at) : null
+}
+
+/**
+ * Flag rate's numerator — ⚠️ **distinct *cards*, not rows** (ADR 0062).
+ *
+ * ⚠️ **This is the one line #23 changes about the old *false-accept rate*.**
+ * `count(*)` was right when the denominator was acceptances, and `11` §3 said so
+ * in as many words; over *cards minted* it is wrong, because a share of the deck
+ * cannot exceed one, and a second flag on one *card* is the reader finding the
+ * same fault twice rather than a second bad *card*.
+ *
+ * ⚠️ **No `resolved_at IS NULL` filter, and one must not be added.** A *note*
+ * that was flagged and then fixed **was still wrong when it was minted**, which
+ * is the thing this number exists to report. Filtering to the open flags would
+ * make the figure fall every time the reader repaired something — reporting a
+ * pipeline that needs repairing as a pipeline that is working. `/vet`'s queue is
+ * where `resolved_at` belongs and it already reads it (#20).
+ *
+ * ⚠️ **A replayed outbox entry is refused at the write** and not here
+ * (`server/utils/review/flag.ts`, keyed on `(review_session_id, card_id)`) —
+ * by the time a row exists a retry and a second flag are indistinguishable.
+ */
+async function flaggedCardCount(db: IngestDatabase, ownerId: string): Promise<number> {
+  const [flagged] = await db
+    .select({ n: sql<number>`count(distinct ${schema.cardFlag.cardId})::int` })
     .from(schema.cardFlag)
     .where(eq(schema.cardFlag.ownerId, ownerId))
 
-  return flags?.n ?? 0
+  return flagged?.n ?? 0
+}
+
+/**
+ * Flag rate's denominator, and the one raw count on the screen — `10` §8.1.
+ *
+ * ⚠️ **A suspended *card* is counted.** It was minted, and if it was suspended
+ * because it was wrong then removing it from the denominator would improve the
+ * figure by deleting the evidence — the same argument `sourceCount` makes for a
+ * soft-deleted *source*, and `S11` keeps both readable for the same reason.
+ */
+async function cardCount(db: IngestDatabase, ownerId: string): Promise<number> {
+  const [cards] = await db
+    .select({ n: count() })
+    .from(schema.card)
+    .where(eq(schema.card.ownerId, ownerId))
+
+  return cards?.n ?? 0
 }
 
 /**
@@ -260,8 +359,12 @@ export async function ledger(db: IngestDatabase): Promise<LedgerRow[]> {
 }
 
 /** One page load, in one lazy read — `server/middleware/shell-data.ts`. */
-export async function statsData(db: IngestDatabase, ownerId: string): Promise<StatsData> {
+export async function statsData(
+  db: IngestDatabase,
+  ownerId: string,
+  context: StatsContext,
+): Promise<StatsData> {
   // Sequential, for the reason at the top of this file.
-  const rows = await statsRows(db, ownerId)
-  return { rows, ledger: await ledger(db) }
+  const rows = await statsRows(db, ownerId, context.now)
+  return { rows, ledger: await ledger(db), context }
 }

@@ -27,8 +27,11 @@ the Review state when asked. The headline number: whether what was studied staye
 _Avoid_: accuracy, recall rate, success rate, pass rate
 
 **Consistency**:
-Days with at least one grade ÷ days in the trailing 30. The second headline, and deliberately not a
-streak — a streak is zero the morning after one missed day, which is the morning it is read.
+Days with at least one grade ÷ days in the trailing 30 — or ÷ the days since the first grade, while
+that is fewer, so a reader three days in reads 3/3 rather than 3/30. The second headline, and
+deliberately not a streak: a streak is zero the morning after one missed day, which is the morning it
+is read. ⚠️ A day runs 04:00 to 04:00 in the reader's own zone (ADR 0066), which is the project's only
+notion of *today*.
 _Avoid_: streak, adherence, engagement
 
 **Flag rate**:

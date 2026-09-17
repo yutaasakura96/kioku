@@ -10,18 +10,27 @@
 // Each test below is a state the query gets wrong if it is written the obvious
 // way:
 //
+// - ⚠️ **Retention counts `state = 2` and nothing else** (ADR 0062). `state` is
+//   the state *before* the grade, so a `count(*)` with no filter folds in
+//   first-ever answers, which asked nothing about retention, and relearning
+//   answers, which let one act of forgetting count twice. It is the naive query
+//   and it reads low, always.
+// - ⚠️ **Consistency's instants are `reviewed_at`, not `received_at`.** The
+//   outbox can replay a Tuesday-night *grade* on Wednesday morning (ADR 0039),
+//   and the reader studied on Tuesday. This is the one metric where the two
+//   columns disagree in a way a reader would notice.
+// - ⚠️ **Flag rate's numerator is `count(distinct card_id)`** (ADR 0062) — the
+//   line that changed from *false-accept rate*, whose `count(*)` was right when
+//   the denominator was acceptances and is wrong over minted *cards*, because a
+//   share of the deck cannot exceed one.
 // - ⚠️ ***Time-to-first-review* is per *source*.** `11` §3 names the near-miss
 //   implementation — *the first grade of any card* — and says it is wrong the
 //   moment a second *source* exists. Every test here seeds two.
-// - ⚠️ **The median's samples are unedited accepts only.** An edited accept took
-//   longer by definition, and a median over all accepts silently includes it.
-// - ⚠️ **A second flag on the same *card* is a second row** (`11` §3), so the
-//   flag count must not be a `count(distinct card_id)`.
 // - ⚠️ **The ledger survives a hard delete** (`04` §9, `10` §8.3):
 //   `ingestion.source_id` is `SET NULL` and `ingestion.source_title` is
 //   snapshotted, so the spend stays readable after the material is gone.
 // - ⚠️ **Personal rows are owner-scoped and shared rows are not** (`04` §4).
-//   `note_vetting`, `card_flag` and `review_log` carry an owner; `source` and
+//   `card`, `card_flag` and `review_log` carry an owner; `source` and
 //   `ingestion` assert something about the material, so the ledger has no filter
 //   for the same reason `recentRuns` has none.
 //
@@ -127,13 +136,29 @@ async function minted(noteId: string, owner = OWNER): Promise<string> {
 }
 
 /**
- * One *review*, at a server instant.
+ * One *review*.
  *
- * ⚠️ `received_at` and not `reviewed_at`: `03` §12 requires
- * *time-to-first-review* to measure the submit instant and the first grade
- * instant **on the same clock**, and `reviewed_at` is the client's.
+ * ⚠️ **`reviewed_at` and `received_at` are separate parameters on purpose.**
+ * `04` §7.5 says the two columns are not redundant and #23 is the ticket that
+ * makes that measurable: *time-to-first-review* reads `received_at`, because it
+ * is a **difference** between two instants and those have to be on one clock;
+ * retention and consistency read `reviewed_at`, because the reader answered when
+ * they answered and the outbox may have delivered it the next morning.
+ *
+ * `state` defaults to `2` — `ts-fsrs`'s Review — because that is the only state
+ * retention counts, and a test that wants to prove the filter says so by
+ * passing another.
  */
-async function reviewed(cardId: string, minutesAgo: number, owner = OWNER): Promise<void> {
+async function reviewed(
+  cardId: string,
+  minutesAgo: number,
+  {
+    owner = OWNER,
+    rating = 3,
+    state = 2,
+    receivedMinutesAgo = null as number | null,
+  } = {},
+): Promise<void> {
   const epoch = await one<{ id: string }>(`
     INSERT INTO scheduling_epoch
       (card_id, owner_id, ordinal, due, stability, difficulty, scheduled_days)
@@ -142,12 +167,16 @@ async function reviewed(cardId: string, minutesAgo: number, owner = OWNER): Prom
     RETURNING id;
   `)
 
+  const received = receivedMinutesAgo ?? minutesAgo
+
   await client.exec(`
     INSERT INTO review_log
       (card_id, scheduling_epoch_id, owner_id, rating, state, due, stability, difficulty,
        scheduled_days, learning_steps, reviewed_at, received_at)
-    VALUES ('${cardId}', '${epoch.id}', '${owner}', 3, 0, now() + interval '1 day', 3.1, 5.2, 1, 0,
-            now() - interval '${minutesAgo} minutes', now() - interval '${minutesAgo} minutes');
+    VALUES ('${cardId}', '${epoch.id}', '${owner}', ${rating}, ${state}, now() + interval '1 day',
+            3.1, 5.2, 1, 0,
+            now() - interval '${minutesAgo} minutes',
+            now() - interval '${received} minutes');
   `)
 }
 
@@ -158,104 +187,211 @@ async function flagged(cardId: string, noteId: string, owner = OWNER): Promise<v
   `)
 }
 
-describe('the vetting counts — the four buckets acceptance rate divides', () => {
-  it('has nothing before the first paste', async () => {
-    const rows = await statsRows(db, OWNER)
+describe('retention — the share recalled, over reviews of a card already learned', () => {
+  async function card(key: string, owner = OWNER): Promise<string> {
+    const run = await ingested(`src-${key}`)
+    return minted(await vetted(run.ingestionId, key, { owner }), owner)
+  }
 
-    expect(rows.vetting).toEqual({
-      acceptedUnedited: 0,
-      acceptedWithEdit: 0,
-      rejected: 0,
-      pending: 0,
-    })
+  it('has nothing before the first review', async () => {
+    expect((await statsRows(db, OWNER, new Date())).retention).toEqual({ recalled: 0, qualifying: 0 })
   })
 
-  // ⚠️ `S6`: an edited accept is an **edit**. Both are `state = 'accepted'` in
-  // the table and the split is `edited`, so a query that counts the state alone
-  // flatters *acceptance rate* — `11` §3's most likely error in the app.
-  it('splits an edited accept out of an unedited one', async () => {
-    const run = await ingested('一')
-    await vetted(run.ingestionId, 'a')
-    await vetted(run.ingestionId, 'b', { edited: true })
-    await vetted(run.ingestionId, 'c', { state: 'rejected' })
-    await vetted(run.ingestionId, 'd', { state: 'pending' })
+  // ⚠️ `1 Forgot · 2 Hard · 3 Good · 4 Easy` (ADR 0034). **Hard counts against
+  // retention** — it is a recall the reader struggled through, and it is the
+  // convention the number is only comparable to other apps under.
+  it('counts Good and Easy as recalled, and Forgot and Hard as not', async () => {
+    for (const [key, rating] of [['a', 1], ['b', 2], ['c', 3], ['d', 4]] as const)
+      await reviewed(await card(key), 10, { rating })
 
-    expect((await statsRows(db, OWNER)).vetting).toEqual({
-      acceptedUnedited: 1,
-      acceptedWithEdit: 1,
-      rejected: 1,
-      pending: 1,
-    })
+    expect((await statsRows(db, OWNER, new Date())).retention).toEqual({ recalled: 2, qualifying: 4 })
   })
 
-  it('counts only this reader — a note vetting is personal (`04` §4)', async () => {
-    const run = await ingested('一')
-    await vetted(run.ingestionId, 'a')
-    await vetted(run.ingestionId, 'b', { owner: OTHER })
+  // ⚠️ **The test the ticket asks for by name.** `review_log.state` is the state
+  // *before* the grade (`04` §7.5). A first-ever answer is state 0: nothing had
+  // been retained, so it is not a failure to retain one.
+  it('excludes a first answer, which is state 0', async () => {
+    await reviewed(await card('new'), 10, { state: 0, rating: 1 })
+    await reviewed(await card('learned'), 10, { state: 2, rating: 3 })
 
-    expect((await statsRows(db, OWNER)).vetting.acceptedUnedited).toBe(1)
+    expect((await statsRows(db, OWNER, new Date())).retention).toEqual({ recalled: 1, qualifying: 1 })
+  })
+
+  // ⚠️ And the other half, which is a different mistake: state 3 is a
+  // relearning answer, and counting it lets **one** act of forgetting push the
+  // number down twice — once when the *card* lapsed and again on the way back.
+  it('excludes a relearning answer, which is state 3', async () => {
+    await reviewed(await card('lapsed'), 10, { state: 3, rating: 1 })
+    await reviewed(await card('learned'), 10, { state: 2, rating: 3 })
+
+    expect((await statsRows(db, OWNER, new Date())).retention).toEqual({ recalled: 1, qualifying: 1 })
+  })
+
+  it('excludes a learning answer, which is state 1', async () => {
+    await reviewed(await card('learning'), 10, { state: 1, rating: 4 })
+
+    expect((await statsRows(db, OWNER, new Date())).retention.qualifying).toBe(0)
+  })
+
+  // The window is trailing thirty days, and it is measured on `reviewed_at`.
+  it('drops a review older than the window', async () => {
+    await reviewed(await card('old'), 31 * 24 * 60)
+    await reviewed(await card('recent'), 10)
+
+    expect((await statsRows(db, OWNER, new Date())).retention.qualifying).toBe(1)
+  })
+
+  it('counts only this reader — a review is personal (`04` §4)', async () => {
+    await reviewed(await card('theirs', OTHER), 10, { owner: OTHER })
+
+    expect((await statsRows(db, OWNER, new Date())).retention.qualifying).toBe(0)
   })
 })
 
-describe('the seconds-per-note samples', () => {
-  // ⚠️ `11` §3: **over unedited accepts only**. An edited accept took longer
-  // because it was edited, and a median that includes it measures the editing.
-  it('is unedited accepts only', async () => {
-    const run = await ingested('一')
-    await vetted(run.ingestionId, 'a', { seconds: 3 })
-    await vetted(run.ingestionId, 'b', { edited: true, seconds: 41 })
-    await vetted(run.ingestionId, 'c', { state: 'rejected', seconds: 2 })
+describe('the grade instants — consistency\'s numerator, before it is bucketed', () => {
+  async function card(key: string, owner = OWNER): Promise<string> {
+    const run = await ingested(`src-${key}`)
+    return minted(await vetted(run.ingestionId, key, { owner }), owner)
+  }
 
-    expect((await statsRows(db, OWNER)).secondsPerNote).toEqual([3])
+  // ⚠️ **The bucketing is not here.** ADR 0066's day starts at 04:00 in the
+  // reader's zone, and Postgres is not told the zone on a route that ships no
+  // JavaScript — so this query hands over instants and
+  // `shared/time/local-day.ts` turns them into days. A `date_trunc('day', …)`
+  // here would be a different rule in the shortest possible SQL.
+  it('hands over instants rather than days', async () => {
+    await reviewed(await card('a'), 10)
+
+    const [minute] = (await statsRows(db, OWNER, new Date())).gradeMinutes
+    expect(minute).toBeInstanceOf(Date)
+    expect(Date.now() - minute!.getTime()).toBeGreaterThan(9 * 60_000)
   })
 
-  // The column is nullable and `10` §8.1 reads it directly. A `null` coerced to
-  // zero would pull the median toward an instant nobody spent.
-  it('drops an accept with no stamp rather than reading it as zero', async () => {
-    const run = await ingested('一')
-    await vetted(run.ingestionId, 'a', { seconds: 5 })
-    await vetted(run.ingestionId, 'b', { seconds: null })
+  // ⚠️ **`reviewed_at`, not `received_at`, and this is the case that separates
+  // them.** The outbox replays in order when the connection returns (ADR 0039),
+  // so a *grade* given on Tuesday night can be received on Wednesday morning —
+  // and the reader studied on Tuesday. Reading `received_at` here would credit
+  // the wrong day and, on a Wednesday with no other study, invent one.
+  it('takes the moment the reader answered, not the moment the server heard', async () => {
+    const threeDays = 3 * 24 * 60
+    await reviewed(await card('a'), threeDays, { receivedMinutesAgo: 1 })
 
-    expect((await statsRows(db, OWNER)).secondsPerNote).toEqual([5])
+    const [minute] = (await statsRows(db, OWNER, new Date())).gradeMinutes
+    const minutesAgo = (Date.now() - minute!.getTime()) / 60_000
+    expect(Math.round(minutesAgo / 60)).toBe(72)
   })
 
-  it('arrives as numbers, not as the driver\'s numeric strings', async () => {
-    const run = await ingested('一')
-    await vetted(run.ingestionId, 'a', { seconds: 4.25 })
+  // Truncation to the minute is a size reduction, not an answer: several grades
+  // in one minute are one row out.
+  it('folds several grades in one minute into one instant', async () => {
+    const a = await card('a')
+    await reviewed(a, 10)
+    await reviewed(a, 10)
 
-    const [sample] = (await statsRows(db, OWNER)).secondsPerNote
-    expect(sample).toBe(4.25)
+    expect((await statsRows(db, OWNER, new Date())).gradeMinutes).toHaveLength(1)
+  })
+
+  // ⚠️ **A day wider than the window** (`statsRows`), because the trimming is
+  // done in local days and a zone is up to fourteen hours from UTC.
+  it('reaches back a day further than the window, and no further', async () => {
+    await reviewed(await card('inside'), 30 * 24 * 60 + 60)
+    await reviewed(await card('outside'), 32 * 24 * 60)
+
+    expect((await statsRows(db, OWNER, new Date())).gradeMinutes).toHaveLength(1)
+  })
+
+  // ⚠️ **The first grade is *not* windowed** — the denominator is *days there
+  // were to study*, which for a reader three days in is three rather than
+  // thirty, and that is the difference between 3/3 suppressed and 3/30 reported.
+  it('reports the first grade ever, however far outside the window it is', async () => {
+    await reviewed(await card('ancient'), 400 * 24 * 60)
+    await reviewed(await card('today'), 10)
+
+    const rows = await statsRows(db, OWNER, new Date())
+    expect(rows.gradeMinutes).toHaveLength(1)
+    expect(Math.round((Date.now() - rows.firstGradeAt!.getTime()) / 86_400_000)).toBe(400)
+  })
+
+  it('has no first grade before the first review', async () => {
+    expect((await statsRows(db, OWNER, new Date())).firstGradeAt).toBeNull()
   })
 
   it('counts only this reader', async () => {
-    const run = await ingested('一')
-    await vetted(run.ingestionId, 'a', { owner: OTHER, seconds: 9 })
+    await reviewed(await card('theirs', OTHER), 10, { owner: OTHER })
 
-    expect((await statsRows(db, OWNER)).secondsPerNote).toEqual([])
+    const rows = await statsRows(db, OWNER, new Date())
+    expect(rows.gradeMinutes).toEqual([])
+    expect(rows.firstGradeAt).toBeNull()
   })
 })
 
-describe('the flag count — false-accept rate\'s numerator', () => {
-  // ⚠️ `11` §3: a second flag on the same *card* is a **second row**. A
-  // `count(distinct card_id)` would under-report exactly the signal `S9` exists
-  // for, and it is the reading a careful author would reach for.
-  it('counts a second flag on the same card as a second row', async () => {
+describe('flag rate — distinct cards flagged, over cards minted', () => {
+  // ⚠️ **The one line #23 changes about the old *false-accept rate*.** That
+  // figure counted rows, deliberately, because its denominator was acceptances;
+  // over *cards minted* a `count(*)` would let a reader who flagged one *card*
+  // three times read 150% of a two-*card* deck.
+  it('counts a second flag on the same card once', async () => {
     const run = await ingested('一')
     const note = await vetted(run.ingestionId, 'a')
     const card = await minted(note)
     await flagged(card, note)
     await flagged(card, note)
 
-    expect((await statsRows(db, OWNER)).flags).toBe(2)
+    expect((await statsRows(db, OWNER, new Date())).flaggedCards).toBe(1)
   })
 
-  it('counts only this reader', async () => {
+  it('counts two flagged cards as two', async () => {
+    const run = await ingested('一')
+    for (const key of ['a', 'b']) {
+      const note = await vetted(run.ingestionId, key)
+      await flagged(await minted(note), note)
+    }
+
+    expect((await statsRows(db, OWNER, new Date())).flaggedCards).toBe(2)
+  })
+
+  // ⚠️ **No `resolved_at IS NULL` filter, and one must not be added.** A *note*
+  // that was flagged and then fixed **was still wrong when it was minted**. A
+  // figure that fell every time the reader repaired something would report a
+  // pipeline that needs repairing as one that is working.
+  it('keeps counting a card whose flag has been resolved', async () => {
+    const run = await ingested('一')
+    const note = await vetted(run.ingestionId, 'a')
+    const card = await minted(note)
+    await flagged(card, note)
+    await client.exec(`UPDATE card_flag SET resolved_at = now() WHERE card_id = '${card}';`)
+
+    expect((await statsRows(db, OWNER, new Date())).flaggedCards).toBe(1)
+  })
+
+  it('counts every card the reader owns as the denominator', async () => {
+    const run = await ingested('一')
+    for (const key of ['a', 'b', 'c'])
+      await minted(await vetted(run.ingestionId, key))
+
+    expect((await statsRows(db, OWNER, new Date())).cardsMinted).toBe(3)
+  })
+
+  // ⚠️ A suspended *card* was minted and was paid for. Dropping it would
+  // improve the figure by deleting the evidence — the same argument
+  // `sourcesIngested` makes for a soft-deleted *source*.
+  it('counts a suspended card', async () => {
+    const run = await ingested('一')
+    const card = await minted(await vetted(run.ingestionId, 'a'))
+    await client.exec(`UPDATE card SET suspended_at = now(), suspended_reason = 'flagged' WHERE id = '${card}';`)
+
+    expect((await statsRows(db, OWNER, new Date())).cardsMinted).toBe(1)
+  })
+
+  it('counts only this reader — a card and a flag are both personal', async () => {
     const run = await ingested('一')
     const note = await vetted(run.ingestionId, 'a', { owner: OTHER })
     const card = await minted(note, OTHER)
     await flagged(card, note, OTHER)
 
-    expect((await statsRows(db, OWNER)).flags).toBe(0)
+    const rows = await statsRows(db, OWNER, new Date())
+    expect(rows.flaggedCards).toBe(0)
+    expect(rows.cardsMinted).toBe(0)
   })
 })
 
@@ -273,7 +409,7 @@ describe('time-to-first-review — the near-miss `11` §3 names', () => {
     await reviewed(a, 120) // 60 minutes after 一 was submitted
     await reviewed(b, 60) //  30 minutes after 二 was submitted
 
-    const seconds = (await statsRows(db, OWNER)).timeToFirstReview
+    const seconds = (await statsRows(db, OWNER, new Date())).timeToFirstReview
     expect(seconds.map(value => Math.round(value / 60)).sort((x, y) => x - y)).toEqual([30, 60])
   })
 
@@ -285,7 +421,7 @@ describe('time-to-first-review — the near-miss `11` §3 names', () => {
     await reviewed(b, 30) // 150 minutes after submission
     await reviewed(a, 120) // 60 minutes after submission
 
-    const [seconds] = (await statsRows(db, OWNER)).timeToFirstReview
+    const [seconds] = (await statsRows(db, OWNER, new Date())).timeToFirstReview
     expect(Math.round(seconds! / 60)).toBe(60)
   })
 
@@ -296,7 +432,7 @@ describe('time-to-first-review — the near-miss `11` §3 names', () => {
     await ingested('二', { minutesAgo: 60 })
     await reviewed(await minted(await vetted(studied.ingestionId, 'a')), 30)
 
-    const rows = await statsRows(db, OWNER)
+    const rows = await statsRows(db, OWNER, new Date())
     expect(rows.timeToFirstReview).toHaveLength(1)
     expect(rows.sourcesIngested).toBe(2)
   })
@@ -304,9 +440,9 @@ describe('time-to-first-review — the near-miss `11` §3 names', () => {
   it('counts only this reader\'s reviews', async () => {
     const run = await ingested('一', { minutesAgo: 60 })
     const note = await vetted(run.ingestionId, 'a', { owner: OTHER })
-    await reviewed(await minted(note, OTHER), 30, OTHER)
+    await reviewed(await minted(note, OTHER), 30, { owner: OTHER })
 
-    expect((await statsRows(db, OWNER)).timeToFirstReview).toEqual([])
+    expect((await statsRows(db, OWNER, new Date())).timeToFirstReview).toEqual([])
   })
 
   // ⚠️ `03` §12: figures measured against a laptop are not comparable across
@@ -318,12 +454,12 @@ describe('time-to-first-review — the near-miss `11` §3 names', () => {
     await reviewed(await minted(await vetted(laptop.ingestionId, 'a')), 30)
     await reviewed(await minted(await vetted(server.ingestionId, 'b')), 30)
 
-    expect((await statsRows(db, OWNER)).workerEnvironments).toEqual(['laptop', 'server'])
+    expect((await statsRows(db, OWNER, new Date())).workerEnvironments).toEqual(['laptop', 'server'])
   })
 
   it('names no environment when nothing has been measured', async () => {
     await ingested('一')
-    expect((await statsRows(db, OWNER)).workerEnvironments).toEqual([])
+    expect((await statsRows(db, OWNER, new Date())).workerEnvironments).toEqual([])
   })
 })
 
@@ -336,7 +472,7 @@ describe('the sources ingested — what the duration pair is measured against', 
     const gone = await ingested('二')
     await client.exec(`UPDATE source SET deleted_at = now() WHERE id = '${gone.sourceId}';`)
 
-    expect((await statsRows(db, OWNER)).sourcesIngested).toBe(2)
+    expect((await statsRows(db, OWNER, new Date())).sourcesIngested).toBe(2)
   })
 })
 

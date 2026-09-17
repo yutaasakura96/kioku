@@ -180,10 +180,22 @@ The suppression rule survives with a per-metric threshold (ADR 0058).
 > As the reader, I want the four numbers, so that I learn whether Kioku works rather than whether it
 > feels nice.
 
-**Acceptance:** the app reports *acceptance rate*, *time-to-first-review*, *false-accept rate* and
-median *seconds-per-note*, plus tokens and cost per *ingestion*. Below 20 vetted *notes* the ratios
-are suppressed and only raw counts are shown. The loop is not complete until these are emitted — they
-are the output of v1, not reporting added to it. (ADR 0001, ADR 0004, ADR 0010)
+**Acceptance:** the app reports **retention**, **consistency**, **flag rate** and
+*time-to-first-review*, plus tokens and cost per *ingestion*. Each ratio is suppressed under its own
+evidence — twenty qualifying reviews, fourteen days, twenty minted *cards* — showing the raw pair it
+would have been computed from and a line saying why (ADR 0058). The loop is not complete until these
+are emitted — they are the output of v1, not reporting added to it. (ADR 0001, ADR 0004, ADR 0010,
+ADR 0062)
+
+⚠️ **Built 2026-09-18 by [#23](https://github.com/yutaasakura96/kioku/issues/23), and the
+acceptance line above is the amended one.** What the screen holds: retention
+(`review_log.rating >= 3` over `count(*)`, filtered to `state = 2`, trailing 30 days), consistency
+(days with a *grade* over days there were to study, a day running 04:00 to 04:00 in the reader's
+zone), flag rate (distinct *cards* flagged over *cards* minted), *time-to-first-review* unchanged,
+and *cards minted* as the one raw count no boundary withholds. ⚠️ ***Acceptance rate* and median
+*seconds-per-note* are gone from the screen and `shared/metrics/acceptance.ts` is deleted** — removed
+rather than shrunk, because a number nobody acts on is a number somebody will eventually act on by
+accident.
 
 ### S11 — Find out where a card came from, and get rid of it `SHOULD`
 
