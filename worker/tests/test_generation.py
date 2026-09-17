@@ -55,6 +55,10 @@ class FakeProvider:
         #: Terms this provider refuses, so one *chunk* can fail while the others
         #: keep what they produced (`03` §5.4).
         self.refuse: set[str] = set()
+        #: ADR 0065's two claims, answered for every word. Settable so a test can
+        #: make the model say something outside the declared set.
+        self.level = "N3"
+        self.domain = "tech"
 
     def generate(self, request, *, keepalive=None) -> Generation:
         self.calls.append(request.prompt)
@@ -69,6 +73,8 @@ class FakeProvider:
                     "meaning": f"meaning of {term}",
                     "example_sentence": f"{term}です。",
                     "example_gloss": f"It is {term}.",
+                    "level": self.level,
+                    "domain": self.domain,
                 }
             )
         return Generation(
@@ -254,6 +260,61 @@ def test_provenance_is_recorded_per_field_and_says_who_produced_it(connection):
 
     # Every field the declaration names has a row; none is unaccounted for.
     assert len(by_field) == 6
+
+
+def claims(connection: psycopg.Connection, table: str) -> list[tuple]:
+    """Every claim of one kind, as `(identity_key, value, authority, model, prompt)`."""
+    column = {"level_claim": "level", "domain_claim": "domain"}[table]
+    return connection.execute(
+        f"""
+        SELECT n.identity_key, c.{column}, c.authority_key, c.model_id, c.prompt_version
+        FROM {table} c JOIN note n ON n.id = c.note_id
+        ORDER BY n.identity_key;
+        """
+    ).fetchall()
+
+
+def test_a_written_note_carries_one_model_estimated_level_and_domain(connection):
+    """ADR 0065 §3: *nothing writes a level claim today, and that is the work.*
+
+    One of each per *note*, authority-less, naming the model and the prompt —
+    the row the *provenance marker* draws hollow (ADR 0005).
+    """
+    make_run(connection)
+
+    run(connection, FakeProvider())
+
+    levels = claims(connection, "level_claim")
+    domains = claims(connection, "domain_claim")
+    assert len(levels) == len(notes(connection)) > 0
+    assert len(domains) == len(levels)
+    assert {row[1:] for row in levels} == {("N3", None, MODEL, PROMPT_VERSION)}
+    assert {row[1:] for row in domains} == {("tech", None, MODEL, PROMPT_VERSION)}
+
+
+def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_written(connection):
+    """⚠️ #22: *rejected by the writer, with the note still written and the claim
+    absent, rather than stored and silently unfilterable* (ADR 0065 §2). A
+    `technology` row would match no filter anybody could ever tick.
+
+    The refusal is said, per *chunk*, so a prompt that drifts shows up in the log
+    rather than as a deck that quietly stopped filtering.
+    """
+    make_run(connection)
+    provider = FakeProvider()
+    provider.domain = "technology"
+    said: list[tuple[str, dict]] = []
+
+    run(connection, provider, log=lambda event, **fields: said.append((event, fields)))
+
+    assert len(notes(connection)) > 0
+    assert claims(connection, "domain_claim") == []
+    assert len(claims(connection, "level_claim")) == len(notes(connection))
+    # A card was minted all the same: the claim is about the word, not the word.
+    assert connection.execute("SELECT count(*) FROM card;").fetchone()[0] == len(notes(connection))
+    refused = [fields for event, fields in said if event == "ingest.claim_refused"]
+    assert refused and all(fields["claim"] == "domain" for fields in refused)
+    assert sum(fields["notes"] for fields in refused) == len(notes(connection))
 
 
 def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection):

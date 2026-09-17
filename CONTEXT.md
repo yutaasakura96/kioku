@@ -70,6 +70,8 @@ _Avoid_: topic, category, course. ⚠️ *Domain* left this list on 2026-09-16 a
 A subject-declared label on a term saying what kind of language it is — `tech`, `business`, `daily`,
 `academic`, `general`. Carried as an attributed claim like a *level*, filled by the model, and used
 to choose which new cards are introduced. The reason this app exists rather than WaniKani.
+⚠️ **A filter on domain or level narrows the new cards of one session and never the due ones**, and it
+is not saved — a saved filter is a *deck* (ADR 0065, ADR 0009). Built 2026-09-17 with #22.
 _Avoid_: topic, category, tag, field
 
 **Source kind**:
@@ -120,7 +122,8 @@ _Avoid_: rating, classification
 
 **Level**:
 A subject-defined ordered difficulty band derived from a term's level claims. Filters what is
-studied; never orders it.
+studied; never orders it. The bands are the subject's closed `levels` set — `N5` to `N1` for JLPT
+vocabulary — and a claim outside it is refused rather than stored (ADR 0065).
 _Avoid_: difficulty, grade, rank, tier
 
 **Identity key**:
@@ -186,14 +189,14 @@ A card withdrawn from scheduling without being deleted. Its history survives unt
 _Avoid_: paused, archived, disabled, removed
 
 **Facts strip**:
-The single horizontal row on *Vet* holding the term, its part of speech and its level, bounded by a
+The single horizontal row on *Vet* holding the term, its part of speech, its level and its domain, bounded by a
 rule above and below. Everything above the lower rule is context; everything under it is a judgement
 field. The zoning is what gives vetting its hierarchy without spending colour on it.
 _Avoid_: header, metadata bar, info row, chip row
 
 **Provenance marker**:
-The 7×7px square beside a level, filled for a named authority and hollow for a model estimate. The
-one visible honesty bit, and it is never placed behind a hover.
+The 7×7px square beside a level or a domain, filled for a named authority and hollow for a model
+estimate. The one visible honesty bit, and it is never placed behind a hover.
 _Avoid_: badge, indicator, icon, dot, confidence marker
 
 **Shell**:

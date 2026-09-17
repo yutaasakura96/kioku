@@ -20,8 +20,10 @@ from subject import (
     UnknownSourceKind,
     ValidationError,
     check_declaration,
+    domain_values,
     field_names,
     judgement_field_names,
+    level_values,
     load_declaration,
     memory_bearing_field_names,
     pipeline_kinds,
@@ -48,6 +50,8 @@ TWO_FIELDS = {
     # are: a test written against `jlpt-vocab.json`'s real pipelines would pass
     # for the wrong reason the day the validator hard-codes one of them.
     "pipelines": {"word_list": ["one"], "prose": ["one", "two"]},
+    "levels": ["low", "high"],
+    "domains": ["work", "other"],
 }
 
 
@@ -118,6 +122,12 @@ class TestLoadDeclaration:
             "example_sentence",
             "example_gloss",
         ]
+
+    def test_declares_the_levels_in_order_and_the_domains(self):
+        """ADR 0065 §2 — closed sets, read here and restated nowhere."""
+        declaration = load_declaration()
+        assert level_values(declaration) == ["N5", "N4", "N3", "N2", "N1"]
+        assert domain_values(declaration) == ["tech", "business", "daily", "academic", "general"]
 
     def test_names_adr_0006s_identity_key(self):
         assert load_declaration()["identity_key"] == ["term", "reading"]
@@ -234,6 +244,8 @@ class TestCheckDeclaration:
             ("templates", {"templates": {}}),
             ("pipelines", {"pipelines": {"prose": [7]}}),
             ("pipelines", {"pipelines": ["prose"]}),
+            ("levels", {"levels": "N5"}),
+            ("domains", {"domains": ["tech", 3]}),
         ],
     )
     def test_refuses_a_malformed_section_without_raising(self, section, patch):
@@ -307,6 +319,18 @@ class TestCheckDeclaration:
     def test_refuses_two_stages_wearing_one_key(self):
         patched = with_declaration(pipelines={"word_list": ["one", "one"], "prose": ["one"]})
         assert errors(check_declaration(patched)) == [ValidationError("one", "duplicate_stage")]
+
+    def test_refuses_an_empty_level_or_domain_set(self):
+        """ADR 0065 §2: a closed set with nothing in it gives the model no legal
+        answer."""
+        assert errors(check_declaration(with_declaration(levels=[], domains=[]))) == [
+            ValidationError("levels", "no_values"),
+            ValidationError("domains", "no_values"),
+        ]
+
+    def test_refuses_a_value_listed_twice(self):
+        patched = with_declaration(domains=["work", "work"])
+        assert errors(check_declaration(patched)) == [ValidationError("work", "duplicate_value")]
 
     def test_refuses_a_pipeline_for_a_kind_04_5_1_does_not_allow(self):
         """⚠️ The other direction, and the one a new *subject* would trip: a

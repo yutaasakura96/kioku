@@ -20,7 +20,9 @@
  * makes a *session* answerable underground, and what makes PRD §5's "the
  * snapshot wins" a mechanism rather than a promise.
  */
+import { jlptVocab } from '../../../shared/subject/declaration'
 import { nothingToStudy } from '../../utils/review/queries'
+import { parseSessionFilter } from '../../../shared/review/filter'
 import { parseSessionSize } from '../../../shared/review/request'
 import { requireOwnerId } from '../../utils/reader'
 import { resumeOrCompose } from '../../utils/review/session'
@@ -33,9 +35,17 @@ export default defineEventHandler(async (event) => {
   // ⚠️ `readBody` on a request with no body answers `undefined` rather than
   // throwing, and `parseSessionSize` reads that as the default twenty — which is
   // the first-ever *session*, before the knob has anywhere to live (`09` §4.7).
-  const size = parseSessionSize(await readBody(event).catch(() => undefined))
+  const body = await readBody(event).catch(() => undefined)
+  const size = parseSessionSize(body)
 
-  const session = await resumeOrCompose(db, ownerId, size)
+  // ⚠️ **A filter naming a value the *subject* does not declare is refused, not
+  // dropped** (ADR 0065 §2): dropped, it would compose an unfiltered run the
+  // reader did not ask for.
+  const filter = parseSessionFilter(body, jlptVocab)
+  if (!filter.ok)
+    throw createError({ statusCode: 400, statusMessage: filter.code })
+
+  const session = await resumeOrCompose(db, ownerId, size, filter.filter)
 
   return {
     session,

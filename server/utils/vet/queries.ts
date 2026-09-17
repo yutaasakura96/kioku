@@ -63,12 +63,19 @@ export interface LevelClaimView {
   level: string
 }
 
+/** ADR 0065: a *domain* is a claim shaped exactly like a *level*. */
+export interface DomainClaimView {
+  authorityKey: string | null
+  domain: string
+}
+
 export interface VetNoteView {
   noteId: string
   /** `note.fields` — ADR 0029's blob, validated at the boundary that wrote it. */
   fields: Record<string, string>
   provenance: FieldProvenance[]
   levels: LevelClaimView[]
+  domains: DomainClaimView[]
   /** The *source* name in the chrome bar (`05` §7). Null once hard-deleted. */
   sourceTitle: string | null
   /**
@@ -213,6 +220,17 @@ export async function queueBatch(
     // than in insertion order.
     .orderBy(asc(schema.levelClaim.authorityKey))
 
+  const domains = await db
+    .select({
+      noteId: schema.domainClaim.noteId,
+      authorityKey: schema.domainClaim.authorityKey,
+      domain: schema.domainClaim.domain,
+    })
+    .from(schema.domainClaim)
+    .where(inArray(schema.domainClaim.noteId, ids))
+    // The same order as the *levels*, for the same reason.
+    .orderBy(asc(schema.domainClaim.authorityKey))
+
   const byNote = <T extends { noteId: string }>(all: T[], id: string) => all.filter(row => row.noteId === id)
 
   return rows.map(row => ({
@@ -222,6 +240,7 @@ export async function queueBatch(
     sourceTitle: row.sourceTitle ?? null,
     provenance: byNote(provenance, row.noteId).map(({ noteId: _, ...rest }) => rest),
     levels: byNote(levels, row.noteId).map(({ noteId: _, ...rest }) => rest),
+    domains: byNote(domains, row.noteId).map(({ noteId: _, ...rest }) => rest),
   }))
 }
 

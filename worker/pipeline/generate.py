@@ -36,8 +36,10 @@ from typing import Any, Mapping, Sequence
 
 from subject import (
     Declaration,
+    domain_values,
     identity_key_field_names,
     judgement_field_names,
+    level_values,
     render_identity_key,
     validate,
 )
@@ -55,7 +57,10 @@ from .deduplicate import Group
 #: every chunk that contains such a word and therefore what any of them may be
 #: served. The stored v1 answers are still correct answers to the v1 question and
 #: are simply never asked for again.
-PROMPT_VERSION = "v2"
+#:
+#: ⚠️ **v3 is ADR 0065's**, #22: every word is now asked for a *level* and a
+#: *domain* as well, which changes the prompt and the schema of every chunk.
+PROMPT_VERSION = "v3"
 
 #: ⚠️ **Keyed by the declaration's own field names, and a judgement field with no
 #: entry here raises.** The declaration says *which* fields exist (ADR 0003); a
@@ -76,6 +81,13 @@ FIELD_INSTRUCTIONS: Mapping[str, str] = {
     ),
     "example_gloss": "A plain English translation of that example sentence.",
 }
+
+#: ⚠️ **ADR 0065's two claims, asked beside the fields and never among them.**
+#: A *level* and a *domain* are attributed claims about the term (ADR 0005), not
+#: *fields* of the *note* (ADR 0029) — so they are taken off each answer before
+#: the declaration boundary sees it, and `write_notes` writes them to their own
+#: tables. The names are the claim tables' value columns.
+CLAIM_NAMES = ("level", "domain")
 
 #: Enough room for a chunk's worth of notes and no more. ADR 0041 caps a chunk
 #: at 1200 characters (`shared/ingest/chunk.ts`; `04` §5.2 carries no constraint), so a chunk that somehow produced this many
@@ -139,6 +151,13 @@ class GeneratedNote:
     #: because *trust is a property of where a value came from* and a reading no
     #: dictionary supplied is not a looked-up one.
     generated_lookups: frozenset[str] = frozenset()
+    #: ADR 0065 §3 — the model's *level* and *domain* for this word, **as
+    #: answered and not yet checked**. ⚠️ Stage 6 refuses nothing on their
+    #: account: #22 has the *writer* reject a value outside the declared set,
+    #: with the *note* still written, so a bad guess costs a claim and never a
+    #: word. ``None`` is an answer that was not a string at all.
+    level: str | None = None
+    domain: str | None = None
 
 
 def needs_a_reading(group: Group) -> bool:
@@ -177,7 +196,13 @@ def output_schema(declaration: Declaration) -> dict[str, Any]:
     what makes constrained decoding worth asking for. It is still not trusted:
     :func:`notes_from` validates what arrives regardless (`03` §7).
     """
-    names = [*identity_key_field_names(declaration), *judgement_field_names(declaration)]
+    # ⚠️ **No `enum` on the two claims.** ADR 0065 §2 puts the closed set in the
+    # prompt and the refusal in the writer; the schema stays a shape.
+    names = [
+        *identity_key_field_names(declaration),
+        *judgement_field_names(declaration),
+        *CLAIM_NAMES,
+    ]
     return {
         "type": "object",
         "properties": {
@@ -243,6 +268,25 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         )
     )
 
+    levels = ", ".join(f"`{value}`" for value in level_values(declaration))
+    domains = ", ".join(f"`{value}`" for value in domain_values(declaration))
+    # ⚠️ **ADR 0065 §2: the legal values are named and nothing else is legal.**
+    # A free-text domain comes back as `tech`, `technology` and `IT` for three
+    # words that belong together, and a filter over that finds one of them.
+    claims_rule = (
+        "\n\nLEVEL AND DOMAIN\n"
+        f"For every word also write `level`, exactly one of {levels} — your "
+        "estimate of the JLPT level a learner meets it at. The JLPT publishes no "
+        "official list, so this is a judgement, and it is recorded as yours.\n"
+        f"And `domain`, exactly one of {domains} — the kind of language the word "
+        "belongs to: `tech` for software, infrastructure and engineering, "
+        "`business` for work, meetings and commerce, `daily` for everyday life, "
+        "`academic` for study and research. Use `general` when the word is "
+        "ordinary across all of them rather than forcing it into one; a word is "
+        "`tech` only if a learner would mainly meet it at technical work.\n"
+        "Write each value exactly as listed, and no other value."
+    )
+
     return (
         # ⚠️ *Note* and not *card*, and certainly not *flashcard*: `CONTEXT.md`
         # gives *Card* an `_Avoid_` list with `flashcard` on it, and this stage
@@ -263,7 +307,8 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         f"One entry per listed word, in the listed order. Echo {echoed} back "
         "exactly as given — they identify the entry and must not be corrected, "
         "re-read or re-spelled. Then write:\n"
-        f"{wanted}\n\n"
+        f"{wanted}"
+        f"{claims_rule}\n\n"
         "Write nothing else. Do not add words the list does not carry, and do not "
         "skip a word because it seems too easy or too hard."
     )
@@ -378,6 +423,10 @@ def _generated(
     declaration: Declaration, group: Group, arrived: Mapping[str, Any]
 ) -> GeneratedNote:
     """One assembled *note*, with the key it will actually be written under."""
+    # The claims come off before the boundary: `validate` would call them
+    # `unknown`, and rightly, because they are not *fields*.
+    claimed = {name: arrived.get(name) for name in CLAIM_NAMES}
+    arrived = {name: value for name, value in arrived.items() if name not in CLAIM_NAMES}
     fields = _assemble(declaration, group, arrived)
     generated_lookups = frozenset({"reading"}) if needs_a_reading(group) else frozenset()
     return GeneratedNote(
@@ -388,7 +437,14 @@ def _generated(
         # one case where they differ is the case `04` §5.3 is about.
         identity_key=_identity_key_of(declaration, fields),
         generated_lookups=generated_lookups,
+        level=_claim(claimed["level"]),
+        domain=_claim(claimed["domain"]),
     )
+
+
+def _claim(value: Any) -> str | None:
+    """What the model answered for a claim, if it answered with a string."""
+    return value if isinstance(value, str) else None
 
 
 def _identity_key_of(declaration: Declaration, arrived: Mapping[str, Any]) -> str:

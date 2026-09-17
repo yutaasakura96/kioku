@@ -68,6 +68,42 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
+**2026-09-17 — [#22](https://github.com/yutaasakura96/kioku/issues/22) is built: every word carries a
+*domain* and a *level*, and a *session* can be filtered on the new half.** ADR 0065 in full. No new
+ADR.
+
+- **`domain_claim`**, migration `0004_domain_claim.sql`, shaped exactly like `level_claim`: the
+  attribution `CHECK`, `UNIQUE NULLS NOT DISTINCT (note_id, authority_key)`, an index on `note_id`.
+  Documented as **`04` §5.7**, not §5.5 as the ticket says: §5.5 is `occurrence` and §5.6 is the
+  table it mirrors. ⚠️ **Migration `0004` is not applied to Neon**, and neither is `0003`.
+- **`subjects/jlpt-vocab.json` declares `levels` (`N5`–`N1`) and `domains`.** `levelValues` /
+  `level_values` and `domainValues` / `domain_values` read them on each side, `checkDeclaration`
+  refuses an empty set (`no_values`) and a value listed twice (`duplicate_value`) with the same codes
+  in the same order, and the drift test compares both lists.
+- **Stage 6 asks for `level` and `domain` beside the fields**, in the same request, and takes them
+  off the answer before `validate` sees it. The prompt names every legal value and says when
+  `general` is right; the schema has no `enum`, because ADR 0065 puts the refusal in the writer.
+  `PROMPT_VERSION` is `v3`.
+- **Stage 7 writes one `level_claim` and one `domain_claim` per *note*** inside the *note*'s
+  transaction, authority-less, with the model and prompt. ⚠️ **A value outside the set is refused
+  and the *note* is written without the claim**; `ingest.claim_refused` is logged per *chunk* and
+  per claim, without the value. The first estimate stands on a resume.
+- **The *session* filter** is `shared/review/filter.ts`: two sets, empty means no restriction, an
+  undeclared value is a **400** rather than a silently unfiltered run. It reaches `newCards` only, as
+  two `EXISTS` over the claim tables; `dueCards` takes no filter, so it cannot be handed one. A *note*
+  with no claim matches no filter, which is every *note* written before today.
+- ⚠️ **"*Review*'s start" is read as the knob's three homes**: the end screen and both non-terminal
+  empty states (`10` §5.8). The mount's start sends no filter, for the knob's own reason. The filter
+  lives in page memory only. **`space` on a checkbox is the checkbox's**: the controls are inside the
+  mode container, so the end screen's start handler now ignores `space` from an `<input>`.
+- ***Vet*'s *facts strip* gains `DOMAIN`**, rendered by the same template as `LEVEL`: hollow marker
+  for an estimate, `estimate` in the document, never a `title`.
+- **Tests:** 808 TypeScript (was 790) and 288 worker, **75 needing Docker** (was 275/73). Three
+  guards were **checked by sabotage**: the writer's set check, the domain `EXISTS`, and the `space`
+  guard, whose e2e assertion failed when the guard was removed.
+- **Amended:** `CONTEXT.md` (*Domain*, *Level*, *Facts strip*, *Provenance marker*), `03` §5.1,
+  `04` §4/§5.6/§5.7/§9/§11, `10` §4/§5.7/§5.8, `subjects/README.md`, `worker/tests/README.md`.
+
 **2026-09-17 — [#20](https://github.com/yutaasakura96/kioku/issues/20) is built: a chosen word mints
 its *card* on arrival, and *Vet* is the flag queue.** ADR 0064 in full, and the re-vetting ticket
 ADR 0056 had owed since #13. **One new ADR, 0067**, because "reuse the mint path" had no answer
@@ -1431,11 +1467,16 @@ paragraph** — what follows is an index.
   are due, counted at composition on `review_session.new_count`, over a local day starting 04:00.
   The backlog is ordered by `get_retrievability` ascending. ⚠️ **Nothing caps due reviews.**
 
-⚠️ **[#20](https://github.com/yutaasakura96/kioku/issues/20) built 2026-09-17 (§ Done). The frontier
+⚠️ **[#22](https://github.com/yutaasakura96/kioku/issues/22) built 2026-09-17 (§ Done). The frontier
+is [#23](https://github.com/yutaasakura96/kioku/issues/23), with
+[#21](https://github.com/yutaasakura96/kioku/issues/21) buildable beside it.** The next command is
+`/clear`, then `/implement 23`.
+
+~~⚠️ **[#20](https://github.com/yutaasakura96/kioku/issues/20) built 2026-09-17 (§ Done). The frontier
 is [#22](https://github.com/yutaasakura96/kioku/issues/22) and
 [#23](https://github.com/yutaasakura96/kioku/issues/23), with #21 buildable beside either.** #23
 (stats) was blocked only by #20. ⚠️ **The next command is `/clear`, then `/implement 22`**, in a fresh
-window. #22 before #23 because #23's metrics are easier to read once *notes* carry a *level*.
+window. #22 before #23 because #23's metrics are easier to read once *notes* carry a *level*.~~
 
 ~~**The ticket frontier is [#19](https://github.com/yutaasakura96/kioku/issues/19) alone.**~~
 ⚠️ **[#19](https://github.com/yutaasakura96/kioku/issues/19) built 2026-09-16 (§ Done). The frontier
@@ -1941,10 +1982,15 @@ Nothing.
   `get_retrievability`. The code is not wrong yet, because the order only matters once the due set
   is larger than the *session*; the comment's reasoning is what would mislead the next reader.
   [#21](https://github.com/yutaasakura96/kioku/issues/21) fixes both.
-- ⚠️ **`level_claim` has a table, a read path, an index, a *provenance marker* and tests, and no
-  producer.** Nothing in the pipeline has ever written one. A session that reads the schema will
-  reasonably assume levels are filled and they are not.
-  [#22](https://github.com/yutaasakura96/kioku/issues/22) is where they start being written.
+- ~~⚠️ **`level_claim` has a table, a read path, an index, a *provenance marker* and tests, and no
+  producer.**~~ **Paid 2026-09-17 by #22**: stage 7's `write_claims` writes one `level_claim` and one
+  `domain_claim` per generated *note*. ⚠️ **What is still true: every *note* written before then
+  carries no claim**, the 474 *pending* and the 39 accepted among them, and **a filtered *session*
+  introduces none of them**. Backfilling is out of #22's scope; until a run re-chooses them, the
+  filter only reaches words ingested after 2026-09-17.
+- ⚠️ **A *note* is in a filter if *any* of its claims is in the set** (`newCards`). v1 writes at most
+  one claim per *note*, so this is not yet a choice; the day an authority's claim disagrees with the
+  model's, ADR 0005's precedence has to decide which one filters, and nothing does today.
 - ~~⚠️ **The application has never written a superseded *scheduling epoch*.**~~ **Paid 2026-09-17 by
   #20** (`server/utils/review/epoch.ts`).
   `superseded_reason = 'memory_bearing_field_changed'` is in the `CHECK`, `04` §7.4 describes it, and

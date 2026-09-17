@@ -241,6 +241,79 @@ describe('composing a session (`S7`, `04` §7.6, §7.7)', () => {
   })
 })
 
+/** ADR 0065's two claims, the model's, as `write_notes` writes them. */
+async function claimed(cardId: string, { domain, level }: { domain?: string, level?: string }) {
+  const { note_id: noteId } = await one<{ note_id: string }>(`SELECT note_id FROM card WHERE id = '${cardId}';`)
+
+  if (domain) {
+    await client.exec(`
+      INSERT INTO domain_claim (note_id, domain, model_id, prompt_version)
+      VALUES ('${noteId}', '${domain}', 'claude-sonnet-5', 'v3');
+    `)
+  }
+  if (level) {
+    await client.exec(`
+      INSERT INTO level_claim (note_id, level, model_id, prompt_version)
+      VALUES ('${noteId}', '${level}', 'claude-sonnet-5', 'v3');
+    `)
+  }
+}
+
+describe('a filtered session (ADR 0065 §5)', () => {
+  // ⚠️ **#22's criterion in its own words: a due card outside the filter is
+  // still composed.** What is owed is owed; a filter over the due half lets
+  // `business` rot for a fortnight while the reader studies `tech`.
+  it('still composes a due card outside the filter', async () => {
+    const owed = await acceptedCard('会議␟かいぎ', { minutesAgo: 10 })
+    await claimed(owed, { domain: 'business', level: 'N3' })
+    await scheduled(owed, -1)
+
+    const session = await resumeOrCompose(db, OWNER, 20, { domains: ['tech'], levels: [] })
+
+    expect(session!.positions.map(p => p.cardId)).toEqual([owed])
+  })
+
+  it('introduces only the new cards inside it, due first as ever', async () => {
+    const owed = await acceptedCard('会議␟かいぎ', { minutesAgo: 10 })
+    await claimed(owed, { domain: 'business' })
+    await scheduled(owed, -1)
+    const deploy = await acceptedCard('デプロイ␟でぷろい', { minutesAgo: 3 })
+    await claimed(deploy, { domain: 'tech', level: 'N2' })
+    const meeting = await acceptedCard('打ち合わせ␟うちあわせ', { minutesAgo: 2 })
+    await claimed(meeting, { domain: 'business', level: 'N2' })
+
+    const session = await resumeOrCompose(db, OWNER, 20, { domains: ['tech'], levels: [] })
+
+    expect(session!.positions.map(p => p.cardId)).toEqual([owed, deploy])
+  })
+
+  // Both sets restrict at once: a `tech` word at `N1` is not a `tech` word at
+  // `N2`, and a set left empty restricts nothing.
+  it('asks for both sets when both are sent, and neither when neither is', async () => {
+    const hard = await acceptedCard('冗長化␟じょうちょうか', { minutesAgo: 3 })
+    await claimed(hard, { domain: 'tech', level: 'N1' })
+    const easy = await acceptedCard('画面␟がめん', { minutesAgo: 2 })
+    await claimed(easy, { domain: 'tech', level: 'N4' })
+
+    const filtered = await resumeOrCompose(db, OWNER, 20, { domains: ['tech'], levels: ['N4', 'N5'] })
+    expect(filtered!.positions.map(p => p.cardId)).toEqual([easy])
+  })
+
+  // ⚠️ **A *note* with no claim at all matches no filter.** The 474 *pending
+  // notes* written before ADR 0065 carry none, and backfilling them is out of
+  // #22's scope — so they are studied unfiltered or not at all, never guessed
+  // into a bucket.
+  it('leaves out a new card with no claim when a filter is set, and keeps it when none is', async () => {
+    const unclaimed = await acceptedCard('一␟いち')
+
+    expect(await resumeOrCompose(db, OWNER, 20, { domains: ['daily'], levels: [] })).toBeNull()
+    expect(await count('review_session')).toBe(0)
+
+    const session = await resumeOrCompose(db, OWNER, 20)
+    expect(session!.positions.map(p => p.cardId)).toEqual([unclaimed])
+  })
+})
+
 describe('one grade (`S7`, ADR 0016, `04` §7.4, §7.5)', () => {
   async function session(cards = 1) {
     for (let index = 0; index < cards; index += 1)

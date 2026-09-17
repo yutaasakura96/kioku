@@ -40,6 +40,7 @@ function note(overrides: Partial<VetNoteView> = {}): VetNoteView {
       { fieldName: 'meaning', kind: 'generated', modelId: 'claude-sonnet-5', dictionaryVersion: null },
     ],
     levels: [{ authorityKey: null, level: 'N4' }],
+    domains: [],
     sourceTitle: '朝日新聞 社説',
     flagged: false,
     ...overrides,
@@ -51,6 +52,31 @@ function mount(overrides: Partial<VetNoteView> = {}, edit: Record<string, string
     props: { note: note(overrides), declaration: jlptVocab, edit },
   })
 }
+
+// ADR 0065, #22: *a model-estimated domain renders with the hollow provenance
+// marker, the same honesty bit a model-estimated level gets, and it is never
+// behind a hover.*
+describe('the domain, drawn the way the level is', () => {
+  it('renders a model estimate with the hollow marker and the word estimate in the document', async () => {
+    const view = await mount({ levels: [], domains: [{ authorityKey: null, domain: 'tech' }] })
+
+    const markers = view.findAll('.marker')
+    expect(markers).toHaveLength(1)
+    expect(markers[0]!.classes()).not.toContain('attributed')
+    expect(markers[0]!.attributes('aria-label')).toBe('estimated by the model')
+    expect(markers[0]!.attributes('title')).toBeUndefined()
+    expect(view.text()).toContain('DOMAIN')
+    expect(view.text()).toContain('tech')
+    expect(view.text()).toContain('estimate')
+  })
+
+  it('renders a dash where nothing has claimed a domain', async () => {
+    const view = await mount({ domains: [] })
+
+    expect(view.findAll('.marker')).toHaveLength(1)
+    expect(view.text()).toContain('DOMAIN')
+  })
+})
 
 describe('the level, and the one visible honesty bit', () => {
   it('names the authority in the document rather than behind a hover', async () => {

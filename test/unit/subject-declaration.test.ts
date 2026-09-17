@@ -4,9 +4,11 @@ import { describe, expect, it } from 'vitest'
 import {
   DECLARATION_PATH,
   checkDeclaration,
+  domainValues,
   fieldNames,
   jlptVocab,
   judgementFieldNames,
+  levelValues,
   memoryBearingFieldNames,
   pipelineKinds,
   stageKeys,
@@ -63,6 +65,13 @@ describe('the JLPT vocabulary declaration', () => {
   // `.apkg` format and the licensing of shared decks to #24 and says it does not
   // pre-decide that ticket. A row carrying it has to say so by name rather than
   // run whichever pipeline happens to be first.
+  // ADR 0065 §2: closed sets, because a model asked for a free-text domain
+  // answers `tech`, `technology` and `IT` for three words that belong together.
+  it('declares the levels in order and the domains, general among them', () => {
+    expect(levelValues(jlptVocab)).toEqual(['N5', 'N4', 'N3', 'N2', 'N1'])
+    expect(domainValues(jlptVocab)).toEqual(['tech', 'business', 'daily', 'academic', 'general'])
+  })
+
   it('refuses a kind it has no pipeline for, by name', () => {
     expect(() => stageKeys(jlptVocab, 'anki')).toThrow(/anki/)
   })
@@ -122,6 +131,8 @@ describe('checkDeclaration', () => {
     // (ADR 0063), with synthetic stage names for the same reason the fields are
     // synthetic.
     pipelines: { word_list: ['one'], prose: ['one', 'two'] },
+    levels: ['low', 'high'],
+    domains: ['work', 'other'],
   }
 
   const withDeclaration = (patch: Record<string, unknown>) => ({ ...valid, ...patch })
@@ -143,6 +154,8 @@ describe('checkDeclaration', () => {
     ['templates', { templates: {} }],
     ['pipelines', { pipelines: { prose: [7] } }],
     ['pipelines', { pipelines: ['prose'] }],
+    ['levels', { levels: 'N5' }],
+    ['domains', { domains: ['tech', 3] }],
   ])('refuses a malformed %s section without throwing', (section, patch) => {
     expect(checkDeclaration(withDeclaration(patch))).toEqual({
       ok: false,
@@ -243,6 +256,24 @@ describe('checkDeclaration', () => {
   // The other direction, and the one a second *subject* would trip: a pipeline
   // keyed on something `04` §5.1's `CHECK` would refuse is one nothing can ever
   // select.
+  // ADR 0065 §2: a closed set with nothing in it gives the model no legal
+  // answer, and a value listed twice is a filter with two checkboxes for one
+  // thing.
+  it('refuses an empty level or domain set, and a value listed twice', () => {
+    expect(checkDeclaration(withDeclaration({ levels: [], domains: [] }))).toEqual({
+      ok: false,
+      errors: [
+        { field: 'levels', code: 'no_values' },
+        { field: 'domains', code: 'no_values' },
+      ],
+    })
+
+    expect(checkDeclaration(withDeclaration({ domains: ['work', 'work'] }))).toEqual({
+      ok: false,
+      errors: [{ field: 'work', code: 'duplicate_value' }],
+    })
+  })
+
   it('refuses a pipeline for a kind a source may not be', () => {
     expect(checkDeclaration(withDeclaration({
       pipelines: { ...valid.pipelines, epub: ['one'] },

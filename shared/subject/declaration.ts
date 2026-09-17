@@ -69,6 +69,8 @@ export type ErrorCode
     | 'missing_pipeline'
     | 'no_stages'
     | 'duplicate_stage'
+    | 'no_values'
+    | 'duplicate_value'
 
 /**
  * `field` is the field, template or stage the error is about, and `null` when
@@ -155,6 +157,25 @@ export function pipelineKinds(declaration: SubjectDeclaration): SourceKind[] {
   return Object.keys(declaration.pipelines) as SourceKind[]
 }
 
+/**
+ * The *levels* a claim may carry, easiest first — ADR 0005, ADR 0065 §2.
+ *
+ * ⚠️ **A closed set, and the order is the declaration's.** The model is told
+ * these values and the writer refuses any other, so a *level* that is not here
+ * is a claim no filter could ever select.
+ */
+export function levelValues(declaration: SubjectDeclaration): string[] {
+  return [...declaration.levels]
+}
+
+/**
+ * The *domains* a claim may carry — ADR 0065 §2. `general` is among them so the
+ * model always has a legal answer, and `tech` keeps meaning something.
+ */
+export function domainValues(declaration: SubjectDeclaration): string[] {
+  return [...declaration.domains]
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -180,7 +201,7 @@ export function checkDeclaration(value: unknown): ValidationResult {
   if (!isRecord(value))
     return { ok: false, errors: [{ field: null, code: 'not_an_object' }] }
 
-  const { fields, identity_key: identityKey, templates, pipelines } = value
+  const { fields, identity_key: identityKey, templates, pipelines, levels, domains } = value
 
   if (!Array.isArray(fields) || !fields.every(isRecord))
     return malformed('fields')
@@ -194,6 +215,10 @@ export function checkDeclaration(value: unknown): ValidationResult {
     )) {
     return malformed('pipelines')
   }
+  if (!isStringList(levels))
+    return malformed('levels')
+  if (!isStringList(domains))
+    return malformed('domains')
 
   const errors: ValidationError[] = []
   const required = new Map<string, boolean>()
@@ -291,5 +316,26 @@ export function checkDeclaration(value: unknown): ValidationResult {
       errors.push({ field: kind, code: 'missing_pipeline' })
   }
 
+  // ⚠️ **ADR 0065 §2's closed sets.** An empty one leaves the model no legal
+  // answer and every claim refused; a value listed twice is two checkboxes on
+  // *Review* for one thing.
+  for (const [section, values] of [['levels', levels], ['domains', domains]] as const) {
+    if (values.length === 0) {
+      errors.push({ field: section, code: 'no_values' })
+      continue
+    }
+
+    const seen = new Set<string>()
+    for (const entry of values) {
+      if (seen.has(entry))
+        errors.push({ field: entry, code: 'duplicate_value' })
+      seen.add(entry)
+    }
+  }
+
   return result(errors)
+}
+
+function isStringList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(entry => typeof entry === 'string')
 }

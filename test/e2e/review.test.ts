@@ -230,6 +230,16 @@ describe('one session, from the rail to the end screen', () => {
     // And the run it ended is finished rather than abandoned.
     expect(await sessions('completed_at is null')).toBe(0)
 
+    // ⚠️ **ADR 0065 §5's filter sits inside the mode container**, so `space` on
+    // one of its checkboxes bubbles to the handler that starts a *session*. It
+    // ticks the box and starts nothing.
+    const tech = page.getByRole('checkbox', { name: 'tech' })
+    await tech.focus()
+    await page.keyboard.press(' ')
+    expect(await tech.isChecked()).toBe(true)
+    await page.waitForTimeout(250)
+    expect(await sessions(), 'space on a filter checkbox started a session').toBe(runs)
+
     await page.close()
   })
 })

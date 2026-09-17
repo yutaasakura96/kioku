@@ -185,6 +185,20 @@ def template_keys(declaration: Declaration) -> list[str]:
     return [template["key"] for template in declaration["templates"]]
 
 
+def level_values(declaration: Declaration) -> list[str]:
+    """The *levels* a claim may carry, easiest first — ADR 0005, ADR 0065 §2.
+
+    ⚠️ **A closed set.** The prompt names these and ``write_notes`` refuses any
+    other, because a *level* outside it is a claim no filter can select.
+    """
+    return list(declaration["levels"])
+
+
+def domain_values(declaration: Declaration) -> list[str]:
+    """The *domains* a claim may carry — ADR 0065 §2, `general` among them."""
+    return list(declaration["domains"])
+
+
 def pipeline_kinds(declaration: Declaration) -> list[str]:
     """The *source kinds* this declaration can ingest, in declaration order."""
     return list(declaration["pipelines"])
@@ -287,6 +301,8 @@ def check_declaration(value: Any) -> ValidationResult:
     identity_key = value.get("identity_key")
     templates = value.get("templates")
     pipelines = value.get("pipelines")
+    levels = value.get("levels")
+    domains = value.get("domains")
 
     if not _is_record_list(fields):
         return _malformed("fields")
@@ -298,6 +314,10 @@ def check_declaration(value: Any) -> ValidationResult:
         _is_string_list(pipeline) for pipeline in pipelines.values()
     ):
         return _malformed("pipelines")
+    if not _is_string_list(levels):
+        return _malformed("levels")
+    if not _is_string_list(domains):
+        return _malformed("domains")
 
     errors: list[ValidationError] = []
     required: dict[str, bool] = {}
@@ -381,6 +401,18 @@ def check_declaration(value: Any) -> ValidationResult:
     for kind in SUBMITTABLE_SOURCE_KINDS:
         if kind not in declared_kinds:
             errors.append(ValidationError(kind, "missing_pipeline"))
+
+    # ⚠️ **ADR 0065 §2's closed sets.** An empty one leaves the model no legal
+    # answer; a value listed twice is two filter controls for one thing.
+    for section, values in (("levels", levels), ("domains", domains)):
+        if not values:
+            errors.append(ValidationError(section, "no_values"))
+            continue
+        seen_values: set[str] = set()
+        for entry in values:
+            if entry in seen_values:
+                errors.append(ValidationError(entry, "duplicate_value"))
+            seen_values.add(entry)
 
     return _result(errors)
 

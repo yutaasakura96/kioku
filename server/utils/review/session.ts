@@ -23,12 +23,15 @@ import { compose } from '../../../shared/review/compose'
 import { dueCards, newCards, snapshotOf } from './queries'
 import { isFinished } from '../../../shared/review/snapshot'
 import type { IngestDatabase } from '../ingest/record'
+import type { SessionFilter } from '../../../shared/review/filter'
+import { NO_FILTER } from '../../../shared/review/filter'
 import type { ReviewSnapshot } from './queries'
 
 /**
  * Resume the run the reader is in, or compose one.
  *
- * ⚠️ **Resume comes first and the knob is ignored while it does.** `09` §4.7:
+ * ⚠️ **Resume comes first and the knob and the filter are ignored while it
+ * does.** `09` §4.7:
  * *session* size is set on the end screen and on the empty states, **never
  * mid-session** — the current one is snapshotted, and a knob that appeared to
  * change it would be lying. Done mid-*session* is a pause (`10` §5.3), so the
@@ -44,6 +47,7 @@ export async function resumeOrCompose(
   db: IngestDatabase,
   ownerId: string,
   size: number,
+  filter: SessionFilter = NO_FILTER,
   now: Date = new Date(),
 ): Promise<ReviewSnapshot | null> {
   const live = await liveSession(db, ownerId)
@@ -61,7 +65,7 @@ export async function resumeOrCompose(
     await completeSession(db, ownerId, live)
   }
 
-  return composeSession(db, ownerId, size, now)
+  return composeSession(db, ownerId, size, filter, now)
 }
 
 /** The newest run the reader has not finished — `04` §7.6's null `completed_at`. */
@@ -102,12 +106,16 @@ async function composeSession(
   db: IngestDatabase,
   ownerId: string,
   size: number,
+  filter: SessionFilter,
   now: Date,
 ): Promise<ReviewSnapshot | null> {
   // Sequential — see `server/utils/review/queries.ts` on why `Promise.all` here
   // fails in the e2e tier and nowhere else.
+  // ⚠️ **The filter reaches the new half and never the due one** (ADR 0065 §5):
+  // what is owed is owed, and `dueCards` takes no filter so it cannot be handed
+  // one.
   const due = await dueCards(db, ownerId, size, now)
-  const fresh = await newCards(db, ownerId, size)
+  const fresh = await newCards(db, ownerId, size, filter)
 
   const cardIds = compose(due, fresh, size)
 

@@ -26,8 +26,10 @@ from subject import (
     REPO_ROOT,
     SOURCE_KINDS,
     SUBMITTABLE_SOURCE_KINDS,
+    domain_values,
     field_names,
     judgement_field_names,
+    level_values,
     load_declaration,
     memory_bearing_field_names,
     pipeline_kinds,
@@ -86,6 +88,8 @@ class TestCrossLanguageDeclaration:
                 kind: stage_keys(declaration, kind) for kind in pipeline_kinds(declaration)
             },
             "template_keys": [template["key"] for template in declaration["templates"]],
+            "levels": level_values(declaration),
+            "domains": domain_values(declaration),
         } == {
             "subject_id": typescript_view["subject_id"],
             "identity_key": typescript_view["identity_key"],
@@ -95,6 +99,8 @@ class TestCrossLanguageDeclaration:
             "pipeline_kinds": typescript_view["pipeline_kinds"],
             "pipelines": typescript_view["pipelines"],
             "template_keys": typescript_view["template_keys"],
+            "levels": typescript_view["levels"],
+            "domains": typescript_view["domains"],
         }
 
     def test_every_stage_key_is_a_legal_python_module_name(self):

@@ -116,6 +116,51 @@ def test_the_schema_closes_the_object() -> None:
     assert schema["additionalProperties"] is False
 
 
+def test_the_level_and_the_domain_are_asked_for_in_the_same_request() -> None:
+    """ADR 0065 §3: the same paragraph of understanding about the same word, so
+    one request rather than two. ⚠️ **Asked beside the fields and never inside
+    them** — a claim is not a *field* (ADR 0029), and `validate` would refuse it
+    as `unknown` if it reached the blob.
+    """
+    properties = output_schema(DECLARATION)["properties"]["notes"]["items"]["properties"]
+
+    assert properties["level"] == {"type": "string"}
+    assert properties["domain"] == {"type": "string"}
+
+
+def test_the_prompt_names_every_legal_level_and_domain_and_when_general_is_right() -> None:
+    """ADR 0065 §2: *the prompt names the legal values and the writer rejects
+    anything else* — and `general` exists so the model always has one."""
+    prompt = build_prompt(DECLARATION, TEXT, GROUPS)
+
+    for value in [*DECLARATION["levels"], *DECLARATION["domains"]]:
+        assert value in prompt
+    assert "`general`" in prompt
+
+
+def test_a_claim_rides_beside_the_note_and_never_in_its_fields() -> None:
+    notes = notes_from(DECLARATION, GROUPS, recorded())
+
+    assert (notes[0].level, notes[0].domain) == ("N4", "daily")
+    assert "level" not in notes[0].fields
+    assert "domain" not in notes[0].fields
+
+
+@pytest.mark.parametrize("value", [None, 3, "technology"])
+def test_a_bad_claim_does_not_refuse_the_chunk(value) -> None:
+    """⚠️ #22: *a value outside the declared set is rejected by the writer, with
+    the note still written*. Stage 6 carries what arrived and refuses nothing on
+    its account — six good fields are not worth losing over a guess about them.
+    A value that is not a string is carried as nothing."""
+    payload = recorded()
+    payload["notes"][0]["domain"] = value
+
+    notes = notes_from(DECLARATION, GROUPS, payload)
+
+    assert notes[0].domain == (value if isinstance(value, str) else None)
+    assert notes[0].fields["meaning"] == "library"
+
+
 def test_the_passage_is_in_the_prompt() -> None:
     """⚠️ **`04` §6.3 keys the cache on the *chunk*'s `content_hash`**, which is
     only sound because the passage is what was sent. A prompt carrying only the

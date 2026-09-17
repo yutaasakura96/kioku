@@ -389,6 +389,24 @@ document size.
 > ⚠️ **No requester, no *cards*.** `job.requested_by` is `ON DELETE SET NULL`; such a run writes
 > its *notes*, mints nothing, and logs `ingest.unowned` once per *chunk*.
 
+> ⚠️ **Amended 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22) —
+> [ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md). Stage
+> 6 asks for a *level* and a *domain* for every word, in the same request as the fields, and stage 7
+> writes them as claims.** The prompt names the *subject*'s closed `levels` and `domains` sets and
+> says when `general` is the right answer; the schema asks for both as strings, with no `enum`,
+> because the refusal belongs to the writer. Neither value is a *field*: both come off the answer
+> before `validate` sees it (ADR 0029).
+>
+> Stage 7 writes **one `level_claim` and one `domain_claim` per *note***, authority-less, with the
+> model id and prompt version (`04` §5.6, §5.7), inside the *note*'s transaction. ⚠️ **A value
+> outside the declared set is refused and the *note* is written without that claim**, and the run
+> logs `ingest.claim_refused` per *chunk* and per claim, without the value. Stored, `technology`
+> would be a claim no filter could select; refusing the *note* would spend a word on a guess about
+> it. The first estimate stands: a resume re-attributes nothing. `PROMPT_VERSION` is `v3`.
+>
+> ⚠️ **The 474 *pending notes* and the 39 accepted before this carry no claim**, and backfilling them
+> is out of #22's scope. A filtered *session* leaves them out; an unfiltered one does not.
+
 ### 5.2 Two findings that shape stage 2, and neither is optional
 
 Both were measured, both are in verification §7.3, and both will otherwise be rediscovered as bugs.

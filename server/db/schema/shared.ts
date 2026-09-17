@@ -514,3 +514,53 @@ export const levelClaim = pgTable(
     index('level_claim_note_idx').on(t.noteId),
   ],
 )
+
+/**
+ * `04` §5.7 — [ADR 0065](../../../docs/adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md):
+ * a *domain* is a claim about one term, **shaped exactly like `level_claim`**
+ * and for the same reason (ADR 0005). A model's `tech` is a guess with a name on
+ * it, and the *provenance marker* draws it hollow.
+ *
+ * ⚠️ **Not a key in `note.fields`** (ADR 0029): the blob has no index because no
+ * query reads inside it, and the *session* filter is exactly such a query.
+ *
+ * ⚠️ **Not generalised with `level_claim` into one table, yet.** ADR 0065 names
+ * the third attribute as the moment to do that; two tables cost one copy of four
+ * constraints, and one table would cost a `kind` filter on every query.
+ */
+export const domainClaim = pgTable(
+  'domain_claim',
+  {
+    id: primaryId(),
+    noteId: uuid('note_id')
+      .notNull()
+      .references(() => note.id, { onDelete: 'cascade' }),
+    /**
+     * Key into an authority list. ⚠️ Deliberately not a foreign key (`04` §13).
+     * **Null means the model estimated it**; an imported deck's own tags are the
+     * likeliest first authority (ADR 0065).
+     */
+    authorityKey: text('authority_key'),
+    /**
+     * One of the *subject* declaration's `domains`. ⚠️ **No `CHECK`**, for the
+     * reason `note.subject_id` is not a foreign key (`04` §13): the set lives in
+     * `subjects/`, and a copy of it here would drift. The writer refuses a value
+     * outside it (`worker/pipeline/write_notes.py`).
+     */
+    domain: text('domain').notNull(),
+    /** Set when `authority_key` is null. */
+    modelId: text('model_id'),
+    promptVersion: text('prompt_version'),
+    createdAt: tstz('created_at').notNull().defaultNow(),
+  },
+  t => [
+    check(
+      'domain_claim_attribution',
+      sql`(${t.authorityKey} IS NULL) = (${t.modelId} IS NOT NULL)`,
+    ),
+    // One claim per authority, and exactly one model estimate — `level_claim`'s
+    // `NULLS NOT DISTINCT`, for the same reason.
+    unique('domain_claim_note_authority_key').on(t.noteId, t.authorityKey).nullsNotDistinct(),
+    index('domain_claim_note_idx').on(t.noteId),
+  ],
+)

@@ -6,14 +6,18 @@
       "reading": "としょかん",
       "meaning": "library",
       "example_sentence": "駅の近くに図書館があります。",
-      "example_gloss": "There is a library near the station."
+      "example_gloss": "There is a library near the station.",
+      "level": "N4",
+      "domain": "daily"
     },
     {
       "term": "近く",
       "reading": "ちかく",
       "meaning": "nearby, vicinity",
       "example_sentence": "駅の近くに住んでいます。",
-      "example_gloss": "I live near the station."
+      "example_gloss": "I live near the station.",
+      "level": "N5",
+      "domain": "daily"
     }
   ]
 }

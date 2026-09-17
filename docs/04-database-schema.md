@@ -139,6 +139,7 @@ of who is asking. *Personal* is a statement about one reader.
 | `note_field_provenance` | shared | — | Where a field's value came from, not who liked it |
 | `occurrence` | shared | — | This term appeared here, at this position |
 | `level_claim` | shared | — | An *authority*'s assertion, or the model's estimate |
+| `domain_claim` | shared | — | The same, about a *domain* (ADR 0065, §5.7) |
 | `note_vetting` | **personal** | `owner_id` | ⚠️ *Rejected* is a claim about the reader, not about the word (ADR 0012) |
 | `vetting_session` | **personal** | `owner_id` | The run at the keyboard, and the boundary that makes a rejection permanent |
 | `card` | **personal** | `owner_id` | A card exists because someone accepted a note |
@@ -403,6 +404,41 @@ one model estimate. Postgres 15 and later spell this `UNIQUE NULLS NOT DISTINCT`
 `(…, note 019bd3…, 'jlpt-tango-n3', 'N3', null, null)` and
 `(…, note 019bd3…, null, 'N4', 'claude-sonnet-5', 'v3')`. PRD §5 requires both to be kept and shown;
 precedence decides the display value and lives in the declaration, not here.
+
+⚠️ **Amended 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22): this table has a
+producer.** Stage 7 writes the model's estimate for every *note* it generates, and refuses a `level`
+outside the *subject*'s declared `levels` set rather than storing it (`03` §5.1, ADR 0065). The set
+is **not** a `CHECK` here, for §13's reason: it lives in `subjects/`, and a copy would drift.
+
+### 5.7 `domain_claim`
+
+⚠️ **Added 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22).**
+[ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md): a
+*domain* is a claim about one term, **shaped exactly like `level_claim`** (§5.6) and for the same
+reason.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `uuidv7()` | PK |
+| `note_id` | `uuid` | no | — | → `note`, `CASCADE` |
+| `authority_key` | `text` | **yes** | — | **Null means the model estimated it.** An imported deck's own tags are the likeliest first authority |
+| `domain` | `text` | no | — | One of the *subject*'s declared `domains`, e.g. `tech`. Refused by the writer otherwise, and deliberately not a `CHECK` (§13) |
+| `model_id` | `text` | **yes** | — | Set when `authority_key` is null |
+| `prompt_version` | `text` | **yes** | — | Set when `authority_key` is null |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+`CHECK ((authority_key IS NULL) = (model_id IS NOT NULL))`, `UNIQUE NULLS NOT DISTINCT (note_id,
+authority_key)` and an index on `note_id` — §5.6's three, word for word.
+
+⚠️ **Not in `note.fields`** (ADR 0029): the blob has no index because no query reads inside it, and
+the *session* filter is that query. ⚠️ **Not merged with `level_claim` into one table either**:
+ADR 0065 names the third attribute as the moment to generalise.
+
+**The query it serves** is *Review*'s new half: a *card* is introduced by a filtered *session* only
+if its *note* has a claim in the requested set (`server/utils/review/queries.ts`, ADR 0065 §5). A
+*note* with no claim matches no filter.
+
+**Example:** `(…, note 019bd3…, null, 'tech', 'claude-sonnet-5', 'v3')`.
 
 ---
 
@@ -1004,6 +1040,7 @@ default.** Each one below was chosen.
 | `occurrence` → `ingestion` | `SET NULL` | Which run found it is nice to have, not load-bearing |
 | `note_field_provenance` → `note` | `CASCADE` | Provenance without its note describes nothing |
 | `level_claim` → `note` | `CASCADE` | Same |
+| `domain_claim` → `note` | `CASCADE` | Same |
 | `note` → `ingestion` (`origin_ingestion_id`) | `SET NULL` | A note outlives the run that made it |
 | `ingestion` → `source` | `SET NULL` | ⚠️ **The spend ledger survives a hard delete.** `source_title` is snapshotted for this case |
 | `ingestion_chunk` → `ingestion` | `CASCADE` | Progress is meaningless without its run |
@@ -1081,7 +1118,8 @@ a belief.
 | `note_field_provenance (model_id, prompt_version)` | ⚠️ **The query that decided ADR 0029** — acceptance rate grouped by model, and ADR 0004's "prompt v3 writes bad example sentences" |
 | `occurrence (source_id)` | `S11` — open a source, see what came from it |
 | `occurrence (note_id)` | `S11` — a note links to its occurrences |
-| `level_claim (note_id)` | Rendering one note on *Vet*. The set is never collapsed, so it is always a fetch of several |
+| `level_claim (note_id)` | Rendering one note on *Vet*. The set is never collapsed, so it is always a fetch of several. Since #22, also *Review*'s filtered new half |
+| `domain_claim (note_id)` | The same two reads, for a *domain* (§5.7) |
 | `source (content_hash)` | PRD §5 — identical content offers to open the existing source |
 | `source (subject_id, submitted_at DESC) WHERE deleted_at IS NULL` | The *Sources* list |
 | `ingestion_chunk (ingestion_id) WHERE status <> 'complete'` | **The resume query** (§6.2). Partial, because the interesting rows are the minority |

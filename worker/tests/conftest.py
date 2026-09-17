@@ -105,6 +105,7 @@ SCRATCH_TABLES = (
     "note_vetting",
     "note_field_provenance",
     "level_claim",
+    "domain_claim",
     "ingestion_chunk",
     "job",
     "ingestion",

@@ -22,18 +22,21 @@ decks** rather than mined prose (ADR 0063); every word carries a **domain** and 
 filled automatically (ADR 0065); **manual vetting leaves the loop** and *Vet* becomes the flag queue
 (ADR 0064); the daily review load gets a **brake** (ADR 0066); and *acceptance rate* retires in
 favour of **retention, consistency and flag rate** (ADR 0062).
-⚠️ **Two tickets of the pivot are built: #19 (2026-09-16) and #20 (2026-09-17).** A *source* declares
+⚠️ **Three tickets of the pivot are built: #19 (2026-09-16), #20 and #22 (both 2026-09-17).**
+**Every generated word carries a model-estimated *level* and *domain*** (`level_claim`,
+`domain_claim`, from the *subject*'s closed `levels` and `domains` sets), and *Review*'s end screen and
+empty states carry a filter that narrows the **new** half of the next *session* only (ADR 0065). A *source* declares
 its `kind`, the declaration names one pipeline per kind, and *Ingest* offers a word list first. **A
 chosen word is `accepted` and minted when the worker writes it**, owned by `job.requested_by`,
 through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue** with keep, fix and
 drop. ⚠️ **Everything below about vetting a *pending note* and *acceptance rate* is history or
 unreachable**: the metrics are #23's to retire. `docs/00-status.md` § Next holds the ticket order, and
-the frontier is **#22 and #23**, with **#21** buildable beside either.
+the frontier is **#23**, with **#21** buildable beside it (⚠️ it named #22 until 2026-09-17).
 ⚠️ **This paragraph said "no code has moved yet" until 2026-09-16, and named #20 as the frontier
 until 2026-09-17.**
 
 **What exists now:** #2 through #18 are built — a Nuxt app with the rendering split enforced by the
-build, eighteen tables plus four the auth library owns, a *subject* declaration both toolchains read,
+build, nineteen tables (eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
 a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by doing
@@ -66,7 +69,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 790 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 808 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

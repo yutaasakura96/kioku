@@ -222,6 +222,13 @@ because every one of them navigates or submits immediately.
 marker*, the *judgement field*, the key cap and the empty-state block; the canvas drew all of them.
 What follows is what it did not.
 
+⚠️ **Amended 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22): the *facts
+strip* carries a `DOMAIN` fact after `LEVEL`**, behind the same divider and drawn the same way
+(ADR 0065): the *provenance marker*, hollow for the model's estimate, the value at 15px, and the
+attributing claim in 11px Plex Mono beside it. ⚠️ **Never behind a hover.** One template renders
+both facts, so the honesty bit cannot be drawn for one and forgotten on the other. A *note* with no
+claim shows `—` and no marker.
+
 ### 4.1 The frame, and the one rule that keeps it conformant
 
 1440 × 900. `--k-gutter` 44px. Header 56px with a `--k-rule` bottom; footer 68px with a `--k-rule`
@@ -683,6 +690,10 @@ due"). The Done cluster is in the header in both.
 
 There is no ahead-of-schedule study in v1 (PRD §5), so neither state offers a way to start one.
 
+⚠️ **Amended 2026-09-17 with #22:** when the request that produced *Nothing due* carried a filter,
+the body reads `There is no ahead-of-schedule study, and no new card matches the filter.` — because
+it is then true of the filter and may not be true of the pool.
+
 ### 5.8 The *session*-size knob, and its two homes ⚠️
 
 `09` §4.7: set on the end screen and on *Review*'s empty states, **never mid-session** — the current
@@ -704,6 +715,30 @@ one is snapshotted and a knob that appeared to change it would be lying.
 knob has nowhere to live before a *session* exists. Twenty is the default and the reader adjusts it
 at the end of the first run. This is a stated cost, not a gap to patch with a knob on Ingest — the
 knob belongs to *Review* and a *place* would have to reach into a mode's state to carry it.
+
+⚠️ **Amended 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22): the *session*
+filter shares the knob's three homes and sits directly beneath it**
+([ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md) §5).
+This is what #22 calls *Review*'s start: the three screens a *session* is started from.
+
+| | Value |
+| --- | --- |
+| Groups | `DOMAIN`, then `LEVEL`, each a `fieldset` whose legend is the knob's eyebrow (10px Plex Mono, 0.14em, `--k-ink-secondary`) |
+| Options | One checkbox per value of the *subject*'s `domains` and `levels`, in declaration order — **nothing names a value here**. 12px Plex Mono, `--k-ink-value`, `8px` between box and word |
+| Aside | 13px italic, `--k-ink-secondary`: `New cards only. Every card that is due is still in the session, and nothing ticked means everything.` |
+| Gap | `32px` below the knob, as the knob is below what precedes it |
+
+⚠️ **It filters the new half only** and says so, because the due half is never filtered: what is owed
+is owed. ⚠️ **Nothing ticked is no filter**, and within a group the values are alternatives — `tech`
+and `business` is either — while the two groups restrict together.
+
+⚠️ **Not persisted.** It lives in the page's memory; a reload is an unfiltered start. A filter that
+survived would be a saved query, which is a *deck* (ADR 0009). The first-ever *session* carries no
+filter for the knob's own reason.
+
+⚠️ **`space` on a checkbox ticks it.** The controls are inside the mode container, so their key events
+reach the handler that starts a *session*; that handler ignores `space` from a form control
+(`test/e2e/review.test.ts`).
 
 ### 5.9 *Review*'s loading and error states
 

@@ -6,6 +6,7 @@ import GradeControls from '../../app/components/GradeControls.vue'
 import ProgressRail from '../../app/components/ProgressRail.vue'
 import ReviewCard from '../../app/components/ReviewCard.vue'
 import SessionTally from '../../app/components/SessionTally.vue'
+import SessionFilterControls from '../../app/components/SessionFilterControls.vue'
 import { jlptVocab } from '../../shared/subject/declaration'
 
 // *Review*'s three drawn components. Each of these assertions is about
@@ -140,5 +141,32 @@ describe('the session tally (`05` §7, `10` §11)', () => {
 
     expect(five.findAll('.column')).toHaveLength(5)
     expect(five.text()).toContain('5 / 7')
+  })
+})
+
+// ADR 0065 §5 — the *session* filter. ⚠️ **Its values are the declaration's**,
+// so a second *domain* in `subjects/jlpt-vocab.json` is a second checkbox and
+// nothing here; and **it says it touches the new half only**, because a reader
+// who believed the due half was filtered would be reading the screen wrong.
+describe('the session filter (ADR 0065 §5)', () => {
+  const controls = (filter = { domains: [] as string[], levels: [] as string[] }) =>
+    mountSuspended(SessionFilterControls, { props: { modelValue: filter, declaration: jlptVocab } })
+
+  it('offers every declared domain and level, and says it filters new cards only', async () => {
+    const view = await controls()
+
+    expect(view.findAll('input[type=checkbox]').map(box => box.attributes('value'))).toEqual([
+      ...jlptVocab.domains,
+      ...jlptVocab.levels,
+    ])
+    expect(view.text()).toContain('New cards only')
+  })
+
+  it('keeps the declaration order whatever order the boxes are ticked in', async () => {
+    const view = await controls({ domains: ['business'], levels: [] })
+
+    await view.find('input[value=tech]').setValue(true)
+
+    expect(view.emitted('update:modelValue')).toEqual([[{ domains: ['tech', 'business'], levels: [] }]])
   })
 })

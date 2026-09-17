@@ -26,14 +26,15 @@ could not read reaches stage 6 with no reading, the model writes one, and `04`
 whole sentence is that trust is a property of where a value came from, not of
 which column it sits in.
 
-**One note is five writes**, in this order and all of them idempotent:
+**One note is six writes**, in this order and all of them idempotent:
 
 1. `note` — ADR 0006's key, `04` §5.3's `UNIQUE (subject_id, identity_key)`.
 2. `note_field_provenance` — ADR 0004, per field, `04` §5.4.
-3. `note_vetting` at `accepted` — `04` §7.2, with no stamp and no run, because
+3. `level_claim` and `domain_claim`, the model's — `04` §5.6, §5.7, ADR 0065.
+4. `note_vetting` at `accepted` — `04` §7.2, with no stamp and no run, because
    nobody vetted it (ADR 0064).
-4. `card`, through the database's `mint_cards` — `04` §7.3, ADR 0067.
-5. `occurrence`, one per sighting — `04` §5.5, from `group.sightings`.
+5. `card`, through the database's `mint_cards` — `04` §7.3, ADR 0067.
+6. `occurrence`, one per sighting — `04` §5.5, from `group.sightings`.
 
 ⚠️ **One transaction per *note*, and it is this module's.** The worker's
 connection is `autocommit=True` (ADR 0027), and `runs.run_ingestion`'s own
@@ -53,7 +54,13 @@ from typing import Iterable, Sequence
 
 import psycopg
 
-from subject import Declaration, judgement_field_names, template_keys
+from subject import (
+    Declaration,
+    domain_values,
+    judgement_field_names,
+    level_values,
+    template_keys,
+)
 
 from .extract_candidates import Candidate
 from .generate import GeneratedNote
@@ -115,6 +122,10 @@ class Written:
     #: notes landed before it failed, or a concurrent run. `04` §5.3's unique
     #: constraint is what makes that a fact rather than a second *note*.
     created: bool
+    #: ADR 0065's claims this write **refused** — `"level"`, `"domain"`, both or
+    #: neither — because the model's value was outside the declared set. The
+    #: *note* is written either way; the caller says so (`ingest.claim_refused`).
+    refused_claims: tuple[str, ...] = ()
 
 
 def write_notes(
@@ -133,7 +144,7 @@ def write_notes(
 def write_note(
     connection: psycopg.Connection, note: GeneratedNote, *, to: Destination
 ) -> Written:
-    """The five writes, in order, in one transaction."""
+    """The six writes, in order, in one transaction."""
     with connection.transaction():
         return _write_note(connection, note, to=to)
 
@@ -162,6 +173,13 @@ def _write_note(
         generated_lookups=note.generated_lookups,
         provenance=to.provenance,
     )
+    refused = write_claims(
+        connection,
+        note_id=note_id,
+        note=note,
+        declaration=to.declaration,
+        provenance=to.provenance,
+    )
     accept_and_mint(
         connection, note_id=note_id, owner_id=to.owner_id, declaration=to.declaration
     )
@@ -173,7 +191,55 @@ def _write_note(
         source_chunk_id=to.source_chunk_id,
         ingestion_id=to.ingestion_id,
     )
-    return Written(note_id=note_id, identity_key=note.identity_key, created=created)
+    return Written(
+        note_id=note_id,
+        identity_key=note.identity_key,
+        created=created,
+        refused_claims=refused,
+    )
+
+
+def write_claims(
+    connection: psycopg.Connection,
+    *,
+    note_id: str,
+    note: GeneratedNote,
+    declaration: Declaration,
+    provenance: Provenance,
+) -> tuple[str, ...]:
+    """ADR 0065 §3 — one `level_claim` and one `domain_claim`, both the model's.
+
+    ⚠️ **A value outside the declared set is refused here and the *note* is
+    written anyway** (#22). Stored, `technology` would be a claim no filter could
+    ever select — silently unfilterable, which is ADR 0065 §2's whole failure —
+    and refusing the *note* for it would spend a word on a guess about the word.
+    The refusal is returned rather than raised so the caller can say it.
+
+    ⚠️ **Authority-less, with the model and the prompt that produced it** — the
+    check `04` §5.6 and §5.7 share, and the row the *provenance marker* draws
+    hollow (ADR 0005). `ON CONFLICT DO NOTHING` is the tables' `UNIQUE NULLS NOT
+    DISTINCT (note_id, authority_key)`: **the first estimate stands**, so a
+    resume, or a second run that generated a *note* the corpus already held,
+    re-attributes nothing.
+    """
+    refused: list[str] = []
+    for table, column, value, legal in (
+        ("level_claim", "level", note.level, level_values(declaration)),
+        ("domain_claim", "domain", note.domain, domain_values(declaration)),
+    ):
+        if value not in legal:
+            refused.append(column)
+            continue
+        # The table and column names come from the tuple above, never from data.
+        connection.execute(
+            f"""
+            INSERT INTO {table} (note_id, {column}, model_id, prompt_version)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT DO NOTHING;
+            """,
+            (note_id, value, provenance.model_id, provenance.prompt_version),
+        )
+    return tuple(refused)
 
 
 def append_occurrences(

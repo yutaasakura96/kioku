@@ -17,10 +17,12 @@
  * `IN` read rather than an `EXISTS` beside the membership.
  */
 
-import { and, asc, eq, isNull, lte, notExists, sql } from 'drizzle-orm'
+import { and, asc, eq, exists, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import type { DueCard, NewCard } from '../../../shared/review/compose'
+import type { SessionFilter } from '../../../shared/review/filter'
+import { NO_FILTER } from '../../../shared/review/filter'
 import type { Grade } from '../../../shared/review/scheduler'
 import type { IngestDatabase } from '../ingest/record'
 // ⚠️ **The snapshot's shape lives in `shared/`, not here.** It is what crosses
@@ -74,13 +76,26 @@ export async function dueCards(
  * only epoch was superseded has a history; it is not new, it is due or it is
  * not, and asking for the absence of a *live* epoch would put a reset *card*
  * back among the ones the reader has never seen.
+ *
+ * ⚠️ **The *session* filter lives here and only here** (ADR 0065 §5). It
+ * narrows the new half, in SQL rather than in `compose`, because this read has a
+ * `LIMIT` on it: filtering twenty unfiltered rows afterwards would answer *no
+ * `tech` cards* to a reader with a hundred of them behind the first twenty.
+ *
+ * ⚠️ **A claim in the set, any claim.** ADR 0005 keeps the set of claims and
+ * never collapses it, and v1 has no authority precedence to pick one by — so a
+ * *note* is in the filter if any of its claims is. Today every *note* carries at
+ * most one, the model's, and a *note* with none matches no filter.
  */
 export async function newCards(
   db: IngestDatabase,
   ownerId: string,
   limit: number,
+  filter: SessionFilter = NO_FILTER,
 ): Promise<NewCard[]> {
   const epoch = schema.schedulingEpoch
+  const domain = schema.domainClaim
+  const level = schema.levelClaim
 
   const rows = await db
     .select({ cardId: schema.card.id, mintedAt: schema.card.createdAt })
@@ -92,6 +107,20 @@ export async function newCards(
         notExists(
           db.select({ one: sql`1` }).from(epoch).where(eq(epoch.cardId, schema.card.id)),
         ),
+        filter.domains.length === 0
+          ? undefined
+          : exists(
+              db.select({ one: sql`1` }).from(domain).where(
+                and(eq(domain.noteId, schema.card.noteId), inArray(domain.domain, filter.domains)),
+              ),
+            ),
+        filter.levels.length === 0
+          ? undefined
+          : exists(
+              db.select({ one: sql`1` }).from(level).where(
+                and(eq(level.noteId, schema.card.noteId), inArray(level.level, filter.levels)),
+              ),
+            ),
       ),
     )
     .orderBy(asc(schema.card.createdAt), asc(schema.card.id))

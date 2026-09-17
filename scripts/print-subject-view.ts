@@ -19,9 +19,11 @@
  */
 import {
   DECLARATION_PATH,
+  domainValues,
   fieldNames,
   jlptVocab,
   judgementFieldNames,
+  levelValues,
   memoryBearingFieldNames,
   pipelineKinds,
   requiredFieldNames,
@@ -54,6 +56,10 @@ const view = {
     pipelineKinds(jlptVocab).map(kind => [kind, stageKeys(jlptVocab, kind)]),
   ),
   template_keys: jlptVocab.templates.map(template => template.key),
+  // ADR 0065 §2: the closed sets the model is told and the writer and the
+  // *session* filter both enforce — one on each side of the repository.
+  levels: levelValues(jlptVocab),
+  domains: domainValues(jlptVocab),
 }
 
 process.stdout.write(`${JSON.stringify(view)}\n`)

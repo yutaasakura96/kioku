@@ -100,8 +100,22 @@ function provenanceNote(name: string): string | null {
  * nothing looks a *level* up, because ADR 0005 records that the JLPT has
  * published no official list since 2010.
  */
-const level = computed(() => props.note.levels[0] ?? null)
-const dissenting = computed(() => props.note.levels.slice(1))
+/**
+ * ⚠️ **The *domain* is the same kind of thing and is drawn the same way**
+ * (ADR 0065): an attributed claim, the model's in v1, with the hollow marker
+ * beside it and never behind a hover. One shape for both, so the honesty bit
+ * cannot be honest about one and forgotten on the other.
+ */
+const claimFacts = computed(() => [
+  {
+    eyebrow: 'LEVEL',
+    claims: props.note.levels.map(claim => ({ authorityKey: claim.authorityKey, value: claim.level })),
+  },
+  {
+    eyebrow: 'DOMAIN',
+    claims: props.note.domains.map(claim => ({ authorityKey: claim.authorityKey, value: claim.domain })),
+  },
+].map(fact => ({ ...fact, shown: fact.claims[0] ?? null, dissenting: fact.claims.slice(1) })))
 
 const fieldElements = ref<HTMLTextAreaElement[]>([])
 
@@ -153,33 +167,37 @@ defineExpose({
 
       <span class="divider" aria-hidden="true" />
 
-      <div class="fact">
-        <span class="eyebrow muted">LEVEL</span>
-        <span
-          v-if="level"
-          class="marker"
-          :class="{ attributed: level.authorityKey !== null }"
-          :aria-label="level.authorityKey ? 'claimed by an authority' : 'estimated by the model'"
-          role="img"
-        />
-        <span class="value">{{ level?.level ?? '—' }}</span>
+      <template v-for="(fact, index) in claimFacts" :key="fact.eyebrow">
+        <span v-if="index > 0" class="divider" aria-hidden="true" />
 
-        <!--
-          ⚠️ **The *authority*'s name is in the document, never behind a hover**
-          (`09` §4.4, `CONTEXT.md`). `S4`'s "available on inspection" means the
-          name is reachable without a pointer — and the honesty bit itself is the
-          marker, which is a shape rather than a tooltip. The displayed claim
-          reads `--k-ink-value`; dissenting ones read `--k-ink-secondary` and
-          carry their own *level*, because ADR 0005 keeps the set and PRD §5
-          shows all of it.
-        -->
-        <span v-if="note.levels.length > 0" class="claims">
-          <span class="claim attributing">{{ level?.authorityKey ?? 'estimate' }}</span>
-          <span v-for="claim in dissenting" :key="claim.authorityKey ?? 'estimate'" class="claim">
-            {{ claim.authorityKey ?? 'estimate' }} {{ claim.level }}
+        <div class="fact">
+          <span class="eyebrow muted">{{ fact.eyebrow }}</span>
+          <span
+            v-if="fact.shown"
+            class="marker"
+            :class="{ attributed: fact.shown.authorityKey !== null }"
+            :aria-label="fact.shown.authorityKey ? 'claimed by an authority' : 'estimated by the model'"
+            role="img"
+          />
+          <span class="value">{{ fact.shown?.value ?? '—' }}</span>
+
+          <!--
+            ⚠️ **The *authority*'s name is in the document, never behind a hover**
+            (`09` §4.4, `CONTEXT.md`). `S4`'s "available on inspection" means the
+            name is reachable without a pointer — and the honesty bit itself is
+            the marker, which is a shape rather than a tooltip. The displayed
+            claim reads `--k-ink-value`; dissenting ones read `--k-ink-secondary`
+            and carry their own value, because ADR 0005 keeps the set and PRD §5
+            shows all of it.
+          -->
+          <span v-if="fact.shown" class="claims">
+            <span class="claim attributing">{{ fact.shown.authorityKey ?? 'estimate' }}</span>
+            <span v-for="claim in fact.dissenting" :key="claim.authorityKey ?? 'estimate'" class="claim">
+              {{ claim.authorityKey ?? 'estimate' }} {{ claim.value }}
+            </span>
           </span>
-        </span>
-      </div>
+        </div>
+      </template>
     </div>
 
     <!-- Below the strip: what you are judging. -->

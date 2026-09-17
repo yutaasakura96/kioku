@@ -35,6 +35,8 @@ import { GRADE_KEYS, endScreenAction, reviewAction } from '#shared/review/keystr
 import { foldReading, meaningMatches, proposedGrade, readingMatches } from '#shared/review/answer'
 import type { ReviewStep } from '#shared/review/keystroke'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
+import { NO_FILTER, isFiltered } from '#shared/review/filter'
+import type { SessionFilter } from '#shared/review/filter'
 import { append, head, parseOutbox, settle, unsentAnswers } from '#shared/review/outbox'
 import { isRefused } from '#shared/review/request'
 import { isAnswered, mergeGrades, parseSnapshot } from '#shared/review/snapshot'
@@ -82,6 +84,19 @@ const nothing = ref<NothingToStudy | null>(null)
 const status = ref<'loading' | 'ready' | 'error'>('loading')
 const slow = ref(false)
 const size = ref(DEFAULT_SESSION_SIZE)
+
+/**
+ * ADR 0065 §5 — which new *cards* the next *session* introduces.
+ *
+ * ⚠️ **Page memory and nothing else.** Not in the outbox's store and not in a
+ * query string: a filter that outlived a reload would be a saved query, and a
+ * saved query is a *deck* (ADR 0009, ADR 0065 §6). A reload is an unfiltered
+ * start, the way it has always been.
+ */
+const filter = ref<SessionFilter>(NO_FILTER)
+
+/** Whether the request that produced the screen in front of the reader was filtered. */
+const askedFiltered = ref(false)
 
 /**
  * ADR 0060 §2: one *card*, two steps, one *grade*.
@@ -443,10 +458,16 @@ async function start(requested?: number) {
     status.value = 'loading'
 
   try {
+    // ⚠️ **The filter travels with the knob and never without it.** The
+    // mount's start sends nothing, because nothing has been chosen yet and a
+    // live run is resumed whatever is sent (`09` §4.7).
+    const asked = requested === undefined ? NO_FILTER : filter.value
     const response = await $fetch<SessionResponse>('/api/review/session', {
       method: 'POST',
-      body: requested === undefined ? {} : { size: requested },
+      body: requested === undefined ? {} : { size: requested, ...asked },
     })
+
+    askedFiltered.value = isFiltered(asked)
 
     install(response)
     status.value = 'ready'
@@ -545,6 +566,13 @@ function onKeydown(event: KeyboardEvent) {
   if (ended.value || !current.value) {
     const action = endScreenAction(event)
     if (!action)
+      return
+
+    // ⚠️ **`space` on a checkbox or in the knob is the control's.** Both live
+    // inside the mode container (ADR 0025), so their key events bubble here —
+    // and a reader ticking `tech` would otherwise start the *session* they were
+    // still choosing. `Esc` still leaves from anywhere.
+    if (action === 'start' && event.target instanceof HTMLInputElement)
       return
 
     event.preventDefault()
@@ -719,6 +747,7 @@ onBeforeUnmount(() => {
           </p>
 
           <SessionSizeKnob v-model="size" class="knob" />
+          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
 
           <button type="button" class="primary" @click="enqueue(() => start(size))">
             <span class="hint">space</span>
@@ -738,6 +767,7 @@ onBeforeUnmount(() => {
           </template>
 
           <SessionSizeKnob v-model="size" />
+          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
         </EmptyBlock>
 
         <EmptyBlock v-else-if="nothing">
@@ -745,7 +775,7 @@ onBeforeUnmount(() => {
             Nothing due.
           </template>
           <template #body>
-            There is no ahead-of-schedule study.
+            There is no ahead-of-schedule study<template v-if="askedFiltered">, and no new card matches the filter</template>.
           </template>
 
           <p v-if="nextDue" class="datum">
@@ -753,6 +783,7 @@ onBeforeUnmount(() => {
           </p>
 
           <SessionSizeKnob v-model="size" class="knob" />
+          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
         </EmptyBlock>
 
         <ReviewCard

@@ -45,7 +45,7 @@ describe('the shape the migrations actually build', () => {
     expect(generated.rows[0]!.id).toMatch(/^[0-9a-f-]{36}$/)
   })
 
-  it('has the eighteen tables of 04 plus the auth library\'s four', async () => {
+  it('has the nineteen tables of 04 plus the auth library\'s four', async () => {
     const ours = await client.query<{ table_name: string }>(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -55,6 +55,7 @@ describe('the shape the migrations actually build', () => {
     expect(ours.rows.map(r => r.table_name)).toEqual([
       'card',
       'card_flag',
+      'domain_claim',
       'generation_cache',
       'ingestion',
       'ingestion_chunk',
@@ -408,5 +409,40 @@ describe('the note\'s identity is a constraint, not a convention', () => {
       INSERT INTO level_claim (note_id, authority_key, level, model_id)
       VALUES ('${noteId}', 'jlpt-tango-n4', 'N4', 'claude-sonnet-5');
     `)).rejects.toThrow(/level_claim_attribution/)
+  })
+
+  // `04` §5.7 — ADR 0065: a *domain* is a claim shaped exactly like a *level*,
+  // so the same two constraints and the same two ways of breaking them.
+  it('allows one domain claim per authority and exactly one model estimate', async () => {
+    const note = await client.query<{ id: string }>(`
+      INSERT INTO note (subject_id, identity_key, fields)
+      VALUES ('jlpt-vocab', 'デプロイ␟でぷろい', '{}'::jsonb) RETURNING id;
+    `)
+    const noteId = note.rows[0]!.id
+
+    await client.exec(`
+      INSERT INTO domain_claim (note_id, authority_key, domain)
+      VALUES ('${noteId}', 'anki-deck-tags', 'tech');
+    `)
+    await client.exec(`
+      INSERT INTO domain_claim (note_id, domain, model_id, prompt_version)
+      VALUES ('${noteId}', 'tech', 'claude-sonnet-5', 'v3');
+    `)
+
+    await expect(client.exec(`
+      INSERT INTO domain_claim (note_id, domain, model_id, prompt_version)
+      VALUES ('${noteId}', 'business', 'claude-sonnet-5', 'v3');
+    `)).rejects.toThrow(/domain_claim_note_authority_key/)
+
+    await expect(client.exec(`
+      INSERT INTO domain_claim (note_id, authority_key, domain, model_id)
+      VALUES ('${noteId}', 'anki-deck-tags-2', 'tech', 'claude-sonnet-5');
+    `)).rejects.toThrow(/domain_claim_attribution/)
+
+    // A model estimate with no model is the other half of the same check.
+    await expect(client.exec(`
+      INSERT INTO domain_claim (note_id, domain)
+      VALUES ('${noteId}', 'daily');
+    `)).rejects.toThrow(/domain_claim_attribution/)
   })
 })

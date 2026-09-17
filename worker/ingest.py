@@ -42,6 +42,7 @@ from pipeline import Corpus, StageResult, chunk_text, run_stages
 from pipeline.deduplicate import Group
 from pipeline.generate import (
     PROMPT_VERSION,
+    CLAIM_NAMES,
     notes_for_cached,
     notes_from,
     request_for,
@@ -491,6 +492,20 @@ def make_generator(
                 ),
             ),
         )
+
+        # ⚠️ ADR 0065 §2 and #22: a claim outside the declared set was refused
+        # and its *note* written without it. Said per *chunk* and per claim, and
+        # never with the value — what the model wrote is model output about the
+        # reader's material, and `03` §13.4 keeps that out of the log.
+        for claim in CLAIM_NAMES:
+            refused = sum(1 for note in written if claim in note.refused_claims)
+            if refused:
+                log(
+                    "ingest.claim_refused",
+                    ingestion=str(context.ingestion_id),
+                    claim=claim,
+                    notes=refused,
+                )
 
         # ⚠️ ADR 0064 §2: *the run writes its notes and mints nothing, and says
         # so.* Once per *chunk* rather than once per run, because the chunk is

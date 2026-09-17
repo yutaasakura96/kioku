@@ -59,6 +59,7 @@ const ALL_TABLES = [
   'note_vetting',
   'vetting_session',
   'level_claim',
+  'domain_claim',
   'note_field_provenance',
   'occurrence',
   'note',
