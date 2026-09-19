@@ -1625,6 +1625,13 @@ a conversation with Yuta rather than an `/implement`. ~~⚠️ **What unblocks r
 ⚠️ **Neon is at `0005` as of 2026-09-19 (`0003` already was). What is next is the reader's run** —
 a *session* of the 39 *cards* already minted.
 
+⚠️ **#24's research half is done as of 2026-09-19**: [`anki-apkg-research.md`](anki-apkg-research.md)
+(58be8ea). It recommends a stdlib reader in the worker with `zstandard` as a floor, imported *notes*
+that feed `generate`, and media out of scope. #24 is still `needs-triage` and waits on three calls
+by Yuta: whether sending deck text to the model provider and storing it on Neon is acceptable under
+AnkiWeb's "personal studies" licence, whether deck level tags become a `level_claim` or only a hint,
+and whether one real deck may be downloaded to measure which layout AnkiWeb serves.
+
 ~~⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
 is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone.** The next command is `/clear`,
 then `/implement 21`.~~ ~~#21 also carries the reader's timezone~~ — it did, and `/stats` reads it
