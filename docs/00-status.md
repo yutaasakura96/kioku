@@ -76,7 +76,13 @@ blocks the run before any of this matters.
 none at fifty due, a backlog by retrievability, and `/stats` now counts *consistency*'s day in the
 zone the newest *session* stored. ⚠️ **Migration `0005_review_brake` joins `0003` and `0004` as
 unapplied to Neon**, and all three block the run.
-**Updated:** 2026-09-18
+⚠️ **2026-09-19: all six migrations are applied to Neon, and the run is unblocked.** `0003` had
+already been applied on 2026-09-16 — its hash was in `drizzle.__drizzle_migrations` — so the three
+lines above that called it unapplied were wrong from the day they were written; nobody had checked
+the database. `0004` and `0005` were applied 2026-09-19 with `npm run db:migrate` and verified
+against the migrations table, `domain_claim`, `review_session.new_count`/`zone` and the
+`review_session_new_count` check. ⚠️ **Check the database before writing that it is behind.**
+**Updated:** 2026-09-19
 
 Read `CLAUDE.md` first, then this.
 
@@ -93,7 +99,7 @@ it did not say. No new ADR.
   retrievability order reddens three.
 - **`review_session.new_count` and `review_session.zone`**, migration `0005_review_brake`, with
   `CHECK (new_count >= 0 AND new_count <= size)`. `new_count` is written by the insert that composes
-  the run. ⚠️ **Not applied to Neon**, like `0003` and `0004`.
+  the run. ~~⚠️ **Not applied to Neon**, like `0003` and `0004`.~~ Applied 2026-09-19.
 - **[`shared/review/brake.ts`](../shared/review/brake.ts) is new**: `introducedToday` over
   `local-day.ts`'s day (its second importer, as #23 predicted), `newAllowance`, the sentence and the
   third empty state. The day's runs are read from a 48-hour window and bucketed in TypeScript, not
@@ -217,7 +223,8 @@ ADR.
 - **`domain_claim`**, migration `0004_domain_claim.sql`, shaped exactly like `level_claim`: the
   attribution `CHECK`, `UNIQUE NULLS NOT DISTINCT (note_id, authority_key)`, an index on `note_id`.
   Documented as **`04` §5.7**, not §5.5 as the ticket says: §5.5 is `occurrence` and §5.6 is the
-  table it mirrors. ⚠️ **Migration `0004` is not applied to Neon**, and neither is `0003`.
+  table it mirrors. ~~⚠️ **Migration `0004` is not applied to Neon**, and neither is `0003`.~~ `0004` applied
+  2026-09-19; `0003` already was.
 - **`subjects/jlpt-vocab.json` declares `levels` (`N5`–`N1`) and `domains`.** `levelValues` /
   `level_values` and `domainValues` / `domain_values` read them on each side, `checkDeclaration`
   refuses an empty set (`no_values`) and a value listed twice (`duplicate_value`) with the same codes
@@ -284,8 +291,9 @@ across two languages.
 - **Tests:** 790 TypeScript (was 773) and 275 worker, **73 of them needing Docker** (was 267/65).
   The freeze lift and the epoch reset were **each checked by sabotage**. Removing either one turned
   its tests red and nothing else.
-- ⚠️ **Migration `0003_mint_cards.sql` is not applied to the Neon database.** `decide()` and the
-  worker both call `mint_cards`, so both fail against Neon until `npm run db:migrate` runs there.
+- ~~⚠️ **Migration `0003_mint_cards.sql` is not applied to the Neon database.**~~ It was — applied
+  2026-09-16, found 2026-09-19 by reading `drizzle.__drizzle_migrations`. `decide()` and the worker
+  both call `mint_cards`.
 - **Amended:** `03` §5.1, `04` §4/§6.4/§7.3/§7.4/§7.8/§9/§12, `09` §4.3/§4.5/§4.6/§4.9/§7/§8,
   `10` §3.2/§4.3/§4.5/§4.6/§4.7, `11` §5/§7, `worker/tests/README.md`.
 
@@ -1612,8 +1620,10 @@ paragraph** — what follows is an index.
 ⚠️ **[#21](https://github.com/yutaasakura96/kioku/issues/21) built 2026-09-18 (§ Done). No
 `ready-for-agent` ticket is left.** #24 opens with research into the `.apkg` format and shared decks'
 licences, and #25 has four open questions in its body; both are `needs-triage`, and triaging them is
-a conversation with Yuta rather than an `/implement`. ⚠️ **What unblocks real use is not a ticket**:
-`npm run db:migrate` against Neon, for `0003`, `0004` and `0005`, then the reader's run.
+a conversation with Yuta rather than an `/implement`. ~~⚠️ **What unblocks real use is not a ticket**:
+`npm run db:migrate` against Neon, for `0003`, `0004` and `0005`, then the reader's run.~~
+⚠️ **Neon is at `0005` as of 2026-09-19 (`0003` already was). What is next is the reader's run** —
+a *session* of the 39 *cards* already minted.
 
 ~~⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
 is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone.** The next command is `/clear`,

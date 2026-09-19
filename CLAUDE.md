@@ -65,7 +65,8 @@ client to ask. ⚠️ It fed **UTC** until #21.
 [#19](https://github.com/yutaasakura96/kioku/issues/19), was
 [#21](https://github.com/yutaasakura96/kioku/issues/21) alone after #23, and has no
 `ready-for-agent` ticket since #21 was built later on 2026-09-18** (⚠️ it named #20 and #22 until
-2026-09-17 and #23 until 2026-09-18); ⚠️ **migrations `0003` to `0005` are unapplied to Neon**; `S12`'s export is the one thing
+2026-09-17 and #23 until 2026-09-18); ⚠️ **Neon is migrated through `0005` as of 2026-09-19** (this said `0003` to `0005` were unapplied
+until then, and `0003` never was); `S12`'s export is the one thing
 still unticketed, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
 flagged *note* started returning to `/vet`. ⚠️ **And one thing three paths write and nothing reads
