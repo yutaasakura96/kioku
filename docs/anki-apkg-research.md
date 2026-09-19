@@ -1,6 +1,7 @@
 # Anki `.apkg` import: research findings
 
-**Date checked:** 2026-09-19. **Status:** facts only. Nothing here is a decision.
+**Date checked:** 2026-09-19. **Status:** facts, plus the three triage calls Yuta made the same
+day. Those are recorded in §6 and nowhere else in this document.
 **For:** [#24](https://github.com/yutaasakura96/kioku/issues/24), the research half, before any code.
 **Scope:** the four questions the issue asks: format, what a note contains, licensing, libraries. Plus
 two things that bear on the ADR the issue asks for: `generate` or not, and media.
@@ -134,6 +135,50 @@ listed with `zipfile`).
 - **So:** anything exported by desktop Anki since 23.10 is `LATEST` unless the author ticked the box.
   Anything from a script, or from an Anki older than 23.10, is legacy. Decks on AnkiWeb go back to
   2012 (the listing shows "Modified" dates from 2012-08-25 on). All three layouts are in use.
+
+### 1.3 Measured on real decks (2026-09-19)
+
+Yuta approved downloading real decks on 2026-09-19, for measurement only and never for the repo.
+The files are in `~/Documents/kioku-decks/`, outside the repository. The deck is **Open Anki JLPT**
+([jamsinclair/open-anki-jlpt-decks](https://github.com/jamsinclair/open-anki-jlpt-decks), MIT). It
+was picked because it has one deck per level, from one author, for N3, N2 and N1. The most-rated N3
+vocabulary deck, "Pass JLPT N3 Vocabulary" (40 ratings), comes from an author who publishes only
+N5 to N3.
+
+| File | From | Layout | Notes | Collection entry |
+| --- | --- | --- | --- | --- |
+| `ankiweb-open-anki-jlpt-n2-1850740099.apkg` | [AnkiWeb](https://ankiweb.net/shared/info/1850740099) | `LEGACY_2`: `meta` = `08 02` | 1877 | `collection.anki21` (deflate, 708,608 B) + dummy `collection.anki2` (51,200 B) + `media` = `{}` |
+| `open-anki-jlpt-n3-deck-v0.3.0.apkg` | GitHub release v0.3.0 | `LEGACY_1`: no `meta` | 2140 | `collection.anki2` (stored) + `media` |
+| `open-anki-jlpt-n2-deck-v0.3.0.apkg` | GitHub release v0.3.0 | `LEGACY_1` | 1906 | same |
+| `open-anki-jlpt-n1-deck-v0.3.0.apkg` | GitHub release v0.3.0 | `LEGACY_1` | 2699 | same |
+
+- **AnkiWeb served `LEGACY_2`** for a deck updated 2025-08-11, which is after 23.10 made the modern
+  format the default. Its zip timestamps are 20 minutes after the GitHub release assets
+  (03:26 against 03:06). The genanki file on GitHub is `LEGACY_1`, so something between the author
+  and the download turned it into `LEGACY_2`: the author's desktop Anki when they shared it, or
+  AnkiWeb. **One deck cannot say which.** The entry order and compression match §1.1's measured
+  legacy export exactly.
+- **§4.3's reader read all four files unchanged.** The `meta`-first order matters on a real deck:
+  opening `collection.anki2` first on the AnkiWeb file returns the one "Please update to the latest
+  Anki version" note.
+- **AnkiWeb limits anonymous use.** One deck downloaded without an account. After that, the
+  download endpoint (`/svc/shared/download-deck/<id>?t=<token>`) answered HTTP 429 with
+  "Please log in to download more decks". Search stopped after a few queries with "Please log in to
+  perform more searches". This is one more reason Kioku takes a file the reader uploads.
+- **Fields:** all four have one notetype, `Open Anki JLPT Vocab`, with fields `expression`,
+  `reading` and `meaning`. The reading is plain kana. Some expressions are not bare words:
+  `〜 (まる) ごと`, `(かさを～) さす`. There the reading field repeats the expression, and `normalise`
+  will have to handle the parentheses and the wave dash.
+- **`guid` is not unique within a deck.** Both N2 files hold one more note than they hold distinct
+  guids (1877 against 1876, and 1906 against 1905). This does not matter to Kioku, which
+  deduplicates on `(term, reading)` (§4.4), but a reader must not put a unique constraint on guid.
+- **The AnkiWeb N2 has 29 fewer distinct guids than the GitHub N2**, and every AnkiWeb guid is also
+  in the GitHub file. The two copies of "the same deck" differ.
+- **Level tags are cumulative, not exclusive.** Every note in the N3 deck carries `JLPT_3`, 1911 of
+  its 2140 also carry `JLPT_2`, and 235 also carry `JLPT_1`. Every N2 note carries `JLPT_2`, and 10
+  also carry `JLPT_1`. Every N1 note carries `JLPT_1`. No `JLPT_N*` tag appears in these decks. The
+  repo does not document the scheme, so which tag means the level is a guess. It is probably the
+  highest number. The AnkiWeb N2 also carries textbook tags (`Genki`, `Intermediate_Japanese_Ln.10`).
 
 ---
 
@@ -421,15 +466,32 @@ strip `[sound:…]` and `<img …>` from field text.
 
 ---
 
+## 6. Triage calls (Yuta, 2026-09-19)
+
+1. **Sending deck text to the model provider and storing it on Neon is acceptable** as "personal
+   studies", for a private app with one reader. The limits that follow: no real deck or rows
+   copied from one in this public repo, nothing imported is ever published, and Kioku never fetches
+   from AnkiWeb itself. This is a judgement about the licence text, not a legal opinion (§3.3).
+2. **A deck's level tags and subdeck names are a hint to the model only.** They go into the
+   `generate` prompt. The model's `level_claim` stays the only *level* claim on an imported *note*,
+   and no `authority_key` names a deck. §1.3 backs this: open-anki's tags are cumulative, so a tag
+   does not name one level.
+3. **Real decks may be downloaded for measurement**, kept outside the repo. Done: §1.3.
+
+---
+
 ## Unverified
 
-- **What AnkiWeb serves when a shared deck is downloaded** (layout 1, 2 or 3), and whether
-  re-shared decks are converted. The terms reserve the right to "convert to new file formats". No
-  deck was downloaded, because downloading needed the reader's go-ahead and this session had none.
-  To measure: download one deck and run the §4.3 reader over it.
+- ~~**What AnkiWeb serves when a shared deck is downloaded**~~ **Measured 2026-09-19 (§1.3):**
+  `LEGACY_2` for one deck. **Still unknown:** whether AnkiWeb converts decks or serves what the
+  author's Anki uploaded, and what it serves for a deck uploaded by a post-23.10 desktop export.
+  The terms reserve the right to "convert to new file formats". One deck cannot tell the two cases
+  apart, and more downloads need an AnkiWeb login.
 - **What AnkiDroid and AnkiMobile export by default.** Not checked. Their decks reach AnkiWeb too.
 - **The tag conventions inside the two AnkiWeb decks whose sample panes show no tags**, and what
   `JLPT_3`/`JLPT_4`/`JLPT_5` next to `JLPT_N5` mean in open-anki's CSV. The README does not say.
+  §1.3 measured that open-anki's N3 to N1 tags are cumulative, but what the scheme means is still
+  undocumented.
 - **The licence of the tanos.co.uk data** behind open-anki-jlpt-decks and its upstream.
 - **Whether sending deck text to a model provider, or storing it in a hosted database, is inside
   "your personal studies".** The documents do not say. It is a legal question, not a research one.

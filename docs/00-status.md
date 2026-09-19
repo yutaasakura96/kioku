@@ -1627,10 +1627,14 @@ a *session* of the 39 *cards* already minted.
 
 ⚠️ **#24's research half is done as of 2026-09-19**: [`anki-apkg-research.md`](anki-apkg-research.md)
 (58be8ea). It recommends a stdlib reader in the worker with `zstandard` as a floor, imported *notes*
-that feed `generate`, and media out of scope. #24 is still `needs-triage` and waits on three calls
-by Yuta: whether sending deck text to the model provider and storing it on Neon is acceptable under
-AnkiWeb's "personal studies" licence, whether deck level tags become a `level_claim` or only a hint,
-and whether one real deck may be downloaded to measure which layout AnkiWeb serves.
+that feed `generate`, and media out of scope. ~~#24 is still `needs-triage` and waits on three calls
+by Yuta~~ ⚠️ **Yuta made all three calls on 2026-09-19** (research doc §6): deck text may go to the
+model provider and be stored on Neon; deck level tags are **a hint to the model only**, never a
+`level_claim`; and real decks were downloaded for measurement (§1.3). ⚠️ **AnkiWeb served
+`LEGACY_2`** for one deck. Open Anki JLPT N3, N2 and N1 are in `~/Documents/kioku-decks/`,
+**outside the repo, and never to be committed**. Their tags turned out to be cumulative, which
+confirms the hint-only call. **What is next for #24** is its build ticket and the
+skip-or-feed-`generate` ADR. The research recommends *feed*.
 
 ~~⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
 is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone.** The next command is `/clear`,
