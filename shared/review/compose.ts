@@ -1,6 +1,6 @@
 /**
- * `compose(dueEpochs, newCards, size) → ordered card ids` — the first of #12's
- * two seams (`11` §8, `S7`).
+ * `compose(due, fresh, size, allowance) → the run` — the first of #12's two
+ * seams (`11` §8, `S7`), and since #21 the place the brake is (ADR 0066).
  *
  * ⚠️ **Queue ordering, new-*card* introduction and daily caps are the app's
  * job and explicitly not the scheduler's** (`03` §8, verification §1.4).
@@ -10,11 +10,12 @@
  * `LIMIT`: a wrong order in SQL reads as a fixture problem in the schema tier,
  * and this is the rule `S7` actually states.
  *
- * ⚠️ **The ordering lives here and not in the query**, deliberately. The query
- * that feeds this one sorts too — it has to, because it has a `LIMIT` on it and
- * an unordered limit picks rows at random — but the answer the *session* is
- * composed from is sorted again here, where the rule is readable and testable.
- * Two sorts that agree cost one comparison per *card* on twenty *cards*.
+ * ⚠️ **The ordering lives here and not in the query**, deliberately. The due
+ * read sorts by `due` too — it has a 2,000-row ceiling and an unordered ceiling
+ * picks rows at random — but the order the *session* is composed in is decided
+ * here, where the rule is readable and testable. **The brake is arithmetic
+ * inside this function and not a thing the client checks** (ADR 0066): the
+ * *session* is still composed once and prefetched as a unit.
  */
 
 /** `04` §7.6's default, and the only knob in v1 (ADR 0016, `09` §4.7). */
@@ -24,10 +25,39 @@ export const DEFAULT_SESSION_SIZE = 20
 export const MIN_SESSION_SIZE = 1
 export const MAX_SESSION_SIZE = 200
 
+/**
+ * ⚠️ **ADR 0066 §1: a constant and not a knob.** A knob here is a knob for the
+ * version of the reader who is feeling keen, and the pile-up is built by that
+ * reader for the one who shows up on Thursday. Counted at composition, over the
+ * reader's local day (`shared/review/brake.ts`).
+ */
+export const DAILY_NEW_CARDS = 10
+
+/**
+ * ⚠️ **ADR 0066 §2: the circuit breaker, and also not a knob.** At this many due
+ * *cards* or more, no new *card* is composed at all, whatever the day's
+ * allowance says. Ten a day is the drip; this is what stops a week away from the
+ * app being answered with more words.
+ */
+export const NEW_CARDS_PAUSED_ABOVE_DUE = 50
+
+/**
+ * ⚠️ **ADR 0066 §5's ceiling on the due read.** Enough that the fifty-*card*
+ * gate is exact and a real backlog is ordered by retrievability whole, and small
+ * enough that a pathological one cannot pull the table into memory.
+ */
+export const DUE_READ_CEILING = 2000
+
 /** A *card* with a live *scheduling epoch* whose `due` has passed. */
 export interface DueCard {
   cardId: string
   due: Date
+  /**
+   * The probability the reader still remembers it, now — `ts-fsrs`'s
+   * `get_retrievability`, computed by the caller through the wrapper
+   * (`shared/review/scheduler.ts`) so that this function stays pure.
+   */
+  retrievability: number
 }
 
 /**
@@ -43,6 +73,16 @@ export interface NewCard {
   mintedAt: Date
 }
 
+/** What `compose` decided: the run in order, and how many of it are new. */
+export interface Composition {
+  cardIds: string[]
+  /**
+   * ⚠️ **`review_session.new_count`, and the only thing the day's allowance is
+   * counted from** (ADR 0066 §3). What was *offered*, not what was answered.
+   */
+  newCount: number
+}
+
 /**
  * The *session*'s membership, in the order the reader meets it.
  *
@@ -51,9 +91,21 @@ export interface NewCard {
  * failed twice behind one they have never seen, and the *session* is the unit
  * that has to finish.
  *
- * ⚠️ **Most overdue first inside the due half.** A *card* three weeks late has
- * decayed further than one due this morning, and `due` ascending is that order
- * with nothing else to remember.
+ * ⚠️ **The new half is capped twice** (ADR 0066). By `allowance`, which is
+ * what is left of the day's ten; and by the due count, because at fifty due or
+ * more there is no new half at all. **The count is `due.length`**, which is
+ * exact: the due read is capped at 2,000 and the gate is at fifty. Nothing caps
+ * the due half (ADR 0066 §6) — a reader clearing 300 due *cards* does it twenty
+ * at a time, and a short run is never backfilled past the allowance.
+ *
+ * ⚠️ **Least likely to be remembered first — but only when that is a choice**
+ * (ADR 0066 §5). When the due set fits in the *session* everything due is
+ * studied and the order is `due` ascending. When it does not, the due half is
+ * the `size` *cards* with the lowest retrievability. ⚠️ **This replaced a
+ * comment that said *a card three weeks late has decayed further than one due
+ * this morning***: that is true only at equal stability — a *card* with 200 days
+ * of stability three weeks late is better remembered than a shaky one due
+ * yesterday, and FSRS can say so exactly. `due` stays the tie-break.
  *
  * ⚠️ **A *card* appears once** (`04` §7.7's `UNIQUE (review_session_id,
  * card_id)`). Nothing in the schema can produce a *card* in both lists — a *new
@@ -62,19 +114,23 @@ export interface NewCard {
  * and the constraint it is keeping ahead of would otherwise fail the whole
  * compose with a unique violation.
  */
-export function compose(due: DueCard[], fresh: NewCard[], size: number): string[] {
+export function compose(
+  due: DueCard[],
+  fresh: NewCard[],
+  size: number,
+  allowance: number,
+): Composition {
   if (size <= 0)
-    return []
+    return { cardIds: [], newCount: 0 }
 
-  const ordered = [
-    ...[...due].sort(byDueThenId),
-    ...[...fresh].sort(byMintedThenId),
-  ]
+  const room = due.length >= NEW_CARDS_PAUSED_ABOVE_DUE ? 0 : Math.max(0, allowance)
+  const owed = [...due].sort(due.length > size ? byRetrievabilityThenDue : byDueThenId)
 
   const chosen: string[] = []
   const seen = new Set<string>()
+  let newCount = 0
 
-  for (const card of ordered) {
+  for (const card of owed) {
     if (chosen.length === size)
       break
     if (seen.has(card.cardId))
@@ -84,7 +140,18 @@ export function compose(due: DueCard[], fresh: NewCard[], size: number): string[
     chosen.push(card.cardId)
   }
 
-  return chosen
+  for (const card of [...fresh].sort(byMintedThenId)) {
+    if (chosen.length === size || newCount === room)
+      break
+    if (seen.has(card.cardId))
+      continue
+
+    seen.add(card.cardId)
+    chosen.push(card.cardId)
+    newCount += 1
+  }
+
+  return { cardIds: chosen, newCount }
 }
 
 /**
@@ -121,6 +188,10 @@ function bounded(size: number): number {
  *  are ordinary — a *session* composed twice must not answer differently. */
 function byDueThenId(a: DueCard, b: DueCard): number {
   return a.due.getTime() - b.due.getTime() || compareIds(a.cardId, b.cardId)
+}
+
+function byRetrievabilityThenDue(a: DueCard, b: DueCard): number {
+  return a.retrievability - b.retrievability || byDueThenId(a, b)
 }
 
 function byMintedThenId(a: NewCard, b: NewCard): number {

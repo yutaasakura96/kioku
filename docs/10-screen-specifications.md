@@ -651,6 +651,12 @@ Top to bottom:
    distribution is the only set of four the run actually produces — every *card* ends as exactly one
    of them (ADR 0016, ADR 0034) — and the rail above already says how long the run was, so a
    `REVIEWED` column would restate it in 38px type.
+1a. ⚠️ **The brake, `32px` under the tally** — added 2026-09-18 with #21
+   ([ADR 0066](adr/0066-the-review-load-has-a-brake.md) §7). One sentence, 15px Newsreader,
+   `--k-ink-secondary`, no rule: *No new words today, 63 due.* when the fifty-*card* gate is shut, and
+   *N of 10 new words today.* otherwise — the open state says its number too, so the cap is met as a
+   count before it is met as a wall. **Read when the run finishes**, not at composition: twenty
+   answers move the due count. It is about the next run, which is why it is secondary ink.
 2. **⚠️ The unsent-grades notice**, `32px` down, and only when there is something to say. `09` §4.8
    requires it and nothing had drawn it: a flush that answers 401 is not a network error, and `03`
    §8.2's rejected *grades* are surfaced rather than dropped. 15px Newsreader, `--k-ink`, with the
@@ -693,6 +699,16 @@ There is no ahead-of-schedule study in v1 (PRD §5), so neither state offers a w
 ⚠️ **Amended 2026-09-17 with #22:** when the request that produced *Nothing due* carried a filter,
 the body reads `There is no ahead-of-schedule study, and no new card matches the filter.` — because
 it is then true of the filter and may not be true of the pool.
+
+⚠️ **Amended 2026-09-18 with #21: the two states are three** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md) §7).
+
+| | Statement | Body | After the rule |
+| --- | --- | --- | --- |
+| **The brake held words back** | `No new words today.` | `10 of 10 new words today. Nothing is due, and the next ones arrive after 04:00.` | The next-due datum when there is one, then the knob and the filter |
+
+It is shown when new *cards* are waiting, nothing is due and the day's ten are spent. **Read as
+*Nothing due* it would be true, and it is the one sentence that makes the brake look like a bug.** It
+cannot be the fifty-*card* gate: that needs fifty due, and with fifty due there is a run.
 
 ### 5.8 The *session*-size knob, and its two homes ⚠️
 

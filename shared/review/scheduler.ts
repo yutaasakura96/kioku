@@ -140,6 +140,26 @@ export function schedule(
 }
 
 /**
+ * The probability the reader still remembers this *card* at `now` — what
+ * ADR 0066 §5 orders a backlog by.
+ *
+ * ⚠️ **A null `last_review` is 0, and it has to be answered here rather than
+ * asked of the library.** Measured 2026-09-18 against the pinned 5.4.2:
+ * `get_retrievability` answers `0` for a `New` *card* and **throws**
+ * `FSRSValidationError: Invalid date` for any other state without a
+ * `last_review`. The only epoch with no `last_review` is a fresh one — a *card*
+ * whose epoch was reset (`04` §7.4) — and nothing about it is known to be
+ * remembered, so it sorts with the least remembered, which is the library's own
+ * answer for the same state.
+ */
+export function retrievability(epoch: EpochState, now: Date): number {
+  if (!epoch.lastReview)
+    return 0
+
+  return scheduler.get_retrievability(toCard(epoch), now, false)
+}
+
+/**
  * ⚠️ **`elapsed_days` is required by the type at 5.4.2 and the scheduler
  * ignores what it is given.** Measured 2026-09-12 against the pinned version:
  * `AbstractScheduler.init()` recomputes it as `dateDiffInDays(last_review,

@@ -25,7 +25,8 @@ import { nothingToStudy } from '../../utils/review/queries'
 import { parseSessionFilter } from '../../../shared/review/filter'
 import { parseSessionSize } from '../../../shared/review/request'
 import { requireOwnerId } from '../../utils/reader'
-import { resumeOrCompose } from '../../utils/review/session'
+import { brakeReading, resumeOrCompose } from '../../utils/review/session'
+import { canonicalZone, resolveZone } from '../../../shared/time/local-day'
 import { useDatabase } from '../../db'
 
 export default defineEventHandler(async (event) => {
@@ -45,14 +46,25 @@ export default defineEventHandler(async (event) => {
   if (!filter.ok)
     throw createError({ statusCode: 400, statusMessage: filter.code })
 
-  const session = await resumeOrCompose(db, ownerId, size, filter.filter)
+  // ⚠️ **The reader's zone rides every request, the mount's included** (ADR
+  // 0066 §4). A zone that is not one is dropped to `null` rather than refused:
+  // the worst a wrong value can do is move one reader's own boundary by a few
+  // hours, and a *session* that would not start over it would be the brake
+  // taking the run away.
+  const zone = canonicalZone((body as Record<string, unknown> | undefined)?.zone)
+  const session = await resumeOrCompose(db, ownerId, size, filter.filter, zone)
 
   return {
     session,
-    // ⚠️ Only when there is no *session*, and it is what tells `10` §5.7's two
+    // ADR 0066 §7 — which brake is on, counted after the run so the run's own
+    // new *cards* are in it. Always, because the end screen and the third
+    // empty state read it.
+    brake: await brakeReading(db, ownerId, resolveZone(zone)),
+    // ⚠️ Only when there is no *session*, and it is what tells `10` §5.7's three
     // empty states apart: *nothing ever accepted* points the reader at *Vet*,
-    // *nothing due* names the instant the next *card* comes back. One is a dead
-    // end and the other is a tomorrow, and a single "nothing to review" would
+    // *nothing due* names the instant the next *card* comes back, and *no new
+    // words today* says the brake held them back (ADR 0066 §7). One is a dead
+    // end and the others are a tomorrow, and a single "nothing to review" would
     // send a reader with four hundred *cards* to go and paste more text.
     empty: session ? null : await nothingToStudy(db, ownerId),
   }

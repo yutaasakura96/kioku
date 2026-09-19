@@ -880,6 +880,13 @@ Drizzle, which is still one migration owner (`03` §4.2).
 | `snapshot_taken_at` | `timestamptz` | no | `now()` | **Server-side, because `03` §8.2's replay rule compares against it** |
 | `started_at` | `timestamptz` | no | `now()` | |
 | `completed_at` | `timestamptz` | yes | — | Null means abandoned; the end screen's numbers only exist for a completed run |
+| `new_count` | `integer` | no | `0` | `CHECK (new_count >= 0 AND new_count <= size)`. New *cards* this run put in front of the reader, **written by the composition** — the day's allowance is `10 - sum(new_count)` over today's runs (ADR 0066 §3) |
+| `zone` | `text` | yes | — | The IANA zone the client sent, canonicalised, or null when it sent none. `/stats` reads the newest (ADR 0066, amended by #21) |
+
+⚠️ **Added 2026-09-18 with #21** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md)), migration
+`0005_review_brake`. ⚠️ **`new_count` is not derivable from first *scheduling epochs*** — an epoch is
+written by the first *grade*, so that count is what was answered, and an abandoned run would spend
+none of the day.
 
 **Example:** `(019bd3…, 'usr_7f…', 20, snapshot 2026-09-06T08:30:02Z, started 08:30:02Z, completed 08:41:47Z)`
 — and `snapshot_taken_at` is what rejects a replayed grade stamped before `08:30:02`.
@@ -1178,7 +1185,10 @@ Stated as behaviour, not SQL. If a later change makes one of these awkward, the 
    fiftieth source is cheaper than the fifth.
 4. **The due query** — live epochs for this owner with `due <= now()`, joined to unsuspended cards,
    ordered due-first with new cards filling the remainder (`S7`). Queue ordering is the app's job, not
-   FSRS's (verification §1.4).
+   FSRS's (verification §1.4). ⚠️ **Amended 2026-09-18 with #21: no `LIMIT size`.** It returns every
+   due *card* with its epoch's state, up to 2,000 ordered `due` ascending, because the fifty-*card* gate
+   counts the whole set and a backlog is ordered by retrievability, which SQL cannot compute
+   (ADR 0066 §2, §5).
 5. **The resume query** — incomplete chunks for an ingestion. §6.2. A query, never a judgement call.
 6. **The claim query** — one queued job, `FOR UPDATE SKIP LOCKED`, then an `UPDATE` to a claimed row
    state. §6.4.

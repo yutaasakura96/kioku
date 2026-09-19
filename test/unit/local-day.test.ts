@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DAY_STARTS_AT_HOUR,
   FALLBACK_ZONE,
+  canonicalZone,
   distinctLocalDays,
   localDayKey,
   localDaysBetween,
@@ -103,6 +104,18 @@ describe('the zone is the reader\'s, and the offset is read at the instant', () 
     expect(resolveZone(undefined)).toBe(FALLBACK_ZONE)
     expect(resolveZone('')).toBe(FALLBACK_ZONE)
     expect(resolveZone(TOKYO)).toBe(TOKYO)
+  })
+
+  // ⚠️ What is stored is `Intl`'s spelling, and *nothing sent* is `null` rather
+  // than UTC — a reader who reported no zone has not reported UTC (#21).
+  it('stores the canonical spelling, and nothing for anything that is not a zone', () => {
+    expect(canonicalZone('asia/tokyo')).toBe(TOKYO)
+    expect(canonicalZone('Etc/UTC')).toBe('UTC')
+    expect(canonicalZone('Mars/Olympus_Mons')).toBeNull()
+    expect(canonicalZone('')).toBeNull()
+    expect(canonicalZone(9)).toBeNull()
+    expect(canonicalZone(undefined)).toBeNull()
+    expect(canonicalZone(`${'a'.repeat(64)}/b`)).toBeNull()
   })
 })
 

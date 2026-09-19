@@ -153,6 +153,12 @@ A bounded, finishable run of due cards, prefetched as a unit and sized to be fin
 to exhaust what is due.
 _Avoid_: queue, batch, round, set
 
+**Brake**:
+What limits the new cards a session introduces (ADR 0066): at most ten a local day, counted when a
+session is composed rather than when a card is answered, and none at all while fifty or more are due.
+It never limits due cards. The reader is always told which brake is on.
+_Avoid_: daily limit, quota, throttle, cap (for due cards, which have none)
+
 **Vetting** — ⚠️ **moved 2026-09-16 (ADR 0064)**:
 The human check of a note. It used to happen before a note minted cards; a chosen word now mints on
 arrival and the check happens only when the reader flags a card during review. *Vet* is the flag

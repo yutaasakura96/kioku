@@ -10,16 +10,39 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  DAILY_NEW_CARDS,
   DEFAULT_SESSION_SIZE,
   MAX_SESSION_SIZE,
+  NEW_CARDS_PAUSED_ABOVE_DUE,
   clampSessionSize,
-  compose,
+  compose as composeRun,
 } from '../../shared/review/compose'
+import type { DueCard, NewCard } from '../../shared/review/compose'
 
 const at = (iso: string) => new Date(iso)
 
-const due = (cardId: string, iso: string) => ({ cardId, due: at(iso) })
-const fresh = (cardId: string, iso: string) => ({ cardId, mintedAt: at(iso) })
+const due = (cardId: string, iso: string, retrievability = 0.5): DueCard =>
+  ({ cardId, due: at(iso), retrievability })
+const fresh = (cardId: string, iso: string): NewCard => ({ cardId, mintedAt: at(iso) })
+
+/**
+ * The order alone, with the brake off. ⚠️ **The allowance is set to the size**
+ * so that every assertion written before ADR 0066 still says what it said: the
+ * brake has its own `describe` below, and a test about ordering that silently
+ * started testing the cap would be two tests in one.
+ */
+const compose = (owed: DueCard[], unseen: NewCard[], size: number) =>
+  composeRun(owed, unseen, size, size).cardIds
+
+/** `n` due *cards*, one a day apart, all at the same retrievability. */
+const dueMany = (n: number) =>
+  Array.from({ length: n }, (_, i) =>
+    due(`d${String(i).padStart(3, '0')}`, new Date(Date.UTC(2026, 7, 1 + i)).toISOString()))
+
+/** `n` new *cards*, one a day apart. */
+const freshMany = (n: number) =>
+  Array.from({ length: n }, (_, i) =>
+    fresh(`n${String(i).padStart(3, '0')}`, new Date(Date.UTC(2026, 6, 1 + i)).toISOString()))
 
 describe('compose — due first, new cards filling the remainder (`S7`)', () => {
   it('puts every due card before every new one', () => {
@@ -32,9 +55,9 @@ describe('compose — due first, new cards filling the remainder (`S7`)', () => 
     expect(order).toEqual(['d1', 'd2', 'n1'])
   })
 
-  // The most overdue has decayed furthest, and `due` ascending is that order
-  // with nothing else to remember.
-  it('orders the due half oldest-due first, whatever order it arrives in', () => {
+  // ⚠️ **When everything due fits, the order does not matter** (ADR 0066 §5) —
+  // everything is studied — and `due` ascending is kept as the stable one.
+  it('orders a due half that fits oldest-due first, whatever order it arrives in', () => {
     const order = compose(
       [
         due('late', '2026-08-20T08:00:00Z'),
@@ -105,6 +128,119 @@ describe('compose — the session is a fixed size (`S7`, ADR 0016)', () => {
   it('answers empty for a size that is not a size', () => {
     expect(compose([due('d1', '2026-09-10T08:00:00Z')], [], 0)).toEqual([])
     expect(compose([due('d1', '2026-09-10T08:00:00Z')], [], -1)).toEqual([])
+  })
+})
+
+// ADR 0066 §5. ⚠️ **This replaced the most-overdue-first rule**, whose comment
+// said a *card* three weeks late has decayed further than one due this morning.
+// That holds only at equal stability; FSRS can say which is closer to being
+// forgotten, and when the backlog is bigger than the run that is the question.
+describe('compose — a backlog is ordered by retrievability (ADR 0066 §5)', () => {
+  it('takes the least remembered when the due set is larger than the session', () => {
+    const { cardIds } = composeRun(
+      [
+        // Three weeks late, and a long-stability card: still well remembered.
+        due('sturdy-and-late', '2026-08-20T08:00:00Z', 0.86),
+        due('shaky-yesterday', '2026-09-11T08:00:00Z', 0.41),
+        due('middling', '2026-09-01T08:00:00Z', 0.62),
+      ],
+      [],
+      2,
+      DAILY_NEW_CARDS,
+    )
+
+    expect(cardIds).toEqual(['shaky-yesterday', 'middling'])
+  })
+
+  it('breaks a retrievability tie by due, then by id', () => {
+    const { cardIds } = composeRun(
+      [
+        due('b', '2026-09-10T08:00:00Z', 0.5),
+        due('late', '2026-09-11T08:00:00Z', 0.5),
+        due('a', '2026-09-10T08:00:00Z', 0.5),
+        due('best', '2026-09-01T08:00:00Z', 0.9),
+      ],
+      [],
+      3,
+      DAILY_NEW_CARDS,
+    )
+
+    expect(cardIds).toEqual(['a', 'b', 'late'])
+  })
+
+  // When it all fits, retrievability is not consulted: the run holds all of
+  // it either way, and the stable order is the one it always had.
+  it('keeps due order when the due set fits', () => {
+    const { cardIds } = composeRun(
+      [due('early', '2026-08-20T08:00:00Z', 0.9), due('later', '2026-09-11T08:00:00Z', 0.1)],
+      [],
+      20,
+      DAILY_NEW_CARDS,
+    )
+
+    expect(cardIds).toEqual(['early', 'later'])
+  })
+})
+
+describe('compose — the brake (ADR 0066)', () => {
+  it('is ten a day and fifty due, as constants', () => {
+    expect(DAILY_NEW_CARDS).toBe(10)
+    expect(NEW_CARDS_PAUSED_ABOVE_DUE).toBe(50)
+  })
+
+  it('caps the new half at the allowance', () => {
+    const run = composeRun([], freshMany(30), 20, 10)
+
+    expect(run.cardIds).toHaveLength(10)
+    expect(run.newCount).toBe(10)
+  })
+
+  it('composes a due-only run on a zero allowance', () => {
+    const run = composeRun(dueMany(3), freshMany(5), 20, 0)
+
+    expect(run.cardIds).toEqual(['d000', 'd001', 'd002'])
+    expect(run.newCount).toBe(0)
+  })
+
+  // ⚠️ **A short run is a short run.** Three due and an allowance of four is a
+  // run of seven, not a run of twenty topped up with new *cards* the day has
+  // not got room for.
+  it('does not backfill a short due half past the allowance', () => {
+    const run = composeRun(dueMany(3), freshMany(30), 20, 4)
+
+    expect(run.cardIds).toHaveLength(7)
+    expect(run.newCount).toBe(4)
+  })
+
+  it('counts only the new cards it chose', () => {
+    expect(composeRun(dueMany(18), freshMany(30), 20, 10).newCount).toBe(2)
+  })
+
+  // ⚠️ **The gate is over the whole due set, not the session**, and it wins
+  // over whatever the day has left.
+  it('composes no new cards at all at fifty due, whatever the allowance', () => {
+    const run = composeRun(dueMany(50), freshMany(5), 200, 10)
+
+    expect(run.newCount).toBe(0)
+    expect(run.cardIds).toHaveLength(50)
+  })
+
+  it('still introduces new cards at forty-nine due', () => {
+    expect(composeRun(dueMany(49), freshMany(5), 200, 10).newCount).toBe(5)
+  })
+
+  it('reads a negative allowance as none', () => {
+    expect(composeRun([], freshMany(5), 20, -3).newCount).toBe(0)
+  })
+
+  // ADR 0066 §6. Nothing caps the cure: three runs of twenty in an evening
+  // are three runs of twenty.
+  it('never caps the due half', () => {
+    const backlog = dueMany(300)
+
+    expect(composeRun(backlog, [], 20, 0).cardIds).toHaveLength(20)
+    expect(composeRun(backlog.slice(20), [], 20, 0).cardIds).toHaveLength(20)
+    expect(composeRun(backlog.slice(40), [], 20, 0).cardIds).toHaveLength(20)
   })
 })
 

@@ -61,12 +61,20 @@ export interface ReviewSnapshot {
   positions: ReviewPosition[]
 }
 
-/** What `10` §5.7's two non-terminal empty states need to tell the reader apart. */
+/** What `10` §5.7's three non-terminal empty states need to tell the reader apart. */
 export interface NothingToStudy {
   /** False means *nothing ever accepted*; true means *nothing due* (`10` §5.7). */
   hasCards: boolean
   /** The "single datum given weight" slot — `Tomorrow, 08:40`. Null when there is none. */
   nextDue: Date | null
+  /**
+   * Whether any *card* has never been scheduled — unfiltered. ⚠️ **With the
+   * day's ten spent, this is what tells *nothing due* from *the brake held
+   * words back*** (ADR 0066 §7): the first is a tomorrow and so is the second,
+   * but only the second is the app deciding, and a brake that is silent is a
+   * bug report.
+   */
+  newWaiting: boolean
 }
 
 /**

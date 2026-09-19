@@ -578,7 +578,9 @@ conflate: `fsrs-rs` returns defaults below **8 items** (a hard floor); the Anki 
 optimisation performs poorly under **a few hundred** reviews (a practical one). Neither is near.
 
 **Queue ordering, new-card introduction and daily caps are the app's job**, not FSRS's
-(verification §1.4) — consistent with `L4` having deferred exactly that.
+(verification §1.4) — consistent with `L4` having deferred exactly that. ⚠️ **Built 2026-09-18 with
+#21** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md)): ten new a day counted at composition on
+`review_session.new_count`, none at fifty due, and a backlog ordered by `get_retrievability`.
 
 ### 8.1 The outbox, which is the same shape as the worker's
 

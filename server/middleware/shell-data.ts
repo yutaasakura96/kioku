@@ -28,7 +28,7 @@ import {
   startBlockCounts,
 } from '../utils/ingest/queries'
 import { statsData } from '../utils/stats/queries'
-import { resolveZone } from '../../shared/time/local-day'
+import { readerZone } from '../utils/review/queries'
 import { useDatabase } from '../db'
 
 /** The three *places* — `10` §3, ADR 0013. */
@@ -72,15 +72,12 @@ export default defineEventHandler((event) => {
     sources: () => allSources(db),
     sourceTitle: (id: string) => sourceTitle(db, id),
     sourceDetail: (id: string) => sourceDetail(db, id),
-    // ⚠️ **The zone is UTC and that is a gap with a ticket, not a default.**
-    // ADR 0066 puts the reader's zone on the *session* request and validates it
-    // server-side; `/stats` ships no JavaScript (ADR 0020), so there is nothing
-    // here to ask and no column to read one from until
-    // [#21](https://github.com/yutaasakura96/kioku/issues/21) lands it. Until
-    // then *consistency*'s day boundary is 04:00 UTC — 13:00 in Tokyo — which is
-    // wrong for the reader and right for the arithmetic, and the moment a stored
-    // zone exists it is this line that changes and nothing else.
-    // `00-status.md` § Carrying has it.
-    stats: () => statsData(db, ownerId, { now: new Date(), zone: resolveZone(null) }),
+    // ⚠️ **The zone is the one the newest *session* stored** (#21). `/stats`
+    // ships no JavaScript (ADR 0020), so it cannot ask; the *session* request
+    // is the one place a client reports it (ADR 0066 §4), and `readerZone`
+    // falls back to UTC for a reader who has never composed a run from one.
+    // ⚠️ **Not `Accept-Language`**, which carries no zone, and **not a
+    // `<script>`**, which is the property ADR 0020 exists to hold.
+    stats: async () => statsData(db, ownerId, { now: new Date(), zone: await readerZone(db, ownerId) }),
   }
 })

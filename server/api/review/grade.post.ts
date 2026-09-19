@@ -25,6 +25,7 @@
  */
 import { parseGrade } from '../../../shared/review/request'
 import { recordGrade } from '../../utils/review/grade'
+import { brakeIfFinished } from '../../utils/review/session'
 import { requireOwnerId } from '../../utils/reader'
 import { snapshotOf } from '../../utils/review/queries'
 import { useDatabase } from '../../db'
@@ -39,10 +40,15 @@ export default defineEventHandler(async (event) => {
   const db = useDatabase()
   const outcome = await recordGrade(db, ownerId, parsed.grade)
 
+  const session = outcome.ok
+    ? outcome.snapshot
+    : await snapshotOf(db, ownerId, parsed.grade.sessionId)
+
   return {
     outcome: outcome.ok ? ('ok' as const) : outcome.reason,
-    session: outcome.ok
-      ? outcome.snapshot
-      : await snapshotOf(db, ownerId, parsed.grade.sessionId),
+    session,
+    // ⚠️ Only once the run is over — the end screen's sentence (ADR 0066 §7),
+    // read after the answers rather than at composition.
+    brake: await brakeIfFinished(db, ownerId, session),
   }
 })

@@ -115,3 +115,35 @@ this project already pins.
   the backlog.
 - A day's allowance regularly goes unused while the reader is asking for more words, which is the
   signal that the cap is the wrong shape rather than the wrong number.
+
+## Amended 2026-09-18 with [#21](https://github.com/yutaasakura96/kioku/issues/21)
+
+Built as decided. Five things the building settled that the decision did not say:
+
+1. **The zone is stored on the run: `review_session.zone`, nullable text.** §4 put the zone on the
+   request and said nothing about keeping it, and `/stats` needs it too — *consistency* (ADR 0062)
+   counts days over the same 04:00 boundary and `/stats` ships no JavaScript (ADR 0020), so it has no
+   client to ask. It reads the newest run's zone, and falls back to UTC for a reader who has never
+   composed one from a client that sent it. ⚠️ **Not a column on `user`**: the auth library owns that
+   table (`08` §7), and a zone on the run moves with the reader's laptop at the next *session* rather
+   than needing a setting. A client that sends nothing, or nonsense, stores `null` rather than `UTC`,
+   because not reporting a zone is not reporting UTC. What is stored is `Intl`'s canonical spelling.
+2. **`compose` takes the allowance and reads the due count as `due.length`.** #21 asked for both as
+   arguments, and the count comes from the same read (§5) — so a second argument could only ever
+   disagree with the list it came beside. The read's 2,000-row ceiling is far above the gate at fifty,
+   so the count is exact wherever it matters. `compose` returns the run and its `new_count` together.
+3. **A due *card* with no `last_review` has retrievability 0.** Measured 2026-09-18 against the
+   pinned `ts-fsrs` 5.4.2: `get_retrievability` answers `0` for a `New` *card* and **throws** `Invalid
+   date` for any other state without a `last_review`. The only such epoch is a reset one, so the
+   wrapper answers `0` before the library is asked, which is the library's own answer for `New`.
+   `due` ascending is the tie-break, as §5 says.
+4. **The end screen reads the brake again when the run is over.** A run composed at 63 due is 43 due
+   twenty answers later, and a sentence still saying 63 would name a shut gate the next run would
+   open. The answer that finishes a run carries a fresh reading; the *session* response carries one
+   always. ⚠️ **§7's "start screen" is read as *Review*'s empty states**, because *Review* has no start
+   screen: composition happens on arrival, and the empty states are where a reader who cannot start
+   is told why.
+5. **The third empty state is *No new words today***: new *cards* are waiting, nothing is due, and the
+   day's ten are spent. It cannot be the fifty-*card* gate, which needs fifty due, and with fifty due
+   there is a run to compose. The open state states its number too (*3 of 10 new words today*), so the
+   reader meets the cap as a count before meeting it as a wall.

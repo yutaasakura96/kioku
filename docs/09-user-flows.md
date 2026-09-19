@@ -379,6 +379,14 @@ the front is now answered by typing.
 current one is snapshotted and a knob that appeared to change it would be lying. `size` is bounded at
 1–200 (`04` §7.6) and is the only knob in v1; a per-day cap on new *cards* is `L4`.
 
+⚠️ **Amended 2026-09-18 with #21 ([ADR 0066](adr/0066-the-review-load-has-a-brake.md)): the per-day
+cap exists, and it is not a knob.** Step 3 composes at most **ten new *cards* a day** — the day is
+04:00 to 04:00 in the zone the client sends with the request — and **none at all while fifty or more
+are due**; when more is due than fits, the due half is the least remembered, by FSRS's
+retrievability. Nothing caps the due half. The end screen names which brake is on (*No new words
+today, 63 due.* or *10 of 10 new words today.*), read again when the run finishes, and `10` §5.7's
+empty states are three. `L4` is answered by the ADR rather than deferred.
+
 ⚠️ **A first-ever *session* is twenty *cards* with no chance to change it**, because the knob has
 nowhere to live before a session exists. Twenty is the default and the reader adjusts it at the end
 of the first run.

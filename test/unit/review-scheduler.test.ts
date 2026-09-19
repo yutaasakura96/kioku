@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SCHEDULER_PARAMETERS,
   freshEpoch,
+  retrievability,
   schedule,
 } from '../../shared/review/scheduler'
 import type { EpochState } from '../../shared/review/scheduler'
@@ -154,5 +155,51 @@ describe('the mapping into `review_log` (`04` §7.5)', () => {
     const { log } = schedule(matured, 3, stampedAt)
 
     expect(log.reviewedAt).toEqual(stampedAt)
+  })
+})
+
+// ADR 0066 §5 orders a backlog by this, so the two properties it relies on are
+// pinned: it is a probability that falls as time passes, and the one state the
+// library throws on is answered before the library is asked.
+describe('retrievability — what a backlog is ordered by (ADR 0066 §5)', () => {
+  it('is a probability, and falls the longer the card waits', () => {
+    const soon = retrievability(matured, new Date('2026-09-12T09:00:00Z'))
+    const later = retrievability(matured, new Date('2026-10-12T09:00:00Z'))
+
+    expect(soon).toBeGreaterThan(0)
+    expect(soon).toBeLessThan(1)
+    expect(later).toBeLessThan(soon)
+  })
+
+  // ⚠️ The case ADR 0066 names: three weeks late but sturdy is better
+  // remembered than shaky and due yesterday.
+  it('ranks a sturdy late card above a shaky recent one', () => {
+    const now = new Date('2026-09-18T09:00:00Z')
+    const shaky: EpochState = {
+      ...matured,
+      stability: 2.3,
+      scheduledDays: 3,
+      due: new Date('2026-09-17T00:00:00Z'),
+      lastReview: new Date('2026-09-14T09:00:00Z'),
+    }
+    const sturdy: EpochState = {
+      ...matured,
+      stability: 200,
+      scheduledDays: 180,
+      due: new Date('2026-08-28T00:00:00Z'),
+      lastReview: new Date('2026-03-01T09:00:00Z'),
+    }
+
+    expect(retrievability(sturdy, now)).toBeGreaterThan(retrievability(shaky, now))
+  })
+
+  // ⚠️ Measured 2026-09-18 on the pinned 5.4.2: without a `last_review` the
+  // library throws for any state but New. A reset epoch is the only one that
+  // has none, and it is 0 — the library's own answer for New.
+  it('is zero for an epoch that has never been reviewed, rather than a throw', () => {
+    const now = new Date('2026-09-18T09:00:00Z')
+
+    expect(retrievability(freshEpoch(REVIEWED_AT), now)).toBe(0)
+    expect(retrievability({ ...matured, lastReview: null }, now)).toBe(0)
   })
 })

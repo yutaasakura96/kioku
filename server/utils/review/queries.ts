@@ -17,10 +17,14 @@
  * `IN` read rather than an `EXISTS` beside the membership.
  */
 
-import { and, asc, eq, exists, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, exists, gt, gte, inArray, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
+import { DUE_READ_CEILING } from '../../../shared/review/compose'
 import type { DueCard, NewCard } from '../../../shared/review/compose'
+import type { ComposedSession } from '../../../shared/review/brake'
+import { retrievability } from '../../../shared/review/scheduler'
+import { resolveZone } from '../../../shared/time/local-day'
 import type { SessionFilter } from '../../../shared/review/filter'
 import { NO_FILTER } from '../../../shared/review/filter'
 import type { Grade } from '../../../shared/review/scheduler'
@@ -33,39 +37,133 @@ import type { NothingToStudy, ReviewSnapshot } from '../../../shared/review/snap
 export type { NothingToStudy, ReviewPosition, ReviewSnapshot } from '../../../shared/review/snapshot'
 
 /**
- * The *cards* whose live *scheduling epoch* has come due.
+ * The *cards* whose live *scheduling epoch* has come due — every one of them,
+ * up to ADR 0066 §5's ceiling, each with what it takes to rank it.
  *
  * ⚠️ **Suspension is on the `card` and cannot be in the epoch's partial
  * predicate** (`04` §11) — `scheduling_epoch_owner_due_idx` covers
  * `(owner_id, due) WHERE superseded_at IS NULL`, and the join to `card` is what
  * drops a *card* `S9` or `S11` withdrew.
  *
- * ⚠️ **`limit` is the *session* size and the order is `due` ascending**, so the
- * limit takes the most overdue rather than an arbitrary slice. The order is then
- * applied again by `compose`, where the rule is readable.
+ * ⚠️ **No `LIMIT size`, since #21.** The *session* size used to be the limit,
+ * which made the most overdue twenty the only twenty `compose` could see. Two
+ * things need the whole set: the fifty-*card* gate counts it (ADR 0066 §2), and
+ * a backlog is ordered by retrievability, which SQL cannot compute. **The count
+ * is this read's length** — one read, so the gate and the run agree about what
+ * was due. The ceiling is ordered `due` ascending, so past 2,000 it is the
+ * oldest that are ranked, and the gate is long since shut.
  */
 export async function dueCards(
   db: IngestDatabase,
   ownerId: string,
-  limit: number,
   now: Date = new Date(),
 ): Promise<DueCard[]> {
+  const epoch = schema.schedulingEpoch
+
   const rows = await db
-    .select({ cardId: schema.card.id, due: schema.schedulingEpoch.due })
+    .select({
+      cardId: schema.card.id,
+      due: epoch.due,
+      stability: epoch.stability,
+      difficulty: epoch.difficulty,
+      scheduledDays: epoch.scheduledDays,
+      learningSteps: epoch.learningSteps,
+      reps: epoch.reps,
+      lapses: epoch.lapses,
+      state: epoch.state,
+      lastReview: epoch.lastReview,
+    })
+    .from(epoch)
+    .innerJoin(schema.card, eq(schema.card.id, epoch.cardId))
+    .where(dueWhere(ownerId, now))
+    .orderBy(asc(epoch.due), asc(schema.card.id))
+    .limit(DUE_READ_CEILING)
+
+  return rows.map(({ cardId, ...state }) => ({
+    cardId,
+    due: state.due,
+    retrievability: retrievability(state, now),
+  }))
+}
+
+/**
+ * How many due *cards* the reader owes, for the end screen's sentence
+ * (ADR 0066 §7). ⚠️ **The same predicate as `dueCards`, by construction** — a
+ * run composed from one set and a sentence counted over another would tell the
+ * reader the gate is shut on a number the gate never saw.
+ */
+export async function dueCount(
+  db: IngestDatabase,
+  ownerId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  const [row] = await db
+    .select({ count: count() })
     .from(schema.schedulingEpoch)
     .innerJoin(schema.card, eq(schema.card.id, schema.schedulingEpoch.cardId))
+    .where(dueWhere(ownerId, now))
+
+  return row?.count ?? 0
+}
+
+function dueWhere(ownerId: string, now: Date) {
+  return and(
+    eq(schema.schedulingEpoch.ownerId, ownerId),
+    isNull(schema.schedulingEpoch.supersededAt),
+    lte(schema.schedulingEpoch.due, now),
+    isNull(schema.card.suspendedAt),
+  )
+}
+
+/**
+ * The runs whose `new_count` might belong to today, for the day's allowance
+ * (ADR 0066 §3).
+ *
+ * ⚠️ **A window, not a day.** Which of these are *today* is decided by
+ * `shared/review/brake.ts` over `shared/time/local-day.ts`'s key — the day is
+ * 04:00 in the reader's zone, and `date_trunc('day', …)` here would be midnight
+ * in the database's (§ Carrying). Forty-eight hours is wider than any local day
+ * can be, daylight saving included, and a reader composes a handful of runs in
+ * it. Only runs that introduced something are read.
+ */
+export async function recentlyComposed(
+  db: IngestDatabase,
+  ownerId: string,
+  now: Date = new Date(),
+): Promise<ComposedSession[]> {
+  return db
+    .select({ startedAt: schema.reviewSession.startedAt, newCount: schema.reviewSession.newCount })
+    .from(schema.reviewSession)
     .where(
       and(
-        eq(schema.schedulingEpoch.ownerId, ownerId),
-        isNull(schema.schedulingEpoch.supersededAt),
-        lte(schema.schedulingEpoch.due, now),
-        isNull(schema.card.suspendedAt),
+        eq(schema.reviewSession.ownerId, ownerId),
+        gt(schema.reviewSession.newCount, 0),
+        gte(schema.reviewSession.startedAt, new Date(now.getTime() - RECENT_WINDOW_MS)),
       ),
     )
-    .orderBy(asc(schema.schedulingEpoch.due), asc(schema.card.id))
-    .limit(limit)
+}
 
-  return rows
+const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000
+
+/**
+ * The zone the reader's client last reported (ADR 0066 §4, as amended by #21),
+ * resolved — so a reader who never sent one, or sent nonsense, is in the
+ * fallback.
+ *
+ * ⚠️ **It is the newest run's, and only the *session* request carries one.**
+ * `/stats` ships no JavaScript (ADR 0020) and has no client to ask, so this is
+ * how the day on `/stats` becomes the reader's rather than UTC's. A run composed
+ * before #21 stored nothing and is skipped.
+ */
+export async function readerZone(db: IngestDatabase, ownerId: string): Promise<string> {
+  const [row] = await db
+    .select({ zone: schema.reviewSession.zone })
+    .from(schema.reviewSession)
+    .where(and(eq(schema.reviewSession.ownerId, ownerId), isNotNull(schema.reviewSession.zone)))
+    .orderBy(desc(schema.reviewSession.startedAt))
+    .limit(1)
+
+  return resolveZone(row?.zone)
 }
 
 /**
@@ -207,7 +305,7 @@ export async function snapshotOf(
 }
 
 /**
- * `10` §5.7 — which of the two non-terminal empty states the reader is in, and
+ * `10` §5.7 — which of the three non-terminal empty states the reader is in, and
  * the datum the second one gives weight to.
  *
  * ⚠️ **A *card* the reader has but has not reached is not "nothing to review"**.
@@ -225,7 +323,7 @@ export async function nothingToStudy(
     .limit(1)
 
   if (!any)
-    return { hasCards: false, nextDue: null }
+    return { hasCards: false, nextDue: null, newWaiting: false }
 
   const [next] = await db
     .select({ due: schema.schedulingEpoch.due })
@@ -241,5 +339,7 @@ export async function nothingToStudy(
     .orderBy(asc(schema.schedulingEpoch.due))
     .limit(1)
 
-  return { hasCards: true, nextDue: next?.due ?? null }
+  const waiting = await newCards(db, ownerId, 1)
+
+  return { hasCards: true, nextDue: next?.due ?? null, newWaiting: waiting.length > 0 }
 }

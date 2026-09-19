@@ -245,8 +245,27 @@ export const reviewSession = pgTable(
     startedAt: tstz('started_at').notNull().defaultNow(),
     /** Null means abandoned; the end screen's numbers only exist for a completed run. */
     completedAt: tstz('completed_at'),
+    /**
+     * ⚠️ **How many new *cards* this run put in front of the reader — ADR 0066
+     * §3.** Written by the transaction that composes the run, and the day's
+     * allowance is `10 - sum(new_count)` over the runs composed today. **Not
+     * derived from first *scheduling epochs***, which are written by the first
+     * *grade* and so count what was answered rather than what was offered.
+     */
+    newCount: integer('new_count').notNull().default(0),
+    /**
+     * The IANA zone the reader's client sent when this run was composed
+     * (ADR 0066 §4, as amended by #21), or null when it sent none. ⚠️ **Where
+     * the reader's zone lives**, because nothing else in the schema is the
+     * reader's and the auth library owns `user`: `/stats` reads the newest
+     * one, and a laptop that crosses a timezone moves it with the next run.
+     */
+    zone: text('zone'),
   },
-  t => [check('review_session_size', sql`${t.size} > 0 AND ${t.size} <= 200`)],
+  t => [
+    check('review_session_size', sql`${t.size} > 0 AND ${t.size} <= 200`),
+    check('review_session_new_count', sql`${t.newCount} >= 0 AND ${t.newCount} <= ${t.size}`),
+  ],
 )
 
 /**

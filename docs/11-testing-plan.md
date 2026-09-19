@@ -640,6 +640,13 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   wrong order reads as a fixture problem**. The bounds check beside it (`clampSessionSize`) is the
   same function on both sides of the wire, because `10` §5.8 puts the knob on three screens and
   `04` §7.6 puts a `CHECK` under all of them.
+  ⚠️ **Amended 2026-09-18 with #21: `compose(due, new, size, allowance) → { cardIds, newCount }`**
+  (ADR 0066). The brake is inside it and the allowance is arithmetic beside it in
+  `shared/review/brake.ts`, over `shared/time/local-day.ts`'s day — `test/unit/review-compose.test.ts`
+  and `test/unit/review-brake.test.ts`. The assertions #21 names: the allowance caps the new half,
+  zero composes due-only, a short due half is not backfilled past the allowance, fifty due shuts the
+  gate and forty-nine does not, and a backlog larger than the run is taken least-retrievable first.
+  Removing the gate or the retrievability order reddens both the unit and the schema tier.
 - **The `from` allowlist.** Three strings; anything else falls back to `/` (ADR 0032). ⚠️ Test the
   attacks: `//evil.com`, `https://evil.com`, `/vet`, `/stats/../../x`, empty, absent.
 - **The grade validator** — `03` §8.2's future-skew and before-snapshot rules, as a pure function.

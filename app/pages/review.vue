@@ -35,6 +35,8 @@ import { GRADE_KEYS, endScreenAction, reviewAction } from '#shared/review/keystr
 import { foldReading, meaningMatches, proposedGrade, readingMatches } from '#shared/review/answer'
 import type { ReviewStep } from '#shared/review/keystroke'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
+import { brakeSentence, emptyStateOf } from '#shared/review/brake'
+import type { BrakeReading } from '#shared/review/brake'
 import { NO_FILTER, isFiltered } from '#shared/review/filter'
 import type { SessionFilter } from '#shared/review/filter'
 import { append, head, parseOutbox, settle, unsentAnswers } from '#shared/review/outbox'
@@ -64,6 +66,7 @@ const LOADING_THRESHOLD = 500
 interface SessionResponse {
   session: ReviewSnapshot | null
   empty: NothingToStudy | null
+  brake: BrakeReading
 }
 
 /**
@@ -77,10 +80,25 @@ interface SessionResponse {
 interface AnswerResponse {
   outcome: AnswerOutcome
   session: ReviewSnapshot | null
+  /** Fresh once the run is over, and `null` until then (ADR 0066 §7). */
+  brake: BrakeReading | null
 }
 
 const snapshot = ref<ReviewSnapshot | null>(null)
 const nothing = ref<NothingToStudy | null>(null)
+
+/**
+ * ADR 0066 §7 — which brake is on, and the number it is on at.
+ *
+ * ⚠️ **Not persisted.** It is a fact about the database rather than about the
+ * run, so a reload asks again; a sentence read back out of `localStorage` a day
+ * later would name yesterday's allowance.
+ */
+const brake = ref<BrakeReading | null>(null)
+const brakeLine = computed(() => (brake.value ? brakeSentence(brake.value) : null))
+
+/** `10` §5.7's three empty states, or `null` when there is a run. */
+const emptyState = computed(() => (nothing.value ? emptyStateOf(nothing.value, brake.value) : null))
 const status = ref<'loading' | 'ready' | 'error'>('loading')
 const slow = ref(false)
 const size = ref(DEFAULT_SESSION_SIZE)
@@ -400,6 +418,9 @@ async function send(entry: OutboxEntry): Promise<Landing> {
     if (response.session)
       apply(response.session)
 
+    if (response.brake)
+      brake.value = response.brake
+
     return isRefused(response.outcome) ? 'refused' : 'landed'
   }
   catch (error) {
@@ -462,9 +483,13 @@ async function start(requested?: number) {
     // mount's start sends nothing, because nothing has been chosen yet and a
     // live run is resumed whatever is sent (`09` §4.7).
     const asked = requested === undefined ? NO_FILTER : filter.value
+    // ⚠️ **The zone rides every start, the mount's included** (ADR 0066 §4):
+    // the day's allowance is counted in it, and it is the only way `/stats`,
+    // which ships no JavaScript, ever learns where the reader is.
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
     const response = await $fetch<SessionResponse>('/api/review/session', {
       method: 'POST',
-      body: requested === undefined ? {} : { size: requested, ...asked },
+      body: requested === undefined ? { zone } : { size: requested, ...asked, zone },
     })
 
     askedFiltered.value = isFiltered(asked)
@@ -493,6 +518,8 @@ async function start(requested?: number) {
 function install(response: SessionResponse) {
   const held = snapshot.value
   const fresh = response.session
+
+  brake.value = response.brake
 
   if (fresh && held && fresh.sessionId === held.sessionId) {
     apply(fresh)
@@ -723,6 +750,12 @@ onBeforeUnmount(() => {
         <div v-else-if="ended" class="end">
           <SessionTally :columns="tally" />
 
+          <!-- ADR 0066 §7: which brake is on, before the reader asks for the
+               next run. ⚠️ **A brake that is silent is a bug report.** -->
+          <p v-if="brakeLine" class="brake">
+            {{ brakeLine }}
+          </p>
+
           <!-- ⚠️ `10` §5.6's second block, and `09` §4.8 requires it: a flush
                that answers 401 is not a network error, and a *grade* that did
                not land is surfaced rather than dropped. **It is not styled as an
@@ -755,10 +788,10 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <!-- `10` §5.7's two non-terminal empty states. The difference between
+        <!-- `10` §5.7's non-terminal empty states — three since #21. The difference between
              them is the difference between going to *Vet* and coming back
              tomorrow, and only one of them is a dead end. -->
-        <EmptyBlock v-else-if="nothing && !nothing.hasCards">
+        <EmptyBlock v-else-if="emptyState === 'nothing-accepted'">
           <template #statement>
             Nothing to review.
           </template>
@@ -767,6 +800,25 @@ onBeforeUnmount(() => {
           </template>
 
           <SessionSizeKnob v-model="size" />
+          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
+        </EmptyBlock>
+
+        <!-- ⚠️ `10` §5.7's third state (ADR 0066 §7): new words are waiting and
+             the day's ten are spent. Read as *Nothing due* it would be true
+             and would make the brake look like a bug. -->
+        <EmptyBlock v-else-if="emptyState === 'held-back' && brake">
+          <template #statement>
+            No new words today.
+          </template>
+          <template #body>
+            {{ brakeSentence(brake) }} Nothing is due, and the next ones arrive after 04:00.
+          </template>
+
+          <p v-if="nextDue" class="datum">
+            {{ nextDue }}
+          </p>
+
+          <SessionSizeKnob v-model="size" class="knob" />
           <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
         </EmptyBlock>
 
@@ -905,6 +957,14 @@ onBeforeUnmount(() => {
 .end {
   width: 100%;
   max-width: var(--k-measure-told);
+}
+
+/* ADR 0066 §7's sentence — `10` §5.6, amended by #21: `32px` under the
+   tally, secondary ink, because it is about the next run and not this one. */
+.brake {
+  margin: var(--k-space-7) 0 0;
+  font-size: 15px;
+  color: var(--k-ink-secondary);
 }
 
 /* `10` §5.6: `32px` down, and a rule above it. */

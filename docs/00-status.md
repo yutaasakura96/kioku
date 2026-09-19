@@ -3,21 +3,22 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**67 ADRs** — ⚠️ **#23 added none**, and instead **corrected ADR 0037**, whose amended table
+**67 ADRs** — ⚠️ **#21 added none and amended ADR 0066 in place** (2026-09-18: where the zone is
+stored, and four other things the build settled). ⚠️ **#23 added none**, and instead **corrected ADR 0037**, whose amended table
 contradicted ADR 0066 about where a day starts. ADR 0067, minting as a database function, added
 2026-09-17 with #20; ADR 0062 to ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 66 until
 2026-09-17, 61 until 2026-09-16 and 58 until 2026-09-12** — eleven documents, and **five open
-issues**: #1 the spec, and #21, #24 and #25 of the pivot (⚠️ **this said eight until 2026-09-18**). **#17**, the worker's heartbeat window, was built and closed in
+issues**: #1 the spec, and #24 and #25 of the pivot, both `needs-triage` (⚠️ **this said five, with
+#21, until #21 closed on 2026-09-18, and eight until earlier that day**). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
-**#2 through #20, #22 and #23 are built** (⚠️ **this said "#2 through #18" until 2026-09-18 and
-"#14" until 2026-09-16**). ⚠️ **The frontier is
-[#21](https://github.com/yutaasakura96/kioku/issues/21)**, the review-load brake — which since
-2026-09-18 also carries the reader's **timezone**, without which *consistency* buckets a Tokyo
-evening into the wrong day (§ Next, § Carrying). What stays unticketed is `S12`'s export, which
+**#2 through #23 are built** (⚠️ **this said "#2 through #20, #22 and #23" until #21 was built on
+2026-09-18, "#2 through #18" before that, and "#14" until 2026-09-16**). ⚠️ **The ticket frontier is
+empty of `ready-for-agent` work**: #24 opens with research and #25 has four open questions in its
+body, and both are `needs-triage` (§ Next). ~~The frontier is #21, the review-load brake.~~ What stays unticketed is `S12`'s export, which
 issue #1 puts outside milestone 1.
 
 ⚠️ **A pivot was decided on 2026-09-16 and everything below this paragraph describes the system it
@@ -71,11 +72,59 @@ consistency and flag rate are what `/stats` now reads. ⚠️ **All three need *
 been none** — so the run is worth more than it was this morning, and it is still the only thing no
 session can do for him. ⚠️ **And migrations `0003` and `0004` are still unapplied to Neon**, which
 blocks the run before any of this matters.
+⚠️ **2026-09-18, later: #21 is built — the brake, and the reader's zone.** Ten new *cards* a day,
+none at fifty due, a backlog by retrievability, and `/stats` now counts *consistency*'s day in the
+zone the newest *session* stored. ⚠️ **Migration `0005_review_brake` joins `0003` and `0004` as
+unapplied to Neon**, and all three block the run.
 **Updated:** 2026-09-18
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**2026-09-18 — [#21](https://github.com/yutaasakura96/kioku/issues/21) is built: the review load has
+a brake, and the reader has a zone.** ADR 0066 in full, with a dated amendment block for five things
+it did not say. No new ADR.
+
+- **`compose(due, new, size, allowance) → { cardIds, newCount }`**, with `DAILY_NEW_CARDS = 10`,
+  `NEW_CARDS_PAUSED_ABOVE_DUE = 50` and `DUE_READ_CEILING = 2000` beside `DEFAULT_SESSION_SIZE`. The
+  gate reads `due.length` rather than a second argument — the judgement call is below. Sabotaged:
+  removing the gate reddens two tests across the unit and schema tiers, and removing the
+  retrievability order reddens three.
+- **`review_session.new_count` and `review_session.zone`**, migration `0005_review_brake`, with
+  `CHECK (new_count >= 0 AND new_count <= size)`. `new_count` is written by the insert that composes
+  the run. ⚠️ **Not applied to Neon**, like `0003` and `0004`.
+- **[`shared/review/brake.ts`](../shared/review/brake.ts) is new**: `introducedToday` over
+  `local-day.ts`'s day (its second importer, as #23 predicted), `newAllowance`, the sentence and the
+  third empty state. The day's runs are read from a 48-hour window and bucketed in TypeScript, not
+  with `date_trunc` (§ Carrying).
+- **The due read has no `LIMIT size`** and returns each epoch's state; `retrievability()` in the
+  scheduler wrapper ranks them. ⚠️ **Measured**: `ts-fsrs` 5.4.2's `get_retrievability` throws for a
+  non-`New` card with no `last_review`, so the wrapper answers `0` first.
+- **The zone rides every *session* request**, the mount's included, is canonicalised by
+  `canonicalZone` (`asia/tokyo` → `Asia/Tokyo`, measured) and stored, or `null` when absent.
+  **`server/middleware/shell-data.ts`'s one line changed as predicted**: `/stats` reads
+  `readerZone`, the newest stored zone, and UTC only for a reader who never sent one.
+- **The screen says which brake is on**: a sentence under the end screen's tally, read again by the
+  answer that finishes the run, and a third empty state, *No new words today.* `10` §5.6 and §5.7,
+  `09` §4.7, `04` §7.6 and §12, `03` §8, `11` §8 and `CONTEXT.md` (*Brake*) are amended.
+- **Tests**: 890 across four tiers (846 before), typecheck and build clean. New:
+  `test/unit/review-brake.test.ts`, `test/nuxt/review-brake.test.ts`, and blocks in
+  `review-compose`, `review-scheduler`, `local-day` and `test/schema/review.test.ts`.
+
+⚠️ **Judgement calls, none confirmed by Yuta:**
+
+- **The gate counts `due.length`** where #21 asked for a separate due-count argument. The count comes
+  from the same read, so a second argument could only disagree with the list beside it.
+- **The zone lives on `review_session`**, not on `user` (the auth library's table) and not in a
+  settings table that does not exist. `/stats` reads the newest one.
+- **"Start screen" is read as the empty states.** *Review* composes on arrival and has no start
+  screen, so the brake is named on the end screen and in the empty states.
+- **The open state speaks too**: *3 of 10 new words today.* ADR 0066 §7 names only the two shut
+  states; saying the number while it is open teaches the cap before it bites.
+- **An unanswered run's new *cards* stay new.** A run abandoned with ten new *cards* spends the day's
+  ten, and tomorrow those same ten are offered again, because they have no epoch. That is ADR 0066
+  §3 as written; it means an abandoned run costs a day, not the words.
 
 **2026-09-18 — [#23](https://github.com/yutaasakura96/kioku/issues/23) is built: retention,
 consistency and flag rate are the numbers, and *acceptance rate* is gone from the code.** ADR 0062 in
@@ -1560,17 +1609,16 @@ paragraph** — what follows is an index.
   are due, counted at composition on `review_session.new_count`, over a local day starting 04:00.
   The backlog is ordered by `get_retrievability` ascending. ⚠️ **Nothing caps due reviews.**
 
-⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
-is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone**, and everything else open is
-`needs-triage` or unspecified: #24 opens with research and #25 has four open questions in its body.
-**The next command is `/clear`, then `/implement 21`.**
+⚠️ **[#21](https://github.com/yutaasakura96/kioku/issues/21) built 2026-09-18 (§ Done). No
+`ready-for-agent` ticket is left.** #24 opens with research into the `.apkg` format and shared decks'
+licences, and #25 has four open questions in its body; both are `needs-triage`, and triaging them is
+a conversation with Yuta rather than an `/implement`. ⚠️ **What unblocks real use is not a ticket**:
+`npm run db:migrate` against Neon, for `0003`, `0004` and `0005`, then the reader's run.
 
-⚠️ **#21 is no longer only the brake — it is also what makes consistency read correctly.** ADR 0066
-§4 puts `Intl.DateTimeFormat().resolvedOptions().timeZone` on the *session* request, and #23 built
-the day boundary against a zone it has no way to obtain: `/stats` ships no JavaScript and nothing
-stores one, so the reader's day currently starts at 04:00 **UTC**. The moment #21 lands a stored
-zone, `server/middleware/shell-data.ts` is the one line that changes. **This was not in either
-ticket** and it is in § Carrying.
+~~⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
+is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone.** The next command is `/clear`,
+then `/implement 21`.~~ ~~#21 also carries the reader's timezone~~ — it did, and `/stats` reads it
+(§ Done).
 
 ~~⚠️ **[#22](https://github.com/yutaasakura96/kioku/issues/22) built 2026-09-17 (§ Done). The frontier
 is [#23](https://github.com/yutaasakura96/kioku/issues/23), with
@@ -1593,7 +1641,7 @@ The rest are open and blocked or out of order:
 #19 word lists ─┬─→ #20 mint on arrival, Vet is the flag queue ─→ #23 stats  ✔ all built
                 ├─→ #22 domain and level, filtered sessions             ✔ built
                 └─→ #24 Anki import (research first)
-#21 the brake — independent, and now also the zone #23 needs   ← the frontier
+#21 the brake, and the zone #23 needed                                    ✔ built
 #22, #19 ─→ #25 AI-seeded lists (not specified yet)
 ```
 
@@ -1984,7 +2032,30 @@ Nothing.
 
 ## Carrying
 
-- ⚠️ **`/stats` has no zone, so *consistency*'s day starts at 04:00 UTC — 13:00 in Tokyo.** ADR 0066
+- ⚠️ **The brake counts what was *offered*, and the tempting rewrite counts what was *answered*.**
+  `review_session.new_count` is written by the composition; the day's allowance is its sum over
+  today's runs. Counting first *scheduling epochs* (`ordinal = 1`) needs no column and looks cleaner,
+  and it lets a reader compose twenty new *cards*, answer none, and do it again (ADR 0066 §3). The
+  schema-tier test *spends the day on what was offered* asserts zero epochs beside a spent day.
+- ⚠️ **The day's runs are bucketed in TypeScript over a 48-hour window, and `date_trunc` is still the
+  wrong rule.** `recentlyComposed` hands over instants; `introducedToday` keys them with
+  `localDayKey`. Same argument as the `/stats` bullet below — the boundary is 04:00 in the reader's
+  zone, and it has one implementation.
+- ⚠️ **`resumeOrCompose`'s `zone` is `null` for *not sent*, not `'UTC'`.** It composes in UTC either
+  way, but it **stores** what it was given, and `readerZone` reads the newest non-null one. A default
+  of `'UTC'` would look harmless and would overwrite a Tokyo reader's zone the first time a test, a
+  script or an older tab composed without one.
+- ⚠️ **The fifty-*card* gate reads `due.length`, and the due read's ceiling is what makes that exact.**
+  Lower `DUE_READ_CEILING` below `NEW_CARDS_PAUSED_ABOVE_DUE` and the gate can never shut, with no
+  test failing unless it is the one that seeds fifty.
+- ⚠️ **The end screen's brake sentence comes from the answer that finishes the run**, not from the
+  composition. A run finished offline keeps the composition's reading, which can name a gate that
+  twenty answers have since opened; the next start corrects it.
+- ⚠️ **Two tabs composing at once can each spend the same ten.** The allowance is read before the
+  insert. ADR 0012 invites one reader and a second tab normally resumes the live run, so this is
+  reported by the sentence (*12 of 10*) rather than prevented.
+
+- ~~⚠️ **`/stats` has no zone, so *consistency*'s day starts at 04:00 UTC — 13:00 in Tokyo.** ADR 0066
   §4 puts the reader's zone on the *session* request and validates it server-side; `/stats` ships no
   JavaScript (ADR 0020) and no column stores one, so `server/middleware/shell-data.ts` passes
   `resolveZone(null)` and the fallback is UTC. **The arithmetic is right and the input is wrong**,
@@ -1992,7 +2063,11 @@ Nothing.
   in four zones, and the screen still buckets a Tokyo reader's evening into the wrong day.
   [#21](https://github.com/yutaasakura96/kioku/issues/21) lands the zone and **one line changes**.
   ⚠️ **Do not "fix" it by reading `Accept-Language` or by adding a `<script>` to `/stats`** — the
-  first carries no zone and the second is the property ADR 0020 exists to hold.
+  first carries no zone and the second is the property ADR 0020 exists to hold.~~ **Paid 2026-09-18
+  by #21**: `/stats` reads `readerZone`, the zone the newest *session* stored. ⚠️ **What is still
+  true: a reader who has never composed a run from a client that sent a zone is in UTC**, and so is
+  every run composed before #21 — `zone` is null on all of them. The warning about `Accept-Language`
+  and `<script>` stands.
 - ⚠️ **`note_vetting.seconds_to_vet` is written by three paths and read by nothing**, from
   2026-09-18. It is the exact mirror of the `flagged_at` bullet #20 closed, one step in the other
   direction: `app/pages/vet.vue` measures it, `shared/vet/decision.ts` validates it,
@@ -2134,12 +2209,13 @@ Nothing.
   is where #24 will disagree. **Declaring an `anki` pipeline to make a check pass would be deciding
   #24 by the back door.**
 
-- ⚠️ **`shared/review/compose.ts` carries a comment that is wrong, and ADR 0066 is the correction.**
+- ~~⚠️ **`shared/review/compose.ts` carries a comment that is wrong, and ADR 0066 is the correction.**
   It says a *card* three weeks late has decayed further than one due this morning. That holds only
   when both have the same stability, and FSRS can answer it exactly through
   `get_retrievability`. The code is not wrong yet, because the order only matters once the due set
   is larger than the *session*; the comment's reasoning is what would mislead the next reader.
-  [#21](https://github.com/yutaasakura96/kioku/issues/21) fixes both.
+  [#21](https://github.com/yutaasakura96/kioku/issues/21) fixes both.~~ **Paid 2026-09-18 by #21**:
+  the comment is replaced and the order is retrievability when the backlog exceeds the run.
 - ~~⚠️ **`level_claim` has a table, a read path, an index, a *provenance marker* and tests, and no
   producer.**~~ **Paid 2026-09-17 by #22**: stage 7's `write_claims` writes one `level_claim` and one
   `domain_claim` per generated *note*. ⚠️ **What is still true: every *note* written before then

@@ -18,11 +18,11 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 
-import { dueCards, newCards, nothingToStudy, snapshotOf } from '../../server/utils/review/queries'
+import { dueCards, newCards, nothingToStudy, readerZone, snapshotOf } from '../../server/utils/review/queries'
 import { freshDatabase, reset } from './harness'
 import { recordFlag } from '../../server/utils/review/flag'
 import { recordGrade } from '../../server/utils/review/grade'
-import { resumeOrCompose } from '../../server/utils/review/session'
+import { brakeIfFinished, brakeReading, resumeOrCompose } from '../../server/utils/review/session'
 import type { Grade } from '../../shared/review/scheduler'
 import type { SchemaDatabase } from './harness'
 
@@ -119,7 +119,7 @@ describe('the two reads the composer is built from (`04` §11)', () => {
     await scheduled(overdue, -2)
     await scheduled(later, 3)
 
-    expect((await dueCards(db, OWNER, 20)).map(card => card.cardId)).toEqual([overdue])
+    expect((await dueCards(db, OWNER)).map(card => card.cardId)).toEqual([overdue])
   })
 
   // ⚠️ Suspension is on the `card` and cannot live in the epoch index's partial
@@ -129,7 +129,7 @@ describe('the two reads the composer is built from (`04` §11)', () => {
     const suspended = await acceptedCard('三␟さん', { suspended: true })
     await scheduled(suspended, -1)
 
-    expect(await dueCards(db, OWNER, 20)).toEqual([])
+    expect(await dueCards(db, OWNER)).toEqual([])
     expect(await newCards(db, OWNER, 20)).toEqual([])
   })
 
@@ -160,7 +160,7 @@ describe('the two reads the composer is built from (`04` §11)', () => {
     const theirs = await acceptedCard('五␟ご', { owner: OTHER })
     await scheduled(theirs, -1, OTHER)
 
-    expect(await dueCards(db, OWNER, 20)).toEqual([])
+    expect(await dueCards(db, OWNER)).toEqual([])
     expect(await newCards(db, OWNER, 20)).toEqual([])
   })
 })
@@ -549,7 +549,7 @@ describe('the end of the run (`09` §4.7 step 6, `04` §7.6)', () => {
 // going to *Vet* and coming back tomorrow.
 describe('nothing to study', () => {
   it('says the reader has no cards at all', async () => {
-    expect(await nothingToStudy(db, OWNER)).toEqual({ hasCards: false, nextDue: null })
+    expect(await nothingToStudy(db, OWNER)).toEqual({ hasCards: false, nextDue: null, newWaiting: false })
   })
 
   it('names when the next card is due', async () => {
@@ -560,6 +560,149 @@ describe('nothing to study', () => {
 
     expect(answer.hasCards).toBe(true)
     expect(answer.nextDue!.getTime()).toBeGreaterThan(Date.now())
+  })
+})
+
+// ADR 0066 — the brake, as rows. `compose`'s arithmetic has its own unit tests;
+// what is here is that the allowance is **read from `review_session.new_count`
+// and written by the composition**, that the fifty-card gate counts the whole
+// due set rather than a session's worth, and that the zone is stored.
+describe('the review-load brake (ADR 0066, #21)', () => {
+  async function newWords(n: number) {
+    for (let index = 0; index < n; index += 1)
+      await acceptedCard(`新${index}␟しん${index}`, { minutesAgo: n - index })
+  }
+
+  async function overdue(n: number) {
+    for (let index = 0; index < n; index += 1)
+      await scheduled(await acceptedCard(`古${index}␟ふる${index}`), -1)
+  }
+
+  /** Close the live run the way a finished one is closed, without grading it. */
+  async function finish() {
+    await client.exec(`UPDATE review_session SET completed_at = now() WHERE completed_at IS NULL;`)
+  }
+
+  it('composes at most ten new cards, and writes how many on the session', async () => {
+    await newWords(15)
+
+    const run = (await resumeOrCompose(db, OWNER, 20))!
+
+    expect(run.positions).toHaveLength(10)
+    expect(await one<{ new_count: number }>(`SELECT new_count FROM review_session;`))
+      .toEqual({ new_count: 10 })
+  })
+
+  // ⚠️ **Counted at composition, not from first epochs.** Nothing here is
+  // graded, so a count of `ordinal = 1` epochs would say the day is untouched.
+  it('spends the day on what was offered, so an unanswered run still counts', async () => {
+    await newWords(15)
+
+    await resumeOrCompose(db, OWNER, 6)
+    await finish()
+    const second = (await resumeOrCompose(db, OWNER, 20))!
+
+    expect(second.positions).toHaveLength(4)
+    expect(await count('scheduling_epoch')).toBe(0)
+
+    await finish()
+    expect(await resumeOrCompose(db, OWNER, 20)).toBeNull()
+    expect(await brakeReading(db, OWNER, 'UTC')).toEqual({ introducedToday: 10, dueCount: 0 })
+  })
+
+  it('tells the held-back state apart from nothing due', async () => {
+    await newWords(12)
+    await resumeOrCompose(db, OWNER, 20)
+    await finish()
+
+    expect(await resumeOrCompose(db, OWNER, 20)).toBeNull()
+    expect((await nothingToStudy(db, OWNER)).newWaiting).toBe(true)
+  })
+
+  // ⚠️ **A run composed yesterday does not spend today.** The window the query
+  // reads is wider than a day on purpose; which runs are *today* is the local
+  // day's rule, in the reader's zone.
+  it('gives a new day a new allowance', async () => {
+    await newWords(15)
+    await resumeOrCompose(db, OWNER, 20)
+    await finish()
+    await client.exec(`UPDATE review_session SET started_at = now() - interval '30 hours';`)
+
+    // Ten again — and not five, because yesterday's run was never answered and
+    // its ten are still new. What was offered spends a day; it does not use
+    // the words up.
+    expect((await resumeOrCompose(db, OWNER, 20))!.positions).toHaveLength(10)
+  })
+
+  it('composes no new card at fifty due, and a due-only run instead', async () => {
+    await overdue(50)
+    await newWords(3)
+
+    const run = (await resumeOrCompose(db, OWNER, 200))!
+
+    expect(run.positions).toHaveLength(50)
+    expect(await one<{ new_count: number }>(`SELECT new_count FROM review_session;`))
+      .toEqual({ new_count: 0 })
+    expect((await brakeReading(db, OWNER, 'UTC')).dueCount).toBe(50)
+  })
+
+  it('introduces new cards at forty-nine due', async () => {
+    await overdue(49)
+    await newWords(3)
+
+    expect((await resumeOrCompose(db, OWNER, 200))!.positions).toHaveLength(52)
+  })
+
+  // ⚠️ **The due read lost its `LIMIT size`** — the gate and the order both
+  // need the whole set, and the session size is `compose`'s to apply.
+  it('reads every due card, not a session\'s worth', async () => {
+    await overdue(25)
+
+    expect(await dueCards(db, OWNER)).toHaveLength(25)
+  })
+
+  // ADR 0066 §5, against real epochs: when the backlog is larger than the run,
+  // the least remembered is studied first — here the shaky card due yesterday
+  // over the sturdy one three weeks late.
+  it('takes the least remembered card first when the backlog is bigger than the run', async () => {
+    const sturdy = await acceptedCard('丈␟じょう')
+    const shaky = await acceptedCard('脆␟もろ')
+    await client.exec(`
+      INSERT INTO scheduling_epoch
+        (card_id, owner_id, ordinal, due, stability, difficulty, scheduled_days, reps, lapses, state, last_review)
+      VALUES
+        ('${sturdy}', '${OWNER}', 1, now() - interval '21 days', 200, 5, 180, 8, 0, 2, now() - interval '201 days'),
+        ('${shaky}', '${OWNER}', 1, now() - interval '1 day', 2.3, 7, 3, 2, 1, 2, now() - interval '4 days');
+    `)
+
+    const run = (await resumeOrCompose(db, OWNER, 1))!
+
+    expect(run.positions.map(p => p.cardId)).toEqual([shaky])
+  })
+
+  it('stores the reader\'s zone on the run, and /stats reads the newest one', async () => {
+    await newWords(2)
+
+    expect(await readerZone(db, OWNER)).toBe('UTC')
+
+    await resumeOrCompose(db, OWNER, 1, undefined, 'Asia/Tokyo')
+    await finish()
+    await resumeOrCompose(db, OWNER, 1)
+
+    expect(await rows(`SELECT zone FROM review_session ORDER BY started_at;`))
+      .toEqual([{ zone: 'Asia/Tokyo' }, { zone: null }])
+    expect(await readerZone(db, OWNER)).toBe('Asia/Tokyo')
+  })
+
+  it('reads the brake for the end screen only once the run is over', async () => {
+    await newWords(1)
+    const run = (await resumeOrCompose(db, OWNER, 1))!
+
+    expect(await brakeIfFinished(db, OWNER, run)).toBeNull()
+    expect(await brakeIfFinished(db, OWNER, {
+      ...run,
+      positions: run.positions.map(position => ({ ...position, grade: 3 as Grade })),
+    })).toEqual({ introducedToday: 1, dueCount: 0 })
   })
 })
 

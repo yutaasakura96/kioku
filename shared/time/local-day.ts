@@ -35,12 +35,41 @@ export const DAY_STARTS_AT_HOUR = 4
 /**
  * ⚠️ **The fallback, and it is a real cost rather than a formality.** ADR 0066
  * puts the reader's zone on the *session* request and validates it server-side;
- * `/stats` ships no JavaScript (ADR 0020), so it has no client to ask and no
- * column to read one from until #21 lands the zone. A reader in Tokyo therefore
- * has his day boundary at 13:00 local until then — see `00-status.md`
- * § Carrying.
+ * `/stats` ships no JavaScript (ADR 0020), so it reads the zone the newest
+ * *session* stored (`review_session.zone`, since #21). A reader who has never
+ * composed a run from a client that sent one is in UTC, and a reader in Tokyo
+ * then has a day boundary at 13:00 local.
  */
 export const FALLBACK_ZONE = 'UTC'
+
+/**
+ * The zone a client sent, as `Intl` spells it — or `null` for anything that is
+ * not one (ADR 0066 §4: *the server validates it*).
+ *
+ * ⚠️ **Constructed rather than pattern-matched.** There is no useful regular
+ * expression for an IANA name, and `Intl`'s own answer is the one that matters,
+ * because `Intl` is what every call below uses. Measured 2026-09-18 on Node
+ * 24.11.0: `asia/tokyo` resolves to `Asia/Tokyo` and `Etc/UTC` to `UTC`, and
+ * `bogus` and `''` throw a `RangeError` — so what is stored is the canonical
+ * spelling, and two runs from one laptop do not disagree about the reader's
+ * zone by a letter's case.
+ *
+ * ⚠️ **`null` rather than the fallback**, because the caller stores it: a
+ * reader whose client sent nothing has *not reported* a zone, which is
+ * different from having reported UTC, and `/stats` reads the newest one that
+ * was reported.
+ */
+export function canonicalZone(zone: unknown): string | null {
+  if (typeof zone !== 'string' || zone === '' || zone.length > 64)
+    return null
+
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: zone }).resolvedOptions().timeZone
+  }
+  catch {
+    return null
+  }
+}
 
 /**
  * `Intl` throws a `RangeError` on a zone it does not know, and the value on the
@@ -49,19 +78,7 @@ export const FALLBACK_ZONE = 'UTC'
  * a few hours, which is not worth a 500.
  */
 export function resolveZone(zone: string | null | undefined): string {
-  if (!zone)
-    return FALLBACK_ZONE
-
-  try {
-    // ⚠️ Constructed rather than pattern-matched. There is no useful regular
-    // expression for an IANA name, and `Intl`'s own answer is the one that
-    // matters, because `Intl` is what every call below uses.
-    new Intl.DateTimeFormat('en-CA', { timeZone: zone })
-    return zone
-  }
-  catch {
-    return FALLBACK_ZONE
-  }
+  return canonicalZone(zone) ?? FALLBACK_ZONE
 }
 
 /**

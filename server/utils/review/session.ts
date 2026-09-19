@@ -20,8 +20,11 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import { compose } from '../../../shared/review/compose'
-import { dueCards, newCards, snapshotOf } from './queries'
+import { dueCards, dueCount, newCards, readerZone, recentlyComposed, snapshotOf } from './queries'
+import { introducedToday, newAllowance } from '../../../shared/review/brake'
+import type { BrakeReading } from '../../../shared/review/brake'
 import { isFinished } from '../../../shared/review/snapshot'
+import { resolveZone } from '../../../shared/time/local-day'
 import type { IngestDatabase } from '../ingest/record'
 import type { SessionFilter } from '../../../shared/review/filter'
 import { NO_FILTER } from '../../../shared/review/filter'
@@ -29,6 +32,9 @@ import type { ReviewSnapshot } from './queries'
 
 /**
  * Resume the run the reader is in, or compose one.
+ *
+ * `zone` is the reader's, already validated (`canonicalZone`) — `null` when the
+ * client sent none, which composes in UTC and stores nothing.
  *
  * ⚠️ **Resume comes first and the knob and the filter are ignored while it
  * does.** `09` §4.7:
@@ -48,6 +54,7 @@ export async function resumeOrCompose(
   ownerId: string,
   size: number,
   filter: SessionFilter = NO_FILTER,
+  zone: string | null = null,
   now: Date = new Date(),
 ): Promise<ReviewSnapshot | null> {
   const live = await liveSession(db, ownerId)
@@ -65,7 +72,30 @@ export async function resumeOrCompose(
     await completeSession(db, ownerId, live)
   }
 
-  return composeSession(db, ownerId, size, filter, now)
+  return composeSession(db, ownerId, size, filter, zone, now)
+}
+
+/**
+ * Which brake is on, as of now — ADR 0066 §7's sentence, read after the run
+ * is composed or resumed so that it counts the run's own new *cards*.
+ *
+ * ⚠️ **It is a second read of the due set and not the composition's**, and on
+ * the endpoint that is the same instant. It is a count rather than a reuse
+ * because the end screen asks it again when the run finishes, and by then the
+ * reader has answered twenty of them.
+ */
+export async function brakeReading(
+  db: IngestDatabase,
+  ownerId: string,
+  zone: string,
+  now: Date = new Date(),
+): Promise<BrakeReading> {
+  const recent = await recentlyComposed(db, ownerId, now)
+
+  return {
+    introducedToday: introducedToday(recent, now, zone),
+    dueCount: await dueCount(db, ownerId, now),
+  }
 }
 
 /** The newest run the reader has not finished — `04` §7.6's null `completed_at`. */
@@ -86,6 +116,24 @@ export async function liveSession(db: IngestDatabase, ownerId: string): Promise<
 }
 
 /**
+ * The brake as the end screen should read it — ⚠️ **fresh, once the run is
+ * over, and `null` otherwise.** The reading the run was composed with says
+ * *63 due*; twenty answers later it is 43, and a sentence that still said 63
+ * would be telling the reader the gate is shut when the next run would open it.
+ * The zone is the one the run stored, because an answer carries none.
+ */
+export async function brakeIfFinished(
+  db: IngestDatabase,
+  ownerId: string,
+  snapshot: ReviewSnapshot | null,
+): Promise<BrakeReading | null> {
+  if (!snapshot || !isFinished(snapshot))
+    return null
+
+  return brakeReading(db, ownerId, await readerZone(db, ownerId))
+}
+
+/**
  * One *session*, written whole.
  *
  * ⚠️ **`review_session.size` is what was composed, not what was asked for.** The
@@ -97,16 +145,22 @@ export async function liveSession(db: IngestDatabase, ownerId: string): Promise<
  * *session* of nothing is not a short *session*, it is one of `10` §5.7's empty
  * states, and this answers `null` for it.
  *
- * ⚠️ **Both reads take `size`, and the second one is not `size − due.length`.**
- * `compose` is what decides the split, and narrowing the new-*card* read to the
- * remainder would put half the composition rule back in SQL — where a wrong
- * answer reads as a fixture problem.
+ * ⚠️ **The new-*card* read takes `size`, and not `size − due.length` or the
+ * allowance.** `compose` is what decides the split and the cap, and narrowing
+ * the read to either would put half the composition rule back in SQL — where a
+ * wrong answer reads as a fixture problem.
+ *
+ * ⚠️ **The allowance is read before the transaction and written inside it.**
+ * Two tabs composing in the same instant can each spend the same ten; ADR 0012
+ * invites one reader, a resumed run is what a second tab normally gets, and the
+ * sentence on the end screen reports the overrun rather than hiding it.
  */
 async function composeSession(
   db: IngestDatabase,
   ownerId: string,
   size: number,
   filter: SessionFilter,
+  zone: string | null,
   now: Date,
 ): Promise<ReviewSnapshot | null> {
   // Sequential — see `server/utils/review/queries.ts` on why `Promise.all` here
@@ -114,10 +168,12 @@ async function composeSession(
   // ⚠️ **The filter reaches the new half and never the due one** (ADR 0065 §5):
   // what is owed is owed, and `dueCards` takes no filter so it cannot be handed
   // one.
-  const due = await dueCards(db, ownerId, size, now)
+  const due = await dueCards(db, ownerId, now)
   const fresh = await newCards(db, ownerId, size, filter)
+  const recent = await recentlyComposed(db, ownerId, now)
+  const allowance = newAllowance(introducedToday(recent, now, resolveZone(zone)))
 
-  const cardIds = compose(due, fresh, size)
+  const { cardIds, newCount } = compose(due, fresh, size, allowance)
 
   if (cardIds.length === 0)
     return null
@@ -129,7 +185,11 @@ async function composeSession(
       // purpose: both are `now()` **on the server**, and a value computed in
       // this process and sent over would be the application's clock standing in
       // for the database's on the one timestamp `03` §8.2 compares against.
-      .values({ ownerId, size: cardIds.length })
+      // ⚠️ `new_count` is what the day's allowance is counted from (ADR 0066
+      // §3) and it is written here, by the composition, on purpose — see
+      // `shared/review/brake.ts` on why not from the first *grade*. `zone` is
+      // what `/stats` reads the reader's day in (`readerZone`).
+      .values({ ownerId, size: cardIds.length, newCount, zone })
       .returning({ id: schema.reviewSession.id })
 
     await tx.insert(schema.reviewSessionCard).values(
