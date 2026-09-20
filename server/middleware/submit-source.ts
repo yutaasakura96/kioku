@@ -171,9 +171,11 @@ export default defineEventHandler(async (event) => {
   const written = await recordSource(useDatabase(), {
     subjectId: jlptVocab.subject_id,
     // ADR 0063 — what the reader said the material is. `readSourceKind` answers
-    // `word_list` for anything it does not recognise, which is *Ingest*'s
-    // default rather than `04` §5.1's column default: the column defaults to
-    // `prose` so that the rows written before ADR 0063 keep their meaning.
+    // `prose`, `04` §5.1's column default, for anything it does not recognise or
+    // that *Ingest* does not offer, and not *Ingest*'s own `word_list`. The form
+    // always sends a value, so only a post from somewhere else reaches the
+    // fallback, and answering that with `word_list` would chunk a pasted passage
+    // at 25 terms (§ Carrying).
     kind: readSourceKind(fields.kind),
     title: submission.title,
     content: submission.content,
