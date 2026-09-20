@@ -41,7 +41,7 @@ describe('the JLPT vocabulary declaration', () => {
   // ADR 0063: the declaration stops naming one ordered stage list and names one
   // per *source kind*. Prose is `03` §5.1's seven, unchanged.
   it('names one pipeline per source kind', () => {
-    expect(pipelineKinds(jlptVocab)).toEqual(['prose', 'word_list'])
+    expect(pipelineKinds(jlptVocab)).toEqual(['prose', 'word_list', 'anki'])
     expect(stageKeys(jlptVocab, 'prose')).toEqual([
       'chunk',
       'tokenise',
@@ -61,10 +61,25 @@ describe('the JLPT vocabulary declaration', () => {
     ])
   })
 
-  // ⚠️ `anki` is in `04` §5.1's `CHECK` and in no pipeline: ADR 0063 leaves the
-  // `.apkg` format and the licensing of shared decks to #24 and says it does not
-  // pre-decide that ticket. A row carrying it has to say so by name rather than
-  // run whichever pipeline happens to be first.
+  // ⚠️ **`anki` is `word_list` with `unpack` in front** — ADR 0068 §4, #26. Two
+  // of its seven stages are run by the app rather than by the worker: `unpack`
+  // turns the uploaded `.apkg` into a word list and `chunk` divides it, both
+  // inside the submit transaction. They are declared anyway, because ADR 0003
+  // makes this file the one place that says in order what happens to a
+  // *source*, and `STAGES_RUN_ELSEWHERE` is where the worker learns not to
+  // look for a module.
+  it('runs the word-list pipeline with `unpack` in front for a deck', () => {
+    expect(stageKeys(jlptVocab, 'anki')).toEqual([
+      'unpack',
+      'chunk',
+      'normalise',
+      'deduplicate',
+      'filter_known',
+      'generate',
+      'write_notes',
+    ])
+    expect(stageKeys(jlptVocab, 'anki').slice(2)).toEqual(stageKeys(jlptVocab, 'word_list').slice(1))
+  })
   // ADR 0065 §2: closed sets, because a model asked for a free-text domain
   // answers `tech`, `technology` and `IT` for three words that belong together.
   it('declares the levels in order and the domains, general among them', () => {
@@ -72,8 +87,13 @@ describe('the JLPT vocabulary declaration', () => {
     expect(domainValues(jlptVocab)).toEqual(['tech', 'business', 'daily', 'academic', 'general'])
   })
 
+  // ⚠️ The named failure rather than a crash at stage dispatch. Every kind
+  // *Ingest* can submit has a pipeline since #26, so the case is reached only
+  // by a row carrying something the declaration has never heard of.
   it('refuses a kind it has no pipeline for, by name', () => {
-    expect(() => stageKeys(jlptVocab, 'anki')).toThrow(/anki/)
+    const withoutAnki = { ...jlptVocab, pipelines: { prose: ['chunk'] } }
+
+    expect(() => stageKeys(withoutAnki as typeof jlptVocab, 'anki')).toThrow(/anki/)
   })
 
   it('names its fields, and which of them vetting foregrounds', () => {
@@ -127,10 +147,10 @@ describe('checkDeclaration', () => {
       { name: 'tail', kind: 'judgement', required: false, memory_bearing: true, label: 'TAIL' },
     ],
     templates: [{ key: 'only', name: 'Only', prompt: ['head'], answer: ['tail'] }],
-    // ⚠️ **Both submittable kinds, because the validator requires both**
-    // (ADR 0063), with synthetic stage names for the same reason the fields are
-    // synthetic.
-    pipelines: { word_list: ['one'], prose: ['one', 'two'] },
+    // ⚠️ **All three submittable kinds, because the validator requires each**
+    // (ADR 0063, and `anki` since ADR 0068), with synthetic stage names for the
+    // same reason the fields are synthetic.
+    pipelines: { word_list: ['one'], prose: ['one', 'two'], anki: ['zero', 'one'] },
     levels: ['low', 'high'],
     domains: ['work', 'other'],
   }
@@ -230,17 +250,18 @@ describe('checkDeclaration', () => {
         { field: null, code: 'no_pipelines' },
         { field: 'word_list', code: 'missing_pipeline' },
         { field: 'prose', code: 'missing_pipeline' },
+        { field: 'anki', code: 'missing_pipeline' },
       ],
     })
   })
 
   it('refuses a pipeline with no stages in it, and two stages wearing one key', () => {
     expect(checkDeclaration(withDeclaration({
-      pipelines: { word_list: [], prose: ['one'] },
+      pipelines: { word_list: [], prose: ['one'], anki: ['one'] },
     }))).toEqual({ ok: false, errors: [{ field: 'word_list', code: 'no_stages' }] })
 
     expect(checkDeclaration(withDeclaration({
-      pipelines: { word_list: ['one', 'one'], prose: ['one'] },
+      pipelines: { word_list: ['one', 'one'], prose: ['one'], anki: ['one'] },
     }))).toEqual({ ok: false, errors: [{ field: 'one', code: 'duplicate_stage' }] })
   })
 
@@ -249,7 +270,10 @@ describe('checkDeclaration', () => {
   it('refuses a declaration missing a pipeline Ingest can submit', () => {
     expect(checkDeclaration(withDeclaration({ pipelines: { prose: ['one'] } }))).toEqual({
       ok: false,
-      errors: [{ field: 'word_list', code: 'missing_pipeline' }],
+      errors: [
+        { field: 'word_list', code: 'missing_pipeline' },
+        { field: 'anki', code: 'missing_pipeline' },
+      ],
     })
   })
 

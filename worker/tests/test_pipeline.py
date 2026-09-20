@@ -84,7 +84,10 @@ def test_a_stage_key_is_also_a_module_name() -> None:
     modules = {path.stem for path in (Path(__file__).parent.parent / "pipeline").glob("*.py")}
 
     for kind in pipeline_kinds(DECLARATION):
-        assert set(stage_keys(DECLARATION, kind)) <= modules, kind
+        # ⚠️ **Minus the stages somebody else runs.** `unpack` and `chunk` are
+        # the app's (ADR 0068 §4) and have no module here on purpose;
+        # `check_pipelines` is what asserts every key is one *or* the other.
+        assert set(stage_keys(DECLARATION, kind)) - STAGES_RUN_ELSEWHERE <= modules, kind
 
     assert stage_keys(DECLARATION, "prose") == [
         "chunk",
@@ -135,15 +138,80 @@ def test_a_stage_nobody_runs_stops_the_worker_by_name() -> None:
 
 
 def test_a_source_of_an_undeclared_kind_is_refused_by_name() -> None:
-    """⚠️ `anki` is in `04` §5.1's `CHECK` and in no pipeline — ADR 0063 leaves
-    the format and the licensing of shared decks to #24 and does not pre-decide
-    it. A row that carried it must say so rather than run whatever happens to be
-    first.
+    """A row carrying a kind the declaration does not know must say so rather
+    than run whatever pipeline happens to be first.
+
+    ⚠️ **`anki` used to be that kind and is not since #26** (ADR 0068), so the
+    case is reached with a declaration edited to drop a pipeline instead. ADR
+    0063 had left the format and the licensing of shared decks to #24 and did
+    not pre-decide it; #24's research and ADR 0068 closed both.
     """
     with pytest.raises(UnknownSourceKind) as raised:
-        stages(kind="anki")
+        stages(kind="ebook")
 
-    assert "anki" in str(raised.value)
+    assert "ebook" in str(raised.value)
+
+
+def test_a_deck_runs_the_word_list_stages_and_carries_the_deck_s_hints() -> None:
+    """ADR 0068 §4 and §5: `anki` is `word_list` with `unpack` in front, and
+    `unpack` has already run in the app by the time a worker sees the row.
+
+    ⚠️ **The *identity key* is Sudachi's on both paths** — the deck's reading
+    rides along as a hint and takes no part in it, so a deck that disagrees with
+    the dictionary keys on the dictionary's (ADR 0068 §5, ADR 0063).
+    """
+    result = stages(
+        kind="anki",
+        text="\n".join(["図書館\tとしょかん\tJLPT_5", "あります\tありまス\tJLPT N5"]),
+    )
+
+    assert [group.candidate.term for group in result.survivors] == ["図書館", "有る"]
+    assert [group.candidate.reading for group in result.survivors] == ["としょかん", "ある"]
+    assert [group.candidate.deck_reading for group in result.survivors] == [
+        "としょかん",
+        "ありまス",
+    ]
+    assert [group.candidate.deck_hint for group in result.survivors] == ["JLPT_5", "JLPT N5"]
+    # The *occurrence* covers the term's column and not the hints beside it.
+    assert result.survivors[0].candidate.surface_form == "図書館"
+
+
+def test_a_deck_s_word_that_is_already_a_note_is_not_regenerated() -> None:
+    """#26's criterion: *a word that already has a note, including one of the 474
+    cached pending ones, is not regenerated* (`filter_known`, ADR 0063 §4).
+
+    ⚠️ **`S5` is what this is protecting** — the fiftieth *source* must ask about
+    fewer *notes* than the fifth — and an import is the largest *source* the app
+    has ever taken, so it is where the saving is worth the most. ⚠️ **The corpus
+    is matched on Sudachi's key and not the deck's reading** (ADR 0068 §5): the
+    deck below reads 図書館 as `としょかん` and the collision holds whatever the
+    dictionary produced.
+    """
+    result = stages(
+        kind="anki",
+        text="\n".join(["図書館\tとしょかん\tJLPT_5", "駅\tえき\tJLPT_5"]),
+        known_keys={LIBRARY: "note-1"},
+    )
+
+    assert [group.candidate.term for group in result.survivors] == ["駅"]
+    assert [group.candidate.term for group in result.collisions] == ["図書館"]
+    assert result.already_known == 1
+
+
+def test_a_word_list_ignores_anything_after_a_tab() -> None:
+    """ADR 0068 §5: the term is column 1 for every kind, and a `word_list` line
+    carries no columns 2 and 3 to carry.
+
+    ⚠️ **This is a change of behaviour for word lists.** Before #26 a tabbed
+    line reached the tokeniser whole, was called two content words and was kept
+    whole under ADR 0063's *kept, not dropped* clause. One rule on both paths is
+    what stops them disagreeing about what a line is.
+    """
+    result = stages(kind="word_list", text="図書館\tlibrary")
+
+    assert [group.candidate.term for group in result.survivors] == ["図書館"]
+    assert result.survivors[0].candidate.deck_reading == ""
+    assert result.survivors[0].candidate.surface_form == "図書館"
 
 
 def test_a_word_list_runs_normalise_where_prose_runs_the_tokeniser() -> None:

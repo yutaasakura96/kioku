@@ -49,7 +49,9 @@ TWO_FIELDS = {
     # (ADR 0063). The stage names are synthetic for the same reason the fields
     # are: a test written against `jlpt-vocab.json`'s real pipelines would pass
     # for the wrong reason the day the validator hard-codes one of them.
-    "pipelines": {"word_list": ["one"], "prose": ["one", "two"]},
+    # ⚠️ All three submittable kinds, because the validator requires each
+    # (ADR 0063, and `anki` since ADR 0068).
+    "pipelines": {"word_list": ["one"], "prose": ["one", "two"], "anki": ["zero", "one"]},
     "levels": ["low", "high"],
     "domains": ["work", "other"],
 }
@@ -77,7 +79,7 @@ class TestLoadDeclaration:
         runs `normalise` where prose runs `tokenise` and `extract_candidates`.
         """
         declaration = load_declaration()
-        assert pipeline_kinds(declaration) == ["prose", "word_list"]
+        assert pipeline_kinds(declaration) == ["prose", "word_list", "anki"]
         assert stage_keys(declaration, "prose") == [
             "chunk",
             "tokenise",
@@ -95,17 +97,27 @@ class TestLoadDeclaration:
             "generate",
             "write_notes",
         ]
+        # ⚠️ **`anki` is `word_list` with `unpack` in front** — ADR 0068 §4.
+        # Two of its stages run in the app, and they are declared anyway: ADR
+        # 0003 makes this file the one place that says, in order, what happens
+        # to a *source*.
+        assert stage_keys(declaration, "anki") == [
+            "unpack",
+            *stage_keys(declaration, "word_list"),
+        ]
 
     def test_refuses_a_kind_it_has_no_pipeline_for_by_name(self):
-        """⚠️ **`anki` is in `04` §5.1's `CHECK` and in no pipeline.** ADR 0063
-        leaves the `.apkg` format and the licensing of shared decks to #24 and
-        says in as many words that it does not pre-decide that ticket's answer,
-        so the value exists and the path does not. A row carrying it has to say
-        so rather than run whichever pipeline happens to be first.
+        """A row carrying a kind the declaration does not know has to say so
+        rather than run whichever pipeline happens to be first.
+
+        ⚠️ **`anki` was that kind until #26** (ADR 0068): ADR 0063 left the
+        `.apkg` format and the licensing of shared decks to #24 and said it did
+        not pre-decide the ticket, so the value existed and the path did not.
+        Both are closed, so the case now needs a kind nothing declares.
         """
         with pytest.raises(UnknownSourceKind) as raised:
-            stage_keys(load_declaration(), "anki")
-        assert "anki" in str(raised.value)
+            stage_keys(load_declaration(), "ebook")
+        assert "ebook" in str(raised.value)
 
     def test_names_the_field_list_and_the_judgement_fields(self):
         declaration = load_declaration()
@@ -310,14 +322,17 @@ class TestCheckDeclaration:
             ValidationError(None, "no_pipelines"),
             ValidationError("word_list", "missing_pipeline"),
             ValidationError("prose", "missing_pipeline"),
+            ValidationError("anki", "missing_pipeline"),
         ]
 
     def test_refuses_a_pipeline_with_no_stages_in_it(self):
-        patched = with_declaration(pipelines={"word_list": [], "prose": ["one"]})
+        patched = with_declaration(pipelines={"word_list": [], "prose": ["one"], "anki": ["one"]})
         assert errors(check_declaration(patched)) == [ValidationError("word_list", "no_stages")]
 
     def test_refuses_two_stages_wearing_one_key(self):
-        patched = with_declaration(pipelines={"word_list": ["one", "one"], "prose": ["one"]})
+        patched = with_declaration(
+            pipelines={"word_list": ["one", "one"], "prose": ["one"], "anki": ["one"]}
+        )
         assert errors(check_declaration(patched)) == [ValidationError("one", "duplicate_stage")]
 
     def test_refuses_an_empty_level_or_domain_set(self):
@@ -350,7 +365,8 @@ class TestCheckDeclaration:
         """
         patched = with_declaration(pipelines={"prose": ["one"]})
         assert errors(check_declaration(patched)) == [
-            ValidationError("word_list", "missing_pipeline")
+            ValidationError("word_list", "missing_pipeline"),
+            ValidationError("anki", "missing_pipeline"),
         ]
 
 

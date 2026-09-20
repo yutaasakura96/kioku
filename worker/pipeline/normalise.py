@@ -36,8 +36,18 @@ from .extract_candidates import Candidate, is_candidate, reading_of
 from .tokenise import Token, tokenise
 
 
+#: The column separator on a *word list* line — ADR 0068 §3.
+#:
+#: ⚠️ **A tab and not a space**, because a *term* may contain a space (a phrase
+#: the reader chose, or a deck entry like ``〜 (まる) ごと``) and must not be cut
+#: at one. `shared/ingest/anki/line.ts` collapses every blank in the shared class
+#: — the tab among them — out of each value before it joins them with this, so a
+#: line always holds exactly three columns.
+COLUMN = "\t"
+
+
 def normalise(
-    declaration: Declaration, text: str, *, char_start: int
+    declaration: Declaration, text: str, *, char_start: int, kind: str = "word_list"
 ) -> list[Candidate]:
     """One *candidate* per non-blank line, positioned within the *source*.
 
@@ -47,13 +57,25 @@ def normalise(
     the same reconciliation `extract_candidates` performs for prose, at the same
     seam, for the same reason.
 
-    ⚠️ **The span is the *line's*, not the resolved term's, and `surface_form`
+    ⚠️ **The term is the text before the first tab, for every kind** — ADR 0068
+    §5, #26. An `anki` line is ``term⇥reading⇥hint`` and its columns 2 and 3 are
+    carried to the *candidate* as hints for stage 6; a `word_list` line is
+    expected to hold one term, and anything after a tab on one is **ignored**
+    rather than tokenised. ⚠️ **That is a change for word lists**: a tabbed line
+    used to reach the tokeniser whole, be called two content words and be kept
+    whole, and now resolves to its first column. It is the right reading of a
+    line the reader tabbed, and it is one rule on both paths — which is what
+    stops the two disagreeing about what a line is.
+
+    ⚠️ **The span is the *column's*, not the resolved term's, and `surface_form`
     matches it.** A reader who typed 勉強する gets 勉強 as the *term* — the word
-    — while `occurrence.char_start`/`char_end` cover the whole line and
-    `occurrence.surface_form` is that whole line, because `04` §5.5 is a position
-    **in the source** and "as it appeared". The two have to agree with each
-    other: a `surface_form` that was not the text at its own offsets is an
-    *occurrence* that points somewhere else.
+    — while `occurrence.char_start`/`char_end` cover the whole first column and
+    `occurrence.surface_form` is that whole column, because `04` §5.5 is a
+    position **in the source** and "as it appeared". The two have to agree with
+    each other: a `surface_form` that was not the text at its own offsets is an
+    *occurrence* that points somewhere else. ⚠️ **Which is also why the span
+    stops at the tab** — a span reaching over a hint the *note* is not about
+    would describe characters the *occurrence* is not.
 
     ⚠️ **What is trimmed off is only padding**, which is not in the file's
     meaning and would otherwise make `surface_form` carry spaces the reader
@@ -70,18 +92,28 @@ def normalise(
         # one language calls blank and the other calls a word is a chunk holding
         # 24 terms on one side of the repository and 25 on the other.
         if not is_blank(line):
-            term = strip_blank(line)
-            # A code-point index into the line, which is the unit `04` §5.5
-            # stores — `shared/ingest/text.ts` is the other end of that.
-            within = line.index(term)
-            candidates.append(
-                _candidate(
-                    declaration,
-                    term,
-                    char_start=offset + within,
-                    char_end=offset + within + len(term),
+            # ⚠️ Split before the blank check on the column, so that a line
+            # whose *term* is blank but whose hint is not is still no term.
+            columns = line.split(COLUMN)
+            head = columns[0]
+            deck_reading = columns[1] if kind == "anki" and len(columns) > 1 else ""
+            deck_hint = columns[2] if kind == "anki" and len(columns) > 2 else ""
+
+            if not is_blank(head):
+                term = strip_blank(head)
+                # A code-point index into the line, which is the unit `04` §5.5
+                # stores — `shared/ingest/text.ts` is the other end of that.
+                within = head.index(term)
+                candidates.append(
+                    _candidate(
+                        declaration,
+                        term,
+                        char_start=offset + within,
+                        char_end=offset + within + len(term),
+                        deck_reading=strip_blank(deck_reading),
+                        deck_hint=strip_blank(deck_hint),
+                    )
                 )
-            )
         # +1 for the newline `split` consumed. The last line has none, and
         # nothing reads the offset past the end of the chunk.
         offset += len(line) + 1
@@ -90,7 +122,13 @@ def normalise(
 
 
 def _candidate(
-    declaration: Declaration, line: str, *, char_start: int, char_end: int
+    declaration: Declaration,
+    line: str,
+    *,
+    char_start: int,
+    char_end: int,
+    deck_reading: str = "",
+    deck_hint: str = "",
 ) -> Candidate:
     """One *candidate* from one line, already stripped of its padding.
 
@@ -137,6 +175,13 @@ def _candidate(
         # rendering rule is a second thing to get wrong, and the rendering rule
         # is part of the identity.
         identity_key=render_identity_key(declaration, {"term": term, "reading": reading}),
+        # ⚠️ **Carried, never consulted.** ADR 0068 §5: the deck's reading is a
+        # hint and the key is Sudachi's, so these two travel beside the
+        # *candidate* to stage 6 and take no part in `identity_key` above. A
+        # deck whose reading disagrees with the dictionary's keys on the
+        # dictionary's.
+        deck_reading=deck_reading,
+        deck_hint=deck_hint,
     )
 
 

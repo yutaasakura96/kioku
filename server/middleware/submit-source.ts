@@ -34,7 +34,10 @@
 import type { H3Event } from 'h3'
 
 import { recordSource } from '../utils/ingest/record'
+import { unpackDeck } from '../utils/ingest/anki/unpack'
 import { readSourceKind } from '../../shared/ingest/kind'
+import type { SourceKind } from '../../shared/ingest/kind'
+import type { IngestFailure } from '../types/place'
 import { readSubmission } from '../../shared/ingest/submission'
 import { jlptVocab } from '../../shared/subject/declaration'
 import { useDatabase } from '../db'
@@ -61,6 +64,18 @@ interface SubmittedFields {
   kind: string
   /** The `.txt` the reader attached, decoded — empty when they attached none. */
   uploaded: string
+  /**
+   * The same upload, **undecoded** — ADR 0068, #26.
+   *
+   * ⚠️ **A `.apkg` is a zip and decoding one as UTF-8 destroys it.** Until #26
+   * every upload was `part.data.toString('utf8')` and nothing else, which is
+   * right for the `.txt` ADR 0063 asked for and lossy for anything else:
+   * `TextDecoder` replaces every byte that is not valid UTF-8 with `U+FFFD`, so
+   * the bytes cannot be recovered from the string afterwards. Both are kept
+   * because both paths are live, and which one is read is decided by the
+   * *kind*.
+   */
+  uploadedBytes?: Uint8Array
 }
 
 const MULTIPART = 'multipart/form-data'
@@ -84,6 +99,7 @@ async function readSubmittedFields(event: H3Event): Promise<SubmittedFields> {
   const parts = (await readMultipartFormData(event)) ?? []
   const fields: Record<string, unknown> = {}
   let uploaded = ''
+  let uploadedBytes: Uint8Array | undefined
 
   for (const part of parts) {
     if (part.name === undefined)
@@ -94,8 +110,14 @@ async function readSubmittedFields(event: H3Event): Promise<SubmittedFields> {
     // as a zero-length part with `filename=""` — so the presence of the part
     // says nothing and its length says everything.
     if (part.filename !== undefined) {
-      if (part.data.length > 0)
+      if (part.data.length > 0) {
+        // ⚠️ **Both forms of the same upload, and neither is derived from the
+        // other.** A `.txt` is read as text and a `.apkg` as bytes (ADR 0068);
+        // going text-first and re-encoding would already have lost every byte
+        // that is not valid UTF-8.
+        uploadedBytes = new Uint8Array(part.data)
         uploaded = part.data.toString('utf8')
+      }
       continue
     }
 
@@ -107,12 +129,64 @@ async function readSubmittedFields(event: H3Event): Promise<SubmittedFields> {
     content: stringField(fields, 'content'),
     kind: stringField(fields, 'kind'),
     uploaded,
+    uploadedBytes,
   }
 }
 
 function stringField(body: Record<string, unknown> | undefined, name: string): string {
   const value = body?.[name]
   return typeof value === 'string' ? value : ''
+}
+
+/** Refused, with a code and a sentence — either reader's. */
+interface Refused { ok: false, code: IngestFailure['code'], message: string }
+
+/**
+ * What is to be ingested, whichever input the *kind* says to read.
+ *
+ * ⚠️ **The three kinds read three different things, and the branch is here
+ * rather than inside `readSubmission`**: that function is `11` §8's pure seam
+ * over *text*, and a `.apkg` is not text until this has run.
+ */
+function readMaterial(
+  kind: SourceKind,
+  fields: SubmittedFields,
+): { ok: true, content: string } | Refused {
+  // ⚠️ **A deck is a file and only a file** (ADR 0068). There is nothing to
+  // paste, so an `anki` submission never falls back to the textarea — an empty
+  // one is `no_file`, by name, rather than `empty`'s *paste the text you want
+  // notes from*.
+  if (kind === 'anki') {
+    const deck = unpackDeck(fields.uploadedBytes)
+    return deck.ok ? { ok: true, content: deck.content } : deck
+  }
+
+  // ⚠️ **The file wins when both are given.** Choosing a file is the more
+  // deliberate of the two actions: a textarea holds whatever the reader last
+  // pasted, including text the browser restored on a back navigation, while a
+  // file input is empty until somebody picks something.
+  return { ok: true, content: fields.uploaded || fields.content }
+}
+
+/**
+ * The refusal `app/pages/index.vue` renders — one shape for both readers.
+ *
+ * ⚠️ **`content` is what goes back into the textarea, and a deck has none to
+ * give.** `09` §4.2's rule is that the reader keeps their material; a `.apkg`
+ * cannot be put back into a file input by any server (browsers refuse it, and
+ * rightly) and must not be spilled into the textarea as bytes, so a refused
+ * deck returns whatever they had *typed*.
+ */
+function refusal(fields: SubmittedFields, failure: Refused, content?: string): IngestFailure {
+  return {
+    code: failure.code,
+    message: failure.message,
+    // What the reader typed, back to the reader. The raw body rather than the
+    // normalised text: they should get back what they pasted.
+    title: fields.title,
+    content: content ?? fields.content,
+    kind: fields.kind,
+  }
 }
 
 export default defineEventHandler(async (event) => {
@@ -131,40 +205,38 @@ export default defineEventHandler(async (event) => {
   const fields = await readSubmittedFields(event)
 
   // ⚠️ **A `.txt` reaches the same handler as a paste, and the cap applies to
-  // both** (ADR 0063, #19). The file is read into the same `content`, so
-  // `readSubmission` refuses an over-cap upload exactly as it refuses an
-  // over-cap paste — before any row and before any spend (`03` §13.2) — and the
-  // refusal renders on the same screen.
-  //
-  // ⚠️ **The file wins when both are given.** Choosing a file is the more
-  // deliberate of the two actions: a textarea holds whatever the reader last
-  // pasted, including text the browser restored on a back navigation, while a
-  // file input is empty until somebody picks something.
-  const content = fields.uploaded || fields.content
+  // both** (ADR 0063, #19) — and since ADR 0068 so does a `.apkg`, by way of the
+  // word list it is unpacked into. `readSubmission` refuses an over-cap upload
+  // of any of the three exactly as it refuses an over-cap paste.
+  const kind = readSourceKind(fields.kind)
 
-  const submission = readSubmission({ title: fields.title, content })
+  // ⚠️ **`unpack` runs here, inside the same request that writes the four rows**
+  // — ADR 0068 §1, and it is the reversal that ADR makes against
+  // `anki-apkg-research.md` §4.3. The reader cannot go in the worker because
+  // `chunk` is the app's and `source.content` is written in this transaction; a
+  // worker-side unpack leaves nothing to put in it. The declaration still names
+  // `unpack` as the `anki` pipeline's first stage (ADR 0068 §4), beside `chunk`,
+  // which is run here too.
+  //
+  // ⚠️ **Every refusal renders on this screen, before any row and before any
+  // spend** (`09` §4.2, `03` §13.2), like an over-cap paste.
+  const material = readMaterial(kind, fields)
+
+  if (!material.ok) {
+    event.context.ingestFailure = refusal(fields, material)
+    return
+  }
+
+  const content = material.content
+
+  const submission = readSubmission({ title: fields.title, content, kind })
 
   if (!submission.ok) {
     // ⚠️ **Fall through, do not respond.** The router then hands the `POST` to
     // the renderer, `app/pages/index.vue` reads this, and the reader gets their
     // text back. `10` §6.3: the cost is that a browser reload on the error page
     // re-submits, which is the ordinary cost of the ordinary answer.
-    event.context.ingestFailure = {
-      code: submission.code,
-      message: submission.message,
-      // What the reader typed, back to the reader. The raw body rather than the
-      // normalised text: they should get back what they pasted.
-      //
-      // ⚠️ **An over-cap *upload* comes back in the textarea too**, which is
-      // `09` §4.2's rule applied to the input it did not know about: a file
-      // input cannot be repopulated by any server (browsers refuse it, and
-      // rightly), so the only way the reader keeps the material in front of
-      // them is for it to arrive as text. The alternative is a refusal with an
-      // empty form and a file they must find again.
-      title: fields.title,
-      content,
-      kind: fields.kind,
-    }
+    event.context.ingestFailure = refusal(fields, submission, content)
     return
   }
 
@@ -176,7 +248,7 @@ export default defineEventHandler(async (event) => {
     // always sends a value, so only a post from somewhere else reaches the
     // fallback, and answering that with `word_list` would chunk a pasted passage
     // at 25 terms (§ Carrying).
-    kind: readSourceKind(fields.kind),
+    kind,
     title: submission.title,
     content: submission.content,
     characterCount: submission.characterCount,

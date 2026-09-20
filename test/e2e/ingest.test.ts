@@ -14,6 +14,7 @@
 
 import { fileURLToPath } from 'node:url'
 import { setup, fetch as nuxtFetch } from '@nuxt/test-utils/e2e'
+import { ankiDeck } from '../unit/anki-deck'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { TEST_ENVIRONMENT } from './environment'
@@ -68,6 +69,27 @@ function upload(fields: Record<string, string>, file?: { name: string, text: str
     body.set(name, value)
   if (file)
     body.set('file', new Blob([file.text], { type: 'text/plain' }), file.name)
+
+  return { method: 'POST', body } satisfies RequestInit
+}
+
+/**
+ * The same again, with **bytes** rather than text — ADR 0068, #26.
+ *
+ * ⚠️ **This is the half a `.txt` upload never exercised.** Until #26 every
+ * upload was decoded as UTF-8 on arrival, which is right for a `.txt` and
+ * destroys a zip; a deck that survived that decode would be a deck that
+ * happened to be valid UTF-8.
+ */
+function uploadBytes(fields: Record<string, string>, file: { name: string, bytes: Uint8Array }) {
+  const body = new FormData()
+  for (const [name, value] of Object.entries(fields))
+    body.set(name, value)
+  body.set(
+    'file',
+    new Blob([file.bytes as unknown as BlobPart], { type: 'application/zip' }),
+    file.name,
+  )
 
   return { method: 'POST', body } satisfies RequestInit
 }
@@ -506,5 +528,124 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
     expect(response.status).toBe(303)
     const source = await database.client.query<{ kind: string }>('SELECT kind FROM source;')
     expect(source.rows[0]).toEqual({ kind: 'prose' })
+  })
+})
+
+
+describe('⚠️ an Anki deck — ADR 0068, #26', () => {
+  const deck = () => ankiDeck({
+    layout: 'LATEST',
+    notes: [
+      {
+        fields: [
+          { name: 'expression', value: '図書館' },
+          { name: 'reading', value: 'としょかん' },
+          { name: 'meaning', value: 'library' },
+        ],
+        tags: ['JLPT_5'],
+        deck: 'JLPT::N5',
+      },
+      {
+        fields: [
+          { name: 'expression', value: '新聞' },
+          { name: 'reading', value: 'しんぶん' },
+          { name: 'meaning', value: 'newspaper' },
+        ],
+        tags: ['JLPT_5'],
+        deck: 'JLPT::N5',
+      },
+    ],
+  })
+
+  it('offers the kind on the form, and the form still ships no JavaScript', async () => {
+    const document = await (await asReader('/')).text()
+
+    expect(document).toContain('value="anki"')
+    expect(document).toContain('Anki deck')
+    expect(document).toContain('.apkg')
+    // ⚠️ ADR 0020's property, on the route that gained a third radio and an
+    // `accept` attribute and must still have no client.
+    expect(document).not.toContain('<script')
+  })
+
+  it('unpacks the deck at submit and stores it as a word list', async () => {
+    const before = await count('source')
+    const response = await asReader('/', uploadBytes(
+      { title: 'N5 deck', kind: 'anki' },
+      { name: 'deck.apkg', bytes: deck() },
+    ))
+
+    expect(response.status).toBe(303)
+    expect(await count('source')).toBe(before + 1)
+
+    const row = await database.client.query<{ kind: string, content: string, char_count: number }>(
+      'SELECT kind, content, char_count FROM source ORDER BY submitted_at DESC LIMIT 1;',
+    )
+    expect(row.rows[0]!.kind).toBe('anki')
+    // ⚠️ `term⇥reading⇥hint`, one line per *note* — ADR 0068 §1 and §3. What is
+    // stored is a word list; the `.apkg` itself is not kept anywhere.
+    expect(row.rows[0]!.content).toBe(
+      '図書館\tとしょかん\tJLPT_5 JLPT N5\n新聞\tしんぶん\tJLPT_5 JLPT N5',
+    )
+    // ⚠️ And never the deck's meaning (ADR 0068 §3's measurement).
+    expect(row.rows[0]!.content).not.toContain('library')
+  })
+
+  it('chunks it by the word-list rule, in the same transaction', async () => {
+    // ⚠️ **The whole reason the reader is in the app** (ADR 0068 §1): `chunk`
+    // writes `source_chunk` here, so `unpack` has to be here too.
+    const chunks = await database.client.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM source_chunk
+       WHERE source_id = (SELECT id FROM source ORDER BY submitted_at DESC LIMIT 1);`,
+    )
+
+    expect(chunks.rows[0]!.n).toBe(1)
+  })
+
+  it('⚠️ refuses a file that is not a deck, on this screen, before any row', async () => {
+    const before = await count('source')
+    const response = await asReader('/', upload(
+      { title: 'not a deck', kind: 'anki' },
+      { name: 'notes.txt', text: 'これはテキストです' },
+    ))
+
+    expect(response.status).toBe(200)
+    const document = await response.text()
+    expect(document).toContain('not an Anki deck')
+    expect(await count('source')).toBe(before)
+  })
+
+  it('⚠️ refuses an anki submission with no file at all, by its own name', async () => {
+    // ⚠️ Not `empty`. A deck is a file, and "paste the text you want notes
+    // from" is advice the reader cannot take.
+    const response = await asReader('/', upload({ title: 'nothing', kind: 'anki' }))
+
+    expect(response.status).toBe(200)
+    const document = await response.text()
+    expect(document).toContain('Choose a .apkg file')
+  })
+
+  it('keeps the reader\'s choice of kind on the re-rendered form', async () => {
+    const response = await asReader('/', upload(
+      { title: 'not a deck', kind: 'anki' },
+      { name: 'notes.txt', text: 'これはテキストです' },
+    ))
+    const document = await response.text()
+
+    // The radio the reader chose is the one still checked — a refusal must not
+    // quietly change what they said the material was.
+    expect(document).toMatch(/value="anki"[^>]*\n?\s*checked/)
+  })
+
+  it('a `.txt` and a paste are unchanged by any of this', async () => {
+    const before = await count('source')
+
+    expect((await asReader('/', upload(
+      { title: 'a list', kind: 'word_list' },
+      { name: 'list.txt', text: '図書館\n新聞' },
+    ))).status).toBe(303)
+    expect((await asReader('/', form({ title: 'a paste', kind: 'prose', content: '本を読む。' }))).status).toBe(303)
+
+    expect(await count('source')).toBe(before + 2)
   })
 })

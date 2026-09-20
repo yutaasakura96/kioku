@@ -19,12 +19,17 @@ describe('the source kinds', () => {
     expect([...SOURCE_KINDS]).toEqual(['prose', 'word_list', 'anki'])
   })
 
-  // ⚠️ The `.apkg` format and the licensing of shared decks are both unverified
-  // (ADR 0063), so #24 opens with the research. A value the schema accepts and
-  // no path produces is the honest state of a decision made and not built.
-  it('does not offer anki, which is in the CHECK and produced by nothing', () => {
-    expect(SUBMITTABLE_SOURCE_KINDS).not.toContain('anki')
-    expect(SOURCE_KINDS).toContain('anki')
+  // ⚠️ **`anki` became submittable on 2026-09-20 with #26** (ADR 0068). From
+  // ADR 0063 until then it was in `04` §5.1's `CHECK` and in nothing else,
+  // because the `.apkg` format and the licensing of shared decks were
+  // unverified and #24 opened with the research — a value the schema accepted
+  // and no path produced was the honest state of a decision made and not built.
+  it('offers all three of `04` §5.1\'s kinds', () => {
+    expect([...SUBMITTABLE_SOURCE_KINDS].sort()).toEqual([...SOURCE_KINDS].sort())
+  })
+
+  it('offers anki last, because a deck is the least common of the three', () => {
+    expect(SUBMITTABLE_SOURCE_KINDS.at(-1)).toBe('anki')
   })
 
   it('offers the word list first, because that is what the pivot is about', () => {
@@ -49,10 +54,11 @@ describe('readSourceKind', () => {
     expect(readSourceKind(value)).toBe(DEFAULT_SOURCE_KIND)
   })
 
-  // `anki` is a legal `source.kind` and is not a legal *submission*: nothing
-  // produces one, and a post naming it is a post the form could not have made.
-  it('falls back for anki, which the schema allows and Ingest does not offer', () => {
+  // ⚠️ **And it answers `anki` since #26**, which is the one line of this
+  // function that ADR 0068 changed. It still answers `prose` for a value
+  // outside the three, so the fallback's argument above is untouched.
+  it('answers anki, which Ingest offers since ADR 0068', () => {
     expect(isSourceKind('anki')).toBe(true)
-    expect(readSourceKind('anki')).toBe('prose')
+    expect(readSourceKind('anki')).toBe('anki')
   })
 })

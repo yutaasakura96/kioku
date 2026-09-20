@@ -22,6 +22,7 @@
  * column.
  */
 
+import type { SourceKind } from './kind'
 import { BLANK } from '../subject/validate'
 import { countCharacters, sliceCharacters, toNfc } from './text'
 
@@ -39,6 +40,15 @@ export const DERIVED_TITLE_CHARACTERS = 60
 export interface Submission {
   title: string
   content: string
+  /**
+   * ⚠️ **Read for the refusal's wording and for nothing else** — ADR 0068 §7,
+   * #26. The cap is the same 100,000 code points for all three kinds, and that
+   * ADR declines to raise it for a deck: the cap is a ceiling on *spend*, and a
+   * 5,000-note import is 200 model requests before the first *review*. What
+   * differs is the advice, because *split it and submit the halves* is not
+   * something a reader can do to a `.apkg`.
+   */
+  kind?: SourceKind
 }
 
 export type SubmissionResult
@@ -86,10 +96,16 @@ export function readSubmission(submission: Submission): SubmissionResult {
   }
 
   if (characterCount > SOURCE_CHARACTER_CAP) {
+    // ADR 0068 §7: the deck's repair is a subdeck, not a half. A reader cannot
+    // cut a `.apkg` in two, and the export dialog is where the split lives.
+    const repair = submission.kind === 'anki'
+      ? 'Export one subdeck at a time.'
+      : 'Split it and submit the halves.'
+
     return {
       ok: false,
       code: 'over_cap',
-      message: `${characterCount.toLocaleString('en-US')} characters — the cap is ${SOURCE_CHARACTER_CAP.toLocaleString('en-US')}. Split it and submit the halves.`,
+      message: `${characterCount.toLocaleString('en-US')} characters — the cap is ${SOURCE_CHARACTER_CAP.toLocaleString('en-US')}. ${repair}`,
       characterCount,
     }
   }

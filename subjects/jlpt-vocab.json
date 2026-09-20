@@ -77,6 +77,15 @@
       "filter_known",
       "generate",
       "write_notes"
+    ],
+    "anki": [
+      "unpack",
+      "chunk",
+      "normalise",
+      "deduplicate",
+      "filter_known",
+      "generate",
+      "write_notes"
     ]
   },
   "levels": ["N5", "N4", "N3", "N2", "N1"],

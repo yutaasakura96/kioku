@@ -135,6 +135,21 @@ class Candidate:
     is_oov: bool
     #: ADR 0006's key, already rendered (`04` §5.3).
     identity_key: str
+    #: ⚠️ **The deck's own reading, and it is a *hint* rather than half of a
+    #: key** — ADR 0068 §5, §6. An imported `.apkg` line carries what its author
+    #: wrote in the reading column; the *identity key* still comes from Sudachi,
+    #: because a deck author's reading is not a dictionary's and ADR 0063
+    #: refused letting anything but the dictionary decide identity. Stage 6
+    #: shows the model both when they disagree. Empty on every other path.
+    deck_reading: str = ""
+    #: ⚠️ **The deck's level hint** — its `JLPT*` tags and the level named by the
+    #: deck its first card sits in (ADR 0068 §3). Yuta's second triage call
+    #: (`anki-apkg-research.md` §6) makes it *a hint to the model only*: the
+    #: model's `level_claim` stays the only *level* claim on an imported *note*
+    #: and no `authority_key` ever names a deck, because open-anki's tags are
+    #: cumulative and a tag therefore does not name one level (§1.3). Empty on
+    #: every other path.
+    deck_hint: str = ""
 
 
 def extract_candidates(

@@ -110,6 +110,59 @@ strips `[sound:…]` and `<img …>` from field text. Kioku has nowhere to play 
 carries its own licences, and it is what pushes a deck past Vercel's 4.5 MB request body limit
 (research §4.4, §5).
 
+## Amended 2026-09-20 — the re-measurement §3 asked for, and what it changed
+
+**#26 is built.** §3's last two sentences asked the build ticket to re-measure with deck names in
+the hint, because "a deck name that passes the level filter adds its length to every line". It does,
+and the measurement moved a decision.
+
+**Carrying the deck name whole makes it the largest column in the source.** Measured 2026-09-20 with
+the built reader against the same four decks in `~/Documents/kioku-decks/`, in code points:
+
+| Deck | Notes | term | reading | tags | **deck name** | Total | Against the cap |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| open-anki N3 | 2,140 | 4,684 | 7,192 | 40,697 | **49,220** | 106,117 | ⚠️ **over** |
+| open-anki N1 | 2,699 | 6,710 | 10,527 | 32,388 | **62,077** | 117,469 | ⚠️ **over** |
+| open-anki N2 | 1,906 | 4,874 | 7,521 | 22,942 | **43,838** | 83,698 | under |
+| AnkiWeb N2 | 1,877 | 4,817 | 7,426 | 22,594 | **43,171** | 82,473 | under |
+
+The name is `Open Anki JLPT N2 Deck`. It passes the level filter on the word *JLPT*, and then all
+twenty-two of its code points are repeated on every one of the deck's lines — more than the term and
+the reading together, and enough to put two of the four decks past `S2`'s cap. **The information it
+adds is nil**, because the words it carries are the same words on every line of the deck and
+therefore say nothing about any particular word.
+
+**So a deck name contributes only the words in it that name a level**, and not the whole name:
+`Open Anki JLPT N2 Deck` gives `JLPT N2`, `JLPT::N5` gives `JLPT N5`, `Japanese::Core 2000` gives
+nothing. This is the same finding §3 made about the deck's *meaning*, arriving through the column
+§3's own last sentence asked to be re-measured, and it is resolved the same way.
+
+⚠️ **Tags are still carried whole, and the asymmetry is deliberate.** A tag is a token — `JLPT_3`
+means what it says — and a deck name is prose with a level somewhere in it. Cutting a tag into words
+would destroy it.
+
+⚠️ **The deck name is still read, and it is not redundant with the tags.** Research §2.4 sampled a
+deck that encodes its levels as *subdecks* (`JLPT-N1` … `JLPT-N5`) and uses tags for something else
+entirely; there the name is the only level signal there is.
+
+**With that change, all four decks fit**, and the figures are close to §3's original measurement
+(which left deck names out altogether):
+
+| Deck | Code points | Per line | *Chunks* |
+| --- | --- | --- | --- |
+| AnkiWeb N2 (`LEGACY_2`) | 54,318 | 28.9 | 76 |
+| open-anki N2 (`LEGACY_1`) | 55,108 | 28.9 | 77 |
+| open-anki N3 (`LEGACY_1`) | 74,017 | 34.6 | 86 |
+| open-anki N1 (`LEGACY_1`) | 76,984 | 28.5 | 108 |
+
+**Also measured, and all of it confirms the research rather than moving anything:** the reader read
+all four decks with no dependency; the note counts match research §1.3 exactly (1,877 / 2,140 /
+1,906 / 2,699); the layouts match (`LEGACY_2`, then three `LEGACY_1`); and **no note was dropped** in
+any of the four.
+
+**§2's other open item is not closed.** Whether `os.tmpdir()` is writable in a Vercel Function is
+still unverified — it needs a deployment, and #26's close-out criterion for it is outstanding.
+
 ## Alternatives considered
 
 **Skip `generate` and trust the deck's fields.** Rejected for the reasons above. It needs a mapping

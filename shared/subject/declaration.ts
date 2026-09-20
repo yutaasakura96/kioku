@@ -124,13 +124,17 @@ export function memoryBearingFieldNames(declaration: SubjectDeclaration): string
  * ADR 0063).
  *
  * ⚠️ **It raises for a kind the declaration does not carry, and that is the
- * named failure rather than a crash at stage dispatch.** `anki` is in `04`
- * §5.1's `CHECK` and in no pipeline — the format and the licensing of shared
- * decks are unverified and #24 opens with the research (ADR 0063) — so a row
- * that somehow carried it would otherwise reach the worker and find nothing to
- * run. `checkDeclaration` refuses a declaration missing one of the kinds
- * *Ingest* can actually submit; this is the same rule one layer down, where it
- * is the row rather than the declaration that names the kind.
+ * named failure rather than a crash at stage dispatch.** A row that somehow
+ * carried a kind nothing declares would otherwise reach the worker and find
+ * nothing to run. `checkDeclaration` refuses a declaration missing one of the
+ * kinds *Ingest* can actually submit; this is the same rule one layer down,
+ * where it is the row rather than the declaration that names the kind.
+ *
+ * ⚠️ **All three kinds are declared since #26** (ADR 0068). From ADR 0063 until
+ * 2026-09-20 `anki` was in `04` §5.1's `CHECK` and in no pipeline, because the
+ * format and the licensing of shared decks were unverified and #24 opened with
+ * the research — so this function's raise was reachable from a real row rather
+ * than only from a mistake.
  */
 export function stageKeys(declaration: SubjectDeclaration, kind: SourceKind): string[] {
   const pipeline = (declaration.pipelines as Record<string, string[] | undefined>)[kind]
@@ -304,13 +308,15 @@ export function checkDeclaration(value: unknown): ValidationResult {
     }
   }
 
-  // ⚠️ **Only the kinds *Ingest* can submit are required, and `anki` is
-  // deliberately not one.** ADR 0063 puts the `.apkg` format and the licensing
-  // of shared decks in #24 and says in as many words that it does not pre-decide
-  // that ticket's answer — so declaring an `anki` pipeline here to satisfy a
-  // check would be deciding it by the back door. The value is in `04` §5.1's
-  // `CHECK`, nothing produces it, and `stageKeys` names the gap if anything ever
-  // does.
+  // ⚠️ **Only the kinds *Ingest* can submit are required, and since ADR 0068
+  // that is all three of them.** Until #26 landed, declaring an `anki` pipeline
+  // would have been deciding #24 by the back door — ADR 0063 said in as many
+  // words that it did not pre-decide that ticket — so the value sat in `04`
+  // §5.1's `CHECK` with nothing producing it. #24's research answered the
+  // format question and ADR 0068 answered the pipeline one, and the list this
+  // loop reads is what carried the change: adding `anki` to
+  // `SUBMITTABLE_SOURCE_KINDS` is what made a declaration without the pipeline
+  // fail here, by name.
   for (const kind of SUBMITTABLE_SOURCE_KINDS) {
     if (!declaredKinds.includes(kind))
       errors.push({ field: kind, code: 'missing_pipeline' })

@@ -104,10 +104,18 @@ export function chunkBoundaries(content: string, kind: SourceKind): ChunkBoundar
   if (kind === 'prose')
     return proseBoundaries(characters)
 
-  // ⚠️ `anki` reaches this branch and nothing produces an `anki` *source* — #24
-  // opens with the research and ADR 0063 does not pre-decide it. A `.apkg` is
-  // not newline-separated text, so when that ticket lands this `if` is where it
-  // says so rather than inheriting a rule that happens to run.
+  // ⚠️ **`anki` takes the word-list rule, and it is not inheriting it by
+  // accident** — ADR 0068 §1, #26. An `anki` *source*'s content is **already a
+  // word list** by the time it reaches here: `server/utils/ingest/anki/unpack.ts`
+  // turned the uploaded `.apkg` into one `term⇥reading⇥hint` line per *note*
+  // inside the same submit request, so what this function is handed is lines,
+  // and 25 of them is a *chunk* exactly as it is for a list the reader typed.
+  //
+  // ⚠️ **That the unpack happens in the app rather than in the worker is this
+  // function's doing.** `anki-apkg-research.md` §4.3 put the reader in the
+  // worker; ADR 0068 moved it here because `chunk` is the app's and
+  // `source_chunk.content_hash` is the first element of the generation cache key
+  // (`04` §6.3) — two chunkers would be a cache that misses without saying so.
   return wordListBoundaries(characters)
 }
 

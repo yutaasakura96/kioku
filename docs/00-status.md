@@ -3,22 +3,29 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**67 ADRs** — ⚠️ **#21 added none and amended ADR 0066 in place** (2026-09-18: where the zone is
+**68 ADRs** — ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
+contributes only the words in it that name a level, on the re-measurement that ADR asked #26 for).
+⚠️ **This said *67* until 2026-09-20, while ADR 0068 had been on disk and in the decision log since
+2026-09-19** — the commit that wrote the ADR updated `CLAUDE.md`'s count and not this one.
+⚠️ **#21 added none and amended ADR 0066 in place** (2026-09-18: where the zone is
 stored, and four other things the build settled). ⚠️ **#23 added none**, and instead **corrected ADR 0037**, whose amended table
 contradicted ADR 0066 about where a day starts. ADR 0067, minting as a database function, added
 2026-09-17 with #20; ADR 0062 to ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 66 until
-2026-09-17, 61 until 2026-09-16 and 58 until 2026-09-12** — eleven documents, and **five open
-issues**: #1 the spec, and #24 and #25 of the pivot, both `needs-triage` (⚠️ **this said five, with
-#21, until #21 closed on 2026-09-18, and eight until earlier that day**). **#17**, the worker's heartbeat window, was built and closed in
+2026-09-17, 61 until 2026-09-16 and 58 until 2026-09-12** — eleven documents, and **three open
+issues**: #1 the spec, #24 the Anki parent (closable now that #26 has landed) and #25 of the pivot,
+`needs-triage` (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
+parenthetical that recorded #21 closing was added and the number beside it was not; it said eight
+before that day, and it counted #26 from 2026-09-19 until #26 was built). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
 2026-09-15**: `/stats` was read with real data, which was its closing condition (**#5 closed 2026-09-14 on
 the first sign-in**, Yuta's call: the run exercises no part of the door that sign-in did not) — plus **the re-vetting
 ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed #15 as open and #14 as
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
-**#2 through #23 are built** (⚠️ **this said "#2 through #20, #22 and #23" until #21 was built on
-2026-09-18, "#2 through #18" before that, and "#14" until 2026-09-16**). ⚠️ **The ticket frontier is
-empty of `ready-for-agent` work**: #24 opens with research and #25 has four open questions in its
-body, and both are `needs-triage` (§ Next). ~~The frontier is #21, the review-load brake.~~ What stays unticketed is `S12`'s export, which
+**#2 through #23, and #26, are built** (⚠️ **this said "#2 through #23" until #26 was built on
+2026-09-20, "#2 through #20, #22 and #23" until #21 was built on 2026-09-18, "#2 through #18" before
+that, and "#14" until 2026-09-16**). ⚠️ **The ticket frontier is empty of `ready-for-agent` work
+again**: #25 has four open questions in its body and is `needs-triage`, and triaging it is a
+conversation rather than an `/implement` (§ Next). ~~The frontier is #21, the review-load brake.~~ What stays unticketed is `S12`'s export, which
 issue #1 puts outside milestone 1.
 
 ⚠️ **A pivot was decided on 2026-09-16 and everything below this paragraph describes the system it
@@ -82,11 +89,92 @@ lines above that called it unapplied were wrong from the day they were written; 
 the database. `0004` and `0005` were applied 2026-09-19 with `npm run db:migrate` and verified
 against the migrations table, `domain_claim`, `review_session.new_count`/`zone` and the
 `review_session_new_count` check. ⚠️ **Check the database before writing that it is behind.**
-**Updated:** 2026-09-19
+⚠️ **2026-09-20: #26 is built — an Anki `.apkg` is unpacked by the app into a word list.** The
+reader is `node:zlib` plus `node:sqlite` and adds no dependency; the three layouts are covered by
+generated fixtures and one that real Anki wrote. ⚠️ **The re-measurement ADR 0068 §3 asked for moved
+a decision**: a deck name carried whole was the largest column in all four real decks and put two of
+them over `S2`'s cap, so only the words in it that name a level now travel (ADR 0068 § Amended
+2026-09-20). **Yuta has not reviewed that narrowing.** ⚠️ **What is left for him is still the
+reader's run**, and now also a first real import.
+
+**Updated:** 2026-09-20
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**2026-09-20 — [#26](https://github.com/yutaasakura96/kioku/issues/26) is built: an Anki `.apkg` is
+unpacked by the app into a word list that feeds `generate`.** ADR 0068 in full, with a dated
+amendment block for the one thing the re-measurement changed. No new ADR.
+
+- **The reader is three modules and no new dependency** (ADR 0068 §2).
+  [`server/utils/ingest/anki/zip.ts`](../server/utils/ingest/anki/zip.ts) reads the central directory
+  over `node:zlib`'s `inflateRawSync`;
+  [`collection.ts`](../server/utils/ingest/anki/collection.ts) decodes `meta` as a **protobuf
+  varint**, decompresses `LATEST` with `zlib.zstdDecompressSync`, and reads the collection through
+  `node:sqlite` from a temp file deleted in a `finally`;
+  [`unpack.ts`](../server/utils/ingest/anki/unpack.ts) orchestrates and names every refusal.
+  ⚠️ **`package.json` is untouched.**
+- **The pure half is [`shared/ingest/anki/line.ts`](../shared/ingest/anki/line.ts)** — HTML, Anki's
+  two furigana filters, the term cleanup, the reading and the hint. `11` §8's seam rule applied to a
+  new reader: the part that can be wrong without anyone noticing is the part with no I/O in it.
+- ⚠️ **The detection order is `meta`, then `collection.anki21`, then `collection.anki2`, and it is
+  tested by name.** Every export writes a dummy `collection.anki2` saying to update Anki; a reader
+  that opens it first reports a one-note deck with no error. **Sabotaged**: putting `collection.anki2`
+  first reddens twelve tests including *never reports the dummy*.
+- ⚠️ **`fields` is joined to `notetypes`, and the join was not load-bearing until the fixture was
+  sharpened.** Dropping the join left the suite green, because the reader keys names by `ntid` and
+  looks them up by the note's `mid`. The fixture now carries a note whose notetype row was deleted
+  and whose `fields` rows were not — which is what the exporter actually leaves behind — and dropping
+  the join then hands that note a deleted notetype's field names. **Sabotaged to red.**
+- ⚠️ **`COLLATE unicase` is reproduced in the generated fixture**, through
+  `PRAGMA writable_schema` — `node:sqlite` has no `createCollation` and `CREATE TABLE … COLLATE
+  unicase` fails outright (measured, Node 24.11). So the fixture is a real test of ADR 0068 §2's
+  constraint: **sabotaged**, an `ORDER BY name` on `decks` reddens nine tests with
+  `no such collation sequence`.
+- ⚠️ **`meta` is a varint and not `meta[1]`** — research §4.3 flagged its own sketch for this.
+  **Sabotaged to red** on a two-byte version.
+- **Fixtures are generated in all three layouts** by
+  [`test/unit/anki-deck.ts`](../test/unit/anki-deck.ts) — a stored-entry zip writer over
+  `zlib.crc32`, `zstdCompressSync`, and the schema 11 and 18 DDL subsets research §2.1 names.
+  ⚠️ **Nothing from a real deck is committed** (research §3.3, §6).
+- ⚠️ **And one committed fixture that real Anki wrote**,
+  `test/fixtures/anki/real-latest.apkg`, four invented notes out of the `anki` 26.09.2 wheel in a
+  throwaway venv. It exists because the generated fixtures are written with the same three built-ins
+  the reader reads with, so a shared misunderstanding of the format would pass both ways.
+  **It gives byte-for-byte the same three lines as the helper's `LATEST`.** The wheel is **not** in
+  `worker/pyproject.toml` (24 MB, AGPL, and nothing in the product needs it).
+- **The line is `term⇥reading⇥hint`** and `normalise` reads column 1 as the term **for every kind**.
+  ⚠️ **That is a change for word lists**: a tabbed line used to reach the tokeniser whole and be kept
+  whole, and now resolves to its first column. One rule on both paths is what stops them disagreeing
+  about what a line is.
+- **`generate` carries `deck_reading` and `deck_hint`** on the word's line with a paragraph saying
+  they are hints and that the dictionary's reading stands. ⚠️ **`PROMPT_VERSION` is `v4`** — the text
+  is identical for every `prose` and `word_list` chunk, and the version moves anyway because the rule
+  is *any change to `build_prompt` bumps it*. The cost is that the stored v3 answers are never asked
+  for again.
+- **`subjects/jlpt-vocab.json` declares `anki`**, `unpack` joins `chunk` in `STAGES_RUN_ELSEWHERE`,
+  and adding `anki` to `SUBMITTABLE_SOURCE_KINDS` is what made both validators demand the pipeline —
+  by name, in both languages, with the drift test comparing them.
+- ⚠️ **The re-measurement moved a decision, and it is ADR 0068's own § Amended 2026-09-20.** Carried
+  whole, the deck name was the **largest** column in all four real decks (43,171–62,077 code points,
+  more than term and reading together) and put the N3 and N1 decks **over `S2`'s cap**. A deck name
+  now contributes only the words in it that name a level. All four then fit, at 54,318–76,984.
+  ⚠️ **Yuta has not seen this change yet**, and it narrows a sentence he read in ADR 0068 §3.
+- **`/code-review` found five things and all five are fixed.** ⚠️ **Three were documents this commit
+  owed and had not paid**: `10` §6.2 still described two radios and `accept=".txt"`, `11` §5's
+  *source of an undeclared kind* row still said `anki` was the undeclared one, and `11` §1's unit
+  tier still said *Database: none* where the reader now builds a SQLite file in `os.tmpdir()`.
+  ⚠️ **One was this repository's own standing rule, broken in the file that cites it**:
+  `line.ts`'s `collapse` ended in `.trim()`, which was correct only because the line above had
+  already turned every blank into an ASCII space — an ordering dependency nothing stated, in a
+  module whose own columns are joined with `U+001F`, one of the six characters `trim()` and
+  `str.strip()` disagree about. `collapseBlank` is in `shared/subject/validate.ts` now, beside the
+  class, and both readers import it. ⚠️ **And one was a sentence that was simply false**: a deck that
+  parsed cleanly and produced no terms was refused as `no_collection` — *"a zip with no Anki
+  collection in it"* — which told the reader to re-export a file that was fine. It has its own code.
+- ⚠️ **One close-out criterion is outstanding and needs a deployment**: whether `os.tmpdir()` is
+  writable in a Vercel Function (ADR 0068 §2). Nothing in this session could answer it.
 
 **2026-09-18 — [#21](https://github.com/yutaasakura96/kioku/issues/21) is built: the review load has
 a brake, and the reader has a zone.** ADR 0066 in full, with a dated amendment block for five things
@@ -1639,9 +1727,28 @@ skip-or-feed-`generate` ADR. The research recommends *feed*.~~ ⚠️ **Both exi
 decides *feed*, and it **moves the reader from the worker to the app**, on `node:zlib` and
 `node:sqlite` with no new dependency. The app owns `chunk` and writes `source_chunk` at submit, and
 research §4.3 had missed that. It also drops the deck's meaning from the hint, because with it every
-real deck is over `S2`'s cap. **The build ticket is
+real deck is over `S2`'s cap. ~~**The build ticket is
 [#26](https://github.com/yutaasakura96/kioku/issues/26), `ready-for-agent`**, and it is the frontier.
-#24 stays open, with no triage label, until #26 lands.
+#24 stays open, with no triage label, until #26 lands.~~
+
+⚠️ **[#26](https://github.com/yutaasakura96/kioku/issues/26) built 2026-09-20 (§ Done), so #24 is
+closable and the frontier is empty of `ready-for-agent` work again.** The reader reads all three
+layouts with no dependency, and it read all four real decks in `~/Documents/kioku-decks/` with no
+note dropped. ⚠️ **One decision moved under the build**: the re-measurement ADR 0068 §3 asked this
+ticket for found that carrying a deck name whole makes it the **largest** column in the *source* —
+43,171 to 62,077 code points across the four decks, more than term and reading together — and puts
+the N3 and N1 decks over `S2`'s cap. A deck name now contributes only the words in it that name a
+level (ADR 0068 § Amended 2026-09-20), and all four then fit at 54,318–76,984. **Yuta has not
+reviewed that narrowing**, and it is a change to a sentence he read.
+⚠️ **And one close-out criterion is unpaid and needs a deployment**: whether `os.tmpdir()` is
+writable in a Vercel Function (ADR 0068 §2). If it is not, the ADR needs amending — `deserialize()`
+wants Node ≥ 24.16 and `package.json`'s `engines` still admits 22.x.
+
+**What is next** is not an `/implement`. Two things, and neither is a ticket:
+**the reader's run** — a *session* of the 39 *cards* already minted, which is what gives retention,
+consistency and flag rate their first denominator — and **a first real import**, now that there is
+something to import with. Then **#25**, AI-seeded lists, whose four open questions are a conversation
+with Yuta rather than a build.
 
 ~~⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
 is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone.** The next command is `/clear`,
@@ -2060,6 +2167,53 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **`node:sqlite` has no `createCollation`, and four of an Anki collection's text columns are
+  declared `COLLATE unicase`.** `notetypes.name`, `fields.name`, `decks.name` and `tags.tag`
+  (research §2.1). Opening such a file works and so does every `SELECT` that does not *compare* by
+  one of them; the moment a query grows an `ORDER BY name`, a `GROUP BY name` or a `WHERE name = …`,
+  it fails with `no such collation sequence: unicase`. The reader orders by `ord` and by `id`, which
+  is what it wanted anyway, and **the generated fixture carries the collation** (through
+  `PRAGMA writable_schema`, since the DDL cannot be written directly) so the failure lands in
+  `npm run test` rather than on a real deck.
+- ⚠️ **Nothing queries the `tags` table, and that is not an oversight.** Tags live on `notes.tags`
+  (research §2.1 measured the exported `tags` table empty), and `tags.tag` is the one collated
+  column that is also a `without rowid` primary key — the case where stock SQLite answers
+  `no query solution` rather than a clear error.
+- ⚠️ **The `.apkg` reader runs in the *app*, and the reason is `chunk`.**
+  `anki-apkg-research.md` §4.3 recommended the worker and ADR 0068 reversed it: the app writes
+  `source_chunk` inside the submit transaction and `source.content` is `text NOT NULL`, so a
+  worker-side unpack needs either a second chunker or a *source* row with nothing in it. **A session
+  that moves the reader to the worker for symmetry re-opens both.** `unpack` being a declared stage
+  with no Python module is the shape of the decision, not a gap.
+- ⚠️ **A deck name goes into the hint as the words in it that name a level, never whole.** Measured
+  2026-09-20 (ADR 0068 § Amended): `Open Anki JLPT N2 Deck` carried whole is 22 code points on each
+  of 2,699 lines and the largest column in the *source* — it put two of the four real decks over
+  `S2`'s cap. Tags **are** carried whole, because a tag is a token and a deck name is prose. The two
+  look like one rule applied inconsistently and are two rules about two shapes.
+- ⚠️ **The deck's *meaning* never travels, and the measurement is the only thing holding that line.**
+  ADR 0068 §3: with the meaning cut to 40 characters, two of four decks go over the cap; with every
+  field, all four do. The model writes the meaning anyway. A session that adds it "to help the model"
+  is spending the cap on the column decks disagree about most.
+- ⚠️ **`normalise` reads column 1 as the term for a *word list* too, and that changed behaviour.**
+  Before #26 a tabbed word-list line reached the tokeniser whole, was called two content words and
+  was kept whole under ADR 0063's *kept, not dropped* clause. It now resolves to its first column.
+  One rule on both paths is what stops them disagreeing about what a line is — but a reader who was
+  pasting `term⇥gloss` lists gets different *notes* than they did.
+- ⚠️ **A 4.5 MB upload is refused by Vercel before any of our code runs, and nothing can render
+  that.** Research §4.4. The app refuses at 4 MB with a sentence; above Vercel's limit the reader
+  gets Vercel's `413` on a route that ships no JavaScript to catch it. ⚠️ **Do not reach for Vercel
+  Blob** — ADR 0022's forbidden list — and do not raise the app's cap to meet Vercel's: the 0.5 MB
+  is the multipart envelope.
+- ⚠️ **`zlib.zstdDecompressSync` is Experimental and `node:sqlite` is a Release candidate**
+  (ADR 0068 §2). Two non-stable built-ins in one path, named in the ADR rather than hidden. The
+  contract is one decompress call and four `SELECT`s, and the three-layout fixtures are what turn a
+  breaking Node release into a red suite. `ankipack` is the named fallback and taking it means
+  amending ADR 0068 first.
+- ⚠️ **`PROMPT_VERSION` is `v4` and the `anki` text is conditional.** A chunk with no deck behind it
+  builds the identical prompt it built at v3 — the deck paragraph and the `deck_*` fields appear only
+  when a *candidate* carries one, exactly as `reading_rule` does. The version still moved, because
+  the rule is *any change to `build_prompt` bumps it in the same commit*.
 
 - ⚠️ **The brake counts what was *offered*, and the tempting rewrite counts what was *answered*.**
   `review_session.new_count` is written by the composition; the day's allowance is its sum over

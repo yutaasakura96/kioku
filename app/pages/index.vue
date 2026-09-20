@@ -56,15 +56,32 @@ const refusedContent = computed(() => `\n${failure?.content ?? ''}`)
  * are in this text* and the question is *which words do I want*.
  *
  * ⚠️ **The order of the radios is the order of the constant**, so the default is
- * first on the screen as well as first in the code. `anki` is deliberately not
- * among them — #24 opens with research the value does not have yet.
+ * first on the screen as well as first in the code. ⚠️ **`anki` joined them on
+ * 2026-09-20** (ADR 0068, #26) and is last, because a deck is the least common
+ * of the three; #24's research is what it was waiting for.
  */
 const kinds = SUBMITTABLE_SOURCE_KINDS
 
 const KIND_LABELS: Record<string, { label: string, hint: string }> = {
   word_list: { label: 'Word list', hint: 'One term per line.' },
   prose: { label: 'Prose', hint: 'Mined for the words in it.' },
+  // ⚠️ *Deck*, not *cards*: `CONTEXT.md` gives *Card* an `_Avoid_` list and a
+  // Kioku *card* is one rendering of a *note* through a *template*, which is not
+  // what an Anki note is. The hint says what the reader gets back.
+  anki: { label: 'Anki deck', hint: 'A .apkg, read into a word list.' },
 }
+
+/**
+ * ⚠️ **What the file picker offers, by *kind*** — ADR 0068, #26. It is a hint
+ * to the picker and never a check: the server reads whatever arrives, and
+ * `unpackDeck` is what refuses a file that is not a deck, by name.
+ *
+ * ⚠️ **There is no JavaScript to change this when the radio changes** (ADR 0020
+ * — Ingest ships none), so the attribute is the union and the reader's choice of
+ * radio is what actually decides how the bytes are read. A picker that offered
+ * only `.txt` would hide the deck the reader came to upload.
+ */
+const FILE_ACCEPT = '.txt,text/plain,.apkg,application/zip'
 
 // A refused submission keeps the reader's answer. Everything else on the form
 // comes back; this must too, or a refusal silently changes what they said the
@@ -192,10 +209,14 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
 
         ⚠️ **`accept` is a hint to the file picker and never a check.** The
         server reads whatever arrives and the cap is what refuses it; a browser
-        will happily post a file whose extension says otherwise. -->
+        will happily post a file whose extension says otherwise.
+
+        ⚠️ **An `.apkg` is a file and only a file** (ADR 0068): there is nothing
+        to paste, so choosing *Anki deck* above and leaving this empty is
+        refused by name (`no_file`) rather than read as an empty paste. -->
       <label class="field file">
         <span class="eyebrow">OR A FILE</span>
-        <input name="file" type="file" accept=".txt,text/plain">
+        <input name="file" type="file" :accept="FILE_ACCEPT">
       </label>
 
       <!-- `10` §6.2: the full-width primary control. ⚠️ **Its key hint slot is

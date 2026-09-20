@@ -1501,6 +1501,10 @@ An `.apkg` becomes one `term⇥reading⇥hint` line per note at submit, read wit
 the app because the app owns `chunk`. The deck's reading and level tags reach the model as hints,
 and its meaning is dropped to stay under `S2`'s cap.
 → [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md)
+⚠️ **Amended 2026-09-20 by [#26](https://github.com/yutaasakura96/kioku/issues/26)**, on the
+re-measurement §3 asked that ticket for: a deck name contributes only the **words in it that name a
+level**, not the whole name. Carried whole it was the largest column in all four real decks
+(43,171–62,077 code points) and put two of them over `S2`'s cap.
 
 ## Adding an entry
 

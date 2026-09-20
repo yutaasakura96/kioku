@@ -37,13 +37,21 @@ export const DEFAULT_SOURCE_KIND: SourceKind = 'prose'
 export const INGEST_DEFAULT_SOURCE_KIND: SourceKind = 'word_list'
 
 /**
- * The kinds a reader may submit. ⚠️ **`anki` is in the `CHECK` and not here**:
- * ADR 0063 leaves the `.apkg` format and the licensing of shared decks
- * unverified, and [#24](https://github.com/yutaasakura96/kioku/issues/24) opens
- * with the research. A value the schema accepts and no path produces is the
- * honest state of a decision that has been made and not built.
+ * The kinds a reader may submit.
+ *
+ * ⚠️ **`anki` joined them 2026-09-20 with
+ * [#26](https://github.com/yutaasakura96/kioku/issues/26)** (ADR 0068). It was
+ * in `04` §5.1's `CHECK` and in nothing else from ADR 0063 until then — the
+ * `.apkg` format and the licensing of shared decks were unverified and #24
+ * opened with the research, so a value the schema accepted and no path produced
+ * was the honest state of a decision made and not built. The research is
+ * `docs/anki-apkg-research.md` and the decision is ADR 0068.
+ *
+ * ⚠️ **Last in the list, because the order is the order of the radios** and a
+ * deck is the least common of the three. `word_list` is still first and still
+ * `INGEST_DEFAULT_SOURCE_KIND`.
  */
-export const SUBMITTABLE_SOURCE_KINDS: readonly SourceKind[] = ['word_list', 'prose']
+export const SUBMITTABLE_SOURCE_KINDS: readonly SourceKind[] = ['word_list', 'prose', 'anki']
 
 export function isSourceKind(value: unknown): value is SourceKind {
   return typeof value === 'string' && (SOURCE_KINDS as readonly string[]).includes(value)

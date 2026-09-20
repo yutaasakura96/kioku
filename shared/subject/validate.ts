@@ -20,6 +20,36 @@ export const BLANK_CLASS = '\\t\\n\\v\\f\\r\\u001C-\\u001F \\u0085\\u00A0\\u1680
 export const BLANK = new RegExp(`^[${BLANK_CLASS}]*$`)
 
 /**
+ * One or more blanks, for splitting on and collapsing — the same class, once.
+ *
+ * ⚠️ **Exported so that nothing builds it a second time.** `00-status.md`
+ * § Carrying's standing rule is that this class is written out **once**; two
+ * modules each compiling their own `[${BLANK_CLASS}]+` is that rule being
+ * obeyed in the letter and lost in the spirit, because the next one will be
+ * built from `\s` by someone who did not know this existed.
+ */
+export const BLANK_RUN = new RegExp(`[${BLANK_CLASS}]+`, 'g')
+
+const BLANK_EDGES = new RegExp(`^[${BLANK_CLASS}]+|[${BLANK_CLASS}]+$`, 'g')
+
+/**
+ * The value with its edges stripped and its inner blanks collapsed to one
+ * space — this class and no other.
+ *
+ * ⚠️ **Not `.trim()`, and not even after a collapse has made it look safe.**
+ * `trim()` and Python's `str.strip()` disagree on six characters across the BMP
+ * (§ Carrying), one of which is `U+001F` — the character `04` §5.3 joins the
+ * *identity key* with and `shared/ingest/anki/line.ts` splits a stored deck
+ * line on. A `collapse-then-trim` is correct only because the collapse has
+ * already turned every one of those into an ASCII space, which is a dependency
+ * between two statements that nothing states; doing both from the one class
+ * removes the question.
+ */
+export function collapseBlank(value: string): string {
+  return value.replace(BLANK_EDGES, '').replace(BLANK_RUN, ' ')
+}
+
+/**
  * The seam of `03` §6: `validate(declaration, output) → ok | error`, one
  * implementation per language over the one file. It is the function every
  * generated *note* passes through on its way into the database.

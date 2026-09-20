@@ -45,11 +45,18 @@ FIELD_KINDS = ("lookup", "judgement")
 SOURCE_KINDS = ("prose", "word_list", "anki")
 
 #: The kinds *Ingest* can actually submit, and therefore the kinds a declaration
-#: owes a pipeline for. ⚠️ **`anki` is in :data:`SOURCE_KINDS` and not here**:
-#: ADR 0063 leaves the `.apkg` format and the licensing of shared decks to #24
-#: and says it does not pre-decide that ticket, so requiring a pipeline for it
-#: would decide it here instead.
-SUBMITTABLE_SOURCE_KINDS = ("word_list", "prose")
+#: owes a pipeline for.
+#:
+#: ⚠️ **`anki` joined them 2026-09-20 with #26** (ADR 0068). From ADR 0063 until
+#: then it was in :data:`SOURCE_KINDS` and not here, because that ADR left the
+#: `.apkg` format and the licensing of shared decks to #24 and said it did not
+#: pre-decide the ticket — requiring a pipeline would have decided it here
+#: instead. #24's research answered the format and ADR 0068 answered the
+#: pipeline: `unpack`, then the word-list pipeline.
+#:
+#: ⚠️ **Last, and the order is compared against TypeScript's**
+#: (`tests/test_subject_drift.py`). It is the order of *Ingest*'s radios.
+SUBMITTABLE_SOURCE_KINDS = ("word_list", "prose", "anki")
 
 #: ⚠️ **Emptiness is spelled out because ``str.strip()`` and JavaScript's
 #: ``trim()`` do not agree** — measured 2026-09-10 across the whole BMP. Six
@@ -214,8 +221,12 @@ def stage_keys(declaration: Declaration, kind: str) -> list[str]:
     the point.** ADR 0063 rejected the alternative — one pipeline whose
     prose-only stages skip themselves on a word list — because *a stage that
     silently does nothing* is the failure `03` §5.1 is built to avoid. A *source*
-    of an undeclared kind is the same silence one layer up, and `anki` is exactly
-    that today: in `04` §5.1's `CHECK`, in no pipeline, produced by nothing.
+    of an undeclared kind is the same silence one layer up.
+
+    ⚠️ **All three kinds are declared since #26** (ADR 0068), so this raise is
+    no longer reachable from a real row — only from a declaration edited to drop
+    a pipeline. Until 2026-09-20, `anki` was exactly the case it describes: in
+    `04` §5.1's `CHECK`, in no pipeline, produced by nothing.
     """
     pipelines = declaration["pipelines"]
     if kind not in pipelines:
@@ -396,8 +407,8 @@ def check_declaration(value: Any) -> ValidationResult:
                     errors.append(ValidationError(stage, "duplicate_stage"))
                 seen.add(stage)
 
-    # ⚠️ **Only the kinds *Ingest* can submit are required, and `anki` is
-    # deliberately not one** — :data:`SUBMITTABLE_SOURCE_KINDS` says why.
+    # ⚠️ **Only the kinds *Ingest* can submit are required, and since ADR 0068
+    # that is all three** — :data:`SUBMITTABLE_SOURCE_KINDS` says why.
     for kind in SUBMITTABLE_SOURCE_KINDS:
         if kind not in declared_kinds:
             errors.append(ValidationError(kind, "missing_pipeline"))

@@ -803,6 +803,33 @@ just did should be above the thing they might do next.
 > a hint to the picker and never a check**: the server reads whatever arrives, and `S2`'s cap is what
 > refuses it, on the same seam and with the same sentence as an over-cap paste (§6.3).
 >
+> ⚠️ **Amended 2026-09-20 with [#26](https://github.com/yutaasakura96/kioku/issues/26) —
+> [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md).
+> There are three radios and the file input takes two extensions.**
+>
+> **Anki deck** (*A .apkg, read into a word list.*) joins the two above it, **last** — the default is
+> still *Word list*, and a deck is the least common of the three. Same type, same rhythm, no new
+> token. ⚠️ **The word is *deck* and not *cards***: `CONTEXT.md` gives *Card* an `_Avoid_` list, and
+> a Kioku *card* is one rendering of a *note* through a *template*, which is not what an Anki note
+> is.
+>
+> **The file input's `accept` is `.txt,text/plain,.apkg,application/zip`** — the union of all three
+> kinds, not the chosen one. ⚠️ **There is no JavaScript to narrow it when the radio changes**
+> (ADR 0020), and a picker offering only `.txt` would hide the deck the reader came to upload. It is
+> still a hint and never a check: `server/utils/ingest/anki/unpack.ts` is what refuses a file that is
+> not a deck, by name.
+>
+> ⚠️ **A deck is a file and only a file.** Choosing *Anki deck* and attaching nothing is refused as
+> *no file*, not as an empty paste — "paste the text you want notes from" is advice a reader cannot
+> take. §6.3's error render carries six more sentences for a deck, one per way it can fail, for the
+> reason that section already gives: a `.colpkg`, a deck from a newer Anki and a zip of `.apkg` files
+> fail differently and are repaired differently.
+>
+> ⚠️ **And a refused deck comes back with the textarea as the reader left it**, not with bytes in
+> it. §6.3's rule is that the reader keeps their material; no server can repopulate a file input, so
+> for this one input the rule is met by the *kind* staying selected rather than by the material
+> coming back.
+
 > ⚠️ **The form is `multipart/form-data` and that attribute is load-bearing** — a urlencoded form
 > sends a file input's *name* and not its bytes.
 >

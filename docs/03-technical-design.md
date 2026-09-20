@@ -344,6 +344,32 @@ document size.
 > | 4–5 | **Deduplicate**, **Filter known and rejected** | Unchanged code. The same term on two lines is one *note* and two *occurrences*; a term whose *note* already exists costs nothing, including one of the 474 the first run paid for. ⚠️ **One exception, below: an unresolved line** |
 > | 6–7 | **Generate**, **Write pending notes** | Unchanged, with one addition below |
 >
+> ⚠️ **Amended 2026-09-20 with [#26](https://github.com/yutaasakura96/kioku/issues/26) —
+> [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md).
+> There are three pipelines now, and the third is the second with one stage in front of it:**
+> **`anki` as `unpack → chunk → normalise → deduplicate → filter_known → generate → write_notes`.**
+>
+> | # | Stage | Differs how |
+> | --- | --- | --- |
+> | 0 | **Unpack** | ⚠️ **Runs in the app, at submit.** It reads the uploaded `.apkg` — a zip, a `meta` protobuf, and a SQLite collection in one of three layouts — and writes one `term⇥reading⇥hint` line per Anki *note*. `server/utils/ingest/anki/`, on `node:zlib` and `node:sqlite` with **no new dependency** (ADR 0068 §2) |
+> | 1 | **Accept and chunk the source** | The word-list rule, 25 lines per *chunk*. By this point the *source* **is** a word list |
+> | — | **Normalise** | The term is the text before the first tab, and columns 2 and 3 ride along as the deck's *hints* |
+> | 6 | **Generate** | The prompt carries `deck_reading` and `deck_hint` on the word's line, marked as the deck's and weighed against the model's own judgement |
+>
+> ⚠️ **`unpack` and `chunk` are both the app's, and that is why `unpack` is the app's.**
+> `anki-apkg-research.md` §4.3 recommended a worker-side reader and had not accounted for who owns
+> `chunk`: `shared/ingest/chunk.ts` writes the `source_chunk` rows inside the submit transaction and
+> `source_chunk.content_hash` is the first element of `04` §6.3's cache key, so a worker-side unpack
+> would need a second chunker — or a `source` row with nothing in its `content` until a second job
+> filled it. Both stages are **declared anyway** (ADR 0003, `worker/pipeline/__init__.py`'s
+> `STAGES_RUN_ELSEWHERE`), because the declaration is the one place that says in order what happens
+> to a *source*.
+>
+> ⚠️ **The deck's *meaning* does not travel and its level tags are only hints.** Measured on four
+> real decks: term, reading and level hints fit inside `S2`'s cap and the meaning does not
+> (ADR 0068 §3 and its 2026-09-20 amendment). The model's `level_claim` stays the only *level* claim
+> on an imported *note*, and no `authority_key` names a deck.
+>
 > ⚠️ **A line SudachiPy cannot resolve is kept, not dropped.** It reaches stage 6 with an empty
 > reading and `is_oov` set; the model writes the reading, and `04` §5.4 records it as `generated`
 > rather than `lookup` — ADR 0004's sentence is that trust is a property of where a value came from.

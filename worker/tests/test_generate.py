@@ -49,7 +49,15 @@ def recorded() -> dict:
     return payload
 
 
-def group(term: str, reading: str, *, part_of_speech: str = "名詞", is_oov: bool = False) -> Group:
+def group(
+    term: str,
+    reading: str,
+    *,
+    part_of_speech: str = "名詞",
+    is_oov: bool = False,
+    deck_reading: str = "",
+    deck_hint: str = "",
+) -> Group:
     candidate = Candidate(
         term=term,
         reading=reading,
@@ -59,6 +67,8 @@ def group(term: str, reading: str, *, part_of_speech: str = "名詞", is_oov: bo
         char_end=len(term),
         is_oov=is_oov,
         identity_key=render_identity_key(DECLARATION, {"term": term, "reading": reading}),
+        deck_reading=deck_reading,
+        deck_hint=deck_hint,
     )
     return Group(
         identity_key=candidate.identity_key,
@@ -71,6 +81,10 @@ def group(term: str, reading: str, *, part_of_speech: str = "名詞", is_oov: bo
 LIBRARY = group("図書館", "としょかん")
 NEARBY = group("近く", "ちかく")
 GROUPS = (LIBRARY, NEARBY)
+
+#: An imported *candidate* — ADR 0068 §6. Its deck reads 開く as あく where
+#: Sudachi reads ひらく, which is the homograph case the hint exists for.
+IMPORTED = group("開く", "ひらく", deck_reading="あく", deck_hint="JLPT_3 JLPT N3")
 
 
 # ---------------------------------------------------------------------------
@@ -546,3 +560,61 @@ class TestTheReadingIsAskedFor:
         )
 
         assert notes is not None and len(notes) == 1
+
+
+class TestWhatAnImportedDeckSaid:
+    """ADR 0068 §6: a deck's reading and level hint reach the model **as hints**.
+
+    ⚠️ **Yuta's second triage call** (`anki-apkg-research.md` §6): a deck's level
+    tags and subdeck names are a hint to the model only. The model's
+    `level_claim` stays the only *level* claim on an imported *note*, and no
+    `authority_key` ever names a deck.
+    """
+
+    def test_the_deck_s_reading_and_hint_are_on_the_word_s_line(self) -> None:
+        prompt = build_prompt(DECLARATION, TEXT, (IMPORTED,))
+
+        assert "deck_reading=あく" in prompt
+        assert "deck_hint=JLPT_3 JLPT N3" in prompt
+        # ⚠️ And the dictionary's reading is still the one handed over to echo.
+        assert "reading=ひらく" in prompt
+
+    def test_the_prompt_says_the_dictionary_s_reading_wins(self) -> None:
+        """⚠️ ADR 0068 §5: the *identity key* is Sudachi's. A model told only
+        that two readings exist has no rule for choosing between them.
+        """
+        prompt = build_prompt(DECLARATION, TEXT, (IMPORTED,))
+
+        assert "WHAT THE DECK SAID" in prompt
+        assert "hints and not facts" in prompt
+        assert "the given one is the dictionary's and stands" in prompt
+
+    def test_a_chunk_with_no_deck_behind_it_is_asked_the_older_question(self) -> None:
+        """⚠️ **The prompt is a cache key** (`04` §6.3), so a paragraph about
+        decks added to every chunk would change the request for every `prose`
+        and `word_list` chunk that never had one. Same rule as `READINGS`.
+        """
+        prompt = build_prompt(DECLARATION, TEXT, GROUPS)
+
+        assert "WHAT THE DECK SAID" not in prompt
+        assert "deck_reading=" not in prompt
+        assert "deck_hint=" not in prompt
+
+    def test_a_deck_that_supplied_only_a_level_says_only_that(self) -> None:
+        """Most decks carry no reading column at all (research §2.3), and an
+        empty `deck_reading=` would read as *the deck says it has no reading*.
+        """
+        prompt = build_prompt(DECLARATION, TEXT, (group("会議", "かいぎ", deck_hint="JLPT N3"),))
+
+        assert "deck_hint=JLPT N3" in prompt
+        assert "deck_reading=" not in prompt
+
+    def test_the_level_is_still_asked_for_exactly_as_it_was(self) -> None:
+        """⚠️ ADR 0068 §6 and ADR 0065: the hint does not replace the question.
+        The model still writes a `level` from the declaration's closed set, and
+        that claim is the only one an imported *note* carries.
+        """
+        prompt = build_prompt(DECLARATION, TEXT, (IMPORTED,))
+
+        assert "LEVEL AND DOMAIN" in prompt
+        assert "write the `level` you actually believe" in prompt

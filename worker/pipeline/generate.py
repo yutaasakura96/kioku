@@ -60,7 +60,18 @@ from .deduplicate import Group
 #:
 #: ⚠️ **v3 is ADR 0065's**, #22: every word is now asked for a *level* and a
 #: *domain* as well, which changes the prompt and the schema of every chunk.
-PROMPT_VERSION = "v3"
+#:
+#: ⚠️ **v4 is ADR 0068's**, #26: an imported *candidate* carries its deck's
+#: reading and level hint, and :func:`build_prompt` puts both on the word's line
+#: and explains them. It changes the prompt only for a chunk that has them —
+#: every `prose` and `word_list` chunk builds the identical string it built at
+#: v3 — and the version moves anyway, because the rule this constant enforces is
+#: *any change to `build_prompt` bumps it in the same commit*. ⚠️ **The cost is
+#: named rather than avoided**: every stored v3 answer is still a correct answer
+#: to the v3 question and will simply never be asked for again, so the next
+#: re-ingestion of an already-generated *chunk* pays full price. `04` §10 calls
+#: `generation_cache` the one table safe to truncate, for this reason.
+PROMPT_VERSION = "v4"
 
 #: ⚠️ **Keyed by the declaration's own field names, and a judgement field with no
 #: entry here raises.** The declaration says *which* fields exist (ADR 0003); a
@@ -248,6 +259,10 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         f" reading={'?' if needs_a_reading(group) else group.candidate.reading}"
         f" part_of_speech={group.candidate.part_of_speech}"
         f" as_written={group.candidate.surface_form}"
+        # ⚠️ **Only when the deck supplied one**, because the prompt is a cache
+        # key (`04` §6.3) and an empty `deck_reading=` on every prose chunk
+        # would change the request for chunks that have no deck.
+        f"{_deck_hints(group)}"
         for index, group in enumerate(groups)
     )
     echoed = ", ".join(identity_key_field_names(declaration))
@@ -265,6 +280,25 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
             "word is itself written in katakana, and echo the `term` back "
             "unchanged. Every other word's reading is given and must be echoed "
             "exactly as it stands.\n"
+        )
+    )
+
+    # ⚠️ **Explained only when something in this chunk carries one** — the same
+    # rule as `reading_rule` above, and for the same reason.
+    deck_rule = (
+        ""
+        if not any(_deck_hints(group) for group in groups)
+        else (
+            "\n\nWHAT THE DECK SAID\n"
+            "A word may carry `deck_reading` and `deck_hint`. They come from an "
+            "Anki deck the reader imported, written by its author, and they are "
+            "**hints and not facts**. `deck_reading` is that author's reading; "
+            "where it disagrees with the `reading` given above, the given one is "
+            "the dictionary's and stands. Use `deck_reading` only to tell two "
+            "readings of one spelling apart. `deck_hint` is what the deck said "
+            "about the word's level, and it may be wrong, cumulative, or about a "
+            "different word: weigh it against your own judgement and write the "
+            "`level` you actually believe.\n"
         )
     )
 
@@ -302,7 +336,8 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         "A morphological analyser found these words in the passage. `term` is the "
         "normalised dictionary form and `as_written` is how it appeared.\n"
         f"{listed}"
-        f"{reading_rule}\n\n"
+        f"{reading_rule}"
+        f"{deck_rule}\n\n"
         "WHAT TO WRITE\n"
         f"One entry per listed word, in the listed order. Echo {echoed} back "
         "exactly as given — they identify the entry and must not be corrected, "
@@ -312,6 +347,26 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         "Write nothing else. Do not add words the list does not carry, and do not "
         "skip a word because it seems too easy or too hard."
     )
+
+
+def _deck_hints(group: Group) -> str:
+    """What an imported deck said about this word, if anything — ADR 0068 §6.
+
+    ⚠️ **Both are hints, and the `level_claim` is still the model's.** Yuta's
+    second triage call (`anki-apkg-research.md` §6): *a deck's level tags and
+    subdeck names are a hint to the model only.* No `authority_key` names a
+    deck, because open-anki's tags are cumulative and a tag therefore does not
+    name one level (§1.3).
+
+    ⚠️ **Empty for every non-`anki` *candidate***, which is what keeps this out
+    of the cache key of a chunk that has no deck behind it.
+    """
+    parts = ""
+    if group.candidate.deck_reading:
+        parts += f" deck_reading={group.candidate.deck_reading}"
+    if group.candidate.deck_hint:
+        parts += f" deck_hint={group.candidate.deck_hint}"
+    return parts
 
 
 def request_for(declaration: Declaration, text: str, groups: Sequence[Group]) -> GenerationRequest:

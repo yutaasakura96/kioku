@@ -132,6 +132,14 @@ class StageState:
     declaration: Declaration
     #: The *chunk*'s text, already sliced — stage 1 is the app's.
     text: str
+    #: `source.kind` (ADR 0063), read from the row rather than guessed.
+    #:
+    #: ⚠️ **`normalise` reads it and no other stage does** (ADR 0068 §5): an
+    #: `anki` line carries the deck's reading and level hint in columns 2 and 3
+    #: and a `word_list` line does not. It is on the state rather than a
+    #: parameter of one runner because :data:`STAGE_RUNNERS` is a uniform map
+    #: and a second signature in it would be the first crack in the fold.
+    kind: str
     #: The chunk's offset within the *source*, because `04` §5.5 stores positions
     #: within the source and both `tokenise` and `normalise` count from zero.
     char_start: int
@@ -176,7 +184,12 @@ def _run_normalise(state: StageState) -> StageState:
     return replace(
         state,
         candidates=tuple(
-            normalise(state.declaration, state.text, char_start=state.char_start)
+            normalise(
+                state.declaration,
+                state.text,
+                char_start=state.char_start,
+                kind=state.kind,
+            )
         ),
     )
 
@@ -231,7 +244,7 @@ STAGE_RUNNERS: Mapping[str, StageRunner] = {
 #: Declared stages that are somebody else's to run, named so that a pipeline
 #: carrying them is still legal here.
 #:
-#: ⚠️ **Three, and each is owned by a different process.** `chunk` is the app's —
+#: ⚠️ **Four, and each is owned by a different process.** `chunk` is the app's —
 #: `shared/ingest/chunk.ts` writes `source_chunk` rows before a worker has
 #: claimed anything, and a second implementation would be a second answer to
 #: *where does chunk 3 begin* (`pipeline/chunk.py`). `generate` and
@@ -239,7 +252,22 @@ STAGE_RUNNERS: Mapping[str, StageRunner] = {
 #: with that chunk's whole surviving set (ADR 0047) — after this function has
 #: returned, because everything that shrinks the work happens before anything
 #: that spends (ADR 0010).
-STAGES_RUN_ELSEWHERE = frozenset({"chunk", "generate", "write_notes"})
+#:
+#: ⚠️ **`unpack` is the app's too, and it is here because of `chunk`**
+#: (ADR 0068 §4, #26). `server/utils/ingest/anki/unpack.ts` turns an uploaded
+#: `.apkg` into one `term⇥reading⇥hint` line per *note* **inside the submit
+#: request**, because `chunk` runs in that same transaction and `source.content`
+#: is written by it — a worker-side unpack would need either a second chunker or
+#: a *source* row with nothing in its content. `anki-apkg-research.md` §4.3
+#: recommended the worker and had not accounted for that; ADR 0068 is the
+#: reversal.
+#:
+#: ⚠️ **It is declared anyway, and that is ADR 0003 rather than bookkeeping.**
+#: The declaration is the one place that says, in order, what happens to a
+#: *source* of a given kind. Leaving `unpack` out because no module here runs it
+#: would make the `anki` pipeline read as identical to `word_list`, which is
+#: exactly the thing that is not true about it.
+STAGES_RUN_ELSEWHERE = frozenset({"unpack", "chunk", "generate", "write_notes"})
 
 
 def check_pipelines(declaration: Declaration) -> None:
@@ -306,7 +334,11 @@ def run_stages(
     running worker.
     """
     state = StageState(
-        declaration=declaration, text=text, char_start=char_start, corpus=corpus
+        declaration=declaration,
+        text=text,
+        kind=kind,
+        char_start=char_start,
+        corpus=corpus,
     )
 
     for key in stage_keys(declaration, kind):

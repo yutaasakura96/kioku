@@ -39,8 +39,24 @@ interface PlaceReader {
  * back; handing back a subtly different string would be a worse bug than losing
  * it, because nothing would show.
  */
-interface IngestFailure {
-  code: 'empty' | 'over_cap'
+export interface IngestFailure {
+  /**
+   * ⚠️ **The six `unpack` codes joined the two of `readSubmission` with
+   * ADR 0068** (#26). They are listed rather than widened to `string` because
+   * each one is a different repair for the reader — a `.colpkg`, a deck from a
+   * newer Anki and a zip of `.apkg` files all fail, and "that file did not
+   * work" is the message none of them can act on.
+   */
+  code:
+    | 'empty'
+    | 'over_cap'
+    | 'no_file'
+    | 'too_large'
+    | 'not_a_zip'
+    | 'no_collection'
+    | 'unsupported_version'
+    | 'unreadable_collection'
+    | 'no_words'
   message: string
   title: string
   content: string

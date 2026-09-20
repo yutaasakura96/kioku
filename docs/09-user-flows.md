@@ -240,6 +240,33 @@ not by a fast worker: the transaction writes four rows and answers.
 > because everything else on the form comes back and a refusal that silently changed what they said
 > the material was would be worse than one that lost it.
 
+> ⚠️ **Amended 2026-09-20 with [#26](https://github.com/yutaasakura96/kioku/issues/26) —
+> [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md).
+> The `kind` chooser offers a third answer, *Anki deck*, and it is the one that must be a file.**
+>
+> An `.apkg` is **unpacked in this request**, before any of the rows above are written: the app reads
+> the deck and turns it into a word list of `term⇥reading⇥hint` lines, and *that* is what
+> `source.content` holds. So every row of the table above is unchanged for a deck too, the cap
+> included — an over-cap deck is refused on this screen before any spend, and ADR 0068 §7 declines to
+> raise the cap for it. ⚠️ **What changes is the advice**: *split it and submit the halves* is not
+> something a reader can do to a `.apkg`, so the sentence says to export one subdeck at a time.
+>
+> ⚠️ **Six more refusals, each with its own sentence**, all answered `200` on this screen like the
+> two above: no file chosen, a file over 4 MB, a file that is not a zip, a zip with no collection, a
+> deck from a newer Anki than the reader knows (Anki's own `TooNew`), and a collection that cannot be
+> read. "That file did not work" is the message none of them could act on — a `.colpkg`, a deck from
+> a newer Anki and a zip of `.apkg` files fail for three reasons with three repairs.
+>
+> ⚠️ **One refusal cannot be rendered here at all, and it is named rather than worked around.** A
+> Vercel Function's request body is capped at 4.5 MB and anything above it is refused by Vercel with
+> a `413` **before this handler runs** — on a route that ships no JavaScript, nothing can catch that.
+> The app's own 4 MB refusal is the one it can render. Vercel Blob is on ADR 0022's forbidden list,
+> and ADR 0068 §8 keeps media out of scope, which is what keeps a text deck comfortably under both.
+>
+> ⚠️ **And the reader's text comes back, but a deck's bytes do not.** A `.apkg` cannot go into a
+> textarea, so a refused deck re-renders the form with whatever they had *typed* — the kind
+> reselected as above — rather than with binary in the box.
+
 ### 4.3 `S3` — Vet a note in one keystroke
 
 **Screen:** `/vet`.

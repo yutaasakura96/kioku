@@ -197,6 +197,19 @@ new *source* and offers to open the existing one. Detection, not prevention.
 > fact about the material: §4's label test, answered the same way `subject_id` was, and a
 > re-ingestion of the same *source* is an ingestion of the same kind.
 >
+> ⚠️ **Amended 2026-09-20 with [#26](https://github.com/yutaasakura96/kioku/issues/26) —
+> [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md):
+> the third value is produced now.** From ADR 0063 until then `anki` was in this `CHECK` and in no
+> pipeline, because the `.apkg` format and the licensing of shared decks were unverified and #24
+> opened with the research — a value the column accepted and nothing wrote.
+>
+> **An `anki` *source* stores a word list, not a deck.** The app unpacks the uploaded `.apkg` inside
+> the submit transaction and writes one `term⇥reading⇥hint` line per Anki *note* into `content`, so
+> every column of this table means what it meant: `content` is text, `char_count` counts its code
+> points, `content_hash` is the SHA-256 of it, and `04` §5.2's chunking is the word-list rule. ⚠️
+> **The `.apkg` itself is not stored anywhere** — `content` is `text NOT NULL` and a zip does not fit
+> in it, which is one of the two reasons ADR 0068 moved the reader out of the worker.
+>
 > **It defaults to `prose`, so every row written before the column keep its meaning.** Each of those
 > is prose that was mined, and a default of `word_list` would retroactively claim they were lists.
 > ⚠️ **That default is not *Ingest*'s**: the screen offers `word_list` first, because ADR 0063's

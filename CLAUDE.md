@@ -13,7 +13,8 @@ documents, **39 ADRs**, fourteen verification sections and an empty frontier; Ph
 code since 2026-09-09 and **twenty-nine more ADRs** with it — **68** as of 2026-09-19: five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
 languages, and ADR 0068 decides how an Anki deck gets in (⚠️ this said *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
-before). ⚠️ **#21 added no ADR and amended ADR 0066 in place** (where the reader's zone is stored, and four
+before). ⚠️ **#26 added no ADR and amended ADR 0068 in place** (2026-09-20: a deck name contributes
+only the words in it that name a level, on the re-measurement that ADR asked #26 for). ⚠️ **#21 added no ADR and amended ADR 0066 in place** (where the reader's zone is stored, and four
 other things the build settled). ⚠️ **#23 added no ADR and corrected one**: ADR 0037's amended table said a day boundary was
 midnight where ADR 0066 says 04:00. ⚠️ **This paragraph said "there is still no
 code" until 2026-09-11** — it was written before #2 and nothing had corrected it since, which meant
@@ -25,8 +26,9 @@ decks** rather than mined prose (ADR 0063); every word carries a **domain** and 
 filled automatically (ADR 0065); **manual vetting leaves the loop** and *Vet* becomes the flag queue
 (ADR 0064); the daily review load gets a **brake** (ADR 0066); and *acceptance rate* retires in
 favour of **retention, consistency and flag rate** (ADR 0062).
-⚠️ **Five tickets of the pivot are built: #19 (2026-09-16), #20 and #22 (both 2026-09-17), and
-#23 and #21 (both 2026-09-18)** — ⚠️ this said *four* until #21 and *three* until #23.
+⚠️ **Six tickets of the pivot are built: #19 (2026-09-16), #20 and #22 (both 2026-09-17),
+#23 and #21 (both 2026-09-18), and #26 (2026-09-20)** — ⚠️ this said *five* until #26, *four* until
+#21 and *three* until #23.
 **The review load has a brake** (ADR 0066): ten new *cards* a local day, counted at composition on
 `review_session.new_count`, none while fifty are due, and a backlog ordered by retrievability.
 **Every generated word carries a model-estimated *level* and *domain*** (`level_claim`,
@@ -38,14 +40,16 @@ through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue
 drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **retention**,
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
-*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
-[#26](https://github.com/yutaasakura96/kioku/issues/26)**, Anki import, written 2026-09-19 from #24's
-research. #25 is `needs-triage` (⚠️ no `ready-for-agent` ticket was left from #21's build until #26; the frontier was #21 until it was built on 2026-09-18, #23 until
-earlier that day and #22 until 2026-09-17).
+*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is empty of
+`ready-for-agent` work**: [#26](https://github.com/yutaasakura96/kioku/issues/26), Anki import, was
+built 2026-09-20 and #25 is `needs-triage` (⚠️ the frontier was #26 from 2026-09-19, empty from #21's
+build on 2026-09-18, #21 until it was built that day, #23 until earlier that day and #22 until
+2026-09-17). **An `.apkg` is unpacked by the app** into a `term⇥reading⇥hint` word list on
+`node:zlib` and `node:sqlite`, with no new dependency (ADR 0068).
 ⚠️ **This paragraph said "no code has moved yet" until 2026-09-16, and named #20 as the frontier
 until 2026-09-17.**
 
-**What exists now:** #2 through #18 are built — a Nuxt app with the rendering split enforced by the
+**What exists now:** #2 through #18 are built (and the pivot's, above) — a Nuxt app with the rendering split enforced by the
 build, nineteen tables (eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
@@ -67,7 +71,8 @@ client to ask. ⚠️ It fed **UTC** until #21.
 [#21](https://github.com/yutaasakura96/kioku/issues/21) alone after #23, and has no
 `ready-for-agent` ticket since #21 was built later on 2026-09-18** (⚠️ it named #20 and #22 until
 2026-09-17 and #23 until 2026-09-18); ⚠️ **Neon is migrated through `0005` as of 2026-09-19** (this said `0003` to `0005` were unapplied
-until then, and `0003` never was); `S12`'s export is the one thing
+until then, and `0003` never was); ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
+row like any other; `S12`'s export is the one thing
 still unticketed, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
 flagged *note* started returning to `/vet`. ⚠️ **And one thing three paths write and nothing reads
@@ -89,7 +94,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 890 across four tiers — unit, schema, nuxt, e2e
+npm run test        # 989 across four tiers — unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
