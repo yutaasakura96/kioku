@@ -387,6 +387,11 @@ imports, and for `ankipack` by reading `read.js`. None was run against a real de
 
 ### 4.3 Recommendation: stdlib in the worker, `zstandard` as a floor
 
+⚠️ **Superseded 2026-09-19 by [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md).**
+This section missed that `chunk` belongs to the app, which writes `source_chunk` at submit. The reader
+moved to the app on Node built-ins (`node:zlib`, `node:sqlite`), and `zstandard` is not needed. The
+format facts below still hold, and so does the query order.
+
 **Read `.apkg` in the worker with `zipfile` + `sqlite3` + `zstandard`, with no Anki library.**
 
 - **It covers every layout, measured.** The reader used for §1–§2 is about 40 lines and read both
@@ -441,7 +446,9 @@ imports, and for `ankipack` by reading `read.js`. None was run against a real de
 
 ## 5. Bearing on the ADR the issue asks for
 
-**Skip `generate`, or feed it?** The evidence points to **feed**:
+**Skip `generate`, or feed it?** The evidence points to **feed**. ⚠️ **Decided 2026-09-19: feed**
+([ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md)).
+The pipeline there is `unpack → chunk → normalise → …` with `unpack` in the app, not the one below:
 
 - No field mapping holds across decks (§2.3), so "trust the fields" needs a mapping that has to be
   guessed, chosen by hand or produced by a model.

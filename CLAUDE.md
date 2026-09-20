@@ -10,9 +10,9 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **twenty-eight more ADRs** with it — **67** as of 2026-09-17: five are the
-pivot, and ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
-languages (⚠️ this said *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
+code since 2026-09-09 and **twenty-nine more ADRs** with it — **68** as of 2026-09-19: five are the
+pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
+languages, and ADR 0068 decides how an Anki deck gets in (⚠️ this said *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
 before). ⚠️ **#21 added no ADR and amended ADR 0066 in place** (where the reader's zone is stored, and four
 other things the build settled). ⚠️ **#23 added no ADR and corrected one**: ADR 0037's amended table said a day boundary was
 midnight where ADR 0066 says 04:00. ⚠️ **This paragraph said "there is still no
@@ -38,8 +38,9 @@ through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue
 drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **retention**,
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
-*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **no `ready-for-agent` ticket is left**:
-#24 and #25 are `needs-triage` (⚠️ the frontier was #21 until it was built on 2026-09-18, #23 until
+*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
+[#26](https://github.com/yutaasakura96/kioku/issues/26)**, Anki import, written 2026-09-19 from #24's
+research. #25 is `needs-triage` (⚠️ no `ready-for-agent` ticket was left from #21's build until #26; the frontier was #21 until it was built on 2026-09-18, #23 until
 earlier that day and #22 until 2026-09-17).
 ⚠️ **This paragraph said "no code has moved yet" until 2026-09-16, and named #20 as the frontier
 until 2026-09-17.**

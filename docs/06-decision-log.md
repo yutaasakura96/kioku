@@ -1495,6 +1495,13 @@ in `compose.ts` that assumed equal stability. Nothing caps how many due *cards* 
 rather than copied, and a TypeScript function can't be called from Python.
 → [ADR 0067](adr/0067-minting-is-a-database-function-because-two-toolchains-mint.md)
 
+### [2026-09-19] An imported deck is unpacked by the app into a word list, and it feeds `generate`
+An `.apkg` becomes one `term⇥reading⇥hint` line per note at submit, read with `node:zlib` and
+`node:sqlite`, and from then on it follows the word-list path. The reader moved from the worker to
+the app because the app owns `chunk`. The deck's reading and level tags reach the model as hints,
+and its meaning is dropped to stay under `S2`'s cap.
+→ [ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

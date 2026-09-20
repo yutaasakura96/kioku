@@ -1633,8 +1633,15 @@ model provider and be stored on Neon; deck level tags are **a hint to the model 
 `level_claim`; and real decks were downloaded for measurement (§1.3). ⚠️ **AnkiWeb served
 `LEGACY_2`** for one deck. Open Anki JLPT N3, N2 and N1 are in `~/Documents/kioku-decks/`,
 **outside the repo, and never to be committed**. Their tags turned out to be cumulative, which
-confirms the hint-only call. **What is next for #24** is its build ticket and the
-skip-or-feed-`generate` ADR. The research recommends *feed*.
+confirms the hint-only call. ~~**What is next for #24** is its build ticket and the
+skip-or-feed-`generate` ADR. The research recommends *feed*.~~ ⚠️ **Both exist as of 2026-09-19.**
+[ADR 0068](adr/0068-an-imported-deck-is-unpacked-by-the-app-into-a-word-list-that-feeds-generate.md)
+decides *feed*, and it **moves the reader from the worker to the app**, on `node:zlib` and
+`node:sqlite` with no new dependency. The app owns `chunk` and writes `source_chunk` at submit, and
+research §4.3 had missed that. It also drops the deck's meaning from the hint, because with it every
+real deck is over `S2`'s cap. **The build ticket is
+[#26](https://github.com/yutaasakura96/kioku/issues/26), `ready-for-agent`**, and it is the frontier.
+#24 stays open, with no triage label, until #26 lands.
 
 ~~⚠️ **[#23](https://github.com/yutaasakura96/kioku/issues/23) built 2026-09-18 (§ Done). The frontier
 is [#21](https://github.com/yutaasakura96/kioku/issues/21) alone.** The next command is `/clear`,
@@ -1670,8 +1677,9 @@ The rest are open and blocked or out of order:
 until it lands a word list produces *pending notes* nobody mints — the queue #19 was built to stop
 filling. #22 makes the *notes* better and #20 makes them reachable.
 
-⚠️ **#24 and #25 are `needs-triage` on purpose.** The Anki format and shared decks' licences are
-unverified and that ticket opens with research; #25's four open questions are in its body.
+~~⚠️ **#24 and #25 are `needs-triage` on purpose.** The Anki format and shared decks' licences are
+unverified and that ticket opens with research;~~ #24's research is done and its build is #26 (above).
+#25 is still `needs-triage`, and its four open questions are in its body.
 
 ⚠️ **Two numbers in ADR 0066 are recommendations Yuta approved as a direction, not as figures.** He
 said he did not know what they should be, and ten and fifty are mine. Each has a revisit condition in
