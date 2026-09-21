@@ -41,8 +41,10 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
-[#27](https://github.com/yutaasakura96/kioku/issues/27), [#28](https://github.com/yutaasakura96/kioku/issues/28)
-and [#29](https://github.com/yutaasakura96/kioku/issues/29)**, all from ADR 0069 on 2026-09-21.
+[#28](https://github.com/yutaasakura96/kioku/issues/28) and
+[#29](https://github.com/yutaasakura96/kioku/issues/29)**, both from ADR 0069 on 2026-09-21.
+[#27](https://github.com/yutaasakura96/kioku/issues/27), the kana-only reading skip, was built the
+same day (⚠️ the frontier named it until then).
 [#26](https://github.com/yutaasakura96/kioku/issues/26), Anki import, was
 built 2026-09-20 and #25 is `needs-triage` (⚠️ the frontier was empty from #26's build until 2026-09-21, #26 from 2026-09-19, empty from #21's
 build on 2026-09-18, #21 until it was built that day, #23 until earlier that day and #22 until
@@ -96,7 +98,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 990 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-21)
+npm run test        # 1001 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-21, after #27)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

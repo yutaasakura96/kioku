@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import GradeControls from '../../app/components/GradeControls.vue'
 import ProgressRail from '../../app/components/ProgressRail.vue'
+import ReviewAnswer from '../../app/components/ReviewAnswer.vue'
 import ReviewCard from '../../app/components/ReviewCard.vue'
 import SessionTally from '../../app/components/SessionTally.vue'
 import SessionFilterControls from '../../app/components/SessionFilterControls.vue'
@@ -168,5 +169,42 @@ describe('the session filter (ADR 0065 §5)', () => {
     await view.find('input[value=tech]').setValue(true)
 
     expect(view.emitted('update:modelValue')).toEqual([[{ domains: ['tech', 'business'], levels: [] }]])
+  })
+})
+
+// ADR 0069 §4: a kana word is its own reading, so its *card* has no reading row
+// on either face — which step it opens on is the page's, from `answerSteps`.
+describe('the answer steps for a kana-only term', () => {
+  const answer = (step: 'meaning' | 'back', asksReading: boolean) =>
+    mountSuspended(ReviewAnswer, {
+      props: {
+        step,
+        declaration: jlptVocab,
+        typed: { reading: '', meaning: 'like this' },
+        check: { reading: null, meaning: step === 'back' ? true : null },
+        storedReading: 'こんな',
+        asksReading,
+      },
+    })
+
+  it('asks for the meaning with no reading field or result', async () => {
+    const view = await answer('meaning', false)
+
+    expect(view.find('#answer-reading').exists()).toBe(false)
+    expect(view.find('#answer-meaning').exists()).toBe(true)
+    expect(view.text()).not.toContain('こんな')
+  })
+
+  it('shows the meaning result alone on the back', async () => {
+    const view = await answer('back', false)
+
+    expect(view.findAll('.given')).toHaveLength(1)
+    expect(view.text()).toContain('like this')
+  })
+
+  it('keeps the reading row for a term with kanji', async () => {
+    const view = await answer('back', true)
+
+    expect(view.findAll('.given')).toHaveLength(2)
   })
 })

@@ -34,6 +34,8 @@ const props = defineProps<{
   check: { reading: boolean | null, meaning: boolean | null }
   /** Shown beside the reading result, before the *card* turns. */
   storedReading: string
+  /** ADR 0069 §4: `false` for a kana-only term, which opens on the meaning. */
+  asksReading: boolean
 }>()
 
 const emit = defineEmits<{ reading: [typed: string], meaning: [typed: string] }>()
@@ -80,7 +82,9 @@ defineExpose({
 
 <template>
   <div class="answers" :class="{ turned: step === 'back' }">
-    <div class="row">
+    <!-- ⚠️ A kana-only *card* has no reading row on either face: no field on
+         the front, and no result on the back (ADR 0069 §4). -->
+    <div v-if="asksReading" class="row">
       <label class="eyebrow" for="answer-reading">{{ label('reading') }}</label>
 
       <input

@@ -13,9 +13,25 @@
  * as the same reading happens here and only here.
  */
 
-import { toHiragana } from 'wanakana'
+import { isKana, toHiragana } from 'wanakana'
 
 import type { Grade } from './scheduler'
+
+export type AnswerStep = 'reading' | 'meaning'
+
+/**
+ * Which steps a *card* asks, in order —
+ * [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md) §4.
+ *
+ * ⚠️ **A term written only in kana is its own reading**, so asking for it tests
+ * nothing but typing: such a *card* asks for the meaning only. `isKana` counts
+ * `ー` as kana (コーヒー) and is false for an empty string, so a *note* with no
+ * term keeps both steps rather than silently losing one. Measured 2026-09-21
+ * against wanakana 5.3.1.
+ */
+export function answerSteps(term: string): readonly AnswerStep[] {
+  return isKana(term.trim()) ? ['meaning'] : ['reading', 'meaning']
+}
 
 /**
  * The fold both sides of the reading pass through.
@@ -95,11 +111,15 @@ export function meaningMatches(typed: string, stored: string): boolean {
 }
 
 export interface Check {
-  reading: boolean
+  /** `null` when the *card* has no reading step (ADR 0069 §4). */
+  reading: boolean | null
   meaning: boolean
 }
 
-/** ADR 0060 §3's table: `3` when both are right, `1` when either is wrong. */
+/**
+ * ADR 0060 §3's table: `3` when both are right, `1` when either is wrong. A
+ * *card* with no reading step is graded on its meaning alone (ADR 0069 §4).
+ */
 export function proposedGrade(check: Check): Grade {
-  return check.reading && check.meaning ? 3 : 1
+  return check.reading !== false && check.meaning ? 3 : 1
 }

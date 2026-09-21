@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { foldReading, meaningMatches, proposedGrade, readingMatches } from '../../shared/review/answer'
+import { answerSteps, foldReading, meaningMatches, proposedGrade, readingMatches } from '../../shared/review/answer'
 
 describe('the reading — the same fold on both sides', () => {
   it('matches hiragana typed against hiragana stored', () => {
@@ -129,5 +129,30 @@ describe('the proposal', () => {
     [false, false, 1],
   ] as const)('reading %s, meaning %s proposes %i', (reading, meaning, grade) => {
     expect(proposedGrade({ reading, meaning })).toBe(grade)
+  })
+
+  it.each([
+    [true, 3],
+    [false, 1],
+  ] as const)('with no reading step, meaning %s proposes %i', (meaning, grade) => {
+    expect(proposedGrade({ reading: null, meaning })).toBe(grade)
+  })
+})
+
+// ADR 0069 §4: a kana word is its own reading.
+describe('the steps a card asks', () => {
+  it.each([
+    ['こんな', 'hiragana'],
+    ['コーヒー', 'katakana with a long-vowel mark'],
+  ])('asks the meaning only for %s (%s)', (term) => {
+    expect(answerSteps(term)).toEqual(['meaning'])
+  })
+
+  it.each([
+    ['見る', 'kanji and kana'],
+    ['夢', 'kanji only'],
+    ['', 'no term at all'],
+  ])('asks the reading, then the meaning, for %j (%s)', (term) => {
+    expect(answerSteps(term)).toEqual(['reading', 'meaning'])
   })
 })

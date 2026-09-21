@@ -110,6 +110,24 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
+**2026-09-21 — #27: a kana-only *term* skips the reading step** (ADR 0069 §4).
+- `answerSteps(term)` in `shared/review/answer.ts` is the one place that decides, on wanakana's
+  `isKana` over the stored *term*. ⚠️ **Measured against wanakana 5.3.1 the same day**: こんな and
+  コーヒー are kana (`ー` counts), 見る and 夢 are not, and **the empty string is not** — so a *note*
+  with no *term* keeps both steps rather than losing one silently.
+- `proposedGrade`'s `reading` is now `boolean | null`, and `null` means *not asked*: a kana-only
+  *card* proposes from its meaning alone. The page passes `null` rather than a made-up `true`, so the
+  rule stays out of the component (ADR 0060 §6).
+- `/review` opens a kana-only *card* on the meaning field with no reading row on either face.
+  `resetAnswer` reads the first step from the current *card*; ⚠️ it also runs before the next *card*
+  is current, and the `cardId` watcher runs it again before the render, which is what makes that safe.
+  The key handler stays on the mode container; nothing about keys changed.
+- Tests: unit (the four terms, and the null-reading proposal), nuxt (`ReviewAnswer` without its
+  reading row), and an e2e case **last** in `test/e2e/review.test.ts`, so it composes a run of the
+  one kana *card*. `10` §5.4 and §5.5 carry dated amendments.
+- ⚠️ **#28 will change `proposedGrade` again** (the check becomes the *grade*); the `null` reading is
+  the shape it inherits.
+
 **2026-09-20, later — #26's close-out: the narrowing is approved and the `/tmp` question is
 answered.** Two things, neither of them code.
 
@@ -1720,8 +1738,8 @@ Seven findings worth knowing without opening it:
 *grade* with no override; a refused meaning can become the reader's synonym; a *note* carries a list
 of accepted meanings; a kana-only term skips the reading step; and a kanji's reading typed for the
 word's becomes a retry.
-- [#27](https://github.com/yutaasakura96/kioku/issues/27) — kana-only terms skip the reading step.
-  Small, `ready-for-agent`.
+- ~~[#27](https://github.com/yutaasakura96/kioku/issues/27) — kana-only terms skip the reading step.
+  Small, `ready-for-agent`.~~ ⚠️ **Built 2026-09-21** (§ Done).
 - [#28](https://github.com/yutaasakura96/kioku/issues/28) — the check is the *grade*, accepted
   meanings, reader synonyms, and the backfill. `ready-for-agent`. ⚠️ The backfill spends model money
   on Neon, and Yuta approves that run.

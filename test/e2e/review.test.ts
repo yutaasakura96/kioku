@@ -63,10 +63,10 @@ const FIELDS = {
  * `review_log` row poisons every later test in the session", met in the tier
  * where it bites.
  */
-async function acceptedCard(key: string): Promise<string> {
+async function acceptedCard(key: string, fields: Record<string, string> = FIELDS): Promise<string> {
   const note = await database.client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(FIELDS)}'::jsonb)
+    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
@@ -343,6 +343,46 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
     expect(await page.evaluate(() => localStorage.getItem('kioku:review:outbox'))).toBe('[]')
     expect(await grades()).toBe(before + 1)
     expect(await flags()).toBe(1)
+
+    await page.close()
+  })
+})
+
+// ADR 0069 §4. ⚠️ **Last in the file on purpose**: every earlier *card* is graded
+// or flagged by now, so this composes a run of exactly the one kana *card*.
+describe('a kana-only term', () => {
+  beforeAll(async () => {
+    await acceptedCard('こんな␟こんな', {
+      ...FIELDS,
+      term: 'こんな',
+      reading: 'こんな',
+      part_of_speech: '連体詞',
+      meaning: 'such, like this',
+    })
+  })
+
+  it('opens on the meaning, and grades on the meaning alone', async () => {
+    const page = await openReview()
+    const before = await grades()
+
+    // Focus lands in the meaning field and the reading field never exists.
+    await page.locator('#answer-meaning:focus').waitFor()
+    expect(await page.locator('#answer-reading').count()).toBe(0)
+
+    await page.keyboard.type('like this')
+    await page.keyboard.press('Enter')
+    await page.locator('.value.meaning').waitFor()
+
+    // The back carries one result — the meaning's — and proposes `3` from it.
+    expect(await page.locator('.given').count()).toBe(1)
+
+    await page.keyboard.press('Enter')
+    await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+
+    const latest = await database.client.query<{ rating: number }>(
+      'SELECT rating FROM review_log ORDER BY received_at DESC LIMIT 1;',
+    )
+    expect(latest.rows[0]!.rating).toBe(3)
 
     await page.close()
   })

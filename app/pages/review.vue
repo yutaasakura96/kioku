@@ -32,7 +32,7 @@
 // (`app/utils/review-store.ts`).
 
 import { GRADE_KEYS, endScreenAction, reviewAction } from '#shared/review/keystroke'
-import { foldReading, meaningMatches, proposedGrade, readingMatches } from '#shared/review/answer'
+import { answerSteps, foldReading, meaningMatches, proposedGrade, readingMatches } from '#shared/review/answer'
 import type { ReviewStep } from '#shared/review/keystroke'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
 import { brakeSentence, emptyStateOf } from '#shared/review/brake'
@@ -128,12 +128,19 @@ const step = ref<ReviewStep>('reading')
 const typed = ref({ reading: '', meaning: '' })
 const check = ref<{ reading: boolean | null, meaning: boolean | null }>({ reading: null, meaning: null })
 
+/** ADR 0069 §4 — a kana-only term has no reading step. */
+const cardSteps = computed(() => answerSteps(current.value?.fields.term ?? ''))
+const asksReading = computed(() => cardSteps.value.includes('reading'))
+
 /** ADR 0060 §3 — what `Enter` commits on the back. */
 const proposal = computed<Grade | null>(() => {
   if (step.value !== 'back')
     return null
 
-  return proposedGrade({ reading: Boolean(check.value.reading), meaning: Boolean(check.value.meaning) })
+  return proposedGrade({
+    reading: asksReading.value ? Boolean(check.value.reading) : null,
+    meaning: Boolean(check.value.meaning),
+  })
 })
 
 /**
@@ -263,8 +270,13 @@ async function focusStep() {
     focusContainer()
 }
 
+/**
+ * ⚠️ **Called before the next *card* is current as well as after** — the
+ * `cardId` watcher below runs it again once it is, before the render, so the
+ * first step is always the *card* on screen's.
+ */
 function resetAnswer() {
-  step.value = 'reading'
+  step.value = cardSteps.value[0]!
   typed.value = { reading: '', meaning: '' }
   check.value = { reading: null, meaning: null }
 }
@@ -855,6 +867,7 @@ onBeforeUnmount(() => {
             :typed="typed"
             :check="check"
             :stored-reading="current.fields.reading ?? ''"
+            :asks-reading="asksReading"
             @reading="checkReading"
             @meaning="checkMeaning"
           />

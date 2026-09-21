@@ -592,6 +592,13 @@ field is 18px and the meaning field 17px. **16px is iOS Safari's floor for a foc
 it the page zooms on focus. When `Enter` on the meaning field turns the card, focus moves to the
 container, so the on-screen keyboard closes and the four controls are in reach.
 
+⚠️ **Amended 2026-09-21 by [ADR 0069](adr/0069-the-check-is-the-grade.md) §4 (#27): a *term*
+written only in kana has no reading step.** A kana word is its own reading, so asking for it tests
+nothing but typing. When `answerSteps` (`shared/review/answer.ts`, wanakana's `isKana` on the stored
+*term*) says so, the card opens on the Meaning row with no reading row above it, focus goes to the
+meaning field, and the back's last row holds the meaning result alone. The `Enter` legend is
+unchanged. こんな and コーヒー are kana-only; 見る and 夢 keep both steps.
+
 ### 5.5 The grade controls
 
 `05` §7's geometry stands: four controls in a row, `12px` apart, spanning 760px, each a stacked pair
@@ -634,6 +641,9 @@ visible for exactly as long as it takes the next *card* to render, and it is not
 The proposed control is the resting control drawn one step darker. It does not use the accent (`05`
 §2), and it does not use the selected face, which already means *this grade was given*. Beneath the
 four, the legend line is `Enter` — the proposal's label, beside `X` — flag.
+
+⚠️ **Amended 2026-09-21 by ADR 0069 §4 (#27):** a kana-only *card* has no reading result, so its
+proposal is the meaning step's alone — `3` when the meaning was right, `1` when it was wrong.
 
 ### 5.6 The end screen
 
