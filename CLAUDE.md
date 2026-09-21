@@ -46,7 +46,7 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is empty**: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
-⚠️ **Two calls are Yuta's**: applying `0007` to Neon, since Ingest cannot render there without it, and the first live seed request, which spends on his key. Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
+⚠️ **`0007` is applied to Neon (2026-09-21); the first live seed request spends on Yuta's key and is his call.** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
 2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named
 #30 from the research's close, and #29 before that). ⚠️ **#30 left a monthly obligation**: the
 KANJIDIC2 table's licence requires a refresh, logged in `docs/00-status.md` § Carrying.
@@ -84,7 +84,7 @@ client to ask. ⚠️ It fed **UTC** until #21.
 [#21](https://github.com/yutaasakura96/kioku/issues/21) alone after #23, and has no
 `ready-for-agent` ticket since #21 was built later on 2026-09-18** (⚠️ it named #20 and #22 until
 2026-09-17 and #23 until 2026-09-18); ⚠️ **Neon is migrated through `0005` as of 2026-09-19** (this said `0003` to `0005` were unapplied
-until then, and `0003` never was), ⚠️ **and through `0006` (#28) as of 2026-09-21** — ⚠️ **`0007` (#25) is not applied, and `/` reads its table** (`docs/00-status.md` § Carrying); ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
+until then, and `0003` never was), ⚠️ **and through `0006` (#28) as of 2026-09-21** ⚠️ **and through `0007` (#25) the same day**; ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
 row like any other; `S12`'s export is the one thing
 still unticketed, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a

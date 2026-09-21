@@ -117,7 +117,7 @@ Read `CLAUDE.md` first, then this.
   `job`, `ingestion_id` became nullable and `seed_id` was added; `job_kind` gained `seed`; and
   `CHECK job_target` says exactly one target is set and the kind says which. Claim, heartbeat and
   sweep are unchanged, and `worker/__main__.py`'s `handle` branches on `kind`. **Migration `0007`,
-  not yet applied to Neon** (§ Carrying).
+  applied to Neon the same day.**
 - **The worker.** `worker/seeding.py` (`seed-v1`) excludes the requester's *carded* terms for that
   *domain* and *level*, heartbeats while the model streams, and writes the ledger before validating.
   A refused answer is still counted. It writes the draft after dropping blanks, repeats, multi-line
@@ -1834,9 +1834,8 @@ word's becomes a retry.
   frontier.**~~ ⚠️ **#30 built 2026-09-21** (§ Done); #29 is closed. ~~No `ready-for-agent` ticket is
   left.~~
 - ~~[#25](https://github.com/yutaasakura96/kioku/issues/25) — AI-seeded lists.~~ ⚠️ **Built
-  2026-09-21** (§ Done). **The frontier is empty.** What remains is two calls for Yuta: applying
-  `0007` to Neon (Ingest cannot render there until then, § Carrying), and the first live seed request,
-  which spends on his key. ⚠️ **Triaged with Yuta
+  2026-09-21** (§ Done). **The frontier is empty.** `0007` is applied to Neon (same day). What remains
+  is Yuta's call: the first live seed request, which spends on his key. ⚠️ **Triaged with Yuta
   2026-09-21 and `ready-for-agent`; it was the frontier.** [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
   answers its four questions: the worker returns a draft that lands pre-filled in *Ingest* and is
   submitted as a plain `word_list` *source*; each seed request gets its own ledger row;
@@ -2353,7 +2352,9 @@ Nothing.
 
 ## Carrying
 
-- ⚠️ **Neon is at `0006` and the code expects `0007`** (2026-09-21, #25). **`/` reads `seed` on
+- ~~⚠️ **Neon is at `0006` and the code expects `0007`** (2026-09-21, #25).~~ ⚠️ **Applied to Neon
+  2026-09-21, the same day, on Yuta's call**: `seed`, `job_target` and `job_kind` exist there, and
+  the one existing `job` row passed the new check. What follows is why it mattered. **`/` reads `seed` on
   every render** (`openSeed`), so until `0007` is applied Ingest fails against Neon, and so do
   `/stats`' ledger and every seed request. Apply it with `node --env-file=.env
   ./node_modules/.bin/drizzle-kit migrate`. It only adds things: one table, one nullable column,
