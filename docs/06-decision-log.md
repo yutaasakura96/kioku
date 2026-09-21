@@ -1521,6 +1521,13 @@ four-grade requirement.
 ⚠️ **§5 settled 2026-09-21 (#29, #30)**: a committed table derived from KANJIDIC2 (CC BY-SA 4.0,
 refreshed monthly), compounds included by Yuta's call, computed by the server, one retry per step.
 
+### [2026-09-21] A seeded list is a draft the reader submits
+The worker proposes a list for a *domain*, a *level* and a count, and it lands pre-filled in
+*Ingest*. The reader submits it as an ordinary `word_list` *source*, so no pipeline is added. Each
+seed request gets its own ledger row, *time-to-first-review* still starts at submission, and the
+prompt excludes the terms the corpus already has for that *domain* and *level*.
+→ [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

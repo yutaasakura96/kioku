@@ -3,7 +3,7 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**69 ADRs** — ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
+**70 ADRs** — ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
 contributes only the words in it that name a level, on the re-measurement that ADR asked #26 for).
 ⚠️ **This said *67* until 2026-09-20, while ADR 0068 had been on disk and in the decision log since
 2026-09-19** — the commit that wrote the ADR updated `CLAUDE.md`'s count and not this one.
@@ -16,7 +16,7 @@ issues**: #1 the spec, #24 the Anki parent (closable now that #26 has landed) an
 `needs-triage` — ⚠️ **amended later the same day: #24 is closed** (both halves done, comment on the
 ticket), so the three open are **#1** the spec, **#25**, and **#26**, which is built and merged and
 whose last close-out criterion was paid 2026-09-20; it has lost `ready-for-agent` and is Yuta's to
-close (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
+close — ⚠️ **amended 2026-09-21: Yuta closed #26**, so the two open are **#1** the spec and **#25**, now `ready-for-agent` (ADR 0070) (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
 parenthetical that recorded #21 closing was added and the number beside it was not; it said eight
 before that day, and it counted #26 from 2026-09-19 until #26 was built). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
@@ -26,9 +26,10 @@ ticket #13 hands on and nobody has opened yet** (§ Next). ⚠️ **This listed 
 closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
 **#2 through #23, and #26, are built** (⚠️ **this said "#2 through #23" until #26 was built on
 2026-09-20, "#2 through #20, #22 and #23" until #21 was built on 2026-09-18, "#2 through #18" before
-that, and "#14" until 2026-09-16**). ⚠️ **The ticket frontier is empty of `ready-for-agent` work
+that, and "#14" until 2026-09-16**). ~~⚠️ **The ticket frontier is empty of `ready-for-agent` work
 again**: #25 has four open questions in its body and is `needs-triage`, and triaging it is a
-conversation rather than an `/implement` (§ Next). ~~The frontier is #21, the review-load brake.~~ What stays unticketed is `S12`'s export, which
+conversation rather than an `/implement` (§ Next).~~ ⚠️ **#25 was triaged with Yuta on 2026-09-21
+(ADR 0070) and is `ready-for-agent`: it is the frontier.** ~~The frontier is #21, the review-load brake.~~ What stays unticketed is `S12`'s export, which
 issue #1 puts outside milestone 1.
 
 ⚠️ **A pivot was decided on 2026-09-16 and everything below this paragraph describes the system it
@@ -1804,8 +1805,16 @@ word's becomes a retry.
   goes past the research's recommendation; the server computes each position's candidates; one
   retry per step; the message names no reading. ~~**The build ticket is
   [#30](https://github.com/yutaasakura96/kioku/issues/30), `ready-for-agent`, and it is the
-  frontier.**~~ ⚠️ **#30 built 2026-09-21** (§ Done); #29 is closed. No `ready-for-agent` ticket is
-  left.
+  frontier.**~~ ⚠️ **#30 built 2026-09-21** (§ Done); #29 is closed. ~~No `ready-for-agent` ticket is
+  left.~~
+- [#25](https://github.com/yutaasakura96/kioku/issues/25) — AI-seeded lists. ⚠️ **Triaged with Yuta
+  2026-09-21 and `ready-for-agent`; it is the frontier.** [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
+  answers its four questions: the worker returns a draft that lands pre-filled in *Ingest* and is
+  submitted as a plain `word_list` *source*; each seed request gets its own ledger row;
+  *time-to-first-review* still starts at submission; the prompt excludes known terms for that
+  *domain* and *level*. The job and ledger shape is left to the build (`job.ingestion_id` is
+  `NOT NULL` today). ⚠️ **A seed request spends model money on Yuta's key**, so verifying it live is
+  his call, like the backfill. **#26 closed on Yuta's call the same day.**
 ~~⚠️ **Until #28 lands, the digits still override**, and a correct meaning the check refuses can be
 committed as `3`.~~ ⚠️ **#28 landed: the check is the *grade*, and `S` is the answer to a refusal.**
 
@@ -1933,7 +1942,7 @@ filling. #22 makes the *notes* better and #20 makes them reachable.
 
 ~~⚠️ **#24 and #25 are `needs-triage` on purpose.** The Anki format and shared decks' licences are
 unverified and that ticket opens with research;~~ #24's research is done and its build is #26 (above).
-#25 is still `needs-triage`, and its four open questions are in its body.
+~~#25 is still `needs-triage`, and its four open questions are in its body.~~ ⚠️ **Triaged 2026-09-21: ADR 0070 answers all four, and #25 is `ready-for-agent`.**
 
 ⚠️ **Two numbers in ADR 0066 are recommendations Yuta approved as a direction, not as figures.** He
 said he did not know what they should be, and ten and fifty are mine. Each has a revisit condition in

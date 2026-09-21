@@ -10,9 +10,9 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty more ADRs** with it — **69** as of 2026-09-21: five are the
+code since 2026-09-09 and **thirty-one more ADRs** with it — **70** as of 2026-09-21 (ADR 0070, from #25's triage, answers how a seeded list gets in): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
-languages, ADR 0068 decides how an Anki deck gets in, and ADR 0069 makes the typed check the *grade*, from the reader's first *session* (⚠️ this said *68* until 2026-09-21, *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
+languages, ADR 0068 decides how an Anki deck gets in, and ADR 0069 makes the typed check the *grade*, from the reader's first *session* (⚠️ this said *69* until #25's triage on 2026-09-21, *68* until earlier that day, *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
 before). ⚠️ **#26 added no ADR and amended ADR 0068 in place** (2026-09-20: a deck name contributes
 only the words in it that name a level, on the re-measurement that ADR asked #26 for). ⚠️ **#21 added no ADR and amended ADR 0066 in place** (where the reader's zone is stored, and four
 other things the build settled). ⚠️ **#23 added no ADR and corrected one**: ADR 0037's amended table said a day boundary was
@@ -41,7 +41,7 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
-empty**: [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
+[#25](https://github.com/yutaasakura96/kioku/issues/25)**, AI-seeded lists, triaged with Yuta 2026-09-21 into ADR 0070 (⚠️ it was empty until then; #26 was closed the same day). Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
 2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named
 #30 from the research's close, and #29 before that). ⚠️ **#30 left a monthly obligation**: the
 KANJIDIC2 table's licence requires a refresh, logged in `docs/00-status.md` § Carrying.
