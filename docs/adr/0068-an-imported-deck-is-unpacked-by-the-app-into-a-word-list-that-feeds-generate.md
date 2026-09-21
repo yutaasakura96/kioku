@@ -59,9 +59,11 @@ can change in a minor release. The contract is small: one decompress call and th
 tests run against generated fixtures in all three layouts, so a breaking change fails
 `npm run test` rather than an import. `database.deserialize()` would avoid a temp file, but it only
 arrived in v24.16.0 and 22.x does not have it, so the reader writes the collection to
-`os.tmpdir()` and deletes it in a `finally`. ⚠️ **That `os.tmpdir()` is writable in a Vercel
+`os.tmpdir()` and deletes it in a `finally`. ~~⚠️ **That `os.tmpdir()` is writable in a Vercel
 Function is not verified here.** The docs pages checked (Functions Limits, Node.js versions) do
-not say. The build ticket checks it on a preview deployment before merge.
+not say. The build ticket checks it on a preview deployment before merge.~~ ⚠️ **Answered
+2026-09-20 from the docs — the wrong page had been read.** See § Amended 2026-09-20 (the `/tmp`
+question) below.
 
 **3. A line is `term⇥reading⇥hint`.** The *term* is field 0, with HTML, `&nbsp;` and `[sound:…]`
 stripped and Anki's `kanji` furigana transform applied. The *reading* is the `kana` transform of
@@ -160,8 +162,37 @@ all four decks with no dependency; the note counts match research §1.3 exactly 
 1,906 / 2,699); the layouts match (`LEGACY_2`, then three `LEGACY_1`); and **no note was dropped** in
 any of the four.
 
-**§2's other open item is not closed.** Whether `os.tmpdir()` is writable in a Vercel Function is
-still unverified — it needs a deployment, and #26's close-out criterion for it is outstanding.
+~~**§2's other open item is not closed.** Whether `os.tmpdir()` is writable in a Vercel Function is
+still unverified — it needs a deployment, and #26's close-out criterion for it is outstanding.~~
+**Closed the same day, from the docs.** See the section below.
+
+## Amended 2026-09-20 — the `/tmp` question, answered from the docs rather than a deployment
+
+⚠️ **§2 said the docs do not say, and the docs do say — on a page §2 did not check.** Vercel's
+**Functions → Runtimes** page, under *File system support*: *"Vercel functions have a read-only
+filesystem with writable /tmp scratch space up to 500 MB."* §2 checked Functions Limits and
+Node.js versions, and both are still silent; re-read 2026-09-20 and neither mentions `/tmp`,
+`read-only` or `ephemeral` once. **The lesson is the cheap one: a fact absent from two pages is not
+a fact the docs withhold.**
+
+**The second half is Node's, and it is documented too.** `os.tmpdir()` is only `/tmp` when nothing
+overrides it: Node checks `TMPDIR`, then `TMP`, then `TEMP`, and falls back to `/tmp` on POSIX.
+Vercel sets none of the three — they appear in neither the **system environment variables** list nor
+the **reserved environment variables** list (both re-read 2026-09-20, zero matches for `TMPDIR`,
+`TMP` or `TEMP`). So `os.tmpdir()` resolves to the directory the Runtimes page calls writable.
+
+**What that settles, and what it does not.** `engines` keeps `^22.19.0`, `deserialize()` stays out,
+and `mkdtempSync(join(tmpdir(), 'kioku-anki-'))` needs no fallback: the criterion's *"if it is not,
+amend the ADR"* branch does not fire. ⚠️ **What is not settled is the thing only a deployment can
+say** — that this app's functions behave as the page describes. Two documented facts composed is
+weaker evidence than one write, and Kioku has **no Vercel project at all** as of 2026-09-20: no
+`.vercel/`, no `vercel.json`, no linked deployment. The first deployment carries the observation
+rather than blocking on it, and § Revisit below says what would reopen this.
+
+⚠️ **The headroom is not the thing to worry about.** 500 MB against an app that refuses an upload at
+4 MB (§2, research §4.4) is three orders of magnitude of room, and `mkdtempSync` gives each
+invocation its own directory, so two concurrent imports on one warm instance cannot collide. If this
+ever fails it fails as *permission*, not as *space*.
 
 ## Alternatives considered
 
@@ -198,3 +229,6 @@ fallback if `node:sqlite` or zlib's zstd changes under us.
   (ADR 0062's flag rate, split by `source.kind`). Then the meaning hint is worth its characters, and
   the fix is a smaller hint, not a bigger cap.
 - The reader regularly hits the cap on decks they want whole.
+- **The first deployment's first import raises `EACCES`, `EROFS` or `ENOENT` out of
+  `mkdtempSync`.** Then the composed reading in § Amended (the `/tmp` question) was wrong for this
+  app, and the fix is `deserialize()` with `engines` moved to `>=24.16.0` — not a bigger `/tmp`.

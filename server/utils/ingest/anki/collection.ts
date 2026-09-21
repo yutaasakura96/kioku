@@ -165,6 +165,16 @@ export function collectionBytes(
  * `DatabaseSync.deserialize()` would read the buffer directly and it arrived in
  * Node v24.16.0; `package.json`'s `engines` still admits 22.x, which does not
  * have it (ADR 0068 §2, whose revisit condition is the day the floor moves).
+ *
+ * ⚠️ **`tmpdir()` is `/tmp` on the deployment, and that is documented rather
+ * than measured.** Vercel's Functions → Runtimes page says the filesystem is
+ * read-only *"with writable /tmp scratch space up to 500 MB"*, and Node only
+ * moves `os.tmpdir()` off `/tmp` when `TMPDIR`, `TMP` or `TEMP` is set — none
+ * of which Vercel sets (ADR 0068 § Amended 2026-09-20, the `/tmp` question).
+ * **No deployment has ever run this**, so a first import that throws `EACCES`
+ * or `EROFS` here is the ADR's revisit condition arriving, not a bug in the
+ * reader. `mkdtempSync` is per-invocation on purpose: two concurrent imports on
+ * one warm instance get their own directories.
  */
 export function readCollection(bytes: Uint8Array): AnkiNote[] {
   const directory = mkdtempSync(join(tmpdir(), 'kioku-anki-'))

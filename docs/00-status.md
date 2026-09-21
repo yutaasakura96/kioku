@@ -13,7 +13,10 @@ contradicted ADR 0066 about where a day starts. ADR 0067, minting as a database 
 2026-09-17 with #20; ADR 0062 to ADR 0066, the pivot, all added 2026-09-16; ⚠️ **this said 66 until
 2026-09-17, 61 until 2026-09-16 and 58 until 2026-09-12** — eleven documents, and **three open
 issues**: #1 the spec, #24 the Anki parent (closable now that #26 has landed) and #25 of the pivot,
-`needs-triage` (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
+`needs-triage` — ⚠️ **amended later the same day: #24 is closed** (both halves done, comment on the
+ticket), so the three open are **#1** the spec, **#25**, and **#26**, which is built and merged and
+whose last close-out criterion was paid 2026-09-20; it has lost `ready-for-agent` and is Yuta's to
+close (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
 parenthetical that recorded #21 closing was added and the number beside it was not; it said eight
 before that day, and it counted #26 from 2026-09-19 until #26 was built). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
@@ -94,14 +97,48 @@ reader is `node:zlib` plus `node:sqlite` and adds no dependency; the three layou
 generated fixtures and one that real Anki wrote. ⚠️ **The re-measurement ADR 0068 §3 asked for moved
 a decision**: a deck name carried whole was the largest column in all four real decks and put two of
 them over `S2`'s cap, so only the words in it that name a level now travel (ADR 0068 § Amended
-2026-09-20). **Yuta has not reviewed that narrowing.** ⚠️ **What is left for him is still the
-reader's run**, and now also a first real import.
+2026-09-20). ~~**Yuta has not reviewed that narrowing.**~~ **Reviewed and kept, 2026-09-20** — the
+words dropped are constant across a deck, so they distinguish no word from any other, and the two
+alternatives were raising `S2`'s cap or dropping the deck name entirely (research §2.4 rules the
+second out: one sampled deck encodes its levels as subdecks and its tags say something else).
+⚠️ **And #26's `/tmp` close-out criterion is paid the same day, from the docs** (§ Next).
+⚠️ **What is left for him is still the reader's run**, and now also a first real import.
 
 **Updated:** 2026-09-20
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
+
+**2026-09-20, later — #26's close-out: the narrowing is approved and the `/tmp` question is
+answered.** Two things, neither of them code.
+
+- **The deck-name narrowing stands, and it is Yuta's call rather than the build's.** He was given
+  the two alternatives — carry the name whole and raise `S2`'s cap, or drop the deck name and rely
+  on tags — and kept the narrowing. The cap limits spend (ADR 0068 § Alternatives), and research
+  §2.4 rules the second out: a sampled deck encodes its levels as *subdecks* and keeps its tags for
+  something else, so there the name is the only level signal there is. #26's checklist described the
+  old behaviour and is corrected on the ticket.
+- ⚠️ **ADR 0068 §2's `/tmp` question is answered from the docs, and the finding is where it was
+  looked for.** §2 wrote *"the docs pages checked (Functions Limits, Node.js versions) do not say"*
+  and set a deployment as the close-out. The answer was on a third page all along — **Functions →
+  Runtimes**, in a table row under *File system support*: *"Vercel functions have a read-only
+  filesystem with writable /tmp scratch space up to 500 MB."* The two pages §2 checked were re-read
+  and are still silent: zero matches for `/tmp`, `read-only` or `ephemeral` in either. The other
+  half is Node's own documented order — `TMPDIR`, then `TMP`, then `TEMP`, then `/tmp` — and none of
+  the three is in Vercel's **system** or **reserved** environment-variable lists (zero matches,
+  both re-read the same day). **So `engines` keeps `^22.19.0`, `deserialize()` stays out, and the
+  criterion's *stop and amend the ADR* branch does not fire.**
+- ⚠️ **What is not settled is what only a deployment can say, and there is no deployment.** No
+  `.vercel/`, no `vercel.json`, no Vercel project — this app has never been deployed, which is
+  itself worth knowing. Two documented facts composed is weaker evidence than one write, so the
+  first deployment carries the observation. ADR 0068 § Revisit now names the failure that reopens
+  it (`EACCES`, `EROFS` or `ENOENT` out of `mkdtempSync`) and the fix that answers it
+  (`deserialize()`, `engines` to `>=24.16.0`) — **not** a retry, another directory, or Vercel Blob.
+- **Written down in five places, in one commit**: ADR 0068 (§2, a new § Amended block, § Revisit),
+  `06`'s index line, this file (§ Next, § Carrying, here), and the doc comment on `readCollection`.
+  ⚠️ **[#24](https://github.com/yutaasakura96/kioku/issues/24) is closed** — research and build both
+  done — and **#26 has lost `ready-for-agent`**; it is built, merged and Yuta's to close.
 
 **2026-09-20 — [#26](https://github.com/yutaasakura96/kioku/issues/26) is built: an Anki `.apkg` is
 unpacked by the app into a word list that feeds `generate`.** ADR 0068 in full, with a dated
@@ -1738,11 +1775,27 @@ note dropped. ⚠️ **One decision moved under the build**: the re-measurement 
 ticket for found that carrying a deck name whole makes it the **largest** column in the *source* —
 43,171 to 62,077 code points across the four decks, more than term and reading together — and puts
 the N3 and N1 decks over `S2`'s cap. A deck name now contributes only the words in it that name a
-level (ADR 0068 § Amended 2026-09-20), and all four then fit at 54,318–76,984. **Yuta has not
-reviewed that narrowing**, and it is a change to a sentence he read.
-⚠️ **And one close-out criterion is unpaid and needs a deployment**: whether `os.tmpdir()` is
+level (ADR 0068 § Amended 2026-09-20), and all four then fit at 54,318–76,984. ~~**Yuta has not
+reviewed that narrowing**, and it is a change to a sentence he read.~~ ⚠️ **Reviewed and kept,
+2026-09-20.** He was given the two alternatives — carry the name whole and raise `S2`'s cap, or drop
+the deck name and rely on tags — and took neither: the cap limits spend (ADR 0068 § Alternatives)
+and a deck that encodes its levels as subdecks has no other level signal (research §2.4).
+**#26's checklist described the old behaviour and was corrected on the ticket the same day.**
+~~⚠️ **And one close-out criterion is unpaid and needs a deployment**: whether `os.tmpdir()` is
 writable in a Vercel Function (ADR 0068 §2). If it is not, the ADR needs amending — `deserialize()`
-wants Node ≥ 24.16 and `package.json`'s `engines` still admits 22.x.
+wants Node ≥ 24.16 and `package.json`'s `engines` still admits 22.x.~~
+⚠️ **Paid 2026-09-20, and not by a deployment — by reading the page §2 had not read.** Vercel's
+**Functions → Runtimes**, under *File system support*: *"Vercel functions have a read-only
+filesystem with writable /tmp scratch space up to 500 MB."* Functions Limits and Node.js versions,
+the two §2 checked, are still silent — re-read the same day, zero matches for `/tmp`, `read-only` or
+`ephemeral`. And `os.tmpdir()` only leaves `/tmp` when `TMPDIR`, `TMP` or `TEMP` is set, which
+Vercel's **system** and **reserved** environment-variable lists do not do (zero matches in either).
+**So `engines` keeps 22.x, `deserialize()` stays out, and the criterion's *amend the ADR* branch
+does not fire** (ADR 0068 § Amended 2026-09-20, the `/tmp` question).
+⚠️ **What no page can say is that this app's functions behave that way, and Kioku has no Vercel
+project at all** — no `.vercel/`, no `vercel.json`, nothing deployed, as of 2026-09-20. Two
+documented facts composed is weaker than one write. **The first deployment carries the observation**
+and ADR 0068 § Revisit names what reopens it; it blocks nothing, because nothing is deployed.
 
 **What is next** is not an `/implement`. Two things, and neither is a ticket:
 **the reader's run** — a *session* of the 39 *cards* already minted, which is what gives retention,
@@ -2168,6 +2221,21 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **The `.apkg` reader's one unmeasured assumption is that `os.tmpdir()` can be written to, and
+  it is documented rather than observed.** Vercel's Runtimes page says `/tmp` is writable to 500 MB
+  and Node only leaves `/tmp` for a `TMPDIR`/`TMP`/`TEMP` Vercel does not set (ADR 0068 § Amended
+  2026-09-20). **Nothing has ever deployed this app**, so the composition has never met reality.
+  ⚠️ **A first import that throws `EACCES`, `EROFS` or `ENOENT` out of `mkdtempSync` is that
+  revisit condition arriving, not a bug in the reader** — and the fix named in the ADR is
+  `DatabaseSync.deserialize()` with `engines` moved to `>=24.16.0`, **not** a retry, a different
+  directory, or Vercel Blob (ADR 0022's forbidden list). ⚠️ **And do not "simplify" `mkdtempSync`
+  into a fixed path**: it is what keeps two concurrent imports on one warm instance apart.
+- ⚠️ **A fact absent from two docs pages is not a fact the docs withhold.** ADR 0068 §2 recorded
+  *"the docs pages checked … do not say"* about `/tmp`, and the answer was on a third page, in a
+  table row, under a heading (*File system support*) that does not contain the word searched for.
+  The working agreement is *when the docs are silent, measure it* — **the cost is in deciding that
+  they are silent**. The § Next entry above names which pages were read and which were not, which
+  is what makes the next check cheap rather than a repeat of this one.
 - ⚠️ **`node:sqlite` has no `createCollation`, and four of an Anki collection's text columns are
   declared `COLLATE unicase`.** `notetypes.name`, `fields.name`, `decks.name` and `tags.tag`
   (research §2.1). Opening such a file works and so does every `SELECT` that does not *compare* by

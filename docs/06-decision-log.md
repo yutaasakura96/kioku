@@ -1505,6 +1505,11 @@ and its meaning is dropped to stay under `S2`'s cap.
 re-measurement §3 asked that ticket for: a deck name contributes only the **words in it that name a
 level**, not the whole name. Carried whole it was the largest column in all four real decks
 (43,171–62,077 code points) and put two of them over `S2`'s cap.
+⚠️ **Amended again 2026-09-20, on #26's close-out**: §2's open question — is `os.tmpdir()` writable
+in a Vercel Function — is answered **yes, from the docs**, on a page §2 had not read (Functions →
+Runtimes: read-only filesystem *"with writable /tmp scratch space up to 500 MB"*), plus Node's
+documented `TMPDIR`/`TMP`/`TEMP` fallback, none of which Vercel sets. `engines` keeps 22.x and
+`deserialize()` stays out. **No deployment has observed it**, and the first one carries that.
 
 ## Adding an entry
 
