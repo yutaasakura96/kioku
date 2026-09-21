@@ -104,7 +104,7 @@ second out: one sampled deck encodes its levels as subdecks and its tags say som
 ⚠️ **And #26's `/tmp` close-out criterion is paid the same day, from the docs** (§ Next).
 ⚠️ **What is left for him is still the reader's run**, and now also a first real import.
 
-**Updated:** 2026-09-20
+**Updated:** 2026-09-21
 
 Read `CLAUDE.md` first, then this.
 
@@ -2220,6 +2220,27 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **Three flakes were chased on 2026-09-21 and none reproduced**: 15 unit-tier runs, 15 full
+  suites and 19 runs of `test/e2e/review.test.ts`, all green. What each one turned out to be:
+  - *`auth-config` unset-`KIOKU_INVITED_EMAIL`* is the file's first test, so it pays the cold import
+    of `server/utils/auth` — 433 ms alone, ~1.1 s under full-suite load, against the default 5 s.
+    Never seen failing.
+  - *`review` offline-replay* has a real gap and it is harmless: `flush()` settles an entry only
+    after `send()` returns, so the database leads `localStorage` — measured 1 run in 10, 45 ms. A
+    reload inside it replays the flag, `recordFlag`'s `(review_session_id, card_id)` guard answers
+    `already_flagged`, and the next composition's `holdRefused([])` wipes the refusal. Checked by
+    sabotage (the entry re-injected before the reload): the test still passes, and correctly.
+    ⚠️ **Replay is driven by the `online` event alone, with no timer** — a missed event would time
+    the 10 s poll out. Not observed.
+  - *Six e2e files at setup on 2026-09-19*: a forced throw in `startTestDatabase` is reported loudly
+    with a stack, so *no error captured* was the output not being kept rather than vitest hiding it.
+    Two `.nuxt/test/` build dirs dated 2026-09-19 23:11 had an empty `output/` and no teardown —
+    the signature of a process killed mid-build, not of a failing test. The e2e tier peaks at
+    5–6 GB (six concurrent Nuxt builds); `--maxWorkers=3` costs nothing in wall time (21 s vs 22 s)
+    and was not applied, because nothing showed memory was the cause.
+  **If any of them recurs, keep the output** — `npx vitest run > run.log 2>&1` — and start from it.
+  Do not carry this list forward again without a log.
 
 - ⚠️ **The `.apkg` reader's one unmeasured assumption is that `os.tmpdir()` can be written to, and
   it is documented rather than observed.** Vercel's Runtimes page says `/tmp` is writable to 500 MB
