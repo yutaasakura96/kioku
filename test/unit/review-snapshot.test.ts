@@ -17,7 +17,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { isAnswered, isFinished, mergeGrades, parseSnapshot } from '../../shared/review/snapshot'
+import { isAnswered, isFinished, mergeGrades, parseSnapshot, withSynonym } from '../../shared/review/snapshot'
 import type { ReviewSnapshot } from '../../shared/review/snapshot'
 
 const snapshot = (
@@ -31,6 +31,8 @@ const snapshot = (
     cardId: position.cardId,
     templateKey: 'recognition',
     fields: { term: '図書館', meaning: position.meaning },
+    meanings: [],
+    synonyms: [],
     grade: position.grade,
     flagged: position.flagged ?? false,
   })),
@@ -200,5 +202,43 @@ describe('reading a snapshot back out of storage (ADR 0014)', () => {
     }],
   ])('refuses %s', (_, stored) => {
     expect(parseSnapshot(stored)).toBeNull()
+  })
+})
+
+// ADR 0069 §2: the one thing the screen adds to a held position.
+describe('withSynonym — a synonym joins the held run', () => {
+  it('adds it to its card and to nothing else', () => {
+    const held = withSynonym(snapshot([
+      { cardId: 'a', meaning: 'to see', grade: null },
+      { cardId: 'b', meaning: 'library', grade: null },
+    ]), 'a', 'look')
+
+    expect(held.positions.map(position => position.synonyms)).toEqual([['look'], []])
+  })
+
+  it('adds the same one once', () => {
+    const once = withSynonym(snapshot([{ cardId: 'a', meaning: 'to see', grade: null }]), 'a', 'look')
+
+    expect(withSynonym(once, 'a', 'look').positions[0]!.synonyms).toEqual(['look'])
+  })
+
+  it('survives a server answer, because the words stay held', () => {
+    const held = withSynonym(snapshot([{ cardId: 'a', meaning: 'to see', grade: null }]), 'a', 'look')
+    const fresh = snapshot([{ cardId: 'a', meaning: 'to see', grade: 3 }])
+
+    expect(mergeGrades(held, fresh).positions[0]).toMatchObject({ grade: 3, synonyms: ['look'] })
+  })
+
+  // ⚠️ A run held in `localStorage` from before #28 has neither field, and it
+  // is still the reader's place.
+  it('reads a stored position with no list and no synonyms as empty rather than malformed', () => {
+    const parsed = parseSnapshot({
+      sessionId: 'a',
+      size: 1,
+      snapshotTakenAt: '2026-09-12T09:00:00.000Z',
+      positions: [{ ordinal: 0, cardId: 'a', templateKey: 'recognition', fields: { meaning: 'x' }, grade: null }],
+    })
+
+    expect(parsed?.positions[0]).toMatchObject({ meanings: [], synonyms: [] })
   })
 })

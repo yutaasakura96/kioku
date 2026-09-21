@@ -64,6 +64,8 @@ function snapshot() {
       cardId,
       templateKey: 'recognition',
       fields: FIELDS,
+      meanings: [],
+      synonyms: [],
       grade: server.graded.has(cardId) ? 3 : null,
       flagged: server.flagged.has(cardId),
     })),
@@ -80,7 +82,7 @@ registerEndpoint('/api/review/session', {
   },
 })
 
-async function receive(kind: 'grade' | 'flag', event: Parameters<typeof readBody>[0]) {
+async function receive(kind: 'grade' | 'flag' | 'synonym', event: Parameters<typeof readBody>[0]) {
   const body = await readBody(event) as { cardId: string }
 
   if (!server.reachable)
@@ -97,6 +99,10 @@ async function receive(kind: 'grade' | 'flag', event: Parameters<typeof readBody
   if (kind === 'grade' && server.answer !== 'ok')
     return { outcome: server.answer, session: snapshot() }
 
+  // ADR 0069 §2: a synonym moves nothing and carries no snapshot back.
+  if (kind === 'synonym')
+    return { outcome: 'ok', session: null, brake: null }
+
   if (kind === 'grade')
     server.graded.add(body.cardId)
   else
@@ -107,6 +113,7 @@ async function receive(kind: 'grade' | 'flag', event: Parameters<typeof readBody
 
 registerEndpoint('/api/review/grade', { method: 'POST', handler: event => receive('grade', event) })
 registerEndpoint('/api/review/flag', { method: 'POST', handler: event => receive('flag', event) })
+registerEndpoint('/api/review/synonym', { method: 'POST', handler: event => receive('synonym', event) })
 
 beforeEach(() => {
   localStorage.clear()
@@ -159,7 +166,10 @@ async function turn(view: Mounted, reading = 'としょかん', meaning = 'libra
   await type(view, '#answer-meaning', meaning)
 }
 
-/** Both steps, then the digit — a *grade* is refused until the *card* has turned. */
+/**
+ * Both steps, then a key on the back — `Enter` commits the check's *grade*
+ * (ADR 0069 §1), which is `3` for `turn`'s right answers; `x` flags.
+ */
 async function answer(view: Mounted, key: string) {
   await turn(view)
   await press(view, key)
@@ -174,7 +184,7 @@ describe('property 1 — the write happens before the acknowledgement', () => {
     let open_: () => void = () => {}
     server.gate = new Promise<void>((resolve) => { open_ = resolve })
 
-    await answer(view, '3')
+    await answer(view, 'Enter')
 
     // ⚠️ The request has not been answered — nothing below has been
     // acknowledged by anything.
@@ -190,7 +200,7 @@ describe('property 1 — the write happens before the acknowledgement', () => {
   it('settles the entry out of the store once the server has it', async () => {
     const view = await open()
 
-    await answer(view, '3')
+    await answer(view, 'Enter')
 
     await vi.waitFor(() => expect(parseOutbox(stored(OUTBOX_KEY))).toEqual([]))
   })
@@ -204,8 +214,8 @@ describe('property 2 — losing the network costs latency, never data', () => {
     const view = await open()
     server.reachable = false
 
-    await answer(view, '3')
-    await answer(view, '2')
+    await answer(view, 'Enter')
+    await answer(view, 'Enter')
 
     // The run ended on the client's own snapshot, with nothing acknowledged.
     expect(view.text()).toContain('Start another session')
@@ -229,7 +239,7 @@ describe('property 3 — replay is in order, across two entry types', () => {
     const view = await open()
     server.reachable = false
 
-    await answer(view, '3')
+    await answer(view, 'Enter')
     await answer(view, 'x')
 
     expect(parseOutbox(stored(OUTBOX_KEY)).map(entry => entry.kind)).toEqual(['grade', 'flag'])
@@ -244,7 +254,7 @@ describe('property 3 — replay is in order, across two entry types', () => {
     const view = await open()
     server.reachable = false
 
-    await answer(view, '3')
+    await answer(view, 'Enter')
     await answer(view, 'x')
 
     expect(server.seen).toEqual([])
@@ -255,7 +265,7 @@ describe('property 4 — the durable record decides, including after a reload', 
   it('does not ask again for a card whose grade is still in the store', async () => {
     const first = await open()
     server.reachable = false
-    await answer(first, '3')
+    await answer(first, 'Enter')
     first.unmount()
 
     server.reachable = true
@@ -297,8 +307,8 @@ describe('property 5 — a rejected entry is surfaced, never dropped', () => {
     const view = await open()
     server.answer = 'stamped_in_future'
 
-    await answer(view, '3')
-    await answer(view, '2')
+    await answer(view, 'Enter')
+    await answer(view, 'Enter')
     await vi.waitFor(() => expect(parseOutbox(stored(OUTBOX_KEY))).toEqual([]))
     await flushPromises()
 
@@ -315,12 +325,12 @@ describe('property 5 — a rejected entry is surfaced, never dropped', () => {
     const view = await open()
     server.unreadable = true
 
-    await answer(view, '3')
+    await answer(view, 'Enter')
     await vi.waitFor(() => expect(parseOutbox(stored(REFUSED_KEY))).toHaveLength(1))
 
     // The *card* behind it is reachable: the stream drained rather than stalled.
     server.unreadable = false
-    await answer(view, '2')
+    await answer(view, 'Enter')
 
     await vi.waitFor(() => expect(parseOutbox(stored(OUTBOX_KEY))).toEqual([]))
     expect(server.seen).toEqual([`grade:${SECOND}`])
@@ -334,8 +344,8 @@ describe('property 5 — a rejected entry is surfaced, never dropped', () => {
     server.reachable = false
     server.failWith = 401
 
-    await answer(view, '3')
-    await answer(view, '2')
+    await answer(view, 'Enter')
+    await answer(view, 'Enter')
     await flushPromises()
 
     expect(view.text()).toContain('2 answers have not reached the database yet')
@@ -363,9 +373,10 @@ describe('the flag advances without a grade', () => {
     await answer(view, 'x')
 
     // ⚠️ A run can end with no *grades* at all, and the tally says so rather
-    // than inventing one (ADR 0053).
+    // than inventing one (ADR 0053) — in the two columns the check can fill
+    // (ADR 0069 §1).
     expect(view.text()).toContain('Start another session')
-    expect(view.findAll('.figure').map((figure: { text: () => string }) => figure.text())).toEqual(['0', '0', '0', '0'])
+    expect(view.findAll('.figure').map((figure: { text: () => string }) => figure.text())).toEqual(['0', '0'])
   })
 
   // ⚠️ ADR 0060 §7 moved `X` to the back only: on the front an `x` is the first
@@ -390,14 +401,16 @@ describe('the flag advances without a grade', () => {
     await flushPromises()
     await type(view, '#answer-meaning', 'library')
 
+    // The back: the commit control, named for the *grade* the check gave.
     expect(view.find('.legend').text()).toContain('flag')
-    expect(view.find('.legend').text()).toContain('Forgot')
+    expect(view.find('.legend').text()).toContain('Good')
   })
 })
 
-// ADR 0060 on the screen: the check proposes, `Enter` commits the proposal, a
-// digit overrules it, and only the *grade* reaches the outbox.
-describe('the typed answer proposes the grade (ADR 0060)', () => {
+// ADR 0060 as amended by ADR 0069 on the screen: the check is the *grade*,
+// `Enter` commits it, no digit overrules it, and a refused meaning can become a
+// synonym that re-runs the check.
+describe('the typed answer is the grade (ADR 0060, ADR 0069)', () => {
   function owed() {
     return parseOutbox(stored(OUTBOX_KEY))
   }
@@ -418,41 +431,105 @@ describe('the typed answer proposes the grade (ADR 0060)', () => {
     expect(view.findAll('.given .verdict').map((verdict: { text: () => string }) => verdict.text())).toEqual(['Wrong', 'Right'])
   })
 
-  it('proposes Good when both are right, and Enter commits it', async () => {
+  it('grades Good when both are right, and Enter commits it', async () => {
     const view = await open()
     server.reachable = false
 
     await turn(view)
 
-    expect(view.find('.grade.proposed').text()).toBe('3Good')
+    expect(view.find('.commit').text()).toBe('EnterGood')
 
     await press(view, 'Enter')
 
     expect(owed().map(entry => entry.kind === 'grade' && entry.grade)).toEqual([3])
   })
 
-  it('proposes Forgot when either is wrong', async () => {
+  it('grades Forgot when either is wrong', async () => {
     const view = await open()
     server.reachable = false
 
     await turn(view, 'としょかん', 'station')
 
-    expect(view.find('.grade.proposed').text()).toBe('1Forgot')
+    expect(view.find('.commit').text()).toBe('EnterForgot')
 
     await press(view, 'Enter')
 
     expect(owed().map(entry => entry.kind === 'grade' && entry.grade)).toEqual([1])
   })
 
-  // ⚠️ "I was actually right" is a keystroke the reader already knows.
-  it('lets a digit overrule the proposal', async () => {
+  // ⚠️ ADR 0069 §1: the override is gone. A digit on the back is nothing.
+  it('lets no digit overrule the check', async () => {
     const view = await open()
     server.reachable = false
 
-    await turn(view, 'としょかん', 'librarian office')
-    await press(view, '3')
+    await turn(view, 'としょかん', 'station')
 
-    expect(owed().map(entry => entry.kind === 'grade' && entry.grade)).toEqual([3])
+    for (const key of ['1', '2', '3', '4'])
+      await press(view, key)
+
+    expect(owed()).toEqual([])
+    expect(view.find('.value.meaning').exists(), 'a digit moved the card on').toBe(true)
+  })
+
+  // ⚠️ ADR 0069 §2: "I was right" costs a synonym the reader will see again,
+  // and the synonym is ahead of the *grade* it changed.
+  it('turns a refused meaning into a synonym, re-checks, and commits Good', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view, 'としょかん', 'book place')
+
+    expect(view.find('.commit').text()).toBe('EnterForgot')
+    expect(view.find('.synonym').exists()).toBe(true)
+
+    await press(view, 's')
+
+    expect(view.find('.commit').text()).toBe('EnterGood')
+    expect(view.find('.synonym').exists(), 'the offer outlived the refusal').toBe(false)
+    expect(view.findAll('.given .verdict').map((verdict: { text: () => string }) => verdict.text())).toEqual(['Right', 'Right'])
+
+    await press(view, 'Enter')
+
+    expect(owed().map(entry => entry.kind)).toEqual(['synonym', 'grade'])
+    expect(owed()[0]).toMatchObject({ kind: 'synonym', cardId: FIRST, text: 'book place' })
+    expect(owed()[1]).toMatchObject({ kind: 'grade', grade: 3 })
+  })
+
+  it('offers no synonym when the meaning was right, or for a wrong reading', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view, 'としょか', 'library')
+
+    expect(view.find('.commit').text()).toBe('EnterForgot')
+    expect(view.find('.synonym').exists()).toBe(false)
+
+    await press(view, 's')
+
+    expect(owed()).toEqual([])
+  })
+
+  // ⚠️ The synonym is held with the run, so a reload mid-*card* keeps it.
+  it('replays the synonym ahead of the grade it changed', async () => {
+    const view = await open()
+
+    await turn(view, 'としょかん', 'book place')
+    await press(view, 's')
+    await press(view, 'Enter')
+
+    await vi.waitFor(() => expect(server.seen).toEqual([`synonym:${FIRST}`, `grade:${FIRST}`]))
+    await vi.waitFor(() => expect(owed()).toEqual([]))
+  })
+
+  it('keeps the synonym in the held run', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await turn(view, 'としょかん', 'book place')
+    await press(view, 's')
+
+    const held = stored(SNAPSHOT_KEY)
+    expect(held.positions[0].synonyms).toEqual(['book place'])
   })
 
   it('grades nothing from inside a field', async () => {

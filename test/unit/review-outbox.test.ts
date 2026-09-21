@@ -22,6 +22,7 @@ const grade = (cardId: string, value: 1 | 2 | 3 | 4, reviewedAt = '2026-09-12T09
   ({ kind: 'grade', sessionId: SESSION, cardId, grade: value, reviewedAt }) as const
 
 const flag = (cardId: string) => ({ kind: 'flag', sessionId: SESSION, cardId }) as const
+const synonym = (cardId: string, text = 'look') => ({ kind: 'synonym', sessionId: SESSION, cardId, text }) as const
 
 function stream(...drafts: Parameters<typeof append>[1][]): OutboxEntry[] {
   return drafts.reduce<OutboxEntry[]>((entries, draft) => append(entries, draft), [])
@@ -98,6 +99,15 @@ describe('what a resumed run inherits (ADR 0039 property 4, ADR 0014)', () => {
     expect(answers.get('b')).toBe('flagged')
   })
 
+  // ⚠️ ADR 0069 §2: a synonym answers nothing. Read as an answer, a reload
+  // would skip its *card* as if it had been flagged.
+  it('does not answer a card whose only entry is a synonym', () => {
+    const answers = unsentAnswers(stream(synonym('a'), grade('b', 3)), SESSION)
+
+    expect(answers.has('a')).toBe(false)
+    expect(answers.get('b')).toBe(3)
+  })
+
   it('takes the later entry when one card has two', () => {
     const entries = stream(grade('a', 1), grade('a', 4))
 
@@ -119,7 +129,7 @@ describe('what a resumed run inherits (ADR 0039 property 4, ADR 0014)', () => {
 
 describe('reading the stream back out of storage', () => {
   it('round-trips through JSON', () => {
-    const entries = stream(grade('a', 3), flag('b'))
+    const entries = stream(grade('a', 3), flag('b'), synonym('c'), grade('c', 3))
 
     expect(parseOutbox(JSON.parse(JSON.stringify(entries)))).toEqual(entries)
   })
@@ -138,6 +148,7 @@ describe('reading the stream back out of storage', () => {
     ['a stamp that is not a date', { seq: 1, kind: 'grade', sessionId: SESSION, cardId: 'a', grade: 3, reviewedAt: 'yesterday' }],
     ['an entry kind nothing sends', { seq: 1, kind: 'undo', sessionId: SESSION, cardId: 'a' }],
     ['no sequence number', { kind: 'flag', sessionId: SESSION, cardId: 'a' }],
+    ['a synonym with no text', { seq: 1, kind: 'synonym', sessionId: SESSION, cardId: 'a', text: ' ' }],
   ])('refuses %s', (_, entry) => {
     expect(parseOutbox([entry])).toEqual([])
   })

@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { parseFlag, parseGrade, parseSessionSize } from '../../shared/review/request'
+import { SYNONYM_MAX_LENGTH, parseFlag, parseGrade, parseSessionSize, parseSynonym } from '../../shared/review/request'
 
 const SESSION = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
 const CARD = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c'
@@ -108,5 +108,26 @@ describe('the flag (`S9`, `04` §7.8)', () => {
     ['a session id that is not one', { sessionId: 'run-1', cardId: CARD }, 'bad_session_id'],
   ])('refuses %s', (_, body, code) => {
     expect(parseFlag(body)).toEqual({ ok: false, code })
+  })
+})
+
+// ADR 0069 §2 — the outbox's third entry type.
+describe('the synonym', () => {
+  it('takes a session, a card and the text, trimmed', () => {
+    expect(parseSynonym({ sessionId: SESSION, cardId: CARD, text: '  look ' })).toEqual({
+      ok: true,
+      synonym: { sessionId: SESSION, cardId: CARD, text: 'look' },
+    })
+  })
+
+  it.each([
+    ['not an object', 'x', 'not_an_object'],
+    ['a session id that is not one', { sessionId: 'run-1', cardId: CARD, text: 'look' }, 'bad_session_id'],
+    ['a card id that is not one', { sessionId: SESSION, cardId: 'card-1', text: 'look' }, 'bad_card_id'],
+    ['no text', { sessionId: SESSION, cardId: CARD }, 'bad_text'],
+    ['blank text', { sessionId: SESSION, cardId: CARD, text: '   ' }, 'bad_text'],
+    ['text past the cap', { sessionId: SESSION, cardId: CARD, text: 'a'.repeat(SYNONYM_MAX_LENGTH + 1) }, 'bad_text'],
+  ])('refuses %s', (_, body, code) => {
+    expect(parseSynonym(body)).toEqual({ ok: false, code })
   })
 })

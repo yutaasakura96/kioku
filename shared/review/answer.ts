@@ -1,12 +1,14 @@
 /**
  * *Review*'s check — [ADR 0060](../../docs/adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md)
- * §5 and §6. The reader types the reading, then the meaning; this decides
- * whether each was right and which *grade* to **propose**.
+ * §5 and §6, as amended by [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md).
+ * The reader types the reading, then the meaning; this decides whether each was
+ * right and **which *grade* that is**.
  *
- * ⚠️ **It proposes and never commits.** The digits `1`–`4` still commit any
- * *grade* (ADR 0016), so a wrong result is a keystroke to overrule rather than a
- * lapse recorded. Nothing here is persisted: the typed text and the result are
- * ADR 0060's revisit condition, not a column.
+ * ⚠️ **The result is the *grade*, and nothing overrules it** (ADR 0069 §1). The
+ * digits commit nothing; what replaces the override is a synonym the reader adds
+ * for a refused meaning, after which the check runs again (§2). Nothing here is
+ * persisted: the typed text and the result are ADR 0060's revisit condition,
+ * not a column.
  *
  * ⚠️ **No matching logic lives in a component** (ADR 0060 §6, ADR 0045's
  * reason). `wanakana`'s `bind` converts as the reader types; deciding what counts
@@ -94,20 +96,63 @@ function distance(a: string, b: string): number {
 }
 
 /**
- * ⚠️ **The stored `meaning` is the *accepted*, frozen value** (ADR 0052), so an
- * edit made at *vetting* defines what counts as right here. That is intended.
+ * What a *note* accepts as its meaning — ADR 0069 §3.
+ *
+ * - `meaning` — the displayed gloss. ⚠️ **Always accepted, list or no list.**
+ *   It is the *accepted*, frozen value (ADR 0052), and a *Vet* fix can change it
+ *   after the list was written; a gloss the *card* shows the reader and then
+ *   refuses would be the check contradicting the screen.
+ * - `meanings` — the model's list (`note_meaning`), empty when the *note* has
+ *   none yet, which is the fallback the ticket asks for: `meaning` alone.
+ * - `synonyms` — the reader's own (`meaning_synonym`, ADR 0069 §2).
  */
-export function meaningMatches(typed: string, stored: string): boolean {
+export interface AcceptedMeanings {
+  meaning: string
+  meanings: readonly string[]
+  synonyms: readonly string[]
+}
+
+/** Every accepted phrase, normalised: the gloss's pieces, the list and the synonyms. */
+function candidates(accepted: AcceptedMeanings): string[] {
+  return [
+    ...accepted.meaning.split(/[,;/]/),
+    ...accepted.meanings,
+    ...accepted.synonyms,
+  ]
+    .map(normaliseMeaning)
+    .filter(candidate => candidate !== '')
+}
+
+/**
+ * ⚠️ **ADR 0060 §5's normalising and edit distance are unchanged**; only what
+ * the answer is compared with grew. A plain string is `meaning` alone, the shape
+ * every *card* had before ADR 0069.
+ */
+export function meaningMatches(typed: string, accepted: AcceptedMeanings | string): boolean {
   const answer = normaliseMeaning(typed)
 
   if (answer === '')
     return false
 
-  return stored
-    .split(/[,;/]/)
-    .map(normaliseMeaning)
-    .filter(candidate => candidate !== '')
+  const against = typeof accepted === 'string'
+    ? { meaning: accepted, meanings: [], synonyms: [] }
+    : accepted
+
+  return candidates(against)
     .some(candidate => distance(answer, candidate) <= allowedDistance(candidate))
+}
+
+/**
+ * Whether the back offers to add what was typed as a synonym — ADR 0069 §2.
+ *
+ * Only after a meaning step marked wrong, and only when something was typed:
+ * an answer that normalises to nothing is not a meaning anyone could mean. ⚠️ **There is no synonym
+ * for a reading**, so the reading's result plays no part here.
+ */
+export function synonymOffered(check: { meaning: boolean | null }, typedMeaning: string): boolean {
+  // ⚠️ **Normalised, not trimmed**: `?!` is not empty and folds to nothing, so
+  // as a synonym it could never match and the offer would never go away.
+  return check.meaning === false && normaliseMeaning(typedMeaning) !== ''
 }
 
 export interface Check {
@@ -117,9 +162,17 @@ export interface Check {
 }
 
 /**
- * ADR 0060 §3's table: `3` when both are right, `1` when either is wrong. A
- * *card* with no reading step is graded on its meaning alone (ADR 0069 §4).
+ * The two *grades* the check can give — ADR 0069 §1. ⚠️ **Hard and Easy are
+ * never emitted**: with no optimiser the default FSRS weights stand, and the
+ * one habit they cannot absorb is Hard pressed on a real miss.
  */
-export function proposedGrade(check: Check): Grade {
+export type CheckedGrade = Extract<Grade, 1 | 3>
+
+/**
+ * ADR 0060 §3's table, which ADR 0069 §1 makes the *grade*: `3` when both are
+ * right, `1` when either is wrong. A *card* with no reading step is graded on
+ * its meaning alone (ADR 0069 §4).
+ */
+export function gradeOf(check: Check): CheckedGrade {
   return check.reading !== false && check.meaning ? 3 : 1
 }

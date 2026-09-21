@@ -36,6 +36,19 @@ export interface ReviewPosition {
   /** `note.fields` as they stood when the *session* was composed. */
   fields: Record<string, string>
   /**
+   * ADR 0069 §3 — `note_meaning`'s list, or `[]` while the *note* has none.
+   * ⚠️ **Snapshotted with the fields, for the same reason**: what the reader is
+   * checked against does not move under them mid-run.
+   */
+  meanings: string[]
+  /**
+   * ADR 0069 §2 — this reader's synonyms for the *note*. ⚠️ **The one thing the
+   * screen adds to a held position**: a synonym added mid-run joins it at once,
+   * because the check runs again before the *grade* is committed, and the
+   * outbox carries it to the server behind that.
+   */
+  synonyms: string[]
+  /**
    * The *grade* this position was given, or `null` while it is still ahead of
    * the reader. ⚠️ **A graded *card* leaves the *session* and never returns to
    * it** (`S7`, ADR 0016), so this is what the rail's graded tick reads and what
@@ -184,7 +197,7 @@ function parsePosition(raw: unknown): ReviewPosition | null {
   if (!isRecord(raw))
     return null
 
-  const { ordinal, cardId, templateKey, fields, grade, flagged } = raw
+  const { ordinal, cardId, templateKey, fields, grade, flagged, meanings, synonyms } = raw
 
   if (typeof ordinal !== 'number' || typeof cardId !== 'string' || typeof templateKey !== 'string')
     return null
@@ -200,8 +213,35 @@ function parsePosition(raw: unknown): ReviewPosition | null {
     cardId,
     templateKey,
     fields: fields as Record<string, string>,
+    // ⚠️ **Absent is empty, not malformed.** A run held from before ADR 0069
+    // has neither, and refusing it would throw away the reader's place.
+    meanings: strings(meanings),
+    synonyms: strings(synonyms),
     grade,
     flagged: flagged === true,
+  }
+}
+
+function strings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+/**
+ * ADR 0069 §2 — a synonym joined to every held position of its *note*'s *card*.
+ * ⚠️ **Appended once**: a second identical synonym would change nothing the
+ * check reads and would only make the store disagree with the table's unique key.
+ */
+export function withSynonym(held: ReviewSnapshot, cardId: string, text: string): ReviewSnapshot {
+  return {
+    ...held,
+    positions: held.positions.map((position) => {
+      // `?? []`: a position installed from a server answer is not parsed.
+      const synonyms = position.synonyms ?? []
+
+      return position.cardId !== cardId || synonyms.includes(text)
+        ? position
+        : { ...position, synonyms: [...synonyms, text] }
+    }),
   }
 }
 

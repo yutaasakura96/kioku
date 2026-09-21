@@ -1,6 +1,6 @@
 /**
- * The outbox — ⚠️ **two kinds of entry in one stream** (`03` §8.1 as amended
- * 2026-09-07, ADR 0039).
+ * The outbox — ⚠️ **three kinds of entry in one stream** (`03` §8.1 as amended
+ * 2026-09-07, ADR 0039, and ADR 0069 §2's synonym since #28).
  *
  * ⚠️ **Append-only, single-device, replays in order, never merges, resolves no
  * conflicts** (ADR 0007). Every one of those five words is a refusal: there is
@@ -55,6 +55,18 @@ export type OutboxDraft
     kind: 'flag'
     sessionId: string
     cardId: string
+  }
+  /**
+   * ADR 0069 §2 — a refused meaning the reader said was right. ⚠️ **Not an
+   * answer**: it moves nothing on the rail, and it is given *before* the *grade*
+   * it changed, so the stream's order is also the order the server learns them
+   * in. The server resolves the *note* from the *card*, inside the *session*.
+   */
+  | {
+    kind: 'synonym'
+    sessionId: string
+    cardId: string
+    text: string
   }
 
 /**
@@ -111,7 +123,9 @@ export function unsentAnswers(entries: OutboxEntry[], sessionId: string): Map<st
   const answers = new Map<string, Answer>()
 
   for (const entry of entries) {
-    if (entry.sessionId !== sessionId)
+    // ⚠️ **A synonym answers nothing.** Read as an answer it would mark its
+    // *card* flagged on a reload, and the *card* would be skipped unanswered.
+    if (entry.sessionId !== sessionId || entry.kind === 'synonym')
       continue
 
     answers.set(entry.cardId, entry.kind === 'grade' ? entry.grade : 'flagged')
@@ -150,6 +164,9 @@ function isEntry(value: unknown): value is OutboxEntry {
 
   if (entry.kind === 'flag')
     return true
+
+  if (entry.kind === 'synonym')
+    return typeof entry.text === 'string' && entry.text.trim() !== ''
 
   if (entry.kind !== 'grade')
     return false

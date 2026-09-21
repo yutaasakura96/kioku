@@ -50,6 +50,8 @@ export async function freshDatabase() {
  * `ACCESS EXCLUSIVE` lock, and no application path issues one.
  */
 const ALL_TABLES = [
+  'meaning_synonym',
+  'note_meaning',
   'card_flag',
   'review_log',
   'review_session_card',

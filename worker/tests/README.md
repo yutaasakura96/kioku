@@ -4,7 +4,12 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for seventy-five of the two hundred and eighty-eight tests here.**
+⚠️ **Docker is required for eighty-three of the three hundred and twenty tests here.**
+⚠️ **Re-counted 2026-09-21 with #28 (ADR 0069):** it said seventy-five of two hundred and
+eighty-eight, and the suite was two hundred and ninety-six before #28 touched it — something since #22 moved the
+total and nothing recorded it here. #28 added twenty-four; eight need the container (two in
+`test_generation.py` for `note_meaning`, six in `test_backfill.py`). Counted with `DOCKER_HOST`
+pointed at nothing.
 ⚠️ **Re-counted 2026-09-17 with #22 (ADR 0065):** it said seventy-three of two hundred and
 seventy-five. #22 added thirteen, and two need the container — the claims `write_notes` writes and
 the one it refuses. Counted the same way, with `DOCKER_HOST` pointed at nothing.

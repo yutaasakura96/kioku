@@ -146,7 +146,19 @@ _Avoid_: skipped, ignored, dismissed, deleted
 
 **Grade**:
 The answer given to a card when it is reviewed, carrying the timestamp of the moment it was given.
+⚠️ Since ADR 0069 it is the typed check's result — Good or Forgot — and never the reader's choice.
 _Avoid_: score, rating, result, mark
+
+**Accepted meanings** — ⚠️ **added 2026-09-21 (ADR 0069)**:
+The English answers the check takes for a note: the pieces of its gloss, the list the model wrote
+beside it (`note_meaning`), and the reader's synonyms. Check data about the note, never its content.
+_Avoid_: answers, glosses (the gloss is the one `meaning` the card shows)
+
+**Synonym** — ⚠️ **added 2026-09-21 (ADR 0069)**:
+A meaning the check refused that the reader added, from the back of the card, as right. It belongs to
+the reader and the note together, and it changes the check for that reader only. There is no synonym
+for a reading.
+_Avoid_: alias, override, correction (it corrects nothing on the note)
 
 **Session**:
 A bounded, finishable run of due cards, prefetched as a unit and sized to be finishable rather than

@@ -26,11 +26,13 @@ could not read reaches stage 6 with no reading, the model writes one, and `04`
 whole sentence is that trust is a property of where a value came from, not of
 which column it sits in.
 
-**One note is six writes**, in this order and all of them idempotent:
+**One note is seven writes**, in this order and all of them idempotent:
 
 1. `note` — ADR 0006's key, `04` §5.3's `UNIQUE (subject_id, identity_key)`.
 2. `note_field_provenance` — ADR 0004, per field, `04` §5.4.
 3. `level_claim` and `domain_claim`, the model's — `04` §5.6, §5.7, ADR 0065.
+3a. `note_meaning`, the accepted meanings — `04` §5.8, ADR 0069 §3. Skipped
+   when the answer carried none.
 4. `note_vetting` at `accepted` — `04` §7.2, with no stamp and no run, because
    nobody vetted it (ADR 0064).
 5. `card`, through the database's `mint_cards` — `04` §7.3, ADR 0067.
@@ -144,7 +146,7 @@ def write_notes(
 def write_note(
     connection: psycopg.Connection, note: GeneratedNote, *, to: Destination
 ) -> Written:
-    """The six writes, in order, in one transaction."""
+    """The seven writes, in order, in one transaction."""
     with connection.transaction():
         return _write_note(connection, note, to=to)
 
@@ -179,6 +181,9 @@ def _write_note(
         note=note,
         declaration=to.declaration,
         provenance=to.provenance,
+    )
+    write_meanings(
+        connection, note_id=note_id, meanings=note.meanings, provenance=to.provenance
     )
     accept_and_mint(
         connection, note_id=note_id, owner_id=to.owner_id, declaration=to.declaration
@@ -240,6 +245,35 @@ def write_claims(
             (note_id, value, provenance.model_id, provenance.prompt_version),
         )
     return tuple(refused)
+
+
+def write_meanings(
+    connection: psycopg.Connection,
+    *,
+    note_id: str,
+    meanings: Sequence[str],
+    provenance: Provenance,
+) -> bool:
+    """ADR 0069 §3 — the *note*'s accepted meanings, beside it and never in it.
+
+    ⚠️ **`note_meaning`, not `note.fields`**, which is what leaves ADR 0052's
+    freeze untouched. ⚠️ **`ON CONFLICT DO NOTHING`: the first list stands** —
+    the claims' rule. A second run that generated a *note* the corpus already
+    held, or the backfill reaching one `generate` already covered, rewrites
+    nothing. An empty list writes nothing (the table refuses one), and the
+    answer says whether a row went in.
+    """
+    if not meanings:
+        return False
+    written = connection.execute(
+        """
+        INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT DO NOTHING;
+        """,
+        (note_id, list(meanings), provenance.model_id, provenance.prompt_version),
+    )
+    return written.rowcount == 1
 
 
 def append_occurrences(

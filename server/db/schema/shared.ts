@@ -572,3 +572,40 @@ export const domainClaim = pgTable(
     index('domain_claim_note_idx').on(t.noteId),
   ],
 )
+
+/**
+ * `04` §5.8 — [ADR 0069](../../../docs/adr/0069-the-check-is-the-grade.md) §3:
+ * **the English meanings any of which counts as right**, one row per *note*.
+ *
+ * ⚠️ **Not a key in `note.fields`, and that is what keeps ADR 0052's freeze
+ * whole.** The displayed `meaning` is the *note*'s content and is frozen once
+ * accepted; this list is check data, written by `generate` beside the fields or
+ * by the backfill afterwards, and the freeze does not cover it.
+ *
+ * ⚠️ **One row or none.** A *note* without a row has no list yet, and that is
+ * the backfill's whole selection (`worker/backfill.py`) — so the backfill can be
+ * stopped and run again, and a second run finds only what the first did not
+ * write. The check falls back to splitting `meaning` when there is no row
+ * (`shared/review/answer.ts`).
+ *
+ * Attributed like `level_claim` (ADR 0005): the model and the prompt that wrote
+ * it, so a thin list can be traced to the prompt that produced it.
+ */
+export const noteMeaning = pgTable(
+  'note_meaning',
+  {
+    noteId: uuid('note_id')
+      .primaryKey()
+      // Check data about the *note* and nothing else — it goes where the note goes.
+      .references(() => note.id, { onDelete: 'cascade' }),
+    meanings: text('meanings').array().notNull(),
+    modelId: text('model_id').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    createdAt: tstz('created_at').notNull().defaultNow(),
+  },
+  t => [
+    // An empty list is a list that accepts nothing, which is worse than no row:
+    // no row falls back to `meaning`, an empty one would not.
+    check('note_meaning_not_empty', sql`cardinality(${t.meanings}) > 0`),
+  ],
+)

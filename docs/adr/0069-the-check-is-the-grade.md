@@ -137,3 +137,23 @@ cost this ADR accepts. Three things make it smaller than it was:
 [#27](https://github.com/yutaasakura96/kioku/issues/27) builds §4,
 [#28](https://github.com/yutaasakura96/kioku/issues/28) builds §1–§3, and
 [#29](https://github.com/yutaasakura96/kioku/issues/29) is §5's research.
+
+## Settled by the build — 2026-09-21
+
+What the tickets were left to decide, as #27 and #28 decided it. None of it moves a sentence above.
+
+- **Storage (§2, §3).** `note_meaning` (one row per *note*, `text[]`, attributed like a claim) and
+  `meaning_synonym` (`owner_id`, `note_id`, `text`, unique on all three), migration `0006`, `04`
+  §5.8 and §7.9. Neither touches `note.fields`.
+- **The key (§2) is `S`**, on the back only, offered only after a refused meaning with something
+  typed that does not normalise to nothing. It sits beside the commit control as a control of its
+  own, because a phone has no key.
+- **The synonym is an outbox entry** (ADR 0039), a third kind, ahead of the *grade* it changed. Its
+  replay is deduplicated by the unique key, unlike a flag's.
+- **The gloss is always accepted, list or no list.** §3 said the check matches *the list plus the
+  reader's synonyms*; the build also keeps splitting `meaning`, because a *Vet* fix can change the
+  gloss after the list was written and a *card* that refused the gloss it shows would contradict
+  itself. It only ever accepts more.
+- **The backfill is `worker/backfill.py`**, with a free `--estimate` (Anthropic's token counting)
+  and a `--run` that pages by *notes* without a row, so it resumes by construction. Its rows carry
+  `prompt_version = 'backfill-v1'`.

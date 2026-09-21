@@ -1,14 +1,14 @@
-// *Review*'s check — ADR 0060 §5, the seam `11` §8 names for the numbers.
+// *Review*'s check — ADR 0060 §5 as amended by ADR 0069, the seam `11` §8 names
+// for the numbers.
 //
-// ⚠️ **The check proposes and never commits.** A wrong result here is a `1` the
-// reader has to overrule with a digit, so a check that is too strict is paid for
-// on every *card* and shows nowhere but in the reader's patience — and
-// ADR 0060's revisit condition cannot be measured until the result is recorded.
-// That is why the thresholds are tested at each boundary rather than by example.
+// ⚠️ **The check is the *grade*** (ADR 0069 §1). A wrong result here is a
+// `Forgot` the reader cannot overrule, only answer with a synonym — so a check
+// that is too strict is paid for in lapses FSRS schedules on. That is why the
+// thresholds are tested at each boundary rather than by example.
 
 import { describe, expect, it } from 'vitest'
 
-import { answerSteps, foldReading, meaningMatches, proposedGrade, readingMatches } from '../../shared/review/answer'
+import { answerSteps, foldReading, gradeOf, meaningMatches, readingMatches, synonymOffered } from '../../shared/review/answer'
 
 describe('the reading — the same fold on both sides', () => {
   it('matches hiragana typed against hiragana stored', () => {
@@ -120,22 +120,81 @@ describe('the meaning — lenient, and only as lenient as the table', () => {
   })
 })
 
-// ADR 0060 §3's table, and nothing between its two rows.
-describe('the proposal', () => {
+// ADR 0060 §3's table, which ADR 0069 §1 makes the grade — and nothing between
+// its two rows.
+describe('the grade', () => {
   it.each([
     [true, true, 3],
     [true, false, 1],
     [false, true, 1],
     [false, false, 1],
   ] as const)('reading %s, meaning %s proposes %i', (reading, meaning, grade) => {
-    expect(proposedGrade({ reading, meaning })).toBe(grade)
+    expect(gradeOf({ reading, meaning })).toBe(grade)
   })
 
   it.each([
     [true, 3],
     [false, 1],
-  ] as const)('with no reading step, meaning %s proposes %i', (meaning, grade) => {
-    expect(proposedGrade({ reading: null, meaning })).toBe(grade)
+  ] as const)('with no reading step, meaning %s grades %i', (meaning, grade) => {
+    expect(gradeOf({ reading: null, meaning })).toBe(grade)
+  })
+
+  it('is only ever 1 or 3', () => {
+    const given = new Set<number>()
+
+    for (const reading of [true, false, null])
+      for (const meaning of [true, false])
+        given.add(gradeOf({ reading, meaning }))
+
+    expect([...given].sort()).toEqual([1, 3])
+  })
+})
+
+// ADR 0069 §3: the list, the gloss and the reader's synonyms.
+describe('accepted meanings', () => {
+  const 見る = { meaning: 'to see/have (a dream)', meanings: ['see', 'look', 'watch', 'view'], synonyms: [] }
+
+  it('accepts a meaning from the list that the gloss does not carry — 見る/look', () => {
+    expect(meaningMatches('look', 見る)).toBe(true)
+    expect(meaningMatches('to look', 見る)).toBe(true)
+  })
+
+  it('still accepts every piece of the gloss the card shows', () => {
+    expect(meaningMatches('have a dream', 見る)).toBe(true)
+  })
+
+  it('falls back to the gloss alone when the note has no list', () => {
+    const bare = { ...見る, meanings: [] }
+
+    expect(meaningMatches('see', bare)).toBe(true)
+    expect(meaningMatches('look', bare)).toBe(false)
+  })
+
+  it('accepts the reader\'s synonym, under the same fold and distance', () => {
+    const own = { ...見る, meanings: [], synonyms: ['behold'] }
+
+    expect(meaningMatches('Behold!', own)).toBe(true)
+    expect(meaningMatches('beholf', own)).toBe(true)
+    expect(meaningMatches('look', own)).toBe(false)
+  })
+
+  it('keeps the distance rule for a list entry', () => {
+    // `see` is three characters, so it allows no edit.
+    expect(meaningMatches('sea', 見る)).toBe(false)
+    expect(meaningMatches('wach', 見る)).toBe(true)
+  })
+})
+
+// ADR 0069 §2: the offer follows a refused meaning, and nothing else.
+describe('the synonym offer', () => {
+  it.each([
+    [false, 'look', true],
+    [false, '   ', false],
+    [false, '?!', false],
+    [true, 'look', false],
+    [null, 'look', false],
+  ] as const)('meaning %s, typed %j offers %s', (meaning, typed, offered) => {
+    expect(synonymOffered({ meaning }, typed)).toBe(offered)
   })
 })
 

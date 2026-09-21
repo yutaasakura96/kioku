@@ -21,7 +21,9 @@ from pipeline.deduplicate import Group
 from pipeline.extract_candidates import Candidate
 from pipeline.generate import (
     FIELD_INSTRUCTIONS,
+    MAX_MEANINGS,
     GenerationRefused,
+    clean_meanings,
     build_prompt,
     lookup_field_names,
     notes_for_cached,
@@ -158,6 +160,50 @@ def test_a_claim_rides_beside_the_note_and_never_in_its_fields() -> None:
     assert (notes[0].level, notes[0].domain) == ("N4", "daily")
     assert "level" not in notes[0].fields
     assert "domain" not in notes[0].fields
+
+
+def test_the_accepted_meanings_are_asked_for_as_a_list() -> None:
+    """ADR 0069 §3 — an array in the schema and a paragraph in the prompt."""
+    items = output_schema(DECLARATION)["properties"]["notes"]["items"]
+    prompt = build_prompt(DECLARATION, TEXT, GROUPS)
+
+    assert items["properties"]["meanings"] == {"type": "array", "items": {"type": "string"}}
+    assert "meanings" in items["required"]
+    assert "ACCEPTED MEANINGS" in prompt
+
+
+def test_the_accepted_meanings_ride_beside_the_note_and_never_in_its_fields() -> None:
+    notes = notes_from(DECLARATION, GROUPS, recorded())
+
+    assert notes[1].meanings == ("nearby", "near", "vicinity", "neighbourhood")
+    assert "meanings" not in notes[1].fields
+
+
+def test_an_answer_that_omits_the_meanings_is_still_a_note() -> None:
+    """⚠️ A response from before v5, or one that dropped the key, costs the list
+    and never the word."""
+    payload = recorded()
+    for note in payload["notes"]:
+        note.pop("meanings")
+
+    notes = notes_from(DECLARATION, GROUPS, payload)
+
+    assert [note.meanings for note in notes] == [(), ()]
+    assert notes[0].fields["meaning"] == "library"
+
+
+@pytest.mark.parametrize(
+    ("value", "kept"),
+    [
+        (None, ()),
+        ("see", ()),
+        (["see", " Look ", "SEE", "", 3, "watch  it"], ("see", "Look", "watch it")),
+        (["x" * 61, "view"], ("view",)),
+        ([f"m{index}" for index in range(20)], tuple(f"m{index}" for index in range(MAX_MEANINGS))),
+    ],
+)
+def test_a_list_is_cleaned_rather_than_refused(value, kept) -> None:
+    assert clean_meanings(value) == kept
 
 
 @pytest.mark.parametrize("value", [None, 3, "technology"])

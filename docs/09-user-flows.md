@@ -377,9 +377,10 @@ condition. Once the flag is resolved the fields are frozen again.
 ### 4.7 `S7` — Study a session that ends
 
 **Screen:** `/review`.
-**Keystrokes:** `Enter` check · `Enter` commit the proposed *grade* · `1`–`4` grade · `X` flag (back
-only) · `Esc` leave. ⚠️ **Amended 2026-09-15 by ADR 0060**: this was `space` reveal (ADR 0023), and
-the front is now answered by typing.
+**Keystrokes:** `Enter` check · `Enter` commit the check's *grade* · `S` add a refused meaning as a
+synonym · `X` flag (`S` and `X` on the back only) · `Esc` leave. ⚠️ **Amended 2026-09-15 by
+ADR 0060**: this was `space` reveal (ADR 0023), and the front is now answered by typing. ⚠️ **And
+2026-09-21 by [ADR 0069](adr/0069-the-check-is-the-grade.md) (#28)**: `1`–`4` commit nothing.
 **Exit:** the end screen, then Done. Or Done mid-session, which resumes later (§5.3).
 
 1. The start control loads `/review?from=/`. The app shell renders (`ssr: false` is a build-time
@@ -392,15 +393,18 @@ the front is now answered by typing.
 4. The *progress rail* is one tick per row — `review_session.size` ticks, and it knows its own length
    because a graded *card* leaves the session and never returns (`04` §7.7, ADR 0016).
 5. Per *card*: the reader types the reading and presses `Enter`, which shows the result, then types
-   the meaning and presses `Enter`. The card turns with both results and a proposed *grade*.
-   `Enter` commits the proposal and `1`–`4` commit any *grade* (ADR 0060). The typed text is not
-   kept. The *grade* is stamped at the committing keystroke and appended to the outbox. **The
-   interface never waits on the flush** (`S8`, ADR 0007).
+   the meaning and presses `Enter`. The card turns with both results and **the *grade* they make** —
+   `Good` when both were right, `Forgot` otherwise — and `Enter` commits it (ADR 0069 §1). A
+   kana-only term has no reading step (§4). ⚠️ **After a refused meaning, `S` adds what was typed as
+   the reader's synonym for the *note***; the meaning is checked again, and `Enter` then commits what
+   the check says now (§2). The synonym goes into the outbox ahead of the *grade*. The typed text is
+   otherwise not kept. The *grade* is stamped at the committing keystroke and appended to the
+   outbox. **The interface never waits on the flush** (`S8`, ADR 0007).
 6. After the last position, the end screen: the *session*'s numbers, all ticks filled,
    `review_session.completed_at` set.
 7. **Starting another is one deliberate action, never automatic** (`S7`). `space` on the end screen
-   starts the next one, and the key is safe there because the key before it was a digit or `Enter`
-   on the back (ADR 0060) — never `space`, which does nothing during a *session*.
+   starts the next one, and the key is safe there because the key before it was `Enter` or `X` on
+   the back (ADR 0060, ADR 0069) — never `space`, which does nothing during a *session*.
 
 ***Session* size is set on the end screen and on Review's empty states**, never mid-session — the
 current one is snapshotted and a knob that appeared to change it would be lying. `size` is bounded at

@@ -22,6 +22,7 @@ import { dueCards, newCards, nothingToStudy, readerZone, snapshotOf } from '../.
 import { freshDatabase, reset } from './harness'
 import { recordFlag } from '../../server/utils/review/flag'
 import { recordGrade } from '../../server/utils/review/grade'
+import { recordSynonym, synonymCount } from '../../server/utils/review/synonym'
 import { brakeIfFinished, brakeReading, resumeOrCompose } from '../../server/utils/review/session'
 import type { Grade } from '../../shared/review/scheduler'
 import type { SchemaDatabase } from './harness'
@@ -960,5 +961,80 @@ describe('a stamp the server cannot trust (`03` §8.2)', () => {
 
     expect(outcome.ok).toBe(true)
     expect(await count('review_log')).toBe(1)
+  })
+})
+
+// ADR 0069 §2–§3: what the check is run against, and the reader's own additions.
+describe('accepted meanings and synonyms (ADR 0069)', () => {
+  async function session() {
+    await acceptedCard('見る␟みる', { fields: { ...FIELDS, term: '見る', reading: 'みる', meaning: 'to see/have (a dream)' } })
+
+    return (await resumeOrCompose(db, OWNER, 1))!
+  }
+
+  async function noteOf(cardId: string): Promise<string> {
+    return (await one<{ noteId: string }>(`SELECT note_id AS "noteId" FROM card WHERE id = '${cardId}';`)).noteId
+  }
+
+  it('hands the snapshot the note\'s list, and an empty one when there is none', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+
+    expect((await snapshotOf(db, OWNER, run.sessionId))!.positions[0]).toMatchObject({ meanings: [], synonyms: [] })
+
+    await client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+      VALUES ('${await noteOf(cardId)}', ARRAY['see', 'look', 'watch', 'view'], 'claude-sonnet-5', 'v5');
+    `)
+
+    expect((await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!.meanings).toEqual(['see', 'look', 'watch', 'view'])
+  })
+
+  it('records a synonym against the note, for this reader, once however often it is replayed', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+    const request = { sessionId: run.sessionId, cardId, text: 'look' }
+
+    expect(await recordSynonym(db, OWNER, request)).toBe('ok')
+    expect(await recordSynonym(db, OWNER, request)).toBe('ok')
+
+    expect(await count('meaning_synonym', `note_id = '${await noteOf(cardId)}' AND owner_id = '${OWNER}'`)).toBe(1)
+    expect((await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!.synonyms).toEqual(['look'])
+    expect(await synonymCount(db, OWNER)).toBe(1)
+  })
+
+  // ⚠️ ADR 0069 §2 and ADR 0052: a synonym is the reader's, and it never
+  // touches the *note*.
+  it('leaves note.fields and note_meaning alone', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+    const before = await one<{ fields: unknown }>(`SELECT fields FROM note WHERE id = '${await noteOf(cardId)}';`)
+
+    await recordSynonym(db, OWNER, { sessionId: run.sessionId, cardId, text: 'look' })
+
+    expect(await one<{ fields: unknown }>(`SELECT fields FROM note WHERE id = '${await noteOf(cardId)}';`)).toEqual(before)
+    expect(await count('note_meaning')).toBe(0)
+  })
+
+  it('refuses a card outside the reader\'s session, and counts nobody else\'s', async () => {
+    const run = await session()
+    const cardId = run.positions[0]!.cardId
+
+    expect(await recordSynonym(db, OTHER, { sessionId: run.sessionId, cardId, text: 'look' })).toBe('not_in_session')
+    expect(await count('meaning_synonym')).toBe(0)
+    expect(await synonymCount(db, OTHER)).toBe(0)
+  })
+
+  it('refuses an empty list and a blank synonym at the table', async () => {
+    const run = await session()
+    const noteId = await noteOf(run.positions[0]!.cardId)
+
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+      VALUES ('${noteId}', ARRAY[]::text[], 'm', 'v5');
+    `)).rejects.toThrow(/note_meaning_not_empty/)
+    await expect(client.exec(`
+      INSERT INTO meaning_synonym (owner_id, note_id, text) VALUES ('${OWNER}', '${noteId}', '   ');
+    `)).rejects.toThrow(/meaning_synonym_text/)
   })
 })

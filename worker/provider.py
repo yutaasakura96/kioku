@@ -234,6 +234,23 @@ class AnthropicProvider:
         )
 
 
+    def count_input_tokens(self, request: GenerationRequest) -> int:
+        """What ``request``'s prompt would cost in input tokens — **without
+        spending** (#28's backfill estimate).
+
+        ⚠️ **Free, rate-limited and an estimate**, per Anthropic's token-counting
+        page (read 2026-09-21): *"Token counting is free to use but subject to
+        requests per minute rate limits"*, and the count *"is an estimate"*. The
+        page does not say the endpoint takes ``output_config``, so the schema is
+        not sent and its share of the input is not in this number.
+        """
+        counted = self._client.messages.count_tokens(
+            model=self.model_id,
+            messages=[{"role": "user", "content": request.prompt}],
+        )
+        return counted.input_tokens
+
+
 def require_provider(environ: dict[str, str] | None = None) -> AnthropicProvider:
     """The provider, or a refusal at startup that names the variable.
 

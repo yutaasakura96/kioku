@@ -598,6 +598,13 @@ Design consequences the boundary has to carry:
 `ts-fsrs` 5.4.2 implements FSRS-6 (verification §1). Four grades — `1 Again / 2 Hard / 3 Good /
 4 Easy` — with `enable_short_term` off, so a *session* stays a fixed twenty (ADR 0016).
 
+⚠️ **Amended 2026-09-21 by [ADR 0069](adr/0069-the-check-is-the-grade.md) (#28): the check emits
+two of the four.** The typed check's result is the *grade* — `3` when every step was right, `1`
+otherwise (`gradeOf`, `shared/review/answer.ts`) — and no key commits any other. `review_log` and the
+grade endpoint still take `1`–`4`: the record ADR 0060 §4 fixed is unchanged, and rows given before
+#28 stand. The meaning is matched against the gloss, the *note*'s accepted meanings (`04` §5.8) and
+the reader's synonyms (`04` §7.9).
+
 ⚠️ `ts-fsrs` is a **scheduler only, with no optimiser**. Optimisation is a separate route and
 **nothing forces it into the client** — it can run server-side, later. The thresholds not to
 conflate: `fsrs-rs` returns defaults below **8 items** (a hard floor); the Anki manual says
@@ -623,6 +630,12 @@ months' time.
 flag written by `X`, which suspends a *card* and returns its *note* to the vetting queue (`09` §4.9,
 `04` §7.8). `S9` says the suspension is immediate, and immediate has to survive the same tunnel the
 *grades* do.
+
+⚠️ **And a third since 2026-09-21** ([ADR 0069](adr/0069-the-check-is-the-grade.md) §2, #28): a
+**synonym**, written by `S` after a refused meaning, and sent to `/api/review/synonym`. It is ahead of
+the *grade* it changed in the stream, so the server learns them in that order. It answers nothing —
+`unsentAnswers` skips it — and the server's unique key `(owner_id, note_id, text)` makes its replay
+idempotent, where a flag's must not be.
 
 The outbox is **append-only, single-device, replays in order, never merges, resolves no conflicts**
 (ADR 0007). This is the same pattern as ADR 0028's worker loop and ADR 0015's job table, a third

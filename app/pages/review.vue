@@ -24,15 +24,17 @@
 // behind the reader; the next *card* renders from the snapshot this screen
 // already holds.
 //
-// ⚠️ **The outbox carries two kinds of entry** (`03` §8.1 as amended
-// 2026-09-07, ADR 0039): a *grade*, and `S9`'s `X`. Both the snapshot and the
+// ⚠️ **The outbox carries three kinds of entry** (`03` §8.1 as amended
+// 2026-09-07, ADR 0039): a *grade*, `S9`'s `X`, and — since #28 — a synonym
+// (ADR 0069 §2). Both the snapshot and the
 // stream live in `localStorage` (ADR 0014), so a tunnel and a tab crash fail the
 // same way — which is to say they do not — and the storage helper is an
 // **explicit import** because Nuxt has a built-in of that name
 // (`app/utils/review-store.ts`).
 
-import { GRADE_KEYS, endScreenAction, reviewAction } from '#shared/review/keystroke'
-import { answerSteps, foldReading, meaningMatches, proposedGrade, readingMatches } from '#shared/review/answer'
+import { GRADE_LABELS, endScreenAction, reviewAction } from '#shared/review/keystroke'
+import { answerSteps, foldReading, gradeOf, meaningMatches, readingMatches, synonymOffered } from '#shared/review/answer'
+import type { CheckedGrade } from '#shared/review/answer'
 import type { ReviewStep } from '#shared/review/keystroke'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
 import { brakeSentence, emptyStateOf } from '#shared/review/brake'
@@ -41,12 +43,12 @@ import { NO_FILTER, isFiltered } from '#shared/review/filter'
 import type { SessionFilter } from '#shared/review/filter'
 import { append, head, parseOutbox, settle, unsentAnswers } from '#shared/review/outbox'
 import { isRefused } from '#shared/review/request'
-import { isAnswered, mergeGrades, parseSnapshot } from '#shared/review/snapshot'
+import { isAnswered, mergeGrades, parseSnapshot, withSynonym } from '#shared/review/snapshot'
 import { jlptVocab } from '#shared/subject/declaration'
 import { nextDueLabel } from '#shared/review/next-due'
 import { resolveOrigin } from '#shared/utils/origin'
 import type { Grade } from '#shared/review/scheduler'
-import type { NothingToStudy, ReviewSnapshot } from '#shared/review/snapshot'
+import type { NothingToStudy, ReviewPosition, ReviewSnapshot } from '#shared/review/snapshot'
 import type { Answer, OutboxDraft, OutboxEntry } from '#shared/review/outbox'
 import type { AnswerOutcome } from '#shared/review/request'
 import type { Tick } from '../components/ProgressRail.vue'
@@ -132,16 +134,24 @@ const check = ref<{ reading: boolean | null, meaning: boolean | null }>({ readin
 const cardSteps = computed(() => answerSteps(current.value?.fields.term ?? ''))
 const asksReading = computed(() => cardSteps.value.includes('reading'))
 
-/** ADR 0060 §3 — what `Enter` commits on the back. */
-const proposal = computed<Grade | null>(() => {
+/**
+ * ADR 0069 §1 — **the *grade***, which `Enter` commits on the back and nothing
+ * overrules. It changes on the back only when a synonym re-runs the meaning.
+ */
+const result = computed<CheckedGrade | null>(() => {
   if (step.value !== 'back')
     return null
 
-  return proposedGrade({
+  return gradeOf({
     reading: asksReading.value ? Boolean(check.value.reading) : null,
     meaning: Boolean(check.value.meaning),
   })
 })
+
+/** ADR 0069 §2 — whether the back offers `S`. */
+const offerSynonym = computed(() =>
+  step.value === 'back' && synonymOffered(check.value, typed.value.meaning),
+)
 
 /**
  * Answers given but not yet reflected in a snapshot the server has answered
@@ -231,10 +241,18 @@ const tally = computed(() =>
   // list beside them.** ADR 0053's argument is that the reader does not have to
   // learn a second naming for the key they just pressed — so the two must not be
   // able to drift, which is `04` §13's rule at four words.
-  GRADE_KEYS.map(entry => ({
-    eyebrow: entry.label.toUpperCase(),
-    figure: positions.value.filter(position => position.grade === entry.grade).length,
-  })),
+  //
+  // ⚠️ **Forgot and Good always, Hard and Easy only when the run holds one**
+  // (ADR 0069 §1). The check gives two *grades*; a run resumed from before #28
+  // can still carry the other two, and a column that is always `0` says nothing.
+  ([1, 2, 3, 4] as const)
+    .map(grade => ({
+      grade,
+      eyebrow: GRADE_LABELS[grade].toUpperCase(),
+      figure: positions.value.filter(position => position.grade === grade).length,
+    }))
+    .filter(entry => entry.grade === 1 || entry.grade === 3 || entry.figure > 0)
+    .map(({ eyebrow, figure }) => ({ eyebrow, figure })),
 )
 
 /**
@@ -300,9 +318,24 @@ function checkMeaning(value: string) {
     return
 
   typed.value.meaning = value.trim()
-  check.value.meaning = meaningMatches(value, position.fields.meaning ?? '')
+  check.value.meaning = meaningMatches(value, acceptedOf(position))
   step.value = 'back'
   void focusStep()
+}
+
+/**
+ * ADR 0069 §3 — the gloss, the model's list and the reader's synonyms.
+ *
+ * ⚠️ **`?? []` because a server answer is installed unparsed** (`start`), and a
+ * tab open across the deploy that added the two fields would otherwise throw on
+ * the first meaning it checked.
+ */
+function acceptedOf(position: ReviewPosition) {
+  return {
+    meaning: position.fields.meaning ?? '',
+    meanings: position.meanings ?? [],
+    synonyms: position.synonyms ?? [],
+  }
 }
 
 // -- The store (ADR 0014) ---------------------------------------------------
@@ -412,20 +445,10 @@ type Landing = 'landed' | 'refused' | 'held'
  */
 async function send(entry: OutboxEntry): Promise<Landing> {
   try {
-    const response = await $fetch<AnswerResponse>(
-      entry.kind === 'grade' ? '/api/review/grade' : '/api/review/flag',
-      {
-        method: 'POST',
-        body: entry.kind === 'grade'
-          ? {
-              sessionId: entry.sessionId,
-              cardId: entry.cardId,
-              grade: entry.grade,
-              reviewedAt: entry.reviewedAt,
-            }
-          : { sessionId: entry.sessionId, cardId: entry.cardId },
-      },
-    )
+    const response = await $fetch<AnswerResponse>(`/api/review/${entry.kind}`, {
+      method: 'POST',
+      body: bodyOf(entry),
+    })
 
     if (response.session)
       apply(response.session)
@@ -456,6 +479,18 @@ async function send(entry: OutboxEntry): Promise<Landing> {
     // Anything else (a 404 from a half-finished deploy, a 500, no network at
     // all) may work on the next attempt and is held.
     return status === 400 ? 'refused' : 'held'
+  }
+}
+
+/** What each entry type's endpoint reads — `shared/review/request.ts`. */
+function bodyOf(entry: OutboxEntry) {
+  switch (entry.kind) {
+    case 'grade':
+      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt }
+    case 'flag':
+      return { sessionId: entry.sessionId, cardId: entry.cardId }
+    case 'synonym':
+      return { sessionId: entry.sessionId, cardId: entry.cardId, text: entry.text }
   }
 }
 
@@ -550,12 +585,18 @@ function install(response: SessionResponse) {
     size.value = fresh.size
 }
 
-// -- The four grades, and the flag ------------------------------------------
+// -- The grade, the synonym and the flag -------------------------------------
 
-function give(grade: Grade) {
+/**
+ * ADR 0069 §1 — `Enter` on the back, or the commit control. ⚠️ **It commits the
+ * check's result and takes no argument**: there is no path from a key to a
+ * *grade* the check did not give.
+ */
+function commit() {
   const position = current.value
   const session = snapshot.value
-  if (!position || !session)
+  const grade = result.value
+  if (!position || !session || grade === null)
     return
 
   // ⚠️ **Stamped here, at the keystroke** (ADR 0007, `03` §8.1). FSRS schedules
@@ -569,6 +610,33 @@ function give(grade: Grade) {
     { kind: 'grade', sessionId: session.sessionId, cardId: position.cardId, grade, reviewedAt },
     grade,
   )
+}
+
+/**
+ * ADR 0069 §2 — `S` on the back: what was typed becomes the reader's synonym for
+ * the *note*, and the meaning is checked again with it.
+ *
+ * ⚠️ **Three writes, in this order, before anything is sent.** The synonym joins
+ * the held position (`withSynonym`) so a reload still has it; the outbox entry
+ * is durable before the screen changes (ADR 0039 property 1); and the check
+ * re-runs, so the *grade* `Enter` commits next is the one the synonym produced.
+ * The entry is **ahead of** the *grade* in the stream, which is the order the
+ * server learns them in.
+ */
+function addSynonym() {
+  const position = current.value
+  const session = snapshot.value
+  const text = typed.value.meaning.trim()
+  if (!position || !session || !offerSynonym.value)
+    return
+
+  holdSnapshot(withSynonym(session, position.cardId, text))
+  holdOutbox(append(outbox.value, { kind: 'synonym', sessionId: session.sessionId, cardId: position.cardId, text }))
+
+  const updated = current.value ?? position
+  check.value.meaning = meaningMatches(text, acceptedOf(updated))
+
+  void enqueue(flush)
 }
 
 /**
@@ -635,9 +703,9 @@ function onKeydown(event: KeyboardEvent) {
   event.preventDefault()
 
   if (action.kind === 'commit')
-    give(proposal.value ?? 1)
-  else if (action.kind === 'grade')
-    give(action.grade)
+    commit()
+  else if (action.kind === 'synonym')
+    addSynonym()
   else if (action.kind === 'flag')
     flag()
   else
@@ -877,29 +945,32 @@ onBeforeUnmount(() => {
 
     <!--
       `10` §5.1's 104px footer, **no rule**: the key legend on the front, the
-      four *grade* controls on the back. `Esc` is not repeated in either, because
-      the Done cluster in the header names it (§5.2).
+      check's controls on the back (ADR 0069). `Esc` is not repeated in either,
+      because the Done cluster in the header names it (§5.2).
     -->
     <footer class="legend">
       <div v-if="current" class="column legend-column">
-        <!-- `10` §5.1 as amended by ADR 0060: the front's legend is `Enter` —
-             check, which covers both steps. The back is the four *grade*
-             controls with the proposal marked, and beneath them `Enter` — the
-             proposal's label, beside `X` — flag. ⚠️ **`X` is on the back only**:
-             on the front an `x` is the first letter of a meaning. -->
+        <!-- `10` §5.1 as amended by ADR 0060 and ADR 0069: the front's legend
+             is `Enter` — check, which covers both steps. The back is the
+             commit control, named for the *grade* the check gave, with `S` —
+             add as synonym beside it after a refused meaning, and beneath them
+             `X` — flag. ⚠️ **`X` and `S` are on the back only**: on the front
+             either is the first letter of a meaning. -->
         <div v-if="step !== 'back'" class="legend-row">
           <KeyCap cap="Enter" label="check" variant="primary" />
         </div>
 
         <template v-else>
-          <GradeControls
-            :selected="justGraded"
-            :proposed="proposal"
-            @grade="give"
+          <CheckControls
+            v-if="result !== null"
+            :grade="result"
+            :offer-synonym="offerSynonym"
+            :committed="justGraded !== null"
+            @commit="commit"
+            @synonym="addSynonym"
           />
 
           <div class="legend-row flag-row">
-            <KeyCap cap="Enter" :label="GRADE_KEYS.find(entry => entry.grade === proposal)?.label.toLowerCase()" variant="secondary" />
             <KeyCap cap="X" label="flag" variant="aside" class="flag-cap" />
           </div>
         </template>

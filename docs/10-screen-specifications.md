@@ -505,7 +505,7 @@ the grade controls beneath it share its exact width (`05` §5).
 | State | Footer |
 | --- | --- |
 | Front | The key legend: `Enter` — check (primary cap), for the reading step and then the meaning step |
-| Back | **The four grade controls**, 760px, one marked **proposed**, and beneath them, `12px` down, the legend line: `Enter` — the proposed grade's label · `X` — flag (available-but-aside cap, dashed) |
+| Back | ⚠️ **Since 2026-09-21 (ADR 0069, #28): the check's controls**, 760px — one commit control named for the *grade* the check gave (`Enter` — `Good` or `Forgot`), and after a refused meaning a second beside it (`S` — add as synonym) — and beneath them, `12px` down, the legend line: `X` — flag (available-but-aside cap, dashed). Until then: the four grade controls, one marked proposed |
 
 `Esc` is not repeated in the legend, because the Done cluster in the header names it (§5.2).
 
@@ -644,6 +644,22 @@ four, the legend line is `Enter` — the proposal's label, beside `X` — flag.
 
 ⚠️ **Amended 2026-09-21 by ADR 0069 §4 (#27):** a kana-only *card* has no reading result, so its
 proposal is the meaning step's alone — `3` when the meaning was right, `1` when it was wrong.
+
+⚠️ **Superseded 2026-09-21 by [ADR 0069](adr/0069-the-check-is-the-grade.md) §1–§2 (#28): the four
+controls are gone, and so is the choice.** The check's result is the *grade*; the digits commit
+nothing. The back shows `app/components/CheckControls.vue`, which keeps this section's geometry —
+the stacked pair, `12px` apart, `9px` vertical padding, `--k-radius-control`, the card's 760px:
+
+| Control | When | Cap | Label | Drawn as |
+| --- | --- | --- | --- | --- |
+| **Commit** | Always, on the back | `Enter` | The *grade*'s label from ADR 0034 — `Good` or `Forgot` | The *proposed* state above: `2px --k-ink`, `--k-ink` label |
+| **Synonym** | Only after a refused meaning with something typed (`synonymOffered`) | `S` | `I was right — add as synonym` | Resting |
+
+Pressing `S` (or the control) re-checks the meaning with the synonym in it, the verdict turns
+`Right`, the commit control relabels, and the synonym control goes. The labels still name recall
+(ADR 0034): `Forgot` and `Good` are the two the check can give. The *session* tally on the end screen
+shows `FORGOT` and `GOOD`, and `HARD` or `EASY` only when a run resumed from before #28 holds one.
+**Controls, not only caps, because a phone has no `Enter`** (§10.2, ADR 0036).
 
 ### 5.6 The end screen
 

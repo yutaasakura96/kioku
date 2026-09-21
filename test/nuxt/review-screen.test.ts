@@ -2,7 +2,7 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 
-import GradeControls from '../../app/components/GradeControls.vue'
+import CheckControls from '../../app/components/CheckControls.vue'
 import ProgressRail from '../../app/components/ProgressRail.vue'
 import ReviewAnswer from '../../app/components/ReviewAnswer.vue'
 import ReviewCard from '../../app/components/ReviewCard.vue'
@@ -70,29 +70,42 @@ describe('the card\'s two faces (`10` §5.4, ADR 0002)', () => {
   })
 })
 
-describe('the four grade controls (ADR 0034, ADR 0016)', () => {
-  it('names recall and never a time', async () => {
-    const view = await mountSuspended(GradeControls)
+// ADR 0069 §1–§2: the check is the grade, so the back has one control that
+// commits it and — after a refused meaning only — one that adds a synonym.
+describe('the check\'s controls (ADR 0069, ADR 0034)', () => {
+  const controls = (grade: 1 | 3, offerSynonym: boolean) =>
+    mountSuspended(CheckControls, { props: { grade, offerSynonym } })
 
-    expect(view.text()).toContain('Forgot')
-    expect(view.text()).not.toContain('Again')
-    expect(view.findAll('.grade').map(control => control.text())).toEqual([
-      '1Forgot',
-      '2Hard',
-      '3Good',
-      '4Easy',
-    ])
+  it('names the grade the check gave, in recall words and never a time', async () => {
+    expect((await controls(3, false)).text()).toContain('Good')
+    expect((await controls(1, false)).text()).toContain('Forgot')
+    expect((await controls(1, false)).text()).not.toContain('Again')
   })
 
-  // ⚠️ **By key or by pointer** (ADR 0036, `10` §10.3) — the four controls are
-  // the single-pointer path SC 2.5.1 requires, so they have to be real buttons
-  // rather than a surface a gesture is read off.
-  it('grades by pointer', async () => {
-    const view = await mountSuspended(GradeControls)
+  it('offers no choice of grade', async () => {
+    const view = await controls(3, false)
 
-    await view.findAll('button')[1]!.trigger('click')
+    expect(view.findAll('button')).toHaveLength(1)
+    expect(view.text()).not.toMatch(/Hard|Easy/)
+  })
 
-    expect(view.emitted('grade')).toEqual([[2]])
+  // ⚠️ **By key or by pointer** (ADR 0036, `10` §10.3): a phone has no `Enter`,
+  // so the commit has to be a real button.
+  it('commits by pointer', async () => {
+    const view = await controls(3, false)
+
+    await view.find('.commit').trigger('click')
+
+    expect(view.emitted('commit')).toHaveLength(1)
+  })
+
+  it('offers the synonym only when asked to, and adds it by pointer', async () => {
+    const view = await controls(1, true)
+
+    await view.find('.synonym').trigger('click')
+
+    expect(view.emitted('synonym')).toHaveLength(1)
+    expect(view.findAll('button')).toHaveLength(2)
   })
 })
 

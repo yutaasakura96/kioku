@@ -254,13 +254,32 @@ export async function snapshotOf(
       ordinal: schema.reviewSessionCard.ordinal,
       cardId: schema.reviewSessionCard.cardId,
       templateKey: schema.card.templateKey,
+      noteId: schema.note.id,
       fields: schema.note.fields,
+      meanings: schema.noteMeaning.meanings,
     })
     .from(schema.reviewSessionCard)
     .innerJoin(schema.card, eq(schema.card.id, schema.reviewSessionCard.cardId))
     .innerJoin(schema.note, eq(schema.note.id, schema.card.noteId))
+    // ⚠️ **Left**, because a *note* the backfill has not reached has no row and
+    // is still a *card* to study — against its gloss alone (ADR 0069 §3).
+    .leftJoin(schema.noteMeaning, eq(schema.noteMeaning.noteId, schema.note.id))
     .where(eq(schema.reviewSessionCard.reviewSessionId, sessionId))
     .orderBy(asc(schema.reviewSessionCard.ordinal))
+
+  // ADR 0069 §2: this reader's synonyms and nobody else's.
+  const noteIds = [...new Set(members.map(row => row.noteId))]
+  const synonymRows = noteIds.length === 0
+    ? []
+    : await db
+        .select({ noteId: schema.meaningSynonym.noteId, text: schema.meaningSynonym.text })
+        .from(schema.meaningSynonym)
+        .where(and(eq(schema.meaningSynonym.ownerId, ownerId), inArray(schema.meaningSynonym.noteId, noteIds)))
+        .orderBy(asc(schema.meaningSynonym.createdAt))
+
+  const synonyms = new Map<string, string[]>()
+  for (const row of synonymRows)
+    synonyms.set(row.noteId, [...(synonyms.get(row.noteId) ?? []), row.text])
 
   // ⚠️ **Ordered by the client's stamp, because the later one wins**
   // (PRD §5, ADR 0039 property 3). A *card* answered twice has two `review_log`
@@ -298,6 +317,8 @@ export async function snapshotOf(
       cardId: row.cardId,
       templateKey: row.templateKey,
       fields: (row.fields ?? {}) as Record<string, string>,
+      meanings: row.meanings ?? [],
+      synonyms: synonyms.get(row.noteId) ?? [],
       grade: given.get(row.cardId) ?? null,
       flagged: flagged.has(row.cardId),
     })),

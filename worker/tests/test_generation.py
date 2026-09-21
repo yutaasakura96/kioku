@@ -59,6 +59,9 @@ class FakeProvider:
         #: make the model say something outside the declared set.
         self.level = "N3"
         self.domain = "tech"
+        #: ADR 0069 §3's list, answered for every word. ``None`` omits the key,
+        #: as a response from before v5 would.
+        self.meanings: list | None = ["see", "look"]
 
     def generate(self, request, *, keepalive=None) -> Generation:
         self.calls.append(request.prompt)
@@ -66,17 +69,18 @@ class FakeProvider:
         for term, reading in LISTED.findall(request.prompt):
             if term in self.refuse:
                 raise ProviderRefused("the model declined this chunk")
-            notes.append(
-                {
-                    "term": term,
-                    "reading": reading,
-                    "meaning": f"meaning of {term}",
-                    "example_sentence": f"{term}です。",
-                    "example_gloss": f"It is {term}.",
-                    "level": self.level,
-                    "domain": self.domain,
-                }
-            )
+            answer = {
+                "term": term,
+                "reading": reading,
+                "meaning": f"meaning of {term}",
+                "example_sentence": f"{term}です。",
+                "example_gloss": f"It is {term}.",
+                "level": self.level,
+                "domain": self.domain,
+            }
+            if self.meanings is not None:
+                answer["meanings"] = self.meanings
+            notes.append(answer)
         return Generation(
             payload={"notes": notes},
             model_id=self.model_id,
@@ -126,6 +130,7 @@ def forget_the_corpus(connection: psycopg.Connection) -> None:
     connection.execute("DELETE FROM card;")
     connection.execute("DELETE FROM note_vetting;")
     connection.execute("DELETE FROM note_field_provenance;")
+    connection.execute("DELETE FROM note_meaning;")
     connection.execute("DELETE FROM note;")
 
 
@@ -290,6 +295,38 @@ def test_a_written_note_carries_one_model_estimated_level_and_domain(connection)
     assert len(domains) == len(levels)
     assert {row[1:] for row in levels} == {("N3", None, MODEL, PROMPT_VERSION)}
     assert {row[1:] for row in domains} == {("tech", None, MODEL, PROMPT_VERSION)}
+
+
+def meanings(connection: psycopg.Connection) -> list[tuple]:
+    return connection.execute(
+        "SELECT note_id, meanings, model_id, prompt_version FROM note_meaning ORDER BY note_id;"
+    ).fetchall()
+
+
+def test_a_written_note_carries_its_accepted_meanings_beside_its_fields(connection):
+    """ADR 0069 §3 — `note_meaning`, one row per *note*, attributed like a claim,
+    and **never a key in `note.fields`** (ADR 0052's freeze)."""
+    make_run(connection)
+
+    run(connection, FakeProvider())
+
+    rows = meanings(connection)
+    assert len(rows) == len(notes(connection)) > 0
+    assert {(tuple(row[1]), row[2], row[3]) for row in rows} == {(("see", "look"), MODEL, PROMPT_VERSION)}
+    assert all("meanings" not in fields for fields in notes(connection).values())
+
+
+def test_an_answer_without_meanings_still_writes_the_note_and_no_list(connection):
+    """⚠️ A list the model left out costs the list and never the word: the check
+    falls back to `meaning` and the backfill finds the *note* later."""
+    make_run(connection)
+    provider = FakeProvider()
+    provider.meanings = None
+
+    run(connection, provider)
+
+    assert len(notes(connection)) > 0
+    assert meanings(connection) == []
 
 
 def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_written(connection):

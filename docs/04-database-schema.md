@@ -453,6 +453,27 @@ if its *note* has a claim in the requested set (`server/utils/review/queries.ts`
 
 **Example:** `(…, note 019bd3…, null, 'tech', 'claude-sonnet-5', 'v3')`.
 
+### 5.8 `note_meaning`
+
+⚠️ **Added 2026-09-21 with [#28](https://github.com/yutaasakura96/kioku/issues/28), migration
+`0006`.** [ADR 0069](adr/0069-the-check-is-the-grade.md) §3: the English meanings any of which the
+*Review* check accepts, one row per *note*.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `note_id` | `uuid` | no | — | PK, → `note`, `CASCADE` |
+| `meanings` | `text[]` | no | — | `CHECK (cardinality(meanings) > 0)` — an empty list would accept nothing, which is worse than no row |
+| `model_id` | `text` | no | — | Who wrote it |
+| `prompt_version` | `text` | no | — | `generate`'s (`v5` on) or the backfill's (`backfill-v1`) |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+⚠️ **Not in `note.fields`, and that is what keeps ADR 0052's freeze whole.** The list is check data,
+not the *note*'s content. ⚠️ **No row means no list yet**: the check falls back to splitting
+`meaning`, and `worker/backfill.py` selects exactly the *notes* with no row, so it can be stopped and
+run again. Both writers use `ON CONFLICT DO NOTHING` — the first list stands.
+
+**Example:** `(note 019bd3…, {see,look,watch,view}, 'claude-sonnet-5', 'v5', …)`.
+
 ---
 
 ## 6. Ingestion and the worker — shared
@@ -1005,6 +1026,28 @@ acknowledgement was lost, and counting it inflates `count(card_flag)` — the nu
 above. `(review_session_id, card_id)` separates them: a flagged position is answered, so the reader
 cannot reach it again **inside that run**, and a genuine second flag carries a different
 `review_session_id`. It is the same guard `review_log` has on the same pair (§7.5, ADR 0055).
+
+### 7.9 `meaning_synonym`
+
+⚠️ **Added 2026-09-21 with [#28](https://github.com/yutaasakura96/kioku/issues/28), migration
+`0006`.** [ADR 0069](adr/0069-the-check-is-the-grade.md) §2: a meaning the check refused, which the
+reader added as their own synonym with `S` on the back of the *card*.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `uuidv7()` | PK |
+| `owner_id` | `text` | no | — | → `auth."user".id`, `RESTRICT` |
+| `note_id` | `uuid` | no | — | → `note`, `RESTRICT` — the reader's own data, which no cascade may reach |
+| `text` | `text` | no | — | What was typed, trimmed. `CHECK (length(btrim(text)) > 0)`; normalised at match time, not here |
+| `created_at` | `timestamptz` | no | `now()` | |
+
+`UNIQUE (owner_id, note_id, text)` — the outbox's idempotency, and the snapshot's lookup.
+
+⚠️ **The reader's and the *note*'s, never the *note*'s alone**: it touches neither `note.fields` nor
+§5.8. ⚠️ **Unlike §7.8, a replay is deduplicated**, and the difference is the point: a second flag is
+a second signal, and a second identical synonym is the same fact. **There is no synonym for a
+reading.** `count(*)` here is ADR 0069's revisit signal (`synonymCount`,
+`server/utils/review/synonym.ts`); it is not on `/stats`.
 
 ---
 

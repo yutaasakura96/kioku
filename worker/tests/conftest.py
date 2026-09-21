@@ -106,6 +106,9 @@ SCRATCH_TABLES = (
     "note_field_provenance",
     "level_claim",
     "domain_claim",
+    # ADR 0069 §3 — written by `write_notes` and by `backfill.py`, and it goes
+    # with its *note*.
+    "note_meaning",
     "ingestion_chunk",
     "job",
     "ingestion",
@@ -120,7 +123,7 @@ Docker is not available, and this test needs a real Postgres 18 container.
 
 ⚠️ Every red test below is in one of the worker's six database files —
 `test_jobs.py`, `test_runs.py`, `test_reconnect.py`, `test_ingest.py`,
-`test_generation.py` and `test_scratch_cleanup.py`. (`worker/tests/README.md`
+`test_generation.py`, `test_backfill.py` and `test_scratch_cleanup.py`. (`worker/tests/README.md`
 carries how many that is; this message names the files, because those are what
 you are looking at.)
 

@@ -10,6 +10,13 @@
  * proposal, `1`–`4` commit any *grade*, `X` flags. `space` no longer reveals,
  * because there is nothing left to reveal by hand. `Esc` leaves from anywhere.
  *
+ * ⚠️ **Amended 2026-09-21 by
+ * [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md) §1–§2: the check is
+ * the *grade*.** The four controls are gone and **the digits commit nothing**.
+ * `Enter` commits the check's *grade*; `S` adds a refused meaning as the
+ * reader's synonym, after which the check runs again and `Enter` commits what it
+ * says then. Whether `S` is offered is `synonymOffered`'s, not this map's.
+ *
  * ⚠️ **The map depends on the step, and that is the whole reason it is a seam.**
  * A *grade* is arithmetic that cannot be undone (ADR 0016, `03` §2.4), so a digit
  * pressed before the reader has answered must do nothing at all. While a field
@@ -64,21 +71,26 @@ export type ReviewStep = 'reading' | 'meaning' | 'back'
 
 export type ReviewAction
   = | { kind: 'commit' }
-    | { kind: 'grade', grade: Grade }
+    | { kind: 'synonym' }
     | { kind: 'flag' }
     | { kind: 'leave' }
 
-/** ADR 0034: the labels name recall, because this configuration cannot name a time. */
-export const GRADE_KEYS: { key: string, grade: Grade, label: string }[] = [
+/**
+ * ADR 0034: the labels name recall, because this configuration cannot name a
+ * time. ⚠️ **Four labels for two *grades* the check gives** (ADR 0069 §1): the
+ * back names the one it will commit, and `/stats` and the tally still read
+ * whatever `review_log` holds, including the Hard and Easy given before #28.
+ */
+export const GRADE_LABELS: Record<Grade, string> = {
   // ⚠️ **`Again` does not survive.** With `enable_short_term: false` the soonest
   // a graded *card* returns is tomorrow, so `Again` would promise a same-day
   // return this configuration cannot make (verification §13.1). `Forgot` names
   // the lapse the library itself counts.
-  { key: '1', grade: 1, label: 'Forgot' },
-  { key: '2', grade: 2, label: 'Hard' },
-  { key: '3', grade: 3, label: 'Good' },
-  { key: '4', grade: 4, label: 'Easy' },
-]
+  1: 'Forgot',
+  2: 'Hard',
+  3: 'Good',
+  4: 'Easy',
+}
 
 function modified(event: Keystroke): boolean {
   return event.ctrlKey || event.metaKey || event.altKey
@@ -101,7 +113,7 @@ export function reviewAction(event: ReviewKeystroke, step: ReviewStep, fromField
   if (fromField || step !== 'back' || event.repeat)
     return null
 
-  // ⚠️ **`Enter` commits the proposal and never checks again.** The results are
+  // ⚠️ **`Enter` commits the check's *grade* and never checks again.** The results are
   // already on the back; a second `Enter` from the meaning field that fell
   // through to here would grade a *card* the reader has not yet looked at, which
   // is why the page moves focus to the container only after the back renders.
@@ -111,12 +123,12 @@ export function reviewAction(event: ReviewKeystroke, step: ReviewStep, fromField
   if (event.key === 'x' || event.key === 'X')
     return { kind: 'flag' }
 
-  const pressed = GRADE_KEYS.find(entry => entry.key === event.key)
+  if (event.key === 's' || event.key === 'S')
+    return { kind: 'synonym' }
 
-  if (!pressed)
-    return null
-
-  return { kind: 'grade', grade: pressed.grade }
+  // ⚠️ **The digits are not in the map at all** (ADR 0069 §1). A `3` on the
+  // back is nothing, rather than a *grade* the check did not give.
+  return null
 }
 
 /** An answer field's own map: `Enter` checks what was typed, and nothing else is ours. */

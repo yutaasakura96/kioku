@@ -1,10 +1,11 @@
-// *Review*'s key map — ADR 0060's typed answers, and ADR 0034's four digits.
+// *Review*'s key map — ADR 0060's typed answers, as amended by ADR 0069: the
+// check is the *grade*, so the digits commit nothing anywhere.
 //
 // ⚠️ **The map is step-dependent and that is the point of testing it.** A
-// *grade* is arithmetic that cannot be undone (ADR 0016, `03` §2.4), so a digit
-// pressed before the reader has answered must do nothing at all — and once the
-// front is a text field, a digit or an `x` typed there is an answer being
-// written, not a command.
+// *grade* is arithmetic that cannot be undone (ADR 0016, `03` §2.4), so nothing
+// pressed before the reader has answered may commit one — and once the front is
+// a text field, an `s` or an `x` typed there is an answer being written, not a
+// command.
 
 import { describe, expect, it } from 'vitest'
 
@@ -39,7 +40,7 @@ describe('a held key is never an answer', () => {
 describe('the front — two fields, and nothing grades', () => {
   // ⚠️ The assertion this file exists for.
   it.each(['reading', 'meaning'] as const)('ignores every command key on the %s step', (step) => {
-    for (const key of ['1', '2', '3', '4', ' ', 'x', 'X', 'Enter']) {
+    for (const key of ['1', '2', '3', '4', ' ', 'x', 'X', 's', 'S', 'Enter']) {
       expect(reviewAction(press(key), step, true)).toBeNull()
       expect(reviewAction(press(key), step, false)).toBeNull()
     }
@@ -74,18 +75,20 @@ describe('a field checks on Enter', () => {
   })
 })
 
-describe('the back — the proposal, four grades, and the flag', () => {
-  it('commits the proposal on Enter', () => {
+describe('the back — the check\'s grade, the synonym, and the flag', () => {
+  it('commits the check\'s grade on Enter', () => {
     expect(reviewAction(press('Enter'), 'back', false)).toEqual({ kind: 'commit' })
   })
 
-  it.each([
-    ['1', 1],
-    ['2', 2],
-    ['3', 3],
-    ['4', 4],
-  ] as const)('%s grades %i, whatever was proposed', (key, grade) => {
-    expect(reviewAction(press(key), 'back', false)).toEqual({ kind: 'grade', grade })
+  // ⚠️ ADR 0069 §1: **the assertion the override's removal rests on.** No key
+  // reaches a *grade* the check did not give.
+  it.each(['1', '2', '3', '4'])('commits nothing on %s', (key) => {
+    expect(reviewAction(press(key), 'back', false)).toBeNull()
+  })
+
+  it('adds a synonym on S', () => {
+    expect(reviewAction(press('s'), 'back', false)).toEqual({ kind: 'synonym' })
+    expect(reviewAction(press('S', { shiftKey: true }), 'back', false)).toEqual({ kind: 'synonym' })
   })
 
   it('flags on X', () => {

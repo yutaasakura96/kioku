@@ -43,6 +43,13 @@
       "when": 1789737531335,
       "tag": "0005_review_brake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789969848420,
+      "tag": "0006_note_meaning_and_synonym",
+      "breakpoints": true
     }
   ]
 }

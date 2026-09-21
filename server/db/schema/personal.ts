@@ -429,3 +429,41 @@ export const cardFlag = pgTable(
       .where(sql`${t.resolvedAt} is null`),
   ],
 )
+
+/**
+ * `04` §7.9 — [ADR 0069](../../../docs/adr/0069-the-check-is-the-grade.md) §2:
+ * **a meaning the check refused, which the reader said was right.**
+ *
+ * ⚠️ **The reader's and the *note*'s, never the *note*'s alone.** One reader's
+ * "look" for 見る is evidence about that reader's English, not a correction of
+ * the *note*, so it never reaches `note.fields` (ADR 0052) or `note_meaning`.
+ *
+ * ⚠️ **Server-side, and through the outbox** (ADR 0039): it outlives the device,
+ * and adding one survives the network the way a *grade* does. The replay can
+ * send the same one twice, so the unique key is the idempotency and the insert
+ * is `ON CONFLICT DO NOTHING`.
+ *
+ * ⚠️ **`RESTRICT` on both parents.** A synonym is the reader's own and cannot be
+ * rebuilt, so no cascade reaches it — the file header's rule.
+ *
+ * `count(*)` over this table, per *note* or per reader, is ADR 0069's revisit
+ * signal: many synonyms means the model's lists are thin.
+ */
+export const meaningSynonym = pgTable(
+  'meaning_synonym',
+  {
+    id: primaryId(),
+    ownerId: ownerId(),
+    noteId: uuid('note_id')
+      .notNull()
+      .references(() => note.id, { onDelete: 'restrict' }),
+    /** What the reader typed, trimmed. Normalised at match time, not here. */
+    text: text('text').notNull(),
+    createdAt: tstz('created_at').notNull().defaultNow(),
+  },
+  t => [
+    check('meaning_synonym_text', sql`length(btrim(${t.text})) > 0`),
+    // The idempotency key, and the lookup the snapshot makes (owner, then note).
+    unique('meaning_synonym_owner_note_text').on(t.ownerId, t.noteId, t.text),
+  ],
+)

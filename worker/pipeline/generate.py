@@ -71,7 +71,11 @@ from .deduplicate import Group
 #: to the v3 question and will simply never be asked for again, so the next
 #: re-ingestion of an already-generated *chunk* pays full price. `04` §10 calls
 #: `generation_cache` the one table safe to truncate, for this reason.
-PROMPT_VERSION = "v4"
+#:
+#: ⚠️ **v5 is ADR 0069's**, #28: every word is also asked for ``meanings``, the
+#: list of English answers the *Review* check accepts, which changes the prompt
+#: and the schema of every chunk.
+PROMPT_VERSION = "v5"
 
 #: ⚠️ **Keyed by the declaration's own field names, and a judgement field with no
 #: entry here raises.** The declaration says *which* fields exist (ADR 0003); a
@@ -99,6 +103,18 @@ FIELD_INSTRUCTIONS: Mapping[str, str] = {
 #: the declaration boundary sees it, and `write_notes` writes them to their own
 #: tables. The names are the claim tables' value columns.
 CLAIM_NAMES = ("level", "domain")
+
+#: ⚠️ **ADR 0069 §3's list, asked beside the fields and never among them** — the
+#: claims' rule for the same reason. The list is check data about the *note*, not
+#: its content, so it goes to `note_meaning` and ADR 0052's freeze on
+#: `note.fields` never has to bend for it.
+MEANINGS_NAME = "meanings"
+
+#: A list longer than this is a thesaurus, not the answers a learner would give;
+#: one entry longer than this is a sentence. Both are trimmed, not refused —
+#: the word is worth more than a tidy list.
+MAX_MEANINGS = 8
+MAX_MEANING_LENGTH = 60
 
 #: Enough room for a chunk's worth of notes and no more. ADR 0041 caps a chunk
 #: at 1200 characters (`shared/ingest/chunk.ts`; `04` §5.2 carries no constraint), so a chunk that somehow produced this many
@@ -169,6 +185,11 @@ class GeneratedNote:
     #: word. ``None`` is an answer that was not a string at all.
     level: str | None = None
     domain: str | None = None
+    #: ADR 0069 §3 — the accepted meanings, cleaned. ⚠️ **Empty is an answer
+    #: that carried none** (a response from before v5, or one that sent junk):
+    #: no `note_meaning` row is written, the check falls back to `meaning`, and
+    #: the backfill finds the *note* later.
+    meanings: tuple[str, ...] = ()
 
 
 def needs_a_reading(group: Group) -> bool:
@@ -214,6 +235,8 @@ def output_schema(declaration: Declaration) -> dict[str, Any]:
         *judgement_field_names(declaration),
         *CLAIM_NAMES,
     ]
+    properties: dict[str, Any] = {name: {"type": "string"} for name in names}
+    properties[MEANINGS_NAME] = {"type": "array", "items": {"type": "string"}}
     return {
         "type": "object",
         "properties": {
@@ -221,8 +244,8 @@ def output_schema(declaration: Declaration) -> dict[str, Any]:
                 "type": "array",
                 "items": {
                     "type": "object",
-                    "properties": {name: {"type": "string"} for name in names},
-                    "required": names,
+                    "properties": properties,
+                    "required": [*names, MEANINGS_NAME],
                     "additionalProperties": False,
                 },
             }
@@ -321,6 +344,19 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         "Write each value exactly as listed, and no other value."
     )
 
+    # ⚠️ **ADR 0069 §3.** The learner types an English meaning and the check
+    # compares it with this list, so the list is what a learner who knows the
+    # word would type — not every sense in a dictionary.
+    meanings_rule = (
+        "\n\nACCEPTED MEANINGS\n"
+        f"For every word also write `{MEANINGS_NAME}`: a list of two to six short "
+        "English answers, any of which a learner who knows the word might type "
+        "when asked what it means. Single words or short phrases, no articles, "
+        "no explanations. Include the plain words inside your `meaning` and the "
+        "common near-synonyms of the sense the passage uses — for 見る: see, look, "
+        "watch, view. Do not include senses the passage does not use."
+    )
+
     return (
         # ⚠️ *Note* and not *card*, and certainly not *flashcard*: `CONTEXT.md`
         # gives *Card* an `_Avoid_` list with `flashcard` on it, and this stage
@@ -343,7 +379,8 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
         "exactly as given — they identify the entry and must not be corrected, "
         "re-read or re-spelled. Then write:\n"
         f"{wanted}"
-        f"{claims_rule}\n\n"
+        f"{claims_rule}"
+        f"{meanings_rule}\n\n"
         "Write nothing else. Do not add words the list does not carry, and do not "
         "skip a word because it seems too easy or too hard."
     )
@@ -481,7 +518,9 @@ def _generated(
     # The claims come off before the boundary: `validate` would call them
     # `unknown`, and rightly, because they are not *fields*.
     claimed = {name: arrived.get(name) for name in CLAIM_NAMES}
-    arrived = {name: value for name, value in arrived.items() if name not in CLAIM_NAMES}
+    meanings = clean_meanings(arrived.get(MEANINGS_NAME))
+    taken = {*CLAIM_NAMES, MEANINGS_NAME}
+    arrived = {name: value for name, value in arrived.items() if name not in taken}
     fields = _assemble(declaration, group, arrived)
     generated_lookups = frozenset({"reading"}) if needs_a_reading(group) else frozenset()
     return GeneratedNote(
@@ -494,7 +533,34 @@ def _generated(
         generated_lookups=generated_lookups,
         level=_claim(claimed["level"]),
         domain=_claim(claimed["domain"]),
+        meanings=meanings,
     )
+
+
+def clean_meanings(value: Any) -> tuple[str, ...]:
+    """ADR 0069 §3's list as it may be stored — strings, trimmed, deduplicated
+    without regard to case, capped.
+
+    ⚠️ **Never raises.** A list the model got wrong costs the list and never the
+    *note*: an empty result writes no `note_meaning` row, which is exactly the
+    state the check already handles (it falls back to `meaning`). The backfill
+    (`worker/backfill.py`) uses this too, so both writers store one shape.
+    """
+    if not isinstance(value, list):
+        return ()
+    seen: set[str] = set()
+    kept: list[str] = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        text = " ".join(item.split())
+        if not text or len(text) > MAX_MEANING_LENGTH or text.casefold() in seen:
+            continue
+        seen.add(text.casefold())
+        kept.append(text)
+        if len(kept) == MAX_MEANINGS:
+            break
+    return tuple(kept)
 
 
 def _claim(value: Any) -> str | None:

@@ -105,6 +105,13 @@ async function grades(): Promise<number> {
   return result.rows[0]!.n
 }
 
+async function flagRows(): Promise<number> {
+  const result = await database.client.query<{ n: number }>(
+    'SELECT count(*)::int AS n FROM card_flag;',
+  )
+  return result.rows[0]!.n
+}
+
 async function sessions(where = 'true'): Promise<number> {
   const result = await database.client.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM review_session WHERE ${where};`,
@@ -153,17 +160,18 @@ describe('the key handlers bind to the mode container', () => {
 
     await turn(page)
 
+    // ⚠️ `x` and not `Enter`: `Enter` on a focused link follows it, which is
+    // the link's behaviour and proves nothing about where the handler lives.
     await page.getByRole('link', { name: /Done/ }).focus()
-    await page.keyboard.press('3')
     await page.keyboard.press('x')
     await page.waitForTimeout(250)
 
-    // A `document`-bound handler passes both of those through.
-    expect(await grades(), 'a keystroke acted while focus was outside the mode container').toBe(0)
+    // A `document`-bound handler passes that through.
+    expect(await flagRows(), 'a keystroke acted while focus was outside the mode container').toBe(0)
     expect(await page.locator('.value.meaning').count(), 'the card moved on from outside the container').toBe(1)
 
     await page.locator('.container').focus()
-    await page.keyboard.press('3')
+    await page.keyboard.press('Enter')
     await expect.poll(grades, { timeout: 5_000 }).toBe(1)
 
     await page.close()
@@ -177,7 +185,7 @@ describe('one session, from the rail to the end screen', () => {
     await acceptedCard('会議␟かいぎ')
   })
 
-  it('answers by typing, commits the proposal, and ends without starting another', async () => {
+  it('answers by typing, commits the check\'s grade, and ends without starting another', async () => {
     const page = await openReview()
 
     // ⚠️ The rail is the header and the only progress indicator in the app
@@ -208,14 +216,20 @@ describe('one session, from the rail to the end screen', () => {
     await page.keyboard.press('Enter')
     await page.locator('.value.meaning').waitFor()
 
-    // ADR 0034's labels — recall, not time. `Again` would promise a same-day
-    // return this configuration cannot make.
+    // ADR 0034's labels — recall, not time — naming the one *grade* the check
+    // gave (ADR 0069 §1). `Again` would promise a same-day return this
+    // configuration cannot make.
     const footer = await page.locator('.legend').textContent()
-    expect(footer).toContain('Forgot')
     expect(footer).not.toContain('Again')
-    expect(await page.locator('.grade.proposed').textContent()).toContain('Good')
+    expect(await page.locator('.commit').textContent()).toContain('Good')
 
-    // ⚠️ `Enter` commits the proposal, stamped at this keystroke (ADR 0060 §4).
+    // ⚠️ **No digit overrules it** (ADR 0069 §1): a `1` on the back is nothing.
+    await page.keyboard.press('1')
+    await page.waitForTimeout(250)
+    expect(await grades(), 'a digit committed a grade the check did not give').toBe(before)
+
+    // ⚠️ `Enter` commits the check's *grade*, stamped at this keystroke
+    // (ADR 0060 §4).
     await page.keyboard.press('Enter')
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
 
@@ -294,7 +308,7 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
     // ⚠️ **The interface never waits on the flush** (`S8`): both answers are
     // given, and the run ends, with nothing reachable.
     await turn(page)
-    await page.keyboard.press('3')
+    await page.keyboard.press('Enter')
 
     // `S9`'s `X` — the outbox's second entry type, behind a *grade* for a
     // different *card* (ADR 0039 property 3). Since ADR 0060 it is on the back
@@ -378,6 +392,49 @@ describe('a kana-only term', () => {
 
     await page.keyboard.press('Enter')
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+
+    const latest = await database.client.query<{ rating: number }>(
+      'SELECT rating FROM review_log ORDER BY received_at DESC LIMIT 1;',
+    )
+    expect(latest.rows[0]!.rating).toBe(3)
+
+    await page.close()
+  })
+})
+
+// ADR 0069 §2: a refused meaning becomes the reader's synonym, the check runs
+// again, and the *grade* is what it says then. ⚠️ Last with the kana case, for
+// the same reason: every earlier *card* is answered, so this run is one *card*.
+describe('a refused meaning the reader was right about', () => {
+  beforeAll(async () => {
+    await acceptedCard('見る␟みる', {
+      ...FIELDS,
+      term: '見る',
+      reading: 'みる',
+      part_of_speech: '動詞',
+      meaning: 'to see/have (a dream)',
+    })
+  })
+
+  it('becomes a synonym, and the card is graded Good', async () => {
+    const page = await openReview()
+    const before = await grades()
+
+    await turn(page, 'miru', 'look')
+
+    expect(await page.locator('.commit').textContent()).toContain('Forgot')
+
+    await page.keyboard.press('s')
+    await page.locator('.commit', { hasText: 'Good' }).waitFor()
+    await page.keyboard.press('Enter')
+
+    await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+    await expect.poll(async () => {
+      const result = await database.client.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM meaning_synonym WHERE text = 'look' AND owner_id = '${reader.userId}';`,
+      )
+      return result.rows[0]!.n
+    }, { timeout: 5_000 }).toBe(1)
 
     const latest = await database.client.query<{ rating: number }>(
       'SELECT rating FROM review_log ORDER BY received_at DESC LIMIT 1;',

@@ -138,6 +138,45 @@ export function parseFlag(body: unknown): FlagParseResult {
   return { ok: true, flag: { sessionId: body.sessionId, cardId: body.cardId } }
 }
 
+export interface SynonymBody {
+  sessionId: string
+  cardId: string
+  /** Trimmed. Normalised at match time, never here (`shared/review/answer.ts`). */
+  text: string
+}
+
+export type SynonymErrorCode = 'not_an_object' | 'bad_session_id' | 'bad_card_id' | 'bad_text'
+
+export type SynonymParseResult
+  = | { ok: true, synonym: SynonymBody }
+    | { ok: false, code: SynonymErrorCode }
+
+/**
+ * ⚠️ **A meaning is a few words, so a long one is refused.** The field is free
+ * text and the row is permanent; 200 code points is far past any gloss and short
+ * of anything pasted by accident.
+ */
+export const SYNONYM_MAX_LENGTH = 200
+
+/** ADR 0069 §2 — the outbox's third entry type. Like a flag, it carries no stamp. */
+export function parseSynonym(body: unknown): SynonymParseResult {
+  if (!isRecord(body))
+    return { ok: false, code: 'not_an_object' }
+
+  if (!isUuid(body.sessionId))
+    return { ok: false, code: 'bad_session_id' }
+
+  if (!isUuid(body.cardId))
+    return { ok: false, code: 'bad_card_id' }
+
+  const text = typeof body.text === 'string' ? body.text.trim() : ''
+
+  if (text === '' || [...text].length > SYNONYM_MAX_LENGTH)
+    return { ok: false, code: 'bad_text' }
+
+  return { ok: true, synonym: { sessionId: body.sessionId, cardId: body.cardId, text } }
+}
+
 /**
  * The *session*-size knob (`10` §5.8, `09` §4.7).
  *
