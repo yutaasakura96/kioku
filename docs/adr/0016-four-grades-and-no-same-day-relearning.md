@@ -9,6 +9,11 @@ The placeholder becomes the decision.
 
 ## Why all four
 
+⚠️ **Overridden 2026-09-21 by [ADR 0069](0069-the-check-is-the-grade.md).** The *grade* is now the
+result of the typed check, so only `1` and `3` are emitted. The untrained-weights cost below is real
+and ADR 0069 accepts it; nothing in Kioku trains the weights yet. The no-same-day-relearning half of
+this ADR stands.
+
 `Rating` is `Again = 1, Hard = 2, Good = 3, Easy = 4`, with `Manual = 0` explicitly excluded from
 the `Grade` type as an operator escape hatch. A two-button app is legal — map onto `Again` and
 `Good` — but **the grade value is load-bearing arithmetic, not a label**: it appears as `G` inside

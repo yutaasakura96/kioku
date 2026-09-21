@@ -10,9 +10,9 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **twenty-nine more ADRs** with it — **68** as of 2026-09-19: five are the
+code since 2026-09-09 and **thirty more ADRs** with it — **69** as of 2026-09-21: five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
-languages, and ADR 0068 decides how an Anki deck gets in (⚠️ this said *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
+languages, ADR 0068 decides how an Anki deck gets in, and ADR 0069 makes the typed check the *grade*, from the reader's first *session* (⚠️ this said *68* until 2026-09-21, *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
 before). ⚠️ **#26 added no ADR and amended ADR 0068 in place** (2026-09-20: a deck name contributes
 only the words in it that name a level, on the re-measurement that ADR asked #26 for). ⚠️ **#21 added no ADR and amended ADR 0066 in place** (where the reader's zone is stored, and four
 other things the build settled). ⚠️ **#23 added no ADR and corrected one**: ADR 0037's amended table said a day boundary was
@@ -40,9 +40,11 @@ through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue
 drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **retention**,
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
-*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is empty of
-`ready-for-agent` work**: [#26](https://github.com/yutaasakura96/kioku/issues/26), Anki import, was
-built 2026-09-20 and #25 is `needs-triage` (⚠️ the frontier was #26 from 2026-09-19, empty from #21's
+*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
+[#27](https://github.com/yutaasakura96/kioku/issues/27), [#28](https://github.com/yutaasakura96/kioku/issues/28)
+and [#29](https://github.com/yutaasakura96/kioku/issues/29)**, all from ADR 0069 on 2026-09-21.
+[#26](https://github.com/yutaasakura96/kioku/issues/26), Anki import, was
+built 2026-09-20 and #25 is `needs-triage` (⚠️ the frontier was empty from #26's build until 2026-09-21, #26 from 2026-09-19, empty from #21's
 build on 2026-09-18, #21 until it was built that day, #23 until earlier that day and #22 until
 2026-09-17). **An `.apkg` is unpacked by the app** into a `term⇥reading⇥hint` word list on
 `node:zlib` and `node:sqlite`, with no new dependency (ADR 0068).

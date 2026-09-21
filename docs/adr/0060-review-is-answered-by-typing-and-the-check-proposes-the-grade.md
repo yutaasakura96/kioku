@@ -13,6 +13,12 @@ Self-grading asks the reader to judge his own recall honestly, card after card. 
 judgement in the app and makes recall observable. `docs/first-run-expectation.md` Part 4 records the
 exchange.
 
+⚠️ **Amended 2026-09-21 by [ADR 0069](0069-the-check-is-the-grade.md), from the reader's first
+*session*.** §3's proposal becomes the *grade* itself — no override, and a refused meaning becomes a
+synonym instead. §5's single `meaning` string becomes a list of accepted meanings plus the reader's
+synonyms, a kana-only term loses its reading step, and a kanji's reading typed for the word's is a
+retry. §4, §6, §7 and §8 stand.
+
 ## What is decided
 
 **1. It is an interaction, not a *template*.** The recognition *template* is unchanged: prompt `term`,

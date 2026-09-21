@@ -3,7 +3,7 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**68 ADRs** — ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
+**69 ADRs** — ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
 contributes only the words in it that name a level, on the re-measurement that ADR asked #26 for).
 ⚠️ **This said *67* until 2026-09-20, while ADR 0068 had been on disk and in the decision log since
 2026-09-19** — the commit that wrote the ADR updated `CLAUDE.md`'s count and not this one.
@@ -1714,6 +1714,21 @@ Seven findings worth knowing without opening it:
   Python driver.
 
 ## Next
+
+⚠️ **2026-09-21: the reader's run started, and its first *session* produced
+[ADR 0069](adr/0069-the-check-is-the-grade.md) and three tickets.** The typed check becomes the
+*grade* with no override; a refused meaning can become the reader's synonym; a *note* carries a list
+of accepted meanings; a kana-only term skips the reading step; and a kanji's reading typed for the
+word's becomes a retry.
+- [#27](https://github.com/yutaasakura96/kioku/issues/27) — kana-only terms skip the reading step.
+  Small, `ready-for-agent`.
+- [#28](https://github.com/yutaasakura96/kioku/issues/28) — the check is the *grade*, accepted
+  meanings, reader synonyms, and the backfill. `ready-for-agent`. ⚠️ The backfill spends model money
+  on Neon, and Yuta approves that run.
+- [#29](https://github.com/yutaasakura96/kioku/issues/29) — KANJIDIC2 research. The build ticket
+  waits on Yuta's licence call.
+⚠️ **Until #28 lands, the digits still override**, and a correct meaning the check refuses can be
+committed as `3`.
 
 ⚠️ **The 2026-09-16 pivot is decided. Five ADRs, 0062 to 0066, and seven issues, #19 to #25.**
 It was agreed in conversation on 2026-09-16 and written down the same day. **Read the ADRs, not this

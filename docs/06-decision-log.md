@@ -1511,6 +1511,14 @@ Runtimes: read-only filesystem *"with writable /tmp scratch space up to 500 MB"*
 documented `TMPDIR`/`TMP`/`TEMP` fallback, none of which Vercel sets. `engines` keeps 22.x and
 `deserialize()` stays out. **No deployment has observed it**, and the first one carries that.
 
+### [2026-09-21] The check is the grade
+From the reader's first *session*: the typed check's result is the *grade* (Good or Forgot) with no
+override. A refused meaning can become the reader's synonym instead. A *note* carries a list of
+accepted meanings, a kana-only term skips the reading step, and a kanji's reading typed for the
+word's is a retry once KANJIDIC2 is researched. Amends ADR 0060 §3 and §5, and overrides ADR 0016's
+four-grade requirement.
+→ [ADR 0069](adr/0069-the-check-is-the-grade.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:
