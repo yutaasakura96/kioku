@@ -44,8 +44,8 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 [#29](https://github.com/yutaasakura96/kioku/issues/29)**, from ADR 0069 on 2026-09-21.
 [#27](https://github.com/yutaasakura96/kioku/issues/27), the kana-only reading skip, and
 [#28](https://github.com/yutaasakura96/kioku/issues/28), the check as the *grade*, were built the
-same day (⚠️ the frontier named both until then). ⚠️ **#28's backfill has not run**: Neon needs
-`0006`, then Yuta approves the `--estimate` figure (`docs/00-status.md` § Next).
+same day (⚠️ the frontier named both until then). ⚠️ **#28's backfill has not run**: `0006` is on
+Neon and `--estimate` says $0.17–$0.31 for 475 *notes*; the run waits on Yuta (`docs/00-status.md` § Next).
 [#26](https://github.com/yutaasakura96/kioku/issues/26), Anki import, was
 built 2026-09-20 and #25 is `needs-triage` (⚠️ the frontier was empty from #26's build until 2026-09-21, #26 from 2026-09-19, empty from #21's
 build on 2026-09-18, #21 until it was built that day, #23 until earlier that day and #22 until
@@ -76,7 +76,7 @@ client to ask. ⚠️ It fed **UTC** until #21.
 [#21](https://github.com/yutaasakura96/kioku/issues/21) alone after #23, and has no
 `ready-for-agent` ticket since #21 was built later on 2026-09-18** (⚠️ it named #20 and #22 until
 2026-09-17 and #23 until 2026-09-18); ⚠️ **Neon is migrated through `0005` as of 2026-09-19** (this said `0003` to `0005` were unapplied
-until then, and `0003` never was), ⚠️ **and `0006` (#28) is not applied yet**; ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
+until then, and `0003` never was), ⚠️ **and through `0006` (#28) as of 2026-09-21**; ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
 row like any other; `S12`'s export is the one thing
 still unticketed, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
