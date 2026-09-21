@@ -41,6 +41,3 @@ __pycache__/
 
 # TypeScript incremental build info
 *.tsbuildinfo
-
-# CodeGraph trial — local index, machine-specific
-.codegraph/

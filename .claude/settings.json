@@ -2,23 +2,5 @@
   "enabledPlugins": {
     "mattpocock-skills@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": false
-  },
-  "enabledMcpjsonServers": ["codegraph"],
-  "permissions": {
-    "allow": [
-      "mcp__codegraph__*"
-    ]
-  },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "codegraph prompt-hook"
-          }
-        ]
-      }
-    ]
   }
 }
