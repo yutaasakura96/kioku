@@ -1770,9 +1770,19 @@ word's becomes a retry.
   gloss's sense literally. `generate`'s v5 prompt asks for near-synonyms and does not have this
   shape. The designed answer is `S` in the reader's next *session*; the alternative, deleting the
   rows and re-running a loosened prompt, is about $0.17 again and Yuta has not asked for it. ⚠️ The backfill spends model money, and Yuta
-  approves that run.
+  approves that run. ⚠️ **Yuta chose `S` on 2026-09-21**: the lists stay as backfilled, he adds
+  *look* in his next *session*, and `synonymCount` is the signal for whether a re-run is ever owed.
 - [#29](https://github.com/yutaasakura96/kioku/issues/29) — KANJIDIC2 research. The build ticket
-  waits on Yuta's licence call.
+  waits on Yuta's licence call. ⚠️ **The research is written as of 2026-09-21**:
+  [`kanjidic-research.md`](kanjidic-research.md), with six calls for Yuta in §7. The licence is
+  CC BY-SA 4.0, and EDRDG §4 also requires regular updates: stale data "is a violation of the
+  licence". Re-read at the source the same day. ⚠️ **Yuta made the calls the same day** (research
+  §7): commit a derived table with a notice and a monthly manual refresh; the acknowledgement goes
+  in a notice file and a footer line; **the reach is all three classes, compounds included**, which
+  goes past the research's recommendation; the server computes each position's candidates; one
+  retry per step; the message names no reading. **The build ticket is
+  [#30](https://github.com/yutaasakura96/kioku/issues/30), `ready-for-agent`, and it is the
+  frontier.**
 ~~⚠️ **Until #28 lands, the digits still override**, and a correct meaning the check refuses can be
 committed as `3`.~~ ⚠️ **#28 landed: the check is the *grade*, and `S` is the answer to a refusal.**
 

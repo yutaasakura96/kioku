@@ -41,7 +41,8 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
-[#29](https://github.com/yutaasakura96/kioku/issues/29)**, from ADR 0069 on 2026-09-21.
+[#30](https://github.com/yutaasakura96/kioku/issues/30)**, the kanji-reading retry, from ADR 0069 and
+the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) on 2026-09-21 (⚠️ it named #29 until then).
 [#27](https://github.com/yutaasakura96/kioku/issues/27), the kana-only reading skip, and
 [#28](https://github.com/yutaasakura96/kioku/issues/28), the check as the *grade*, were built the
 same day (⚠️ the frontier named both until then). ⚠️ **#28's backfill ran on Neon the same day**
