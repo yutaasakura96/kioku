@@ -35,6 +35,19 @@ withDefaults(
 
       <slot />
     </main>
+
+    <!-- ⚠️ **EDRDG's licence §3 asks for the acknowledgement on the app's site**,
+         with links (#30, `docs/kanjidic-research.md` §7 call 2). It sits on the
+         three *places* and not in a *mode*, which has no chrome (ADR 0013); the
+         retry *Review* shows quotes nothing from the file, so no screen owes it
+         per display. `server/data/kanjidic/NOTICE.md` is the repository's half. -->
+    <footer :style="{ '--measure': measure }">
+      Kanji readings from
+      <a href="https://www.edrdg.org/wiki/index.php/KANJIDIC_Project">KANJIDIC2</a>,
+      © EDRDG, used under its
+      <a href="https://www.edrdg.org/edrdg/licence.html">licence</a>
+      (<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>).
+    </footer>
   </div>
 </template>
 
@@ -45,5 +58,19 @@ main {
   /* `10` §3.2: the start block sits `28px` below the bar's rule, `--k-gutter`
      aligned, with no rule of its own. */
   padding: var(--k-space-6) var(--k-gutter) var(--k-space-10);
+}
+
+/* One quiet line under the page, in the fact row's 10px mono (`05` §4). */
+footer {
+  max-width: var(--measure);
+  padding: 0 var(--k-gutter) var(--k-space-6);
+  font-family: var(--k-face-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--k-ink-quiet);
+}
+
+footer a {
+  color: inherit;
 }
 </style>

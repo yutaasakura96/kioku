@@ -1518,6 +1518,8 @@ accepted meanings, a kana-only term skips the reading step, and a kanji's readin
 word's is a retry once KANJIDIC2 is researched. Amends ADR 0060 §3 and §5, and overrides ADR 0016's
 four-grade requirement.
 → [ADR 0069](adr/0069-the-check-is-the-grade.md)
+⚠️ **§5 settled 2026-09-21 (#29, #30)**: a committed table derived from KANJIDIC2 (CC BY-SA 4.0,
+refreshed monthly), compounds included by Yuta's call, computed by the server, one retry per step.
 
 ## Adding an entry
 

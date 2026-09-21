@@ -29,6 +29,7 @@ import type { SessionFilter } from '../../../shared/review/filter'
 import { NO_FILTER } from '../../../shared/review/filter'
 import type { Grade } from '../../../shared/review/scheduler'
 import type { IngestDatabase } from '../ingest/record'
+import { kanjiReadingsOf } from './kanji'
 // ⚠️ **The snapshot's shape lives in `shared/`, not here.** It is what crosses
 // the wire, and `shared/review/snapshot.ts` carries the one rule about how a
 // later answer may touch it — the *grades* move, the words do not (PRD §5).
@@ -312,16 +313,22 @@ export async function snapshotOf(
     sessionId: session.id,
     size: session.size,
     snapshotTakenAt: session.snapshotTakenAt,
-    positions: members.map(row => ({
-      ordinal: row.ordinal,
-      cardId: row.cardId,
-      templateKey: row.templateKey,
-      fields: (row.fields ?? {}) as Record<string, string>,
-      meanings: row.meanings ?? [],
-      synonyms: synonyms.get(row.noteId) ?? [],
-      grade: given.get(row.cardId) ?? null,
-      flagged: flagged.has(row.cardId),
-    })),
+    positions: members.map((row) => {
+      const fields = (row.fields ?? {}) as Record<string, string>
+
+      return {
+        ordinal: row.ordinal,
+        cardId: row.cardId,
+        templateKey: row.templateKey,
+        fields,
+        meanings: row.meanings ?? [],
+        synonyms: synonyms.get(row.noteId) ?? [],
+        // ADR 0069 §5: computed here, so the KANJIDIC2 table stays on the server.
+        kanjiReadings: kanjiReadingsOf(fields),
+        grade: given.get(row.cardId) ?? null,
+        flagged: flagged.has(row.cardId),
+      }
+    }),
   }
 }
 

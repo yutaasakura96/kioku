@@ -3,6 +3,7 @@ import { mountSuspended } from '@nuxt/test-utils/runtime'
 import { describe, expect, it } from 'vitest'
 
 import CheckControls from '../../app/components/CheckControls.vue'
+import PlaceShell from '../../app/components/PlaceShell.vue'
 import ProgressRail from '../../app/components/ProgressRail.vue'
 import ReviewAnswer from '../../app/components/ReviewAnswer.vue'
 import ReviewCard from '../../app/components/ReviewCard.vue'
@@ -221,3 +222,21 @@ describe('the answer steps for a kana-only term', () => {
     expect(view.findAll('.given')).toHaveLength(2)
   })
 })
+
+// #30: EDRDG's licence §3 asks for the acknowledgement on the app's site, with
+// links. The *shell* carries it, so every *place* does and no *mode* does.
+describe('the KANJIDIC2 acknowledgement', () => {
+  it('sits under a place with the project, licence and CC BY-SA links', async () => {
+    const view = await mountSuspended(PlaceShell, { props: { origin: '/stats', flagged: 0, due: 0 } })
+    const footer = view.find('footer')
+
+    expect(footer.text()).toContain('KANJIDIC2')
+    expect(footer.text()).toContain('EDRDG')
+    expect(footer.findAll('a').map(link => link.attributes('href'))).toEqual([
+      'https://www.edrdg.org/wiki/index.php/KANJIDIC_Project',
+      'https://www.edrdg.org/edrdg/licence.html',
+      'https://creativecommons.org/licenses/by-sa/4.0/',
+    ])
+  })
+})
+

@@ -57,6 +57,27 @@ export function readingMatches(typed: string, stored: string): boolean {
   return answer === foldReading(stored)
 }
 
+/**
+ * The reading step's result — ADR 0060 §5, and ADR 0069 §5 for `kanji`.
+ *
+ * `kanji` means the reader typed a reading of the term's kanji rather than the
+ * word's (夢, む): the field says so and the reader types again. ⚠️ **The page
+ * allows one such retry per step** (#30); a second `kanji` is graded `wrong`
+ * there, not here, because how many times is the page's state and not the
+ * check's. `kanjiReadings` is the position's list (`shared/review/kanji.ts`),
+ * already without the word's own reading.
+ */
+export type ReadingResult = 'right' | 'kanji' | 'wrong'
+
+export function readingResult(typed: string, stored: string, kanjiReadings: readonly string[]): ReadingResult {
+  if (readingMatches(typed, stored))
+    return 'right'
+
+  const answer = foldReading(typed)
+
+  return answer !== '' && kanjiReadings.some(reading => foldReading(reading) === answer) ? 'kanji' : 'wrong'
+}
+
 /** Lowercase, punctuation stripped, whitespace collapsed, one leading article gone. */
 function normaliseMeaning(text: string): string {
   return text

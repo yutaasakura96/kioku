@@ -36,6 +36,11 @@ const props = defineProps<{
   storedReading: string
   /** ADR 0069 §4: `false` for a kana-only term, which opens on the meaning. */
   asksReading: boolean
+  /**
+   * ADR 0069 §5, #30 — the reader typed a reading of the kanji, not the word's.
+   * The field empties and says so, and the next `Enter` is checked as usual.
+   */
+  retry?: boolean
 }>()
 
 const emit = defineEmits<{ reading: [typed: string], meaning: [typed: string] }>()
@@ -72,6 +77,16 @@ function onKeydown(event: KeyboardEvent, step: 'reading' | 'meaning') {
     emit('meaning', value)
 }
 
+// ⚠️ **Once per *card***: the page raises it at most once for a step, and this
+// component is keyed by *card*, so the watch cannot fire for a stale field.
+watch(() => props.retry, (retry) => {
+  if (!retry || !readingField.value)
+    return
+
+  readingField.value.value = ''
+  readingField.value.focus()
+})
+
 defineExpose({
   focus() {
     const field = props.step === 'meaning' ? meaningField.value : readingField.value
@@ -99,8 +114,15 @@ defineExpose({
         autocapitalize="off"
         spellcheck="false"
         enterkeyhint="next"
+        :aria-describedby="retry ? 'answer-reading-retry' : undefined"
         @keydown="onKeydown($event, 'reading')"
       >
+
+      <!-- ⚠️ **No reading is named**, and none of KANJIDIC2's text is shown
+           (research §7, calls 2 and 6): the table stays on the server. -->
+      <p v-if="retry && step === 'reading'" id="answer-reading-retry" class="retry" role="status">
+        The word's reading, not the kanji's
+      </p>
 
       <p v-else class="given" :class="check.reading ? 'right' : 'wrong'">
         <span class="typed" lang="ja">{{ typed.reading || '—' }}</span>
@@ -216,6 +238,17 @@ defineExpose({
 
 .stored {
   color: var(--k-ink-quiet);
+}
+
+/* ADR 0069 §5: under the field, in the verdict's mono, in `--k-ink` — a prompt
+   to type again, not a result, so it spends no colour (`05` §2). */
+.retry {
+  grid-column: 2;
+  margin: 0;
+  font-family: var(--k-face-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--k-ink);
 }
 
 /* ⚠️ `10` §10.2 and the on-screen keyboard. **16px is the floor for a focused

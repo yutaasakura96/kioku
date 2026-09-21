@@ -197,6 +197,13 @@ Directly beneath it, `12px` down: **`as of this page load`**, 13px Newsreader 40
 `--k-ink-secondary` — `05` §4's aside role. `09` §2 requires the shell to *say so* and this is the
 sentence. It is the same line on all three *places*.
 
+⚠️ **Amended 2026-09-21 (#30): the *shell* closes with one line of acknowledgement.** Under the page
+body, in the start block's gutter and the *place*'s measure: `Kanji readings from KANJIDIC2, © EDRDG,
+used under its licence (CC BY-SA 4.0).`, 10px Plex Mono at 0.06em, `--k-ink-quiet`, the three names
+linked. EDRDG's licence §3 asks for it on the app's site (`docs/kanjidic-research.md` §2.1). It is in
+`PlaceShell.vue` and so on the three *places* only; a *mode* has no chrome (ADR 0013), and the one
+screen that uses the data shows none of it.
+
 ### 3.3 The three interaction states a *place* has
 
 Per [ADR 0035](adr/0035-five-interaction-states-is-not-a-set-and-three-screens-have-three.md).
@@ -598,6 +605,14 @@ nothing but typing. When `answerSteps` (`shared/review/answer.ts`, wanakana's `i
 *term*) says so, the card opens on the Meaning row with no reading row above it, focus goes to the
 meaning field, and the back's last row holds the meaning result alone. The `Enter` legend is
 unchanged. こんな and コーヒー are kana-only; 見る and 夢 keep both steps.
+
+⚠️ **Amended 2026-09-21 by [ADR 0069](adr/0069-the-check-is-the-grade.md) §5 (#30): a reading of
+the *term*'s kanji is a retry.** When the reading field's answer is not the word's reading but is in
+the position's `kanjiReadings` (`shared/review/kanji.ts`, computed by the server from KANJIDIC2), the
+Reading row stays: the field empties, keeps focus, and a line under it in the verdict's 12px mono and
+`--k-ink` says **`The word's reading, not the kanji's`**, linked to the field by `aria-describedby`.
+The next `Enter` is checked as usual, and **a second kanji reading on the same *card* is `WRONG`** —
+one retry per step. The line names no reading and shows no KANJIDIC2 text. Nothing is recorded.
 
 ### 5.5 The grade controls
 

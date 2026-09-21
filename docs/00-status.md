@@ -110,6 +110,28 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
+**2026-09-21, latest — #30: a kanji's reading typed for the word's is a retry** (ADR 0069 §5 and
+its § Settled by the build of §5; `docs/kanjidic-research.md`).
+- **The data.** `server/data/kanjidic/readings.json`, 12,356 kanji, from KANJIDIC2
+  `database_version` **2026-264** (created 2026-09-21), by `node scripts/kanjidic.ts`: `ja_on`
+  folded to hiragana, `ja_kun` with `-` stripped and the `.` okurigana kept, nothing else.
+  `NOTICE.md` beside it carries CC BY-SA 4.0 for that file alone. The *shell* carries the EDRDG
+  line (`PlaceShell.vue`, `10` §3).
+- **The rule.** `kanjiReadingCandidates` in `shared/review/kanji.ts`, pure, with the table as a
+  parameter: stems and whole forms for a term with no kana, stems plus the term's kana otherwise,
+  combinations with rendaku and sokuon for compounds; the word's own reading removed; nothing for an
+  unknown character or past 1,024 candidates. `readingResult` in `answer.ts` returns right, kanji or
+  wrong.
+- **Where.** `snapshotOf` computes `kanjiReadings` per position through
+  `server/utils/review/kanji.ts`. **Checked in the build output**: the table is in
+  `.output/server` and nowhere in `.output/public`.
+- **The screen.** One retry per step: the field empties and keeps focus, and `The word's reading,
+  not the kanji's` sits under it. A second kanji reading is `WRONG`. Nothing is recorded.
+- Tests: unit (the three classes on a hand-written table, the みえる trap, the known compound
+  costs, the cap, `readingResult`, a held snapshot without the field), nuxt (retry, second try,
+  the next *card*'s own retry, the *shell*'s EDRDG line), schema (夢 gets む from the real table), e2e (夢 typed `mu`, then
+  `yume`, graded Good). `10` §3 and §5.4, ADR 0069 and `06` amended.
+
 **2026-09-21, later — #28: the check is the *grade*** (ADR 0069 §1–§3, § Settled by the build).
 - **The *grade*.** `gradeOf` (was `proposedGrade`) is typed `1 | 3` and is what `Enter` commits;
   the key map has no digits, and `GradeControls.vue` became `CheckControls.vue` — a commit control
@@ -1780,9 +1802,10 @@ word's becomes a retry.
   §7): commit a derived table with a notice and a monthly manual refresh; the acknowledgement goes
   in a notice file and a footer line; **the reach is all three classes, compounds included**, which
   goes past the research's recommendation; the server computes each position's candidates; one
-  retry per step; the message names no reading. **The build ticket is
+  retry per step; the message names no reading. ~~**The build ticket is
   [#30](https://github.com/yutaasakura96/kioku/issues/30), `ready-for-agent`, and it is the
-  frontier.**
+  frontier.**~~ ⚠️ **#30 built 2026-09-21** (§ Done); #29 is closed. No `ready-for-agent` ticket is
+  left.
 ~~⚠️ **Until #28 lands, the digits still override**, and a correct meaning the check refuses can be
 committed as `3`.~~ ⚠️ **#28 landed: the check is the *grade*, and `S` is the answer to a refusal.**
 
@@ -2291,6 +2314,17 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **The KANJIDIC2 table has a licence clock** (EDRDG licence §4: stale data "is a violation of
+  the licence"). Yuta's call is a **monthly** manual refresh: `node scripts/kanjidic.ts`, run the
+  tests, commit, and log the `database_version` it prints here. **Refresh log:** 2026-264, generated
+  2026-09-21 (#30). **Next due by 2026-10-21.** The raw file is never committed.
+- ⚠️ **`server/data/kanjidic/readings.json` is imported by `server/utils/review/kanji.ts` and
+  nothing else.** Importing it from `shared/` or `app/` puts 0.5 MB into the client bundle, which is
+  what research §5 and Yuta's call 4 ruled out. `kanjiReadingCandidates` takes the table as a
+  parameter so that the pure half can stay in `shared/` without it.
+- ⚠️ **`kanjiReadings` is a position field the server adds**, so the page reads it with `?? []`
+  (the snapshot rule below) and `parseSnapshot` accepts it absent.
 
 - ~~⚠️ **Neon is at `0005` and the code expects `0006`** (2026-09-21, #28).~~ ⚠️ **Applied to Neon
   2026-09-21**, the same day: `note_meaning` and `meaning_synonym` both exist there. `snapshotOf`

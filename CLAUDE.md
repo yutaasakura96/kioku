@@ -41,8 +41,10 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is
-[#30](https://github.com/yutaasakura96/kioku/issues/30)**, the kanji-reading retry, from ADR 0069 and
-the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) on 2026-09-21 (⚠️ it named #29 until then).
+empty**: [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
+2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named
+#30 from the research's close, and #29 before that). ⚠️ **#30 left a monthly obligation**: the
+KANJIDIC2 table's licence requires a refresh, logged in `docs/00-status.md` § Carrying.
 [#27](https://github.com/yutaasakura96/kioku/issues/27), the kana-only reading skip, and
 [#28](https://github.com/yutaasakura96/kioku/issues/28), the check as the *grade*, were built the
 same day (⚠️ the frontier named both until then). ⚠️ **#28's backfill ran on Neon the same day**
@@ -100,7 +102,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1039 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-21, after #28)
+npm run test        # 1066 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-21, after #30)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

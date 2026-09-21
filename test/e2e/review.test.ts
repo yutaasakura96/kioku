@@ -444,3 +444,39 @@ describe('a refused meaning the reader was right about', () => {
     await page.close()
   })
 })
+
+// ADR 0069 §5, #30: 夢 answered む, the report that started it. ⚠️ Last, for
+// the same reason as the two above: this run is the one 夢 *card*, and む comes
+// from the committed KANJIDIC2 table through the server, which is the point.
+describe('a kanji\'s reading typed for the word\'s', () => {
+  beforeAll(async () => {
+    await acceptedCard('夢␟ゆめ', {
+      ...FIELDS,
+      term: '夢',
+      reading: 'ゆめ',
+      part_of_speech: '名詞',
+      meaning: 'dream',
+    })
+  })
+
+  it('is a retry that records nothing, and the second answer is graded', async () => {
+    const page = await openReview()
+    const before = await grades()
+
+    await page.locator('#answer-reading:focus').waitFor()
+    await page.keyboard.type('mu')
+    await page.keyboard.press('Enter')
+
+    await page.locator('.retry').waitFor()
+    expect(await page.locator('#answer-reading').inputValue()).toBe('')
+    await page.locator('#answer-reading:focus').waitFor()
+
+    await turn(page, 'yume', 'dream')
+
+    expect(await page.locator('.commit').textContent()).toContain('Good')
+    await page.keyboard.press('Enter')
+    await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+
+    await page.close()
+  })
+})

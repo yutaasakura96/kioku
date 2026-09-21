@@ -33,6 +33,7 @@ const snapshot = (
     fields: { term: '図書館', meaning: position.meaning },
     meanings: [],
     synonyms: [],
+    kanjiReadings: [],
     grade: position.grade,
     flagged: position.flagged ?? false,
   })),
@@ -240,5 +241,19 @@ describe('withSynonym — a synonym joins the held run', () => {
     })
 
     expect(parsed?.positions[0]).toMatchObject({ meanings: [], synonyms: [] })
+  })
+
+  // ⚠️ #30's field, the same way: a run held from before it is still the
+  // reader's place, and its *cards* retry nothing.
+  it('reads a stored position with no kanji readings as empty, and keeps them when present', () => {
+    const stored = (extra: object) => parseSnapshot({
+      sessionId: 'a',
+      size: 1,
+      snapshotTakenAt: '2026-09-12T09:00:00.000Z',
+      positions: [{ ordinal: 0, cardId: 'a', templateKey: 'recognition', fields: { term: '夢' }, grade: null, ...extra }],
+    })
+
+    expect(stored({})?.positions[0]?.kanjiReadings).toEqual([])
+    expect(stored({ kanjiReadings: ['む', 'ぼう'] })?.positions[0]?.kanjiReadings).toEqual(['む', 'ぼう'])
   })
 })

@@ -66,6 +66,8 @@ function snapshot() {
       fields: FIELDS,
       meanings: [],
       synonyms: [],
+      // ADR 0069 §5: what the server would compute from 図書館's kanji.
+      kanjiReadings: ['ずしょかん'],
       grade: server.graded.has(cardId) ? 3 : null,
       flagged: server.flagged.has(cardId),
     })),
@@ -568,5 +570,50 @@ describe('the typed answer is the grade (ADR 0060, ADR 0069)', () => {
     const everything = Object.keys(localStorage).map(key => localStorage.getItem(key)).join('\n')
     expect(everything).not.toContain('a very particular answer')
     expect(Object.keys(owed()[0]!).sort()).toEqual(['cardId', 'grade', 'kind', 'reviewedAt', 'seq', 'sessionId'])
+  })
+})
+
+// ADR 0069 §5, #30: a reading of the kanji typed for the word's is a retry, once.
+describe('a kanji\'s reading is a retry, not a miss', () => {
+  it('says so, empties the field, stays on the reading and records nothing', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await type(view, '#answer-reading', 'ずしょかん')
+
+    expect(view.find('.retry').text()).toBe('The word\'s reading, not the kanji\'s')
+    expect((view.find('#answer-reading').element as HTMLInputElement).value).toBe('')
+    expect(view.find('#answer-meaning').exists()).toBe(false)
+    expect(parseOutbox(stored(OUTBOX_KEY))).toEqual([])
+
+    await type(view, '#answer-reading', 'としょかん')
+
+    expect(view.find('.retry').exists()).toBe(false)
+    expect(view.findAll('.given .verdict').map((verdict: { text: () => string }) => verdict.text())).toEqual(['Right'])
+  })
+
+  // ⚠️ One per step, or the reader walks the kanji's readings until one passes.
+  it('grades a second kanji reading as the check says', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await type(view, '#answer-reading', 'ずしょかん')
+    await type(view, '#answer-reading', 'ずしょかん')
+
+    expect(view.find('#answer-meaning').exists()).toBe(true)
+    expect(view.findAll('.given .verdict').map((verdict: { text: () => string }) => verdict.text())).toEqual(['Wrong'])
+  })
+
+  it('gives the next card its own retry', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await type(view, '#answer-reading', 'ずしょかん')
+    await type(view, '#answer-reading', 'としょかん')
+    await type(view, '#answer-meaning', 'library')
+    await press(view, 'Enter')
+    await type(view, '#answer-reading', 'ずしょかん')
+
+    expect(view.find('.retry').exists()).toBe(true)
   })
 })

@@ -136,7 +136,9 @@ cost this ADR accepts. Three things make it smaller than it was:
 
 [#27](https://github.com/yutaasakura96/kioku/issues/27) builds §4,
 [#28](https://github.com/yutaasakura96/kioku/issues/28) builds §1–§3, and
-[#29](https://github.com/yutaasakura96/kioku/issues/29) is §5's research.
+[#29](https://github.com/yutaasakura96/kioku/issues/29) is §5's research
+([`kanjidic-research.md`](../kanjidic-research.md)), and
+[#30](https://github.com/yutaasakura96/kioku/issues/30) builds §5.
 
 ## Settled by the build — 2026-09-21
 
@@ -157,3 +159,25 @@ What the tickets were left to decide, as #27 and #28 decided it. None of it move
 - **The backfill is `worker/backfill.py`**, with a free `--estimate` (Anthropic's token counting)
   and a `--run` that pages by *notes* without a row, so it resumes by construction. Its rows carry
   `prompt_version = 'backfill-v1'`.
+
+## Settled by the build of §5 — 2026-09-21
+
+What #29's research left to Yuta, as he called it (research §7), and what #30 built. ⚠️ **§5's
+last two sentences are history**: the build no longer waits, and a kanji reading is no longer
+marked wrong on the first try.
+
+- **The data is a derived table, committed.** `server/data/kanjidic/readings.json`, from KANJIDIC2's
+  `ja_on` and `ja_kun` only, with `NOTICE.md` beside it: CC BY-SA 4.0 for that file alone, and
+  EDRDG's licence §4 makes a monthly refresh (`node scripts/kanjidic.ts`) an obligation, logged in
+  `docs/00-status.md`. The acknowledgement is that notice and one line in the *shell* (`10` §3).
+- **The reach is every term with a kanji, compounds included.** Yuta went past the research's
+  single-kanji recommendation with its costs in view (research §4.5): a real alternative reading
+  that is also a combination (今日, こんにち) is told it is the kanji's, a combination miss
+  (大人, だいにん) becomes a retry, and a jukujikun can only produce false retries. Unit tests pin
+  each. A term with kana takes kun **stems** only, so 見る's みえる is not a retry.
+- **The server computes each position's list** (`kanjiReadings`, `shared/review/kanji.ts`) at
+  composition and snapshots it with the fields; the table never reaches the client. A term with a
+  character the table lacks, or more than 1,024 candidates, has none.
+- **One retry per step**, then the check stands — or a reader could walk the kanji's readings until
+  one passed, which is the *accept any reading* alternative above. **The line names no reading.**
+

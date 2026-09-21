@@ -49,6 +49,14 @@ export interface ReviewPosition {
    */
   synonyms: string[]
   /**
+   * ADR 0069 §5, #30 — readings of the term's kanji that are not the word's
+   * (`shared/review/kanji.ts`), computed by the server at composition so the
+   * KANJIDIC2 table stays there. `[]` when the rule has nothing to offer.
+   * ⚠️ **Read it with `?? []`**: a position installed from a server answer is
+   * not parsed, and one from before #30 does not have it.
+   */
+  kanjiReadings: string[]
+  /**
    * The *grade* this position was given, or `null` while it is still ahead of
    * the reader. ⚠️ **A graded *card* leaves the *session* and never returns to
    * it** (`S7`, ADR 0016), so this is what the rail's graded tick reads and what
@@ -197,7 +205,7 @@ function parsePosition(raw: unknown): ReviewPosition | null {
   if (!isRecord(raw))
     return null
 
-  const { ordinal, cardId, templateKey, fields, grade, flagged, meanings, synonyms } = raw
+  const { ordinal, cardId, templateKey, fields, grade, flagged, meanings, synonyms, kanjiReadings } = raw
 
   if (typeof ordinal !== 'number' || typeof cardId !== 'string' || typeof templateKey !== 'string')
     return null
@@ -217,6 +225,8 @@ function parsePosition(raw: unknown): ReviewPosition | null {
     // has neither, and refusing it would throw away the reader's place.
     meanings: strings(meanings),
     synonyms: strings(synonyms),
+    // The same for a run held from before #30.
+    kanjiReadings: strings(kanjiReadings),
     grade,
     flagged: flagged === true,
   }

@@ -1038,3 +1038,19 @@ describe('accepted meanings and synonyms (ADR 0069)', () => {
     `)).rejects.toThrow(/meaning_synonym_text/)
   })
 })
+
+// ADR 0069 §5, #30: the server computes each position's kanji readings from the
+// committed KANJIDIC2 table, so the client never loads it. ⚠️ **The one test that
+// reads the real table**, and it asks only what no refresh will change: that 夢
+// can be read む.
+describe('kanji readings at composition (ADR 0069 §5)', () => {
+  it('hands the snapshot the term\'s kanji readings, without the word\'s own', async () => {
+    await acceptedCard('夢␟ゆめ', { fields: { ...FIELDS, term: '夢', reading: 'ゆめ', meaning: 'dream' } })
+    const run = (await resumeOrCompose(db, OWNER, 1))!
+
+    const readings = (await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!.kanjiReadings
+
+    expect(readings).toContain('む')
+    expect(readings).not.toContain('ゆめ')
+  })
+})

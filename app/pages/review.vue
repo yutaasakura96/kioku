@@ -33,7 +33,7 @@
 // (`app/utils/review-store.ts`).
 
 import { GRADE_LABELS, endScreenAction, reviewAction } from '#shared/review/keystroke'
-import { answerSteps, foldReading, gradeOf, meaningMatches, readingMatches, synonymOffered } from '#shared/review/answer'
+import { answerSteps, foldReading, gradeOf, meaningMatches, readingResult, synonymOffered } from '#shared/review/answer'
 import type { CheckedGrade } from '#shared/review/answer'
 import type { ReviewStep } from '#shared/review/keystroke'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
@@ -129,6 +129,14 @@ const askedFiltered = ref(false)
 const step = ref<ReviewStep>('reading')
 const typed = ref({ reading: '', meaning: '' })
 const check = ref<{ reading: boolean | null, meaning: boolean | null }>({ reading: null, meaning: null })
+
+/**
+ * ADR 0069 §5, #30 — whether this *card*'s reading step has spent its retry.
+ * ⚠️ **One per step**: a second kanji reading is graded as the check says,
+ * or a reader could walk the kanji's readings until one passed — the
+ * *accept any reading* alternative the ADR rejected. Nothing is recorded.
+ */
+const readingRetried = ref(false)
 
 /** ADR 0069 §4 — a kana-only term has no reading step. */
 const cardSteps = computed(() => answerSteps(current.value?.fields.term ?? ''))
@@ -297,6 +305,7 @@ function resetAnswer() {
   step.value = cardSteps.value[0]!
   typed.value = { reading: '', meaning: '' }
   check.value = { reading: null, meaning: null }
+  readingRetried.value = false
 }
 
 // -- The two steps (ADR 0060) -----------------------------------------------
@@ -306,8 +315,16 @@ function checkReading(value: string) {
   if (!position)
     return
 
+  // `?? []`: a position installed from a server answer is not parsed (§ Carrying).
+  const result = readingResult(value, position.fields.reading ?? '', position.kanjiReadings ?? [])
+
+  if (result === 'kanji' && !readingRetried.value) {
+    readingRetried.value = true
+    return
+  }
+
   typed.value.reading = foldReading(value)
-  check.value.reading = readingMatches(value, position.fields.reading ?? '')
+  check.value.reading = result === 'right'
   step.value = 'meaning'
   void focusStep()
 }
@@ -936,6 +953,7 @@ onBeforeUnmount(() => {
             :check="check"
             :stored-reading="current.fields.reading ?? ''"
             :asks-reading="asksReading"
+            :retry="readingRetried && step === 'reading'"
             @reading="checkReading"
             @meaning="checkMeaning"
           />
