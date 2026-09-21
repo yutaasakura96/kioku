@@ -9,7 +9,7 @@ repo yet". **Both halves are now spent**: #4 built the schema, and it lives in `
 with its migrations in `server/db/migrations/`. Drizzle owns every one of them and the worker issues
 no DDL (`03` §4.2). **What changed is the direction of authority, not the content** — where this
 document and the code disagree, this document is the argument and the code is the bug, except where a
-section carries a dated amendment saying otherwise. §11's twenty-one indexes, §9's delete rules and
+section carries a dated amendment saying otherwise. §11's twenty-two indexes (twenty-one until #25), §9's delete rules and
 §14's one trigger are each asserted by `test/schema/schema.test.ts`.
 
 Vocabulary is [`../CONTEXT.md`](../CONTEXT.md). Requirements are
@@ -135,6 +135,7 @@ of who is asking. *Personal* is a statement about one reader.
 | `ingestion_chunk` | shared | — | Per-chunk progress of a shared run |
 | `generation_cache` | shared | — | A model's output for a given input. The reader is not in the key |
 | `job` | shared | — | Operational. What the worker must do |
+| `seed` | shared | — | A model request and what it cost (ADR 0070, §6.5). `requested_by` is an audit line that *Ingest* also reads to show the draft to its requester |
 | `note` | shared | — | Fields are about the word (ADR 0012) |
 | `note_field_provenance` | shared | — | Where a field's value came from, not who liked it |
 | `occurrence` | shared | — | This term appeared here, at this position |
@@ -635,8 +636,9 @@ ADR 0028: **the job table is the truth and `NOTIFY` only shortens latency.**
 | Column | Type | Null | Default | Notes |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | no | `uuidv7()` | PK |
-| `kind` | `text` | no | — | `CHECK (kind IN ('ingest','resume'))` |
-| `ingestion_id` | `uuid` | no | — | → `ingestion` |
+| `kind` | `text` | no | — | `CHECK (kind IN ('ingest','resume','seed'))` — `seed` since #25 |
+| `ingestion_id` | `uuid` | **yes** since #25 | — | → `ingestion`. Set for `ingest` and `resume` |
+| `seed_id` | `uuid` | yes | — | → `seed` (§6.5), `ON DELETE CASCADE`. Set for `seed` and nothing else — added #25 |
 | `state` | `text` | no | `'queued'` | `CHECK (state IN ('queued','claimed','done','failed'))` |
 | `available_at` | `timestamptz` | no | `now()` | Backoff. A retry sets it forward rather than sleeping in the worker |
 | `claimed_by` | `text` | yes | — | Worker instance id — hostname plus process start time |
@@ -697,6 +699,55 @@ worker runs at the top of its poll — which it is already doing on every connec
 (`03` §3.1), so it costs nothing extra.
 
 **Example:** `(019bd3…, 'ingest', ingestion 019bd3…, 'claimed', 09:12Z, 'yutas-mbp:1725… ', 09:12Z, 09:14Z, 1, null, 'usr_7f…', …, null)`
+
+⚠️ **Amended 2026-09-21 with [#25](https://github.com/yutaasakura96/kioku/issues/25) —
+[ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md) § Settled by the build: a job
+has exactly one target.** `CHECK job_target`: `(kind = 'seed') = (seed_id IS NOT NULL) AND
+num_nonnulls(ingestion_id, seed_id) = 1`. A *seed* request runs before any *source* exists, so it has
+no *ingestion* to point at. ADR 0070 left the shape to the build with one condition — keep the claim,
+the heartbeat and the sweep single — and they read neither column, so a `seed` job is a row in this
+queue rather than a second queue. What a claimed job *means* is decided in one place,
+`worker/__main__.py`'s `handle`, on `kind`. Migration `0007`.
+
+---
+
+### 6.5 `seed`
+
+⚠️ **Added 2026-09-21 with [#25](https://github.com/yutaasakura96/kioku/issues/25) —
+[ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md).** One model request for a word
+list, and **its own line in the spend ledger** (ADR 0070 §2). *Ingest* asks with a *domain*, a
+*level* and a count; the worker answers (`worker/seeding.py`), because the provider key is only
+there (`03` §13.1); the answer is a draft that lands in the word-list field and becomes a
+`word_list` *source* only when the reader submits it (ADR 0070 §1).
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `uuidv7()` | PK |
+| `subject_id` | `text` | no | — | Not a foreign key (§13) |
+| `domain` | `text` | no | — | One of the *subject*'s `domains`. ⚠️ **No `CHECK`**, for `domain_claim.domain`'s reason (§5.7); `shared/ingest/seed.ts` refuses a value outside the set before the row exists |
+| `level` | `text` | no | — | One of the *subject*'s `levels`. Same |
+| `count` | `integer` | no | — | `CHECK (count BETWEEN 1 AND 100)`. *Ingest* offers 10, 25, 50 and 100 |
+| `requested_by` | `text` | yes | — | → `auth."user".id`, `ON DELETE SET NULL`. Audit line, and whose draft it is on *Ingest* |
+| `requested_at` | `timestamptz` | no | `now()` | |
+| `completed_at` | `timestamptz` | yes | — | Set when the answer is written. Null while queued and on a failure |
+| `model_id`, `prompt_version` | `text` | yes | — | `seed-v1`, not `generate`'s version: a different question |
+| `input_tokens`, `output_tokens` | `integer` | yes | — | **From the API response**, accumulated, as on `ingestion` (§6.1) |
+| `cost_micro_usd` | `bigint` | yes | — | Same |
+| `price_table_effective_date` | `date` | yes | — | Same |
+| `excluded_term_count` | `integer` | yes | — | How many of the requester's terms the prompt excluded (ADR 0070 §4). **The revisit signal**: that list costing more input than the answer costs output |
+| `terms` | `text[]` | yes | — | The draft, one *term* each. ⚠️ Model output, never logged (`03` §13.4) |
+| `worker_environment` | `text` | no | `'laptop'` | `CHECK (… IN ('laptop','server'))`, as on `ingestion` |
+| `source_id` | `uuid` | yes | — | → `source`, `ON DELETE SET NULL`. The *source* the draft was submitted as |
+| `submitted_at` | `timestamptz` | yes | — | ⚠️ **Its own column** so that a hard-deleted *source* nulling `source_id` does not put a submitted draft back on the screen |
+| `discarded_at` | `timestamptz` | yes | — | The reader discarded it. **The row and its cost stay** (ADR 0070 §2) |
+
+`CHECK seed_disposition`: `submitted_at IS NULL OR discarded_at IS NULL`.
+
+⚠️ **Shared, like `ingestion`** (§4): spend is reported whoever asked. The one personal question
+asked of it is *Ingest*'s — the requester's newest seed that is neither submitted nor discarded —
+and `seed_open_idx` serves it.
+
+**Example:** `(019c0a…, 'jlpt-vocab', 'tech', 'N3', 25, 'usr_7f…', 10:02Z, 10:02Z, 'claude-sonnet-5', 'seed-v1', 912, 138, 3204, 2026-09-12, 41, {会議,予算,…}, 'laptop', null, null, null)`
 
 ---
 
@@ -1109,6 +1160,8 @@ default.** Each one below was chosen.
 | `ingestion_chunk` → `ingestion` | `CASCADE` | Progress is meaningless without its run |
 | `ingestion_chunk` → `source_chunk` | `CASCADE` | Same |
 | `job` → `ingestion` | `CASCADE` | A job for a deleted run is noise |
+| `job` → `seed` | `CASCADE` | The same, for a seed request (§6.5, #25) |
+| `seed` → `source` | `SET NULL` | ⚠️ **The ledger survives a hard delete**, as `ingestion`'s does. `submitted_at` keeps the draft off the screen |
 | `note_vetting` → `vetting_session` | `RESTRICT` | The reversibility rule reads `vetting_session.ended_at` through this column; losing it would make a permanent rejection look reversible |
 | `note_vetting` → `note` | `RESTRICT` | ⚠️ **ADR 0006: a rejection must survive re-ingestion.** A cascade here would resurrect two hundred declined words |
 | `card` → `note` | `RESTRICT` | A card without its note is unrenderable, and deleting cards is never the answer |
@@ -1122,7 +1175,7 @@ default.** Each one below was chosen.
 | `card_flag` → `source` | `SET NULL` | The actionable half — prompt version and model id — is denormalised and survives |
 | `card_flag` → `review_session` | `SET NULL` | |
 | **every** `owner_id` → `auth."user".id` | **`RESTRICT`** | §3. The user row cannot be deleted while any history references it |
-| `ingestion.submitted_by`, `job.requested_by` → `auth."user".id` | `SET NULL` | Audit lines. ⚠️ `job.requested_by` also owns what its run mints (§4, amended), and a null one mints nothing |
+| `ingestion.submitted_by`, `job.requested_by`, `seed.requested_by` → `auth."user".id` | `SET NULL` | Audit lines. ⚠️ `job.requested_by` also owns what its run mints (§4, amended), and a null one mints nothing |
 
 ### 9.1 What each delete actually does
 
@@ -1188,6 +1241,7 @@ a belief.
 | `ingestion_chunk (ingestion_id) WHERE status <> 'complete'` | **The resume query** (§6.2). Partial, because the interesting rows are the minority |
 | `job (available_at) WHERE state = 'queued'` | The claim query, run on every connect, reconnect and notification |
 | `job (heartbeat_at) WHERE state = 'claimed'` | The stale-claim sweep |
+| `seed (requested_by, requested_at DESC) WHERE submitted_at IS NULL AND discarded_at IS NULL` | *Ingest*'s draft — the requester's newest open seed, on every render of `/` (#25) |
 | `card (owner_id, note_id, template_key)` **unique** | One card per note per template |
 | `scheduling_epoch (card_id) WHERE superseded_at IS NULL` **unique** | **Exactly one live epoch per card.** A constraint that happens to be the lookup |
 | `scheduling_epoch (owner_id, due) WHERE superseded_at IS NULL` | **The due query — the hottest read in the app.** Composing a session joins `card` to filter `suspended_at IS NULL`; suspension is on the card, so it cannot be in this partial predicate |

@@ -62,6 +62,8 @@ interface SubmittedFields {
   title: string
   content: string
   kind: string
+  /** The draft's *seed* id, when the text began as one — ADR 0070 §1. */
+  seed: string
   /** The `.txt` the reader attached, decoded — empty when they attached none. */
   uploaded: string
   /**
@@ -92,6 +94,7 @@ async function readSubmittedFields(event: H3Event): Promise<SubmittedFields> {
       title: stringField(body, 'title'),
       content: stringField(body, 'content'),
       kind: stringField(body, 'kind'),
+      seed: stringField(body, 'seed'),
       uploaded: '',
     }
   }
@@ -128,6 +131,7 @@ async function readSubmittedFields(event: H3Event): Promise<SubmittedFields> {
     title: stringField(fields, 'title'),
     content: stringField(fields, 'content'),
     kind: stringField(fields, 'kind'),
+    seed: stringField(fields, 'seed'),
     uploaded,
     uploadedBytes,
   }
@@ -186,6 +190,7 @@ function refusal(fields: SubmittedFields, failure: Refused, content?: string): I
     title: fields.title,
     content: content ?? fields.content,
     kind: fields.kind,
+    seed: fields.seed,
   }
 }
 
@@ -253,6 +258,9 @@ export default defineEventHandler(async (event) => {
     content: submission.content,
     characterCount: submission.characterCount,
     submittedBy: session.user.id,
+    // ADR 0070 §1: a submitted draft stops being one. Untrusted, and
+    // `markSeedSubmitted` treats it that way.
+    seedId: fields.seed || undefined,
   })
 
   // ⚠️ **`303`, and it answers before the worker runs.** `S2`'s "returns control

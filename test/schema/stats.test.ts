@@ -482,7 +482,8 @@ describe('the ledger — tokens and cost per ingestion', () => {
 
     expect(await ledger(db)).toEqual([
       expect.objectContaining({
-        ingestionId: run.ingestionId,
+        kind: 'ingestion',
+        id: run.ingestionId,
         sourceId: run.sourceId,
         title: '朝日新聞 社説',
         modelId: 'claude-sonnet-5',
@@ -522,5 +523,73 @@ describe('the ledger — tokens and cost per ingestion', () => {
     await ingested('あたらしい')
 
     expect((await ledger(db)).map(row => row.title)).toEqual(['あたらしい', 'ふるい'])
+  })
+})
+
+// ADR 0070 §2: *each seeding request has its own ledger row*, and `/stats`'
+// cost includes them — **a discarded draft among them**, because it was paid for.
+describe('the ledger — seed rows, ADR 0070 §2', () => {
+  async function seeded(options: { minutesAgo?: number, discarded?: boolean, answered?: boolean } = {}) {
+    const result = await client.query<{ id: string }>(
+      `INSERT INTO seed (subject_id, domain, level, count, requested_by, requested_at, completed_at,
+         model_id, prompt_version, input_tokens, output_tokens, cost_micro_usd,
+         price_table_effective_date, discarded_at)
+       VALUES ('jlpt-vocab', 'tech', 'N3', 25, '${OWNER}', now() - make_interval(mins => $1),
+         CASE WHEN $2 THEN now() END,
+         CASE WHEN $2 THEN 'claude-sonnet-5' END, CASE WHEN $2 THEN 'seed-v1' END,
+         CASE WHEN $2 THEN 1200 END, CASE WHEN $2 THEN 300 END, CASE WHEN $2 THEN 5400 END,
+         CASE WHEN $2 THEN '2026-09-12'::date END,
+         CASE WHEN $3 THEN now() END)
+       RETURNING id;`,
+      [options.minutesAgo ?? 0, options.answered ?? true, options.discarded ?? false],
+    )
+    return result.rows[0]!.id
+  }
+
+  it('carries a seed request, named for what it asked', async () => {
+    const id = await seeded()
+
+    expect(await ledger(db)).toEqual([
+      expect.objectContaining({
+        kind: 'seed',
+        id,
+        sourceId: null,
+        title: 'tech · N3 · 25 words',
+        modelId: 'claude-sonnet-5',
+        inputTokens: 1200,
+        outputTokens: 300,
+        costMicroUsd: 5400n,
+        workerEnvironment: 'laptop',
+      }),
+    ])
+  })
+
+  it('⚠️ carries a discarded draft, because it was paid for', async () => {
+    await seeded({ discarded: true })
+    expect((await ledger(db)).map(row => row.costMicroUsd)).toEqual([5400n])
+  })
+
+  it('carries a seed that has not come back, with nothing recorded yet', async () => {
+    await seeded({ answered: false })
+    expect(await ledger(db)).toEqual([
+      expect.objectContaining({ kind: 'seed', modelId: null, costMicroUsd: null }),
+    ])
+  })
+
+  it('points at the source a submitted draft became', async () => {
+    const run = await ingested('tech · N3 · 25 words')
+    const id = await seeded()
+    await client.query(`UPDATE seed SET source_id = $1, submitted_at = now() WHERE id = $2;`, [run.sourceId, id])
+
+    const row = (await ledger(db)).find(row => row.kind === 'seed')
+    expect(row!.sourceId).toBe(run.sourceId)
+  })
+
+  it('interleaves with the ingestions, newest first', async () => {
+    await ingested('ふるい', { minutesAgo: 90 })
+    await seeded({ minutesAgo: 30 })
+    await ingested('あたらしい')
+
+    expect((await ledger(db)).map(row => row.kind)).toEqual(['ingestion', 'seed', 'ingestion'])
   })
 })

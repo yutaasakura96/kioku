@@ -4,6 +4,7 @@
 // for the same reason as `session.d.ts` (`08` §6.2).
 
 import type { RunRow, SourceDetail, SourceRow, StartBlockCounts } from '../utils/ingest/queries'
+import type { SeedDraft } from '../utils/ingest/seed'
 import type { StatsData } from '../utils/stats/queries'
 
 /**
@@ -17,6 +18,11 @@ interface PlaceReader {
   runs: () => Promise<RunRow[]>
   /** The Sources list — `10` §7.1. **Deleted *sources* are in it** (`S11`). */
   sources: () => Promise<SourceRow[]>
+  /**
+   * The reader's open *seed* — ADR 0070. Queued, drafting, failed, or back and
+   * waiting in the word-list field; `null` when there is none.
+   */
+  seed: () => Promise<SeedDraft | null>
   /** The earlier *source* named by `?existing=` — `09` §4.2. */
   sourceTitle: (id: string) => Promise<string | null>
   /** One *source*, readable — `10` §7.2's first half. */
@@ -68,6 +74,11 @@ export interface IngestFailure {
    * writes a row.
    */
   kind: string
+  /**
+   * The *seed* the refused text began as (ADR 0070), so that submitting it again
+   * after a fix still marks the draft submitted. Raw, like `kind`.
+   */
+  seed: string
 }
 
 declare module 'h3' {

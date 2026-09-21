@@ -973,6 +973,26 @@ each filter dropped, from `ingestion.candidates_*`. **It is the *session tally* 
 from 38px to **24px** Newsreader 400 here: it sits inside a run row rather than being the whole
 screen, and 24px is `05` §4's "a single datum given weight".
 
+**The seed controls** — ⚠️ **added 2026-09-21 with [#25](https://github.com/yutaasakura96/kioku/issues/25),
+[ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md).** A section between the runs and
+the form, because it fills the form and forms cannot nest. With no seed open, a `DRAFT A LIST` eyebrow
+over three `<select>`s: *Domain*, *Level* and *Words*. The first two come from the *subject*'s closed
+sets, and *Words* offers 10, 25, 50 and 100, with 25 selected. Each select has a 13px
+`--k-ink-secondary` label. The row ends in a quiet control, *Draft*. ⚠️ **Selects and not radios**,
+unlike the kind chooser: five, five and four choices would be three rows of radios, and none of them
+changes what another field means. The control posts urlencoded to `POST /` with a hidden
+`seed_action`, the resume control's pattern.
+
+With a seed open, the controls give way to **one sentence**, 15px `--k-ink`, and a quiet *Discard the
+draft* control under it. The sentence is *Drafting 25 tech words at N3 — not yet picked up.* while
+queued (the run list's wording, and no diagnosis of the laptop, `09` §7), *Drafting …* once claimed,
+*The draft of … did not come back: {job error}.* on a failure, and *N tech words at N3 are in the
+list below. Remove any you do not want, then Ingest.* once it has come back. N is *2 of 25* when fewer
+came back. When none came back, it reads *No new … came back — every one proposed is already yours.*
+A draft that has come back **pre-fills the form**: the *Word list* radio, the title `tech · N3 · 25
+words`, the terms one per line, and a hidden `seed` field. **A refusal wins over it**, because the
+reader's edit is newer than the draft. No new colour, no new type size, and no polling (ADR 0020).
+
 ### 6.3 The error render, which is not an error state
 
 Per [ADR 0035](adr/0035-five-interaction-states-is-not-a-set-and-three-screens-have-three.md), a
@@ -1205,6 +1225,11 @@ with the column eyebrows in 10px Plex Mono 0.14em `--k-ink-secondary`.
 Columns: the *source* title (15px Newsreader `--k-ink`, or `ingestion.source_title` when the *source*
 is hard-deleted — ⚠️ **the spend ledger survives a hard delete**, `04` §9) · `model_id` · tokens in
 and out · cost · `worker_environment`. Everything but the title is 12px Plex Mono, `--k-ink-value`.
+
+⚠️ **Amended 2026-09-21 with #25 (ADR 0070 §2): a *seed* request is a ledger row too**, discarded
+ones included, newest first among the *ingestions*. Its title is what it asked for (`tech · N3 · 25
+words`) followed by a 13px italic `seed` aside in `--k-ink-secondary`, the aside type §7.1 uses for
+*deleted*.
 
 ### 8.4 The export
 

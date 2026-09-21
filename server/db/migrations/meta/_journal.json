@@ -50,6 +50,13 @@
       "when": 1789969848420,
       "tag": "0006_note_meaning_and_synonym",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789976377012,
+      "tag": "0007_seed",
+      "breakpoints": true
     }
   ]
 }

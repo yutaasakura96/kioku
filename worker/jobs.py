@@ -66,13 +66,21 @@ KEEPALIVE_EVERY_SECONDS = 60.0
 
 @dataclass(frozen=True)
 class ClaimedJob:
-    """What a claim hands back. `kind` is `'ingest'` or `'resume'` (`04` §6.4)."""
+    """What a claim hands back. `kind` is `'ingest'`, `'resume'` or `'seed'`
+    (`04` §6.4).
+
+    ⚠️ **Exactly one of `ingestion_id` and `seed_id` is set, and `kind` says
+    which** — `04` §6.4's `job_target`, since #25 (ADR 0070). The claim, the
+    heartbeat and the sweep read neither; what a job *means* is decided by
+    whoever handles it (`__main__.handle`).
+    """
 
     id: str
     kind: str
-    ingestion_id: str
+    ingestion_id: str | None
     attempts: int
     claimed_by: str
+    seed_id: str | None = None
 
 
 def worker_id() -> str:
@@ -117,7 +125,7 @@ WHERE id = (
   FOR UPDATE SKIP LOCKED
   LIMIT 1
 )
-RETURNING id, kind, ingestion_id, attempts, claimed_by;
+RETURNING id, kind, ingestion_id, attempts, claimed_by, seed_id;
 """
 
 
@@ -126,7 +134,14 @@ def claim_next_job(connection: psycopg.Connection, *, owner: str) -> ClaimedJob 
     row = connection.execute(_CLAIM, {"owner": owner}).fetchone()
     if row is None:
         return None
-    return ClaimedJob(id=row[0], kind=row[1], ingestion_id=row[2], attempts=row[3], claimed_by=row[4])
+    return ClaimedJob(
+        id=row[0],
+        kind=row[1],
+        ingestion_id=row[2],
+        attempts=row[3],
+        claimed_by=row[4],
+        seed_id=row[5],
+    )
 
 
 #: ⚠️ Never source text and never the provider's name (`03` §13.4, `03` §11) —

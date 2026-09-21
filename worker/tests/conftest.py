@@ -111,6 +111,9 @@ SCRATCH_TABLES = (
     "note_meaning",
     "ingestion_chunk",
     "job",
+    # #25 — after `job`, which references it, and before `source`, which it
+    # references.
+    "seed",
     "ingestion",
     "source_chunk",
     "source",
@@ -121,9 +124,9 @@ SCRATCH_TABLES = (
 NO_DOCKER = """\
 Docker is not available, and this test needs a real Postgres 18 container.
 
-⚠️ Every red test below is in one of the worker's six database files —
+⚠️ Every red test below is in one of the worker's database files —
 `test_jobs.py`, `test_runs.py`, `test_reconnect.py`, `test_ingest.py`,
-`test_generation.py`, `test_backfill.py` and `test_scratch_cleanup.py`. (`worker/tests/README.md`
+`test_generation.py`, `test_backfill.py`, `test_seeding.py` and `test_scratch_cleanup.py`. (`worker/tests/README.md`
 carries how many that is; this message names the files, because those are what
 you are looking at.)
 

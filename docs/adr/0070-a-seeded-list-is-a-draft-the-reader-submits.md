@@ -56,6 +56,41 @@ condition below covers that.
   waits the way any queued job does, and the screen says so.
 - **The count's bounds.** They are bounded by `S2`'s cap and the 25-term word-list *chunk*.
 
+## Settled by the build (2026-09-21, #25)
+
+- **The job is a row in the same queue, and the ledger row is a table of its own.** `seed` (`04`
+  §6.5) carries the request, the answer and the spend. `job.ingestion_id` became nullable, `job.seed_id`
+  was added, `job_kind` gained `seed`, and `CHECK job_target` says exactly one of the two is set and
+  the kind says which. The claim, the heartbeat and the sweep read neither column, so all three stayed
+  single without a change; `worker/__main__.py`'s `handle` is the one place a job's kind is read.
+  Migration `0007`. The alternative, a second jobs table, would have meant a second claim query and a
+  second sweep.
+- **How the draft reaches the screen.** *Ingest* reads the requester's newest seed that is neither
+  submitted nor discarded, on every render, with no polling (ADR 0020). It says *not yet picked up*
+  while queued, which is the run list's wording, and *drafting* once claimed. It shows the job's own
+  error if the request failed, and pre-fills the word-list form once the draft has come back: the kind
+  is set to *Word list*, the title to `tech · N3 · 25 words`, and the seed id rides in a hidden field.
+  **One draft at a time**: while a seed is open, the request controls are replaced by where it is and a
+  *Discard the draft* control. **Discarding a draft that is still queued costs nothing**, because the
+  worker reads `discarded_at` before it spends.
+- **The count's bounds.** *Ingest* offers 10, 25, 50 and 100, with 25 as the default, which is one
+  word-list *chunk*. Every count at or above the default is a whole number of *chunks*. 100 is ten days
+  of ADR 0066's brake. `S2`'s cap never binds: 100 terms are a few hundred code points. The column's
+  `CHECK` is 1 to 100.
+- **"The owner's existing terms" means terms of *notes* the requester holds a *card* for.** It does
+  not mean every *note* in the corpus. The *pending notes* from the first prose run are nobody's yet,
+  and ADR 0063 made them a cache, so a seed that proposes one mints it with no `generate` spend.
+  Excluding them would throw that away. Any matching claim counts, whether a model's or an
+  authority's (ADR 0005).
+- **The draft is terms only, one per line.** A `word_list` line's second column is read by nothing
+  (`worker/pipeline/normalise.py` reads hints only for `anki`), so a reading on the line would look
+  like it mattered when it did not. The worker also drops blanks, repeats, anything multi-line and
+  anything already known before the draft reaches the screen. `filter_known` is still the backstop
+  after submission.
+- **`/stats` shows seed rows in the ledger** under the title they asked for, with a `seed` aside.
+  Discarded seeds are included.
+- **The seed prompt is `seed-v1`**, versioned separately from `generate`'s.
+
 ## Alternatives considered
 
 - **One shot: domain, level and count go straight to a *source*.** One fewer action, but

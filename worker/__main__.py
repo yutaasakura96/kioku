@@ -52,6 +52,7 @@ from pipeline import UnknownStage, check_pipelines
 from pipeline.generate import PROMPT_VERSION
 from pipeline.tokenise import DICTIONARY_VERSION
 from runs import run_ingestion
+from seeding import run_seed
 from subject import load_declaration, pipeline_kinds
 
 
@@ -91,6 +92,13 @@ def main() -> int:
     generate = make_generator(provider, worker_environment=environment)
 
     def handle(connection: psycopg.Connection, job: ClaimedJob) -> None:
+        # ⚠️ **#25's branch, and the only place a job's kind is read** (ADR 0070).
+        # A `seed` job has no *ingestion*; everything else about it — the claim,
+        # the heartbeat, the sweep, `done` and `failed` — is the same queue's.
+        if job.kind == "seed":
+            run_seed(connection, job, provider=provider, declaration=declaration, environment=environment)
+            return
+
         # ⚠️ **The one line #8 added to the loop, and #9 passed one argument
         # through it.** `run_ingestion` owns the durable bookkeeping and takes
         # the per-chunk work as an argument; this is that argument, bound to the

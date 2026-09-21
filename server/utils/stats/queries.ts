@@ -52,14 +52,26 @@ import { and, count, desc, eq, gte, sql } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import type { IngestDatabase } from '../ingest/record'
 import { WINDOW_DAYS } from '../../../shared/metrics/stats'
+import { seedTitle } from '../../../shared/ingest/seed'
 import type { StatsContext, StatsRows } from '../../../shared/metrics/stats'
 
-/** One row of `10` §8.3's spend ledger. */
+/**
+ * One row of `10` §8.3's spend ledger — an *ingestion*, or since #25 a *seed*
+ * request (ADR 0070 §2).
+ */
 export interface LedgerRow {
-  ingestionId: string
-  /** ⚠️ Null once the *source* has been hard-deleted — `04` §6.1's `SET NULL`. */
+  kind: 'ingestion' | 'seed'
+  /** `ingestion.id` or `seed.id`, by `kind`. */
+  id: string
+  /**
+   * ⚠️ Null once the *source* has been hard-deleted — `04` §6.1's `SET NULL` —
+   * and, for a seed, until its draft is submitted.
+   */
   sourceId: string | null
-  /** `ingestion.source_title`, snapshotted at submit so the ledger survives. */
+  /**
+   * `ingestion.source_title`, snapshotted at submit so the ledger survives; for
+   * a seed, what it asked for (`seedTitle`).
+   */
   title: string
   modelId: string | null
   inputTokens: number | null
@@ -333,18 +345,24 @@ async function sourceCount(db: IngestDatabase): Promise<number> {
 }
 
 /**
- * `10` §8.3's ledger — tokens and cost per *ingestion*, newest first.
+ * `10` §8.3's ledger — tokens and cost per *ingestion* and per *seed* request,
+ * newest first.
  *
- * ⚠️ **It reads `ingestion` alone and joins nothing.** `04` §9 makes
+ * ⚠️ **It reads `ingestion` and `seed` and joins nothing.** `04` §9 makes
  * `ingestion.source_id` `SET NULL` and snapshots `source_title` at submit
  * precisely so **the spend ledger survives a hard delete**; a ledger built by
  * joining `source` would lose the row the moment the material is gone, which is
  * the one case the snapshot exists for.
+ *
+ * ⚠️ **Every seed row, discarded ones included** (ADR 0070 §2): a draft the
+ * reader never submitted was still paid for. Two sequential reads merged here
+ * rather than a `UNION`, for the reason at the top of this file and because the
+ * two titles are made differently.
  */
 export async function ledger(db: IngestDatabase): Promise<LedgerRow[]> {
-  return db
+  const ingestions = await db
     .select({
-      ingestionId: schema.ingestion.id,
+      id: schema.ingestion.id,
       sourceId: schema.ingestion.sourceId,
       title: schema.ingestion.sourceTitle,
       modelId: schema.ingestion.modelId,
@@ -355,7 +373,32 @@ export async function ledger(db: IngestDatabase): Promise<LedgerRow[]> {
       submittedAt: schema.ingestion.submittedAt,
     })
     .from(schema.ingestion)
-    .orderBy(desc(schema.ingestion.submittedAt))
+
+  const seeds = await db
+    .select({
+      id: schema.seed.id,
+      sourceId: schema.seed.sourceId,
+      domain: schema.seed.domain,
+      level: schema.seed.level,
+      count: schema.seed.count,
+      modelId: schema.seed.modelId,
+      inputTokens: schema.seed.inputTokens,
+      outputTokens: schema.seed.outputTokens,
+      costMicroUsd: schema.seed.costMicroUsd,
+      workerEnvironment: schema.seed.workerEnvironment,
+      submittedAt: schema.seed.requestedAt,
+    })
+    .from(schema.seed)
+
+  const rows: LedgerRow[] = [
+    ...ingestions.map(row => ({ kind: 'ingestion' as const, ...row })),
+    ...seeds.map(({ domain, level, count, ...row }) => ({
+      kind: 'seed' as const,
+      ...row,
+      title: seedTitle({ domain, level, count }),
+    })),
+  ]
+  return rows.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())
 }
 
 /** One page load, in one lazy read — `server/middleware/shell-data.ts`. */

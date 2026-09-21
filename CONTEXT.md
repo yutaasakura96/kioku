@@ -91,6 +91,13 @@ _Avoid_: step, processor, phase
 The run that turns one source into notes.
 _Avoid_: import, upload, processing, parse
 
+**Seed** — ⚠️ **added 2026-09-21 (ADR 0070)**:
+A model's proposed word list for one *domain* and one *level*. It is asked for on *Ingest*, and it
+comes back as a draft in the word-list field. It becomes a *source* only when the reader submits it,
+and a discarded seed is still on the spend ledger. *Draft* means a seed's list and nothing else; a
+*pending* note is never a draft.
+_Avoid_: suggestion, recommendation, candidate list (*candidate* is taken)
+
 **Provenance**:
 The record, per field, of where a value came from — looked up, judged or generated — together with
 the model and prompt version responsible. Trust is a property of provenance.

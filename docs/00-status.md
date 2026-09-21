@@ -111,7 +111,33 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-21, latest — #30: a kanji's reading typed for the word's is a retry** (ADR 0069 §5 and
+**2026-09-21, latest — #25: a seeded list is a draft the reader submits** (ADR 0070 and its
+§ Settled by the build).
+- **The ledger row and the job.** `seed` (`04` §6.5) holds the request, the draft and the spend. In
+  `job`, `ingestion_id` became nullable and `seed_id` was added; `job_kind` gained `seed`; and
+  `CHECK job_target` says exactly one target is set and the kind says which. Claim, heartbeat and
+  sweep are unchanged, and `worker/__main__.py`'s `handle` branches on `kind`. **Migration `0007`,
+  not yet applied to Neon** (§ Carrying).
+- **The worker.** `worker/seeding.py` (`seed-v1`) excludes the requester's *carded* terms for that
+  *domain* and *level*, heartbeats while the model streams, and writes the ledger before validating.
+  A refused answer is still counted. It writes the draft after dropping blanks, repeats, multi-line
+  entries and known terms. **A seed discarded before it is claimed spends nothing.**
+- **The app.** `shared/ingest/seed.ts` (the counts 10/25/50/100, the validator, the title),
+  `server/utils/ingest/seed.ts` (`recordSeed`, `openSeed`, `discardSeed`, `markSeedSubmitted`), and
+  `server/middleware/submit-seed.ts` (`seed_action` on `POST /`). *Ingest* shows one draft at a time
+  and pre-fills the word-list form when it comes back. Submitting the draft marks it submitted in
+  `recordSource`'s transaction. `/stats`' ledger merges seed rows in, discarded ones included, each
+  with a `seed` aside.
+- **Checked in a browser** against a throwaway PGlite, not Neon: the ready draft in the form, the
+  request controls after a discard, and the seed row on `/stats`. Fixed from that check: the hidden
+  `seed` input had been breaking the `.field + .field` spacing above CONTENT.
+- Tests: unit (`ingest-seed`), schema (`seed.test.ts`: the transaction, `job_target`, the checks,
+  `openSeed`'s states, discard, submit, a hard delete; the ledger's seed rows in `stats.test.ts`),
+  e2e (request, waiting, pre-filled, submitted, failed, discarded, and the ledger), worker
+  (`test_seeding.py`, 26, 11 of them on the container). `04`, `09`, `10`, `CONTEXT.md`, ADR 0070 and
+  `06` amended. **No live seed request was made**; that spends money on Yuta's key and is his call.
+
+**2026-09-21, later — #30: a kanji's reading typed for the word's is a retry** (ADR 0069 §5 and
 its § Settled by the build of §5; `docs/kanjidic-research.md`).
 - **The data.** `server/data/kanjidic/readings.json`, 12,356 kanji, from KANJIDIC2
   `database_version` **2026-264** (created 2026-09-21), by `node scripts/kanjidic.ts`: `ja_on`
@@ -1807,8 +1833,11 @@ word's becomes a retry.
   [#30](https://github.com/yutaasakura96/kioku/issues/30), `ready-for-agent`, and it is the
   frontier.**~~ ⚠️ **#30 built 2026-09-21** (§ Done); #29 is closed. ~~No `ready-for-agent` ticket is
   left.~~
-- [#25](https://github.com/yutaasakura96/kioku/issues/25) — AI-seeded lists. ⚠️ **Triaged with Yuta
-  2026-09-21 and `ready-for-agent`; it is the frontier.** [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
+- ~~[#25](https://github.com/yutaasakura96/kioku/issues/25) — AI-seeded lists.~~ ⚠️ **Built
+  2026-09-21** (§ Done). **The frontier is empty.** What remains is two calls for Yuta: applying
+  `0007` to Neon (Ingest cannot render there until then, § Carrying), and the first live seed request,
+  which spends on his key. ⚠️ **Triaged with Yuta
+  2026-09-21 and `ready-for-agent`; it was the frontier.** [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
   answers its four questions: the worker returns a draft that lands pre-filled in *Ingest* and is
   submitted as a plain `word_list` *source*; each seed request gets its own ledger row;
   *time-to-first-review* still starts at submission; the prompt excludes known terms for that
@@ -2323,6 +2352,20 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **Neon is at `0006` and the code expects `0007`** (2026-09-21, #25). **`/` reads `seed` on
+  every render** (`openSeed`), so until `0007` is applied Ingest fails against Neon, and so do
+  `/stats`' ledger and every seed request. Apply it with `node --env-file=.env
+  ./node_modules/.bin/drizzle-kit migrate`. It only adds things: one table, one nullable column,
+  `ingestion_id`'s `NOT NULL` dropped, and two `CHECK`s. Every existing `job` row satisfies
+  `job_target`.
+- ⚠️ **A job has exactly one target, and `kind` says which** (`04` §6.4). Any new job kind owes
+  `job_target` an amendment, and `ClaimedJob.ingestion_id` is `None` for a `seed` job, so code that
+  reads it must first check `kind`. Claim, heartbeat and sweep must keep reading neither column,
+  because that is what keeps the queue single (ADR 0070 § Settled by the build).
+- ⚠️ **`seed.submitted_at` is what keeps a draft off the screen, not `seed.source_id`.** A hard
+  delete nulls `source_id` (the ledger survives). A query for open drafts that tested `source_id IS
+  NULL` would bring every deleted *source*'s draft back to *Ingest*.
 
 - ⚠️ **The KANJIDIC2 table has a licence clock** (EDRDG licence §4: stale data "is a violation of
   the licence"). Yuta's call is a **monthly** manual refresh: `node scripts/kanjidic.ts`, run the

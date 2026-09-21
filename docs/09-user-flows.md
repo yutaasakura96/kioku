@@ -209,6 +209,9 @@ The form has two fields: an optional title, and the content. On submit, `POST /`
 | Over 100,000 characters | **`200`, the form re-rendered with the text still in it**, and the character count | Refused before any spend. `char_count`'s `CHECK` is the same rule in the schema (`04` §5.1) |
 | Content identical to an existing *source* | `303` to `/`, plus a line naming the earlier *source* and linking to it | A new *source* either way — `content_hash` is indexed and **not** unique. Detection, not prevention (`04` §5.1, PRD §5) |
 | Empty content | `200`, re-rendered, message | |
+| ⚠️ A *seed* request (#25, ADR 0070) — `seed_action=request` | `303` to `/`, and the seed controls become a sentence saying where the draft is | `seed` + `job(kind='seed', queued)`, one transaction (`04` §6.4, §6.5). A *domain*, *level* or count the form could not have sent writes nothing |
+| A draft discarded — `seed_action=discard` | `303` to `/`, controls back | `seed.discarded_at`. **The row and its cost stay** (ADR 0070 §2) |
+| A draft submitted | As *Accepted* | As *Accepted*, and the same transaction sets `seed.source_id` and `submitted_at` (ADR 0070 §1) |
 
 The over-cap row is the one that had to be argued. A `303` after a rejected 120,000-character paste
 loses the paste, and there is no client to hold it. Re-rendering from the `POST` body keeps it. The

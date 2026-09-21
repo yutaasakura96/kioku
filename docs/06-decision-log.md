@@ -1527,6 +1527,9 @@ The worker proposes a list for a *domain*, a *level* and a count, and it lands p
 seed request gets its own ledger row, *time-to-first-review* still starts at submission, and the
 prompt excludes the terms the corpus already has for that *domain* and *level*.
 → [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
+⚠️ **Left to the build, settled 2026-09-21 (#25)**: a `seed` table and a `seed` job in the same
+queue (`job_target`: exactly one of `ingestion_id` and `seed_id`); counts 10/25/50/100; the
+exclusion list is the requester's *carded* terms, so cached *pending notes* stay proposable.
 
 ## Adding an entry
 

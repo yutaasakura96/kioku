@@ -649,3 +649,145 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
     expect(await count('source')).toBe(before + 2)
   })
 })
+
+describe('⚠️ a seed — ADR 0070, #25', () => {
+  // The worker is not running in this tier, so its half is written by hand,
+  // exactly as `worker/seeding.py` writes it — `worker/tests/test_seeding.py` is
+  // where that half is tested.
+  async function answer(terms: string[]) {
+    await database.client.query(
+      `UPDATE seed SET completed_at = now(), terms = $1, model_id = 'claude-sonnet-5',
+         prompt_version = 'seed-v1', input_tokens = 900, output_tokens = 40, cost_micro_usd = 2200
+       WHERE submitted_at IS NULL AND discarded_at IS NULL;`,
+      [terms],
+    )
+    await database.client.exec(
+      `UPDATE job SET state = 'done', finished_at = now() WHERE kind = 'seed' AND state = 'queued';`,
+    )
+  }
+
+  async function openSeedId(): Promise<string> {
+    const result = await database.client.query<{ id: string }>(
+      `SELECT id FROM seed WHERE submitted_at IS NULL AND discarded_at IS NULL ORDER BY requested_at DESC LIMIT 1;`,
+    )
+    return result.rows[0]!.id
+  }
+
+  const request = { seed_action: 'request', domain: 'tech', level: 'N3', count: '25' }
+
+  it('offers a domain, a level and a count from the subject\'s closed sets', async () => {
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).toContain('DRAFT A LIST')
+    expect(html).toContain('name="seed_action" value="request"')
+    for (const domain of ['tech', 'business', 'daily', 'academic', 'general'])
+      expect(html).toContain(`value="${domain}"`)
+    for (const level of ['N5', 'N4', 'N3', 'N2', 'N1'])
+      expect(html).toContain(`value="${level}"`)
+    expect(html).toMatch(/value="25"[^>]*selected/)
+  })
+
+  it('writes nothing for a request the form could not have sent', async () => {
+    const before = await count('seed')
+    const response = await asReader('/', form({ ...request, domain: 'cooking' }))
+
+    expect(response.status).toBe(303)
+    expect(await count('seed')).toBe(before)
+  })
+
+  it('writes a seed and a queued seed job, answers 303, and writes no source', async () => {
+    const sources = await count('source')
+    const response = await asReader('/', form(request))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+
+    const job = await database.client.query<{ kind: string, state: string, ingestion_id: string | null }>(
+      `SELECT kind, state, ingestion_id FROM job WHERE seed_id = $1;`,
+      [await openSeedId()],
+    )
+    expect(job.rows).toEqual([{ kind: 'seed', state: 'queued', ingestion_id: null }])
+    expect(await count('source')).toBe(sources)
+  })
+
+  it('says the draft is not yet picked up, and gives the controls way while it is open', async () => {
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).toContain('Drafting 25 tech words at N3 — not yet picked up.')
+    expect(html).not.toContain('DRAFT A LIST')
+    expect(html).toContain('Discard the draft')
+
+    // ⚠️ `09` §7 and ADR 0020: it waits the way a queued run waits — no
+    // script, no refresh, and no diagnosis of the laptop.
+    expect(html).not.toContain('<script')
+    expect(html).not.toContain('http-equiv="refresh"')
+    expect(html).not.toMatch(/worker is (down|not running)|offline/i)
+  })
+
+  it('⚠️ lands pre-filled in the word-list field once it has come back — ADR 0070 §1', async () => {
+    await answer(['会議', '予算'])
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).toContain('2 of 25 tech words at N3 are in the list below.')
+    expect(html).toMatch(/<textarea[^>]*>\n会議\n予算<\/textarea>/)
+    expect(html).toContain('value="tech · N3 · 25 words"')
+    expect(html).toContain(`name="seed" value="${await openSeedId()}"`)
+    expect(html).toMatch(/value="word_list"[^>]*\n?\s*checked/)
+  })
+
+  it('is submitted as an ordinary word_list source, and the draft leaves the screen', async () => {
+    const seedId = await openSeedId()
+    const response = await asReader('/', upload({
+      kind: 'word_list',
+      title: 'tech · N3 · 25 words',
+      // The reader removed one word before submitting.
+      content: '会議',
+      seed: seedId,
+    }))
+    expect(response.status).toBe(303)
+
+    const seed = await database.client.query<{ kind: string, content: string, submitted: boolean }>(
+      `SELECT s.kind, s.content, seed.submitted_at IS NOT NULL AS submitted
+       FROM seed JOIN source s ON s.id = seed.source_id WHERE seed.id = $1;`,
+      [seedId],
+    )
+    expect(seed.rows).toEqual([{ kind: 'word_list', content: '会議', submitted: true }])
+
+    const html = await asReader('/').then(response => response.text())
+    expect(html).toContain('DRAFT A LIST')
+    expect(html).not.toContain('name="seed" value=')
+  })
+
+  it('says so when the draft did not come back, with the job\'s own sentence', async () => {
+    await asReader('/', form(request))
+    await database.client.exec(
+      `UPDATE job SET state = 'failed', finished_at = now(),
+         last_error = 'the model provider answered 529 after 3 attempts'
+       WHERE kind = 'seed' AND state = 'queued';`,
+    )
+
+    const html = await asReader('/').then(response => response.text())
+    expect(html).toContain('The draft of tech words at N3 did not come back: the model provider answered 529 after 3 attempts.')
+    expect(html).not.toMatch(/anthropic/i)
+  })
+
+  it('⚠️ discards it and keeps the row, because a discarded draft was still paid for — ADR 0070 §2', async () => {
+    const seedId = await openSeedId()
+    const response = await asReader('/', form({ seed_action: 'discard', seed_id: seedId }))
+    expect(response.status).toBe(303)
+
+    const row = await database.client.query<{ discarded: boolean }>(
+      `SELECT discarded_at IS NOT NULL AS discarded FROM seed WHERE id = $1;`,
+      [seedId],
+    )
+    expect(row.rows).toEqual([{ discarded: true }])
+
+    const html = await asReader('/').then(response => response.text())
+    expect(html).toContain('DRAFT A LIST')
+  })
+
+  it('puts every seed request on the ledger, the discarded one included', async () => {
+    const html = await asReader('/stats').then(response => response.text())
+    expect(html.match(/tech · N3 · 25 words<span[^>]*> seed<\/span>/g)).toHaveLength(2)
+  })
+})

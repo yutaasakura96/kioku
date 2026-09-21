@@ -276,6 +276,88 @@ export const generationCache = pgTable(
 )
 
 /**
+ * `04` §6.5 — [ADR 0070](../../../docs/adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md):
+ * **one model request for a word list, and its own line in the spend ledger.**
+ *
+ * A *seed* is asked for on *Ingest* with a *domain*, a *level* and a count, and
+ * answered by the worker, because the provider key exists only there (`03`
+ * §13.1). What comes back is a draft: it lands in *Ingest*'s word-list field and
+ * becomes a *source* only when the reader submits it (ADR 0070 §1).
+ *
+ * ⚠️ **Its own row and not a column on `ingestion`** (ADR 0070 §2). The request
+ * runs before any *source* exists, a draft the reader discards is still money
+ * spent, and folding it into the *ingestion* it becomes would mix two prompt
+ * versions on one row and lose every discarded one.
+ *
+ * ⚠️ **Shared, like `ingestion`** (`04` §4): it is spend, and spend is reported
+ * whoever asked. `requested_by` is an audit line that *Ingest* also reads to
+ * find the requester's draft — the only personal question asked of it.
+ */
+export const seed = pgTable(
+  'seed',
+  {
+    id: primaryId(),
+    subjectId: text('subject_id').notNull(),
+    /**
+     * One of the *subject*'s `domains`, and `level` one of its `levels`
+     * (ADR 0065). ⚠️ **No `CHECK`**, for `domain_claim.domain`'s reason: the
+     * sets live in `subjects/`, and `shared/ingest/seed.ts` refuses a value
+     * outside them before the row is written.
+     */
+    domain: text('domain').notNull(),
+    level: text('level').notNull(),
+    /** How many words were asked for. `shared/ingest/seed.ts` offers the set. */
+    count: integer('count').notNull(),
+    /** An audit line, and the reader *Ingest* shows the draft to. */
+    requestedBy: text('requested_by').references(() => user.id, { onDelete: 'set null' }),
+    requestedAt: tstz('requested_at').notNull().defaultNow(),
+    /** Set when the answer is written. Null while queued, and on a failure. */
+    completedAt: tstz('completed_at'),
+    modelId: text('model_id'),
+    promptVersion: text('prompt_version'),
+    /** **From the API response** (`03` §7), never estimated — as on `ingestion`. */
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'bigint' }),
+    priceTableEffectiveDate: date('price_table_effective_date'),
+    /**
+     * How many of the requester's terms the prompt told the model to leave out
+     * (ADR 0070 §4). ⚠️ **The revisit signal**: ADR 0070 reopens when that list
+     * costs more input than the answer costs output.
+     */
+    excludedTermCount: integer('excluded_term_count'),
+    /**
+     * The list returned, one *term* per element — what the draft is made of.
+     * ⚠️ Model output, never logged (`03` §13.4).
+     */
+    terms: text('terms').array(),
+    workerEnvironment: text('worker_environment').notNull().default('laptop'),
+    /**
+     * The *source* the draft was submitted as. ⚠️ `SET NULL`, like
+     * `ingestion.source_id`, so the ledger outlives a hard delete — which is why
+     * `submitted_at` is a column of its own: a nulled `source_id` must not turn
+     * a submitted draft back into one waiting on the screen.
+     */
+    sourceId: uuid('source_id').references(() => source.id, { onDelete: 'set null' }),
+    submittedAt: tstz('submitted_at'),
+    /** The reader discarded it. **The row stays, and so does its cost** (ADR 0070 §2). */
+    discardedAt: tstz('discarded_at'),
+  },
+  t => [
+    // `shared/ingest/seed.ts` offers four counts; this is the outer bound, and
+    // 100 is four 25-term *chunks* (ADR 0063) — far under `S2`'s cap.
+    check('seed_count', sql`${t.count} BETWEEN 1 AND 100`),
+    check('seed_worker_environment', sql`${t.workerEnvironment} IN ('laptop','server')`),
+    // A draft is submitted or discarded, not both.
+    check('seed_disposition', sql`${t.submittedAt} IS NULL OR ${t.discardedAt} IS NULL`),
+    // *Ingest*'s draft lookup: the requester's newest seed still on the screen.
+    index('seed_open_idx')
+      .on(t.requestedBy, t.requestedAt.desc())
+      .where(sql`${t.submittedAt} IS NULL AND ${t.discardedAt} IS NULL`),
+  ],
+)
+
+/**
  * `04` §6.4 — ADR 0028: **the job table is the truth and `NOTIFY` only shortens
  * latency.**
  *
@@ -293,10 +375,18 @@ export const job = pgTable(
   {
     id: primaryId(),
     kind: text('kind').notNull(),
+    /**
+     * ⚠️ **Nullable since #25, and exactly one of this and `seed_id` is set**
+     * (ADR 0070 § Settled by the build). A `seed` job has no *ingestion*: the
+     * request runs before any *source* exists. One table rather than a second
+     * queue keeps the claim, the heartbeat and the sweep single — none of them
+     * reads either column.
+     */
     ingestionId: uuid('ingestion_id')
-      .notNull()
       // A job for a deleted run is noise — `04` §9.
       .references(() => ingestion.id, { onDelete: 'cascade' }),
+    /** Set for a `seed` job and for nothing else — `04` §6.5. */
+    seedId: uuid('seed_id').references(() => seed.id, { onDelete: 'cascade' }),
     state: text('state').notNull().default('queued'),
     /** Backoff. A retry sets it forward rather than sleeping in the worker. */
     availableAt: tstz('available_at').notNull().defaultNow(),
@@ -313,7 +403,12 @@ export const job = pgTable(
     finishedAt: tstz('finished_at'),
   },
   t => [
-    check('job_kind', sql`${t.kind} IN ('ingest','resume')`),
+    check('job_kind', sql`${t.kind} IN ('ingest','resume','seed')`),
+    // ⚠️ Exactly one target, and the kind says which (#25).
+    check(
+      'job_target',
+      sql`(${t.kind} = 'seed') = (${t.seedId} IS NOT NULL) AND num_nonnulls(${t.ingestionId}, ${t.seedId}) = 1`,
+    ),
     check('job_state', sql`${t.state} IN ('queued','claimed','done','failed')`),
     // The claim query, run on every connect, reconnect and notification.
     index('job_queued_idx')

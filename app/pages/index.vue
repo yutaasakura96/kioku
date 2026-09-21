@@ -20,6 +20,8 @@
 
 import { resolveExisting } from '~~/shared/ingest/existing'
 import { INGEST_DEFAULT_SOURCE_KIND, SUBMITTABLE_SOURCE_KINDS } from '~~/shared/ingest/kind'
+import { DEFAULT_SEED_COUNT, SEED_COUNTS, draftContent, seedTitle } from '~~/shared/ingest/seed'
+import { domainValues, jlptVocab, levelValues } from '~~/shared/subject/declaration'
 
 const event = useRequestEvent()
 const place = usePlace()
@@ -46,7 +48,7 @@ const failure = event?.context.ingestFailure ?? null
  * silently shortening it is the same failure in miniature and harder to notice.
  * Prepending one newline makes the eaten one ours.
  */
-const refusedContent = computed(() => `\n${failure?.content ?? ''}`)
+const refusedContent = computed(() => `\n${failure?.content ?? readyDraft?.content ?? ''}`)
 
 /**
  * ⚠️ **A word list is the default and prose is the other choice** — ADR 0063 §5.
@@ -83,12 +85,68 @@ const KIND_LABELS: Record<string, { label: string, hint: string }> = {
  */
 const FILE_ACCEPT = '.txt,text/plain,.apkg,application/zip'
 
+/**
+ * The reader's open *seed* — [ADR 0070](../../docs/adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md).
+ *
+ * ⚠️ **One draft at a time.** While a seed is open the request controls give
+ * way to where it is: waiting for the worker, drafting, failed, or back in the
+ * word-list field below. The reader submits it or discards it, and then the
+ * controls return. Two open seeds would be two requests paid for and one shown.
+ *
+ * ⚠️ **No polling** (ADR 0020 — this route ships no JavaScript). A draft that is
+ * waiting says so, and the next load says whatever is true then, like a queued
+ * run (`09` §7).
+ */
+const seed = (await place?.seed()) ?? null
+
+/**
+ * What goes into the form when the draft has come back — ADR 0070 §1: *it
+ * lands pre-filled in the word-list field*. ⚠️ **A refusal wins over it**: the
+ * reader's own edit of the draft, sent back with a message, is newer than the
+ * draft the worker wrote.
+ */
+const readyDraft = seed?.state === 'ready' && seed.terms.length > 0 && !failure
+  ? { id: seed.id, title: seedTitle(seed), content: draftContent(seed.terms) }
+  : null
+
+/**
+ * Where the draft is, in one sentence. ⚠️ **Built here rather than in the
+ * template**, so the rendered document holds the sentence whole — the
+ * template's conditional fragments put comment nodes between its halves.
+ */
+function sentenceFor(draft: NonNullable<typeof seed>): string {
+  const words = `${draft.domain} words at ${draft.level}`
+  switch (draft.state) {
+    case 'waiting':
+      return `Drafting ${draft.count} ${words} — not yet picked up.`
+    case 'drafting':
+      return `Drafting ${draft.count} ${words}.`
+    case 'failed':
+      return draft.error
+        ? `The draft of ${words} did not come back: ${draft.error}.`
+        : `The draft of ${words} did not come back.`
+  }
+  if (draft.terms.length === 0)
+    return `No new ${words} came back — every one proposed is already yours.`
+  const how = draft.terms.length === draft.count ? `${draft.count}` : `${draft.terms.length} of ${draft.count}`
+  return `${how} ${words} are in the list below. Remove any you do not want, then Ingest.`
+}
+
+const seedSentence = seed ? sentenceFor(seed) : ''
+
+const domains = domainValues(jlptVocab)
+const levels = levelValues(jlptVocab)
+const seedCounts = SEED_COUNTS
+
 // A refused submission keeps the reader's answer. Everything else on the form
 // comes back; this must too, or a refusal silently changes what they said the
-// material was.
+// material was. A draft is a word list, so it selects that.
 const selectedKind = failure?.kind && (kinds as readonly string[]).includes(failure.kind)
   ? failure.kind
-  : INGEST_DEFAULT_SOURCE_KIND
+  : readyDraft ? 'word_list' : INGEST_DEFAULT_SOURCE_KIND
+
+const formTitle = failure?.title ?? readyDraft?.title ?? ''
+const formSeed = failure?.seed ?? readyDraft?.id ?? ''
 
 const counts = await useStartBlockCounts()
 const runs = (await place?.runs()) ?? []
@@ -127,6 +185,60 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
       </ul>
     </section>
 
+    <!-- ADR 0070: a *seed*. A model drafts a word list for a *domain* and a
+      *level*, and the draft lands in the form below for the reader to submit or
+      trim. Its own form, urlencoded, told apart by `seed_action`
+      (`server/middleware/submit-seed.ts`); forms cannot nest, so it sits above
+      the one it fills. -->
+    <section class="seed">
+      <template v-if="seed">
+        <p class="seed-state">
+          {{ seedSentence }}
+        </p>
+
+        <form method="post" action="/" class="seed-discard">
+          <input type="hidden" name="seed_action" value="discard">
+          <input type="hidden" name="seed_id" :value="seed.id">
+          <button type="submit" class="quiet">
+            Discard the draft
+          </button>
+        </form>
+      </template>
+
+      <form v-else method="post" action="/" class="seed-request">
+        <input type="hidden" name="seed_action" value="request">
+        <span class="eyebrow">DRAFT A LIST</span>
+        <div class="seed-controls">
+          <label class="seed-choice">
+            <span class="seed-label">Domain</span>
+            <select name="domain">
+              <option v-for="domain in domains" :key="domain" :value="domain">{{ domain }}</option>
+            </select>
+          </label>
+          <label class="seed-choice">
+            <span class="seed-label">Level</span>
+            <select name="level">
+              <option v-for="level in levels" :key="level" :value="level">{{ level }}</option>
+            </select>
+          </label>
+          <label class="seed-choice">
+            <span class="seed-label">Words</span>
+            <select name="count">
+              <option
+                v-for="count in seedCounts"
+                :key="count"
+                :value="count"
+                :selected="count === DEFAULT_SEED_COUNT"
+              >{{ count }}</option>
+            </select>
+          </label>
+          <button type="submit" class="quiet">
+            Draft
+          </button>
+        </div>
+      </form>
+    </section>
+
     <!-- ⚠️ **`enctype` is load-bearing, not decoration.** A urlencoded form sends
       a file input's *name* and not its bytes, so the `.txt` ADR 0063 asks for
       needs `multipart/form-data`. `server/middleware/submit-source.ts` reads
@@ -152,6 +264,12 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
         ⚠️ **Radios and not a `<select>`.** Two choices, both worth reading, on a
         route that ships no JavaScript: a select hides the alternative behind a
         click and gains nothing when the whole list fits on one line. -->
+      <!-- ADR 0070 §1: the draft this list began as, so submitting it marks the
+        seed submitted. Untrusted, and `markSeedSubmitted` treats it so. ⚠️ First
+        in the form, not beside the field it belongs to: between two fields it
+        would break the `.field + .field` rhythm below. -->
+      <input v-if="formSeed" type="hidden" name="seed" :value="formSeed">
+
       <fieldset class="kinds">
         <legend class="eyebrow">SOURCE</legend>
         <label v-for="kind in kinds" :key="kind" class="kind">
@@ -172,7 +290,7 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
           name="title"
           type="text"
           autocomplete="off"
-          :value="failure?.title ?? ''"
+          :value="formTitle"
         >
       </label>
 
@@ -258,6 +376,67 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
 
 .form {
   margin-top: var(--k-space-8); /* 40px */
+}
+
+/* ADR 0070's seed controls. ⚠️ **No new colour, no new type size** (`05` §2,
+   §4): the eyebrow, the body face, the ink ramp and the quiet control. */
+.seed {
+  margin-top: var(--k-space-8);
+}
+
+.seed-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--k-space-4);
+}
+
+.seed-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--k-space-2);
+}
+
+.seed-label {
+  font-size: 13px;
+  color: var(--k-ink-secondary);
+}
+
+.seed-choice select {
+  padding: var(--k-space-2) var(--k-space-3);
+  background: var(--k-raised);
+  border: 1px solid var(--k-border-control);
+  border-radius: var(--k-radius-control);
+  font-family: var(--k-face-en);
+  font-size: 15px;
+  color: var(--k-ink);
+}
+
+.seed-state {
+  margin: 0;
+  font-size: 15px;
+  color: var(--k-ink);
+}
+
+.seed-discard {
+  margin-top: var(--k-space-3);
+}
+
+/* `05` §7's quiet affordance, without its arrow — it is not the only thing on
+   the screen (`10` §3.2). */
+.quiet {
+  padding: 9px 16px;
+  background: var(--k-raised);
+  border: 1px solid var(--k-border-control);
+  border-radius: var(--k-radius-control);
+  font-family: var(--k-face-en);
+  font-size: 14px;
+  color: var(--k-ink);
+  cursor: pointer;
+}
+
+.quiet:hover {
+  background: var(--k-key-face);
 }
 
 /* ⚠️ **No colour is spent on the refusal** (`10` §6.3). The accent is for where

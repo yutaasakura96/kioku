@@ -45,7 +45,7 @@ describe('the shape the migrations actually build', () => {
     expect(generated.rows[0]!.id).toMatch(/^[0-9a-f-]{36}$/)
   })
 
-  it('has the twenty-one tables of 04 plus the auth library\'s four', async () => {
+  it('has the twenty-two tables of 04 plus the auth library\'s four', async () => {
     const ours = await client.query<{ table_name: string }>(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -71,6 +71,7 @@ describe('the shape the migrations actually build', () => {
       'review_session',
       'review_session_card',
       'scheduling_epoch',
+      'seed',
       'source',
       'source_chunk',
       'vetting_session',

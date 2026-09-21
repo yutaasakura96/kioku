@@ -34,6 +34,7 @@ import * as schema from '../../db/schema'
 import type { SourceKind } from '../../../shared/ingest/kind'
 import { chunkBoundaries } from '../../../shared/ingest/chunk'
 import { notifyJobQueued } from './notify'
+import { markSeedSubmitted } from './seed'
 
 /**
  * Both drivers, one signature. The app is `drizzle-orm/node-postgres` (ADR 0040)
@@ -72,6 +73,13 @@ export interface SourceSubmission {
    * passes a `jobKind` but that test.
    */
   jobKind?: 'ingest' | 'resume'
+  /**
+   * The *seed* this list began as, when the reader submitted a draft — ADR 0070
+   * §1. **Read from the form, so it is untrusted**: `markSeedSubmitted` links
+   * only the submitter's own open draft and ignores anything else, and the
+   * *source* is written either way.
+   */
+  seedId?: string
 }
 
 /** The earlier *source* the screen offers to open — PRD §5, `09` §4.2. */
@@ -127,6 +135,11 @@ export async function recordSource(
       .returning({ id: schema.source.id })
 
     const sourceId = source!.id
+
+    // ADR 0070 §1: a submitted draft stops being one in the same transaction
+    // that makes it a *source*, so it can never be both on the screen and in the
+    // run list.
+    await markSeedSubmitted(tx, { seedId: submission.seedId, sourceId, submittedBy: submission.submittedBy })
 
     // One statement rather than a loop: a 100,000-character *source* is 84
     // chunks — or, as a word list, one per 25 terms (ADR 0063) — and that many

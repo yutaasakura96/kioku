@@ -27,6 +27,7 @@ import {
   sourceTitle,
   startBlockCounts,
 } from '../utils/ingest/queries'
+import { openSeed } from '../utils/ingest/seed'
 import { statsData } from '../utils/stats/queries'
 import { readerZone } from '../utils/review/queries'
 import { useDatabase } from '../db'
@@ -69,6 +70,7 @@ export default defineEventHandler((event) => {
   event.context.place = {
     counts: () => startBlockCounts(db, ownerId),
     runs: () => recentRuns(db),
+    seed: () => openSeed(db, ownerId),
     sources: () => allSources(db),
     sourceTitle: (id: string) => sourceTitle(db, id),
     sourceDetail: (id: string) => sourceDetail(db, id),
