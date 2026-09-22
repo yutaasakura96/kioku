@@ -30,6 +30,9 @@ import { auth } from '../utils/auth'
 const PUBLIC_PATHS = new Set(['/auth', '/auth/refused'])
 const PUBLIC_PREFIX = '/api/auth'
 
+/** Gated like everything else; refused like a document. See below. */
+const EXPORT_PATH = '/api/export'
+
 /**
  * The framework's own output: `/_nuxt/**`, `/_payload.json`, `/favicon.ico`.
  *
@@ -74,7 +77,12 @@ export default defineEventHandler(async (event) => {
   // one of the two *modes* and gets a status its caller can act on. A 302 to an
   // HTML page is indistinguishable from success to `fetch`, which is how an
   // outbox flush ends up posting grades into a sign-in page (`08` §5.6).
-  if (path.startsWith('/api/'))
+  //
+  // ⚠️ **`/api/export` is the one `/api/**` path whose caller is a browser**:
+  // `S12`'s plain link on `/stats` (`09` §4.12), followed as a navigation. A
+  // signed-out reader who follows it belongs at the door, and `11` §4 asserts
+  // the `302` — `08` §6.3 as amended by #31.
+  if (path.startsWith('/api/') && path !== EXPORT_PATH)
     throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
 
   // ⚠️ The target is `/auth`, not the requested screen (`08` §11). There is no

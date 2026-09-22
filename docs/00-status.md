@@ -28,9 +28,9 @@ closing on merge until 2026-09-14**; #15, #13 and #16 are closed.
 2026-09-20, "#2 through #20, #22 and #23" until #21 was built on 2026-09-18, "#2 through #18" before
 that, and "#14" until 2026-09-16**). ~~⚠️ **The ticket frontier is empty of `ready-for-agent` work
 again**: #25 has four open questions in its body and is `needs-triage`, and triaging it is a
-conversation rather than an `/implement` (§ Next).~~ ⚠️ **#25 was triaged with Yuta on 2026-09-21
-(ADR 0070) and is `ready-for-agent`: it is the frontier.** ~~The frontier is #21, the review-load brake.~~ What stays unticketed is `S12`'s export, which
-issue #1 puts outside milestone 1.
+conversation rather than an `/implement` (§ Next).~~ ~~⚠️ **#25 was triaged with Yuta on 2026-09-21
+(ADR 0070) and is `ready-for-agent`: it is the frontier.**~~ ⚠️ **#25 was built 2026-09-21 and #31 on 2026-09-22; the frontier is empty.** ~~The frontier is #21, the review-load brake.~~ ~~What stays unticketed is `S12`'s export, which
+issue #1 puts outside milestone 1.~~ ⚠️ **`S12`'s export is built (#31, 2026-09-22)**, so nothing named stays unticketed.
 
 ⚠️ **A pivot was decided on 2026-09-16 and everything below this paragraph describes the system it
 changes.** The input becomes chosen words rather than mined prose, vetting leaves the loop, every
@@ -111,7 +111,25 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-21, latest — #25: a seeded list is a draft the reader submits** (ADR 0070 and its
+**2026-09-22, latest — #31: `S12`'s export** (`09` §4.12, `10` §8.4, `11` §4). No ADR; one amendment.
+- **The route.** `GET /api/export` (`server/api/export.get.ts`) answers the reader's *notes* (through
+  `note_vetting`, every state, `pending` included), *cards*, every `scheduling_epoch` (superseded
+  included) and `review_log` as *grades*, with `Content-Disposition: attachment;
+  filename="kioku-export-YYYY-MM-DD.json"`. `server/utils/export/queries.ts` lists columns rather
+  than whole rows, so no `source.content` and no email can leave, and it reads inside one read-only
+  `repeatable read` transaction so the four collections are one instant.
+- **`08` §6.3 amended in place.** Signed out, `/api/export` answers **`302` to `/auth`**, not the
+  `401` every other `/api/**` route answers: its caller is a browser following a link, and `11` §4
+  asked for the `302`. `server/middleware/session.ts` carries the one exception by name.
+- **The link.** `/stats` carries a plain `<a href="/api/export">Export everything</a>` 32px below the
+  ledger, with the 13px Newsreader italic aside. It is not a `<NuxtLink>`, and the *place* still
+  ships no script.
+- Tests: `test/e2e/export.test.ts` covers `11` §4 step by step: the header, the parse, counts
+  reconciled against the database per owner (a second owner's rows are seeded to catch a missing
+  filter), the superseded epoch and its two *grades*, a `pending` *note* with no *card*, no source
+  text and no email, the signed-out `302`, and the link on `/stats`.
+
+**2026-09-21 — #25: a seeded list is a draft the reader submits** (ADR 0070 and its
 § Settled by the build).
 - **The ledger row and the job.** `seed` (`04` §6.5) holds the request, the draft and the spend. In
   `job`, `ingestion_id` became nullable and `seed_id` was added; `job_kind` gained `seed`; and
@@ -762,7 +780,9 @@ it degrades, so the number has to be free to fall. **Do not add one later "to be
 `<a href="/api/export">` on this screen; issue #1's own out-of-scope list puts `S12` outside
 milestone 1 — "a `MUST` for v1 and not part of the loop" — with the route, its
 `Content-Disposition` and the test that reads it back all owed together. A link to a route that does
-not exist is not an offer, so the link is absent and `app/pages/stats.vue` says why.
+not exist is not an offer, so the link is absent and `app/pages/stats.vue` says why. ⚠️ **Built by
+[#31](https://github.com/yutaasakura96/kioku/issues/31) on 2026-09-22**: the route, the link and the
+test shipped together, and the comment in `stats.vue` is gone.
 
 **Phase 6, #13 — the outbox, and the `S9` flag, 2026-09-12.** **A *session* answered underground
 loses nothing.** Every answer is written to `localStorage` before the screen paints the next *card*,
@@ -1801,6 +1821,9 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
+- ~~[#31](https://github.com/yutaasakura96/kioku/issues/31) — `S12`'s export.~~ ⚠️ **Built
+  2026-09-22** (§ Done). It was the last unticketed story; the frontier is empty again.
+
 ⚠️ **2026-09-21: the reader's run started, and its first *session* produced
 [ADR 0069](adr/0069-the-check-is-the-grade.md) and three tickets.** The typed check becomes the
 *grade* with no override; a refused meaning can become the reader's synonym; a *note* carries a list
@@ -2078,7 +2101,8 @@ invalidates what was memorised, and nothing writes one today); and `card_flag.re
 ⚠️ **Until it ships, `note_vetting.flagged_at` is written and still nothing reads it** — which is
 #10's own carried bullet, one step further along.
 
-⚠️ **A second ticket is owed and nobody has opened it either: `S12`'s export.** Issue #1's
+~~⚠️ **A second ticket is owed and nobody has opened it either: `S12`'s export.**~~ ⚠️ **Ticketed as
+#31 and built 2026-09-22** (§ Done); what follows is the case it was built from. Issue #1's
 out-of-scope list puts it outside milestone 1 — "a `MUST` for v1 and **not part of the loop**" — and
 #14 therefore did not build it, so `10` §8.4's `<a href="/api/export">` is **absent from `/stats`**
 rather than pointing at a route that does not exist. It arrives as one ticket with three parts,
@@ -2352,6 +2376,11 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **`/api/export` is the one `/api/**` path refused with a `302`, not a `401`** (#31, `08` §6.3 as
+  amended). `server/middleware/session.ts` names it. A refactor that folds it back into the `/api/`
+  branch hands a signed-out reader a bare 401 document instead of the door, and
+  `test/e2e/export.test.ts` fails. Do not widen the exception: a *mode*'s `fetch` must still get the
+  401 (`08` §5.6).
 - ~~⚠️ **Neon is at `0006` and the code expects `0007`** (2026-09-21, #25).~~ ⚠️ **Applied to Neon
   2026-09-21, the same day, on Yuta's call**: `seed`, `job_target` and `job_kind` exist there, and
   the one existing `job` row passed the new check. What follows is why it mattered. **`/` reads `seed` on

@@ -85,14 +85,14 @@ client to ask. ⚠️ It fed **UTC** until #21.
 `ready-for-agent` ticket since #21 was built later on 2026-09-18** (⚠️ it named #20 and #22 until
 2026-09-17 and #23 until 2026-09-18); ⚠️ **Neon is migrated through `0005` as of 2026-09-19** (this said `0003` to `0005` were unapplied
 until then, and `0003` never was), ⚠️ **and through `0006` (#28) as of 2026-09-21** ⚠️ **and through `0007` (#25) the same day**; ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
-row like any other; `S12`'s export is the one thing
-still unticketed, and `docs/00-status.md` § Next names the rest.
+row like any other; ~~`S12`'s export is the one thing
+still unticketed~~ ⚠️ **`S12`'s export is built (#31, 2026-09-22)**, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
 flagged *note* started returning to `/vet`. ⚠️ **And one thing three paths write and nothing reads
 since #23: `note_vetting.seconds_to_vet`** — the same bullet pointing the other way, kept because
-ADR 0062 retires the figure rather than the measurement (§ Carrying). ⚠️ **And one thing #14 does not build: `S12`'s export.** `10` §8.4 puts the link on
-`/stats` and issue #1 puts `S12` outside milestone 1, so the link is absent rather than pointing at a
-route that does not exist.
+ADR 0062 retires the figure rather than the measurement (§ Carrying). ~~⚠️ **And one thing #14 does not build: `S12`'s export.**~~ ⚠️ **Built by #31 on 2026-09-22**: `GET /api/export`
+and the `Export everything` link on `/stats`, with `11` §4's reconciliation test. Signed out, it answers
+`302` to the door rather than `401` (`08` §6.3 as amended).
 ⚠️ **And, since 2026-09-15, `/review` is answered by typing** (ADR 0060, #18): the reading, then the
 meaning, with the app proposing the *grade*. **And the worker heartbeats while the model streams**
 (ADR 0061, #17), so a long *chunk* no longer has its job silently reclaimed.
@@ -107,7 +107,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1125 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-21, after #25)
+npm run test        # 1132 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-22, after #31)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

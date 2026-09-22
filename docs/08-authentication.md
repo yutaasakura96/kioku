@@ -380,6 +380,12 @@ refusing a request are different concerns and the exception list should be reada
 | --- | --- |
 | `/api/auth/**`, `/auth`, `/auth/refused` | Document request → **302 to `/auth`**. `/api/**` → **401** |
 
+⚠️ **Amended 2026-09-22 by #31: `/api/export` is refused like a document, with a `302` to `/auth`.**
+It is the one `/api/**` route whose caller is a browser following a link (`09` §4.12's plain `<a>` on
+`/stats`) rather than a *mode*'s `fetch`, and `11` §4 already asserts the `302`. The split above is
+about who is calling, and this route's caller is a reader. Every other `/api/**` route still answers
+`401`, and must: §5.6's outbox depends on it.
+
 `S1` says refused at **every** route including the ingest endpoint, and `03` §13.2 says route
 protection is Nitro server middleware with no client guard anywhere to bypass. Three of the five
 screens have no client to guard on, which makes the usual mistake structurally impossible rather
