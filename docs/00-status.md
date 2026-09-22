@@ -120,10 +120,15 @@ found by a walkthrough of the running app the same day.
 - Tests: `test/nuxt/review-screen.test.ts` asserts no result on the reading step, with and without a
   retry. Red before the fix, green after. 1136 in the suite.
 - **The same walkthrough ran the first live seed request** (tech, N3, 10 words, $0.0013) and
-  ingested it ($0.0127): 49 *cards* minted. Two frictions it found are untriaged: the start block
-  reads `Review · 0 due` with 43 new *cards* waiting (`09` §4 step 5 says due-only), and a finished
-  draft shows only on reload (ADR 0020, nothing on the page says so). The worker also logged one
-  `worker.connection_lost` mid-ingest and recovered.
+  ingested it ($0.0127): 49 *cards* minted. ⚠️ **Its three findings were triaged with Yuta the same
+  day.** The start block reading `Review · 0 due` with 43 new *cards* waiting is
+  [#33](https://github.com/yutaasakura96/kioku/issues/33) (a `10` §3.2 amendment on #20's
+  precedent). A finished draft showing only on reload, with nothing on the page saying so, is
+  [#34](https://github.com/yutaasakura96/kioku/issues/34) (wording only). The logged
+  `worker.connection_lost` got **no ticket**: on Neon the ingest job was claimed 1 s after submission,
+  ran 25 s with `attempts = 1`, and the "about five minutes" was the page being as of load. The drop
+  followed a 12-minute idle gap after the seed job, which is Neon Free's scale-to-zero and the
+  reconnect path § Next already calls the common case (ADR 0061).
 
 **2026-09-22 — #32: a *note* in the export carries its meanings and claims** (`02` `S12`,
 `09` §4.12, `10` §8.4, `04` §10, `11` §4 step 3, all amended in the same commit). No ADR.
@@ -1855,7 +1860,12 @@ Seven findings worth knowing without opening it:
 - ~~[#31](https://github.com/yutaasakura96/kioku/issues/31) — `S12`'s export.~~ ⚠️ **Built
   2026-09-22** (§ Done). It was the last unticketed story.
 - ~~[#32](https://github.com/yutaasakura96/kioku/issues/32) — a *note* in the export carries its
-  meanings and claims.~~ ⚠️ **Built 2026-09-22** (§ Done). The frontier is empty again.
+  meanings and claims.~~ ⚠️ **Built 2026-09-22** (§ Done). ~~The frontier is empty again.~~
+- [#33](https://github.com/yutaasakura96/kioku/issues/33) — the start block's Review control counts
+  the new *cards* the brake would allow today: `Review · 0 due · 10 new`. `ready-for-agent`.
+- [#34](https://github.com/yutaasakura96/kioku/issues/34) — a drafting seed tells the reader to
+  reload. Wording only, `ready-for-agent`. ⚠️ **Both filed 2026-09-22 from the walkthrough's
+  triage; they are the frontier, #34 the smaller.**
 
 ⚠️ **2026-09-21: the reader's run started, and its first *session* produced
 [ADR 0069](adr/0069-the-check-is-the-grade.md) and three tickets.** The typed check becomes the
