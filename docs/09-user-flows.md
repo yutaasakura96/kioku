@@ -561,7 +561,10 @@ nothing un-suspends itself.**
 
 **Decided here: the export is triggered from Stats, as a plain `<a href="/api/export">`.** The route
 answers `notes`, `cards`, `grades` and **every *scheduling epoch* including superseded ones**, as
-JSON, with `Content-Disposition: attachment`.
+JSON, with `Content-Disposition: attachment`. ⚠️ **Each *note* carries `meaningList`,
+`synonyms`, `levelClaims` and `domainClaims`** (#32, 2026-09-22), nested on the *note* because none
+of them means anything without it. The claims are the whole set, never the display value
+precedence picks (ADR 0005). `card_flag`, *sessions*, *sources* and the spend ledger stay out.
 
 Three reasons it is on Stats rather than anywhere else:
 

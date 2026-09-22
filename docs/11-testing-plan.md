@@ -164,7 +164,11 @@ first-week list beside the `noScripts` test and the `psycopg.connect()` probe. N
 2. `GET /api/export`. Assert `Content-Disposition: attachment` and that the body parses as JSON —
    `fetch()` from `@nuxt/test-utils/e2e` returns `{ body, headers }` (verification §14.3).
 3. **Reconcile counts** against the database for `note`, `card`, `scheduling_epoch` **including
-   superseded**, and `review_log`.
+   superseded**, and `review_log` — ⚠️ and, since #32 (2026-09-22), `note_meaning`,
+   `meaning_synonym`, `level_claim` and `domain_claim`. The fixture has a *note* with **two
+   disagreeing *level claims*** and a meaning list with synonyms, and a second reader's synonym on
+   the same *note*: `meaning_synonym` is owned while `note` is shared, so it is filtered by owner and
+   the other three by the reader's *notes*.
 4. ⚠️ Assert the export contains **no `source.content`** and no reader email — `03` §13.4 makes
    *source* text the reader's private material, and an export is a file that leaves the machine.
 5. ⚠️ Assert `/api/export` **requires a session**: unauthenticated gets `302`, not a file.

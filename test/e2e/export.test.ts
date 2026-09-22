@@ -45,8 +45,17 @@ afterAll(async () => {
 /** A string nothing but `source.content` holds, so its absence is an assertion. */
 const SOURCE_TEXT = '図書館で借りた本の全文、読者だけのもの'
 
+interface Claim { authorityKey: string | null, modelId: string | null }
+
 interface Export {
-  notes: { id: string, state: string }[]
+  notes: {
+    id: string
+    state: string
+    meaningList: { meanings: string[], modelId: string, promptVersion: string } | null
+    synonyms: { text: string }[]
+    levelClaims: (Claim & { level: string })[]
+    domainClaims: (Claim & { domain: string })[]
+  }[]
   cards: { id: string, noteId: string }[]
   schedulingEpochs: { id: string, cardId: string, supersededAt: string | null }[]
   grades: { id: string, schedulingEpochId: string }[]
@@ -77,6 +86,7 @@ async function grade(cardId: string, epochId: string, ownerId: string): Promise<
   `)
 }
 
+let acceptedNoteId: string
 let pendingNoteId: string
 let resetCardId: string
 let supersededEpochId: string
@@ -95,10 +105,27 @@ beforeAll(async () => {
   `)
 
   // The *card* `11` §4 is about: minted, graded, reset, graded again.
-  const acceptedNoteId = await note('図書館', ingestionId)
+  acceptedNoteId = await note('図書館', ingestionId)
   await database.client.exec(`
     INSERT INTO note_vetting (note_id, owner_id, state, vetted_at)
     VALUES ('${acceptedNoteId}', '${reader.userId}', 'accepted', now());
+  `)
+
+  // What the pivot moved off the `note` row (#32): a meaning list with the
+  // reader's synonyms beside it, and ⚠️ **two *level claims* that disagree** —
+  // ADR 0005 keeps both, so the file must too, not the display value.
+  await database.client.exec(`
+    INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+    VALUES ('${acceptedNoteId}', ARRAY['library', 'public library'], 'claude-test', 'v5');
+    INSERT INTO meaning_synonym (owner_id, note_id, text)
+    VALUES ('${reader.userId}', '${acceptedNoteId}', 'reading room'),
+           ('${reader.userId}', '${acceptedNoteId}', 'book depository');
+    INSERT INTO level_claim (note_id, authority_key, level)
+    VALUES ('${acceptedNoteId}', 'tanos', 'N4');
+    INSERT INTO level_claim (note_id, level, model_id, prompt_version)
+    VALUES ('${acceptedNoteId}', 'N3', 'claude-test', 'v5');
+    INSERT INTO domain_claim (note_id, domain, model_id, prompt_version)
+    VALUES ('${acceptedNoteId}', 'daily', 'claude-test', 'v5');
   `)
 
   resetCardId = await one(`
@@ -152,6 +179,21 @@ beforeAll(async () => {
     RETURNING id;
   `)
   await grade(otherCardId, otherEpochId, other.userId)
+
+  // ⚠️ **The other reader's synonym is on this reader's *note*.** `meaning_synonym`
+  // is owned while the *note* is shared, so an export that joined synonyms by
+  // *note* alone would carry it.
+  await database.client.exec(`
+    INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+    VALUES ('${otherNoteId}', ARRAY['book'], 'claude-test', 'v5');
+    INSERT INTO meaning_synonym (owner_id, note_id, text)
+    VALUES ('${other.userId}', '${otherNoteId}', 'volume'),
+           ('${other.userId}', '${acceptedNoteId}', 'someone else''s word');
+    INSERT INTO level_claim (note_id, level, model_id, prompt_version)
+    VALUES ('${otherNoteId}', 'N5', 'claude-test', 'v5');
+    INSERT INTO domain_claim (note_id, domain, model_id, prompt_version)
+    VALUES ('${otherNoteId}', 'general', 'claude-test', 'v5');
+  `)
 })
 
 async function exported(): Promise<{ response: Response, body: string }> {
@@ -187,6 +229,47 @@ describe('GET /api/export — `11` §4', () => {
     // of zero against zero cannot pass for one.
     expect([file.notes.length, file.cards.length, file.schedulingEpochs.length, file.grades.length])
       .toEqual([2, 1, 2, 3])
+  })
+
+  // #32. `note_meaning`, `level_claim` and `domain_claim` hang off the shared
+  // `note` and have no owner, so they are counted through `note_vetting`, as
+  // the *notes* are; `meaning_synonym` has an owner of its own.
+  it('reconciles meanings, synonyms and both kinds of claim', async () => {
+    const file = JSON.parse((await exported()).body) as Export
+    const mine = `note_id IN (SELECT note_id FROM note_vetting WHERE owner_id = '${reader.userId}')`
+
+    const counts = [
+      file.notes.filter(n => n.meaningList !== null).length,
+      file.notes.flatMap(n => n.synonyms).length,
+      file.notes.flatMap(n => n.levelClaims).length,
+      file.notes.flatMap(n => n.domainClaims).length,
+    ]
+    expect(counts).toEqual([
+      await count(`SELECT count(*) AS n FROM note_meaning WHERE ${mine};`),
+      await count(`SELECT count(*) AS n FROM meaning_synonym WHERE owner_id = '${reader.userId}';`),
+      await count(`SELECT count(*) AS n FROM level_claim WHERE ${mine};`),
+      await count(`SELECT count(*) AS n FROM domain_claim WHERE ${mine};`),
+    ])
+    expect(counts).toEqual([1, 2, 2, 1])
+  })
+
+  it('carries a note\'s meanings with its synonyms, and both disagreeing level claims', async () => {
+    const file = JSON.parse((await exported()).body) as Export
+    const accepted = file.notes.find(n => n.id === acceptedNoteId)!
+
+    expect(accepted.meaningList).toMatchObject({
+      meanings: ['library', 'public library'],
+      modelId: 'claude-test',
+      promptVersion: 'v5',
+    })
+    expect(accepted.synonyms.map(s => s.text).sort()).toEqual(['book depository', 'reading room'])
+    expect(accepted.levelClaims.map(c => [c.authorityKey, c.level]).sort())
+      .toEqual([[null, 'N3'], ['tanos', 'N4']])
+    expect(accepted.domainClaims.map(c => c.domain)).toEqual(['daily'])
+
+    // A *note* with none of it says so, rather than going missing a key.
+    const pending = file.notes.find(n => n.id === pendingNoteId)!
+    expect(pending).toMatchObject({ meaningList: null, synonyms: [], levelClaims: [], domainClaims: [] })
   })
 
   it('keeps the superseded epoch and the grades given under it', async () => {

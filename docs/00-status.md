@@ -111,7 +111,24 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — #31: `S12`'s export** (`09` §4.12, `10` §8.4, `11` §4). No ADR; one amendment.
+**2026-09-22, latest — #32: a *note* in the export carries its meanings and claims** (`02` `S12`,
+`09` §4.12, `10` §8.4, `04` §10, `11` §4 step 3, all amended in the same commit). No ADR.
+- **The shape.** Each exported *note* carries `meaningList` (the `note_meaning` row or `null`),
+  `synonyms` (the reader's `meaning_synonym` rows), and **every** `levelClaims` and `domainClaims`
+  row, disagreeing ones included — ADR 0005 keeps the set, so the file never holds only the display
+  value. Nested on the *note*, not new top-level collections.
+- **The filter differs by table.** `note_meaning` and both claim tables hang off the shared `note`
+  and are read for the reader's *notes* (a `note_vetting` subquery); `meaning_synonym` has its own
+  owner and is filtered by it, because a second reader's synonym can sit on this reader's *note*.
+  Still one read-only `repeatable read` transaction, now eight reads.
+- **The aside on `/stats`** reads `Notes with their meanings and claims, cards, grades and every
+  scheduling epoch, superseded ones included.`
+- Tests: `test/e2e/export.test.ts` reconciles the four new counts against the database, with a
+  fixture *note* holding a two-meaning list, two synonyms, two disagreeing *level claims* (`tanos`
+  `N4`, model `N3`) and a *domain claim*, plus a second reader's synonym on the same *note*. 1134 in
+  the suite. ⚠️ The first full run failed `review` offline-replay once (§ Carrying).
+
+**2026-09-22 — #31: `S12`'s export** (`09` §4.12, `10` §8.4, `11` §4). No ADR; one amendment.
 - **The route.** `GET /api/export` (`server/api/export.get.ts`) answers the reader's *notes* (through
   `note_vetting`, every state, `pending` included), *cards*, every `scheduling_epoch` (superseded
   included) and `review_log` as *grades*, with `Content-Disposition: attachment;
@@ -1822,7 +1839,9 @@ Seven findings worth knowing without opening it:
 ## Next
 
 - ~~[#31](https://github.com/yutaasakura96/kioku/issues/31) — `S12`'s export.~~ ⚠️ **Built
-  2026-09-22** (§ Done). It was the last unticketed story; the frontier is empty again.
+  2026-09-22** (§ Done). It was the last unticketed story.
+- ~~[#32](https://github.com/yutaasakura96/kioku/issues/32) — a *note* in the export carries its
+  meanings and claims.~~ ⚠️ **Built 2026-09-22** (§ Done). The frontier is empty again.
 
 ⚠️ **2026-09-21: the reader's run started, and its first *session* produced
 [ADR 0069](adr/0069-the-check-is-the-grade.md) and three tickets.** The typed check becomes the
@@ -2434,6 +2453,9 @@ Nothing.
     reload inside it replays the flag, `recordFlag`'s `(review_session_id, card_id)` guard answers
     `already_flagged`, and the next composition's `holdRefused([])` wipes the refusal. Checked by
     sabotage (the entry re-injected before the reload): the test still passes, and correctly.
+    ⚠️ **It reproduced once on 2026-09-22** (#32's first full suite): the outbox still held the
+    `flag` entry when the test read it (`expected '[{"kind":"flag",…' to be '[]'`). The file alone
+    passed three runs and the next full suite was green — the gap above, caught at the assertion.
     ⚠️ **Replay is driven by the `online` event alone, with no timer** — a missed event would time
     the 10 s poll out. Not observed.
   - *Six e2e files at setup on 2026-09-19*: a forced throw in `startTestDatabase` is reported loudly

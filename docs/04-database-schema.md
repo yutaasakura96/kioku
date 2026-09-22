@@ -1219,8 +1219,9 @@ card` and `review_log → card` are both `RESTRICT`, so the database refuses and
 **Backups are `S12`'s tested export, not the platform.** Neon Free gives six hours of instant restore
 and one snapshot, and six hours is not a backup for the one thing that cannot be regenerated
 (`03` §13.6). The export covers *notes*, *cards*, *grades* and **every** epoch including superseded
-ones, and it is exercised by a test that reads it back and reconciles counts — an untested export is
-a belief.
+ones, with each *note* carrying its `note_meaning`, the reader's `meaning_synonym` rows and every
+`level_claim` and `domain_claim` (#32, 2026-09-22). It is exercised by a test that reads it back and
+reconciles counts — an untested export is a belief.
 
 ---
 

@@ -1234,8 +1234,10 @@ words`) followed by a 13px italic `seed` aside in `--k-ink-secondary`, the aside
 ### 8.4 The export
 
 **A plain `<a href="/api/export">`** (`09` §4.12), accent link text, reading `Export everything`,
-`32px` below the ledger. With a 13px Newsreader italic aside naming what it contains: *notes*,
-*cards*, *grades* and every *scheduling epoch* including superseded ones.
+`32px` below the ledger. With a 13px Newsreader italic aside naming what it contains: *notes* with
+their meanings and claims, *cards*, *grades* and every *scheduling epoch* including superseded ones
+— `Notes with their meanings and claims, cards, grades and every scheduling epoch, superseded ones
+included.` (⚠️ "with their meanings and claims" added by #32 on 2026-09-22.)
 
 **A link and not a button**, and that is the specification: there is no form, there is no client, and
 a link that downloads is the one write-shaped action a `noScripts` *place* can perform with no

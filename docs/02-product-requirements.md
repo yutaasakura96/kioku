@@ -213,7 +213,10 @@ history. (ADR 0008, ADR 0011)
 > inconvenience rather than a loss.
 
 **Acceptance:** a single export produces *notes*, *cards*, *grades* and every *scheduling epoch*
-including superseded ones, as plain JSON. **The export is exercised by a test that reads it back and
+including superseded ones, as plain JSON. Each *note* carries its accepted meanings (the model's
+`note_meaning` list and the reader's *synonyms*) and **every** *level claim* and *domain claim*, disagreeing ones included (ADR 0005)
+— ⚠️ widened by #32 on 2026-09-22; the pivot moved all four off the `note` row, and an export
+without them restores *notes* with no meanings in them. **The export is exercised by a test that reads it back and
 reconciles counts** — an untested export path is a belief, not an export. (§2.4, ADR 0011)
 
 ### Deferred, and named so they aren't reinvented

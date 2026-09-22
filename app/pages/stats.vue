@@ -56,7 +56,7 @@ const view = computed(() => (stats ? summarise(stats.rows, stats.context) : null
         next to the numbers the reader already checks. -->
       <p class="export">
         <a href="/api/export">Export everything</a>
-        <span class="aside">Notes, cards, grades and every scheduling epoch, superseded ones included.</span>
+        <span class="aside">Notes with their meanings and claims, cards, grades and every scheduling epoch, superseded ones included.</span>
       </p>
     </template>
 
