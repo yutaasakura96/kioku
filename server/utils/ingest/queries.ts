@@ -47,6 +47,9 @@ import { alias } from 'drizzle-orm/pg-core'
 
 import * as schema from '../../db/schema'
 import { flaggedCount } from '../vet/queries'
+import { newCards, readerZone, recentlyComposed } from '../review/queries'
+import { introducedToday, newOnOffer } from '../../../shared/review/brake'
+import { DAILY_NEW_CARDS } from '../../../shared/review/compose'
 import type { RunStatus } from '../../../shared/ingest/run-detail'
 import type { IngestDatabase } from './record'
 
@@ -220,10 +223,12 @@ export interface StartBlockCounts {
   flagged: number
   /** `Review · N due` — due **now**, which is what the control offers to start. */
   due: number
+  /** `· N new` after it — what the brake would let today introduce (#33, `shared/review/brake.ts`). */
+  newToday: number
 }
 
 /**
- * The two figures in the start block.
+ * The three figures in the start block.
  *
  * ⚠️ **Neither is ever used to disable its control** (ADR 0032, ADR 0035, `09`
  * §2). Zero is a number the block renders, and the empty state behind the
@@ -258,7 +263,23 @@ export async function startBlockCounts(
       ),
     )
 
-  return { flagged, due: due?.n ?? 0 }
+  const dueNow = due?.n ?? 0
+
+  // ⚠️ #33: `Review · 0 due` read as nothing to do in front of 43 new *cards*
+  // and an unspent day — the mirror of the 474 #20 took off *Vet*. The figure is
+  // the brake's, from the same reads the composition makes: `newCards`'
+  // predicate, and the day in the zone `/stats` uses, because a *place* has no
+  // client to ask (ADR 0020, #21). Sequential, as in `server/utils/review/`.
+  const zone = await readerZone(db, ownerId)
+  const now = new Date()
+  const recent = await recentlyComposed(db, ownerId, now)
+  const waiting = await newCards(db, ownerId, DAILY_NEW_CARDS)
+  const newToday = newOnOffer(
+    { introducedToday: introducedToday(recent, now, zone), dueCount: dueNow },
+    waiting.length,
+  )
+
+  return { flagged, due: dueNow, newToday }
 }
 
 /**

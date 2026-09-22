@@ -47,7 +47,7 @@ const view = computed(() => (stats ? summarise(stats.rows, stats.context) : null
 </script>
 
 <template>
-  <PlaceShell origin="/stats" :flagged="counts.flagged" :due="counts.due">
+  <PlaceShell origin="/stats" :flagged="counts.flagged" :due="counts.due" :new-today="counts.newToday">
     <template v-if="view">
       <StatsFigures :view="view" />
       <StatsLedger :rows="stats!.ledger" />

@@ -278,3 +278,29 @@ describe('the ledger — `10` §8.3', () => {
     expect(document).toContain('$0.0314')
   })
 })
+
+// ⚠️ #33: the start block on `/stats` reads the same three figures as on `/`.
+// Three *cards* with no *scheduling epoch* and nothing composed today, so the
+// brake allows all three. Last in the file because it adds *cards*.
+describe('the start block — `10` §3.2, amended by #33', () => {
+  beforeAll(async () => {
+    for (let index = 0; index < 3; index++) {
+      const noteId = await one(`
+        INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
+        VALUES ('jlpt-vocab', 'fresh-${index}', '{"term":"窓"}'::jsonb, '${ingestionId}')
+        RETURNING id;
+      `)
+      await database.client.exec(`
+        INSERT INTO note_vetting (note_id, owner_id, state, vetted_at)
+        VALUES ('${noteId}', '${reader.userId}', 'accepted', now());
+        INSERT INTO card (note_id, owner_id, template_key)
+        VALUES ('${noteId}', '${reader.userId}', 'recognition');
+      `)
+    }
+  })
+
+  it('reads Review · 0 due · 3 new', async () => {
+    const text = (await stats()).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+    expect(text).toContain('Review · 0 due · 3 new')
+  })
+})

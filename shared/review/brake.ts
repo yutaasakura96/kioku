@@ -74,6 +74,24 @@ export function brakeState(reading: BrakeReading): BrakeState {
 }
 
 /**
+ * How many new *cards* the brake would let the next composed *session*
+ * introduce today — the start block's `· N new` (#33, `10` §3.2).
+ *
+ * ⚠️ **A day's figure, not a run's.** It is not capped by the *session*'s size
+ * or by how much of it the due half fills: the start block says what today still
+ * holds, and a run of twenty with fifteen due introduces five now and the rest
+ * next time. `waiting` is the count of *cards* with no *scheduling epoch*, and
+ * the caller may cap it at `DAILY_NEW_CARDS` — nothing past that changes the
+ * answer.
+ */
+export function newOnOffer(reading: BrakeReading, waiting: number): number {
+  if (brakeState(reading) === 'paused')
+    return 0
+
+  return Math.min(newAllowance(reading.introducedToday), waiting)
+}
+
+/**
  * The sentence, in ADR 0066 §7's words — *no new words today, 63 due* or
  * *10 of 10 new words today*.
  *

@@ -24,7 +24,7 @@ if (!source)
   <!-- ⚠️ **Two measures on one screen** — `10` §7.2. The header block reads
     across at 940; the prose narrows to 760, which at 22px is roughly 34
     characters to the line. 940 would be 42 and too wide. -->
-  <PlaceShell origin="/sources" :flagged="counts.flagged" :due="counts.due">
+  <PlaceShell origin="/sources" :flagged="counts.flagged" :due="counts.due" :new-today="counts.newToday">
     <article class="source">
       <h1>
         {{ source.title }}

@@ -13,6 +13,7 @@ import {
   brakeState,
   introducedToday,
   newAllowance,
+  newOnOffer,
 } from '../../shared/review/brake'
 
 const TOKYO = 'Asia/Tokyo'
@@ -61,6 +62,29 @@ describe('newAllowance — ten a day', () => {
     expect(newAllowance(7)).toBe(3)
     expect(newAllowance(10)).toBe(0)
     expect(newAllowance(14)).toBe(0)
+  })
+})
+
+// ⚠️ #33: the start block's `· N new`. It is the day's figure, not one run's —
+// the most the brake would let the next composed *session* introduce today.
+describe('newOnOffer — what the start block says is new (#33)', () => {
+  it('is nothing while the fifty-card gate is shut, whatever is left of the day', () => {
+    expect(newOnOffer({ introducedToday: 0, dueCount: 50 }, 43)).toBe(0)
+  })
+
+  it('is nothing once the day\'s ten are spent', () => {
+    expect(newOnOffer({ introducedToday: 10, dueCount: 0 }, 43)).toBe(0)
+    expect(newOnOffer({ introducedToday: 12, dueCount: 0 }, 43)).toBe(0)
+  })
+
+  it('is what is left of the day when more than that is waiting', () => {
+    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 43)).toBe(10)
+    expect(newOnOffer({ introducedToday: 7, dueCount: 49 }, 43)).toBe(3)
+  })
+
+  it('is what is waiting when that is fewer than the day allows', () => {
+    expect(newOnOffer({ introducedToday: 2, dueCount: 0 }, 4)).toBe(4)
+    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 0)).toBe(0)
   })
 })
 

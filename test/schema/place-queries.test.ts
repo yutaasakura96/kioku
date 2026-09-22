@@ -263,7 +263,7 @@ describe('startBlockCounts', () => {
   it('is two zeros for a reader with nothing — and both controls still render', async () => {
     // ADR 0032, ADR 0035: **neither start control is ever disabled**, so zero is
     // a number this function returns rather than a state it signals.
-    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 0 })
+    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 0, newToday: 0 })
   })
 
   // ⚠️ #20: *Vet* is the flag queue (ADR 0064), so its entrance counts what the
@@ -316,6 +316,39 @@ describe('startBlockCounts', () => {
     expect((await startBlockCounts(db, OWNER)).due).toBe(0)
   })
 
+  // ⚠️ #33: `Review · 0 due · 10 new`. The arithmetic is `newOnOffer`'s and
+  // unit-tested; these are the reads under it — which *cards* are new, and which
+  // runs spent today.
+  it('counts a card with no epoch as new, up to the day\'s ten', async () => {
+    for (let n = 0; n < 12; n += 1)
+      await seedNewCard(`語${n}␟ご`)
+    await seedDueCard({ due: `now() - interval '1 hour'` })
+
+    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 10 })
+  })
+
+  it('does not count a suspended card, or one with only a superseded epoch, as new', async () => {
+    const suspended = await seedNewCard('窓␟まど')
+    await client.exec(`UPDATE card SET suspended_at = now(), suspended_reason = 'flagged' WHERE id = '${suspended}';`)
+    const ids = await seedDueCard({ due: `now() + interval '1 day'` })
+    await client.exec(`
+      UPDATE scheduling_epoch SET superseded_at = now(), superseded_reason = 'manual_reset'
+      WHERE id = '${ids.epochId}';
+    `)
+
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(0)
+  })
+
+  it('subtracts what today\'s runs already introduced', async () => {
+    for (let n = 0; n < 12; n += 1)
+      await seedNewCard(`語${n}␟ご`)
+    await client.exec(`
+      INSERT INTO review_session (owner_id, size, new_count, zone) VALUES ('${OWNER}', 7, 7, 'UTC');
+    `)
+
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(3)
+  })
+
   it('counts nothing for a different reader', async () => {
     await client.exec(`
       INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
@@ -324,7 +357,7 @@ describe('startBlockCounts', () => {
     await seedVetting('pending')
     await seedDueCard({ due: `now() - interval '1 hour'` })
 
-    expect(await startBlockCounts(db, 'usr_other')).toEqual({ flagged: 0, due: 0 })
+    expect(await startBlockCounts(db, 'usr_other')).toEqual({ flagged: 0, due: 0, newToday: 0 })
   })
 })
 
@@ -340,6 +373,15 @@ async function seedVetting(state: string, identityKey = '図書館␟としょ�
   `)
 
   return noteId
+}
+
+async function seedNewCard(identityKey: string) {
+  const noteId = await seedVetting('accepted', identityKey)
+  const card = await client.query<{ id: string }>(`
+    INSERT INTO card (note_id, owner_id, template_key)
+    VALUES ('${noteId}', '${OWNER}', 'recognition') RETURNING id;
+  `)
+  return card.rows[0]!.id
 }
 
 async function seedDueCard({ due, identityKey = '駅␟えき' }: { due: string, identityKey?: string }) {

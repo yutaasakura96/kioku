@@ -138,6 +138,17 @@ describe('ADR 0031 — signing in lands on Ingest', () => {
     expect(html).not.toContain('disabled')
   })
 
+  // ⚠️ #33: the Review control carries the new *cards* the brake would allow
+  // today beside the due count. Read as text, because the count and its word are
+  // separate spans with a scoped attribute on each.
+  it('reads Review · 0 due · 0 new for a reader with no cards', async () => {
+    const html = await asReader('/').then(response => response.text())
+    const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+
+    expect(text).toContain('Vet · 0 flagged')
+    expect(text).toContain('Review · 0 due · 0 new')
+  })
+
   it('says every figure is as of this page load — `09` §2', async () => {
     const html = await asReader('/').then(response => response.text())
     expect(html).toContain('as of this page load')

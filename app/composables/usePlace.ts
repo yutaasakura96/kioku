@@ -17,14 +17,14 @@ export function usePlace() {
 }
 
 /**
- * The start block's two figures — `10` §3.2.
+ * The start block's three figures — `10` §3.2 (the third, `· N new`, since #33).
  *
  * ⚠️ Zero is a number, never a disabled control (ADR 0032, ADR 0035): a zero on
  * Vet is how the reader reaches the line saying nothing is flagged, and a zero on
  * Review is how they reach the line saying when the next *card* is due.
  */
 export async function useStartBlockCounts() {
-  return (await usePlace()?.counts()) ?? { flagged: 0, due: 0 }
+  return (await usePlace()?.counts()) ?? { flagged: 0, due: 0, newToday: 0 }
 }
 
 /**

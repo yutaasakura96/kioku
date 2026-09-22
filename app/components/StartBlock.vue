@@ -30,6 +30,8 @@ const props = defineProps<{
   origin: Place
   flagged: number
   due: number
+  /** New *cards* the brake would allow today — #33. */
+  newToday: number
 }>()
 
 const vet = computed(() => `/vet?from=${encodeURIComponent(props.origin)}`)
@@ -51,6 +53,11 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
         <span class="dot" aria-hidden="true">·</span>
         <span class="count">{{ due }}</span>
         <span class="word">due</span>
+        <!-- ⚠️ #33: a zero due in front of new *cards* the day still allows read
+          as nothing to do. Same count treatment, no new colour or size. -->
+        <span class="dot" aria-hidden="true">·</span>
+        <span class="count">{{ newToday }}</span>
+        <span class="word">new</span>
       </NuxtLink>
     </div>
 

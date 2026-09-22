@@ -260,7 +260,7 @@ describe('the reading step before its check', () => {
 // links. The *shell* carries it, so every *place* does and no *mode* does.
 describe('the KANJIDIC2 acknowledgement', () => {
   it('sits under a place with the project, licence and CC BY-SA links', async () => {
-    const view = await mountSuspended(PlaceShell, { props: { origin: '/stats', flagged: 0, due: 0 } })
+    const view = await mountSuspended(PlaceShell, { props: { origin: '/stats', flagged: 0, due: 0, newToday: 0 } })
     const footer = view.find('footer')
 
     expect(footer.text()).toContain('KANJIDIC2')

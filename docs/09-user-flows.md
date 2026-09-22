@@ -116,13 +116,19 @@ else (ADR 0013). It carries three things:
 | | What | Goes to |
 | --- | --- | --- |
 | **Navigation** | Ingest · Sources · Stats | The three *places*. Never a *mode* (ADR 0032) |
-| **The start block** | Vet, with the *pending* count · Review, with the number due now | `/vet?from=…` · `/review?from=…` |
+| **The start block** | Vet, with the *pending* count · Review, with the number due now and the new *cards* the brake allows today | `/vet?from=…` · `/review?from=…` |
 | **The door** | A quiet link, for signing out | `/auth` (`08` §2) |
 
 Neither start control is ever disabled. A zero on Review is how the reader reaches the empty state
 that tells them when the next *card* is due, and a zero on Vet is how they find out whether an
 *ingestion* is still running (§8). Disabling the entrances would make PRD §4's written empty states
 unreachable.
+
+⚠️ **Amended 2026-09-22 with [#33](https://github.com/yutaasakura96/kioku/issues/33): Review reads
+`Review · 0 due · 10 new`.** A due count alone read zero in front of new *cards* the day still
+allowed. It is #20's precedent in the other direction: #20 took a count off *Vet* that promised work
+the queue did not hold, and this puts one on Review for work that is there. `10` §3.2 carries the
+arithmetic (ADR 0066's brake).
 
 **Every figure in the shell is as of page load and says so.** A *place* ships no JavaScript, so it
 cannot poll, and the alternatives are worse: a meta refresh on `/` would destroy a paste in progress,

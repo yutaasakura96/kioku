@@ -111,7 +111,24 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — #34: a drafting seed names the reload** (`10` §6.2's seed copy amended in
+**2026-09-22, latest — #33: the start block's Review control counts new *cards*** (`10` §3.2 and
+`09` §2 amended in the same commit). No ADR: it amends a screen spec under ADR 0066's rules.
+- It reads `Review · 6 due · 10 new`. The figure is `newOnOffer` in `shared/review/brake.ts`: `0`
+  while the fifty-*card* gate is shut, otherwise the smaller of `newAllowance(introducedToday)` and
+  the new *cards* waiting. `startBlockCounts` feeds it from the composition's own reads
+  (`recentlyComposed`, `newCards` capped at ten) in `readerZone`'s zone, so the four *places* render
+  it with no new query shape.
+- ⚠️ **A day's figure, not a run's.** It is not capped by the *session*'s size or by the room the
+  due half leaves, so with fifteen due a run of twenty introduces five and the block said ten. That
+  is the ticket's definition. Matching `compose`'s room would make the figure depend on a size the
+  start block does not choose.
+- Tests: four unit cases on `newOnOffer` (paused, spent, partly spent, fewer waiting than allowed),
+  three schema-tier cases on the reads under it (the ten cap, suspended and reset *cards* are not
+  new, today's runs are subtracted), and the rendered text on `/` and `/stats`. 1146 in the suite.
+  ⚠️ The first full run failed `review`'s offline replay once (§ Carrying); the file alone and a
+  second full run were clean.
+
+**2026-09-22 — #34: a drafting seed names the reload** (`10` §6.2's seed copy amended in
 the same commit). No ADR. Wording only.
 - The two non-terminal sentences in `sentenceFor` (`app/pages/index.vue`) now read *Drafting 25 tech
   words at N3 — not yet picked up. Reload to see it.* and *Drafting 25 tech words at N3 — reload to
@@ -1870,11 +1887,12 @@ Seven findings worth knowing without opening it:
   2026-09-22** (§ Done). It was the last unticketed story.
 - ~~[#32](https://github.com/yutaasakura96/kioku/issues/32) — a *note* in the export carries its
   meanings and claims.~~ ⚠️ **Built 2026-09-22** (§ Done). ~~The frontier is empty again.~~
-- [#33](https://github.com/yutaasakura96/kioku/issues/33) — the start block's Review control counts
-  the new *cards* the brake would allow today: `Review · 0 due · 10 new`. `ready-for-agent`.
+- ~~[#33](https://github.com/yutaasakura96/kioku/issues/33) — the start block's Review control counts
+  the new *cards* the brake would allow today: `Review · 0 due · 10 new`. `ready-for-agent`.~~
+  ⚠️ **Built 2026-09-22** (§ Done). **The frontier is empty.**
 - ~~[#34](https://github.com/yutaasakura96/kioku/issues/34) — a drafting seed tells the reader to
   reload. Wording only, `ready-for-agent`.~~ ⚠️ **Built 2026-09-22** (§ Done). ⚠️ **Both filed
-  2026-09-22 from the walkthrough's triage; #33 is the frontier.**
+  2026-09-22 from the walkthrough's triage.**
 
 ⚠️ **2026-09-21: the reader's run started, and its first *session* produced
 [ADR 0069](adr/0069-the-check-is-the-grade.md) and three tickets.** The typed check becomes the

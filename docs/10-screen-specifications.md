@@ -182,6 +182,17 @@ flagged`.** *Vet* is the flag queue (ADR 0064), so its entrance counts what the 
 same function the chrome bar uses (`flaggedCount`). The two figures can't disagree. A *pending* count
 here would read 474 in front of a queue that holds none of them.
 
+⚠️ **Amended 2026-09-22 with [#33](https://github.com/yutaasakura96/kioku/issues/33): `Review · 0
+due · 10 new`.** The mirror of #20's case: `Review · 0 due` read as nothing to do in front of 43 new
+*cards* and an unspent day, and a reader back from a break had no reason to press it. The second
+figure follows the first in the same count treatment, a second `--k-dot` `·` then the figure and the
+word `new`, with no new colour or size. It is what the brake would let the next composed *session*
+introduce **today** (ADR 0066): `0` while fifty or more are due, otherwise the smaller of what is
+left of the day's ten and the new *cards* waiting (`newOnOffer`, `shared/review/brake.ts`). The day
+is read in the zone the newest *session* stored, as on `/stats` (#21), because a *place* has no
+client to ask. It is a day's figure and not a run's, so it is not capped by the *session*'s size. The
+control is still never disabled.
+
 ⚠️ **The accent `→` is dropped here, and it is the one departure from `05` §7's affordance.** `05` §2
 spends the accent on where you are and what costs you the decision. On empty *Vet* the affordance is
 the only thing on the screen and the arrow is the sentence; in a block of two, side by side, above a

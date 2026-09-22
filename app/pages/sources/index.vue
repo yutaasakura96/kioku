@@ -18,7 +18,7 @@ const sources = (await usePlace()?.sources()) ?? []
 </script>
 
 <template>
-  <PlaceShell origin="/sources" :flagged="counts.flagged" :due="counts.due">
+  <PlaceShell origin="/sources" :flagged="counts.flagged" :due="counts.due" :new-today="counts.newToday">
     <ul v-if="sources.length" class="list">
       <li v-for="source in sources" :key="source.id" class="row">
         <p class="line">

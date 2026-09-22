@@ -171,6 +171,7 @@ const existingTitle = existingId ? (await place?.sourceTitle(existingId)) ?? nul
     origin="/"
     :flagged="counts.flagged"
     :due="counts.due"
+    :new-today="counts.newToday"
     measure="var(--k-measure-object)"
   >
     <!-- `10` §6.1: the start block and its aside, then **the runs**, then the

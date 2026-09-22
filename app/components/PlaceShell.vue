@@ -19,6 +19,7 @@ withDefaults(
     origin: Place
     flagged: number
     due: number
+    newToday: number
     /** `05` §5's measure for this *place* — `10` §2.2. */
     measure?: string
   }>(),
@@ -31,7 +32,7 @@ withDefaults(
     <ShellBar />
 
     <main :style="{ '--measure': measure }">
-      <StartBlock :origin="origin" :flagged="flagged" :due="due" />
+      <StartBlock :origin="origin" :flagged="flagged" :due="due" :new-today="newToday" />
 
       <slot />
     </main>
