@@ -111,7 +111,27 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — the backfill's spend is on the ledger** (`04` §6.6 added, `10` §8.3 and
+**2026-09-22, latest — #35: an imported deck word keeps the deck's term and reading**
+(ADR 0068 § Amended 2026-09-22, *Settled by the build*, added in the same commit). No new ADR.
+- **`normalise`'s `anki` branch** (`_deck_candidate` in `worker/pipeline/normalise.py`): the term
+  is column 1 whole, NFC, padding trimmed. The reading is column 2 when it is kana, in ADR 0045's
+  script for the deck's term (a hiragana ジーンズ reading becomes katakana). Otherwise it is
+  Sudachi's reading only when the term is one known token, and `?` for the model when it is not.
+  `word_list` and `prose` are untouched.
+- **`PROMPT_VERSION` is `v6`.** A kana column is the reading now, so it is no longer sent as
+  `deck_reading`, and `WHAT THE DECK SAID` no longer says the given reading is the dictionary's.
+  Every stored v5 answer will not be asked for again (`04` §10: `generation_cache` is safe to
+  truncate).
+- **Measured on all four decks: 0 terms rewritten and 0 kana readings changed** (N3 read 145 and
+  125 before). The table is in the ADR. ⚠️ **One fallback is visibly imperfect**: Sudachi reads
+  来 alone as き, so `来⇥らい～` keys `来␟き`. The ADR names the next step if affix *notes* get
+  flagged.
+- Tests: `worker/tests/test_normalise.py` (+13), `test_generate.py` (+2, the deck fixture moved to a
+  reachable state), `test_pipeline.py` (the deck test now asserts the deck's key). 364 in the
+  worker, 1150 in the suite.
+- ⚠️ **N3 has not been re-imported.** It spends about $2.5 on Yuta's key and is his call.
+
+**2026-09-22 — the backfill's spend is on the ledger** (`04` §6.6 added, `10` §8.3 and
 ADR 0069 amended in the same commit). No ticket and no ADR. Yuta asked for it after the walkthrough
 found #28's $0.1654 on `/stats` nowhere.
 - **A `backfill` table, migration `0008`, applied to Neon the same day.** One row per run of
@@ -1900,8 +1920,9 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-- [#35](https://github.com/yutaasakura96/kioku/issues/35) — an imported deck word keeps the deck's
-  term and reading. `bug`, `ready-for-agent`, **and it is the frontier.** ⚠️ **Filed 2026-09-22
+- ~~[#35](https://github.com/yutaasakura96/kioku/issues/35) — an imported deck word keeps the deck's
+  term and reading. `bug`, `ready-for-agent`, **and it is the frontier.**~~ ⚠️ **Built 2026-09-22**
+  (§ Done). **The frontier is empty.** ⚠️ **Filed 2026-09-22
   from the first real import**: Open Anki JLPT N3 was refused chunk by chunk, stopped by hand at
   $0.07 with no *note* written, and its job and ingestion were set to `failed` on Neon so no worker
   resumes it. ADR 0068 § Amended 2026-09-22 reverses §5 for `anki` on Yuta's call. **Re-importing
@@ -2605,7 +2626,12 @@ Nothing.
   contract is one decompress call and four `SELECT`s, and the three-layout fixtures are what turn a
   breaking Node release into a red suite. `ankipack` is the named fallback and taking it means
   amending ADR 0068 first.
-- ⚠️ **`PROMPT_VERSION` is `v4` and the `anki` text is conditional.** A chunk with no deck behind it
+- ⚠️ **`PROMPT_VERSION` is `v6` since #35** (it said `v4` here until then). ⚠️ **An `anki` line
+  is keyed on the deck's columns and a `word_list` line on Sudachi's head word** (ADR 0068
+  § Amended 2026-09-22). Routing an `anki` line through `_candidate`, or a word list through
+  `_deck_candidate`, passes every other stage and mints the wrong word. `test_normalise.py`'s
+  `TestAnAnkiLineIsTheDecksWord` is the guard.
+- ⚠️ **The `anki` text is conditional** (written when `PROMPT_VERSION` was `v4`). A chunk with no deck behind it
   builds the identical prompt it built at v3 — the deck paragraph and the `deck_*` fields appear only
   when a *candidate* carries one, exactly as `reading_rule` does. The version still moved, because
   the rule is *any change to `build_prompt` bumps it in the same commit*.

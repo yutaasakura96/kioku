@@ -106,6 +106,12 @@ _KATAKANA_END = 0x30F6
 #: :func:`is_katakana_word` even though neither converts.
 _KATAKANA_BLOCK_END = 0x30FF
 _TO_HIRAGANA = 0x60
+#: ぁ–ゖ, the hiragana that have a katakana partner 0x60 above them — the
+#: inverse of U+30A1–U+30F6. The block runs to U+309F so ゝ and ゞ count as kana
+#: for :func:`is_kana`.
+_HIRAGANA_START = _KATAKANA_START - _TO_HIRAGANA
+_HIRAGANA_END = _KATAKANA_END - _TO_HIRAGANA
+_HIRAGANA_BLOCK_END = 0x309F
 
 
 @dataclass(frozen=True)
@@ -210,7 +216,29 @@ def reading_of(token: Token) -> str:
     [#15]: https://github.com/yutaasakura96/kioku/issues/15
     """
     reading = token.dictionary_form_reading if is_inflected(token) else token.reading_form
-    return reading if is_katakana_word(token.normalized_form) else to_hiragana(reading)
+    return in_script_of(token.normalized_form, reading)
+
+
+def in_script_of(term: str, reading: str) -> str:
+    """ADR 0045's script rule, tested on the *term*: wholly katakana keeps a
+    katakana reading, anything else is read in hiragana.
+
+    ⚠️ **One rule for both paths.** Sudachi answers in katakana, so for
+    :func:`reading_of` the katakana branch is a no-op; an imported deck (#35)
+    may write ジーンズ's reading in hiragana, and it must key the way Sudachi's
+    would have.
+    """
+    return to_katakana(reading) if is_katakana_word(term) else to_hiragana(reading)
+
+
+def is_kana(value: str) -> bool:
+    """Whether ``value`` is written wholly in kana — the hiragana block and the
+    katakana block, so ー, ・, ゝ and ゞ count and a space or a ～ does not."""
+    return bool(value) and all(
+        _HIRAGANA_START <= ord(character) <= _HIRAGANA_BLOCK_END
+        or _KATAKANA_START <= ord(character) <= _KATAKANA_BLOCK_END
+        for character in value
+    )
 
 
 def is_katakana_word(term: str) -> bool:
@@ -237,6 +265,17 @@ def to_hiragana(reading: str) -> str:
     return "".join(
         chr(ord(character) - _TO_HIRAGANA)
         if _KATAKANA_START <= ord(character) <= _KATAKANA_END
+        else character
+        for character in reading
+    )
+
+
+def to_katakana(reading: str) -> str:
+    """:func:`to_hiragana`'s inverse over the same pairs, for a reading that did
+    not come from Sudachi (#35)."""
+    return "".join(
+        chr(ord(character) + _TO_HIRAGANA)
+        if _HIRAGANA_START <= ord(character) <= _HIRAGANA_END
         else character
         for character in reading
     )

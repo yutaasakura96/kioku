@@ -1510,6 +1510,11 @@ in a Vercel Function — is answered **yes, from the docs**, on a page §2 had n
 Runtimes: read-only filesystem *"with writable /tmp scratch space up to 500 MB"*), plus Node's
 documented `TMPDIR`/`TMP`/`TEMP` fallback, none of which Vercel sets. `engines` keeps 22.x and
 `deserialize()` stays out. **No deployment has observed it**, and the first one carries that.
+⚠️ **Amended 2026-09-22: §5 is reversed for `anki`** (Yuta's call, after the first real import
+failed; built by [#35](https://github.com/yutaasakura96/kioku/issues/35)). An imported word's term
+is the deck's column 1 whole and its reading is column 2 in ADR 0045's script, with the dictionary
+or the model as fallback when column 2 is not kana. 0 terms rewritten on all four real decks, down
+from 145 on N3. `PROMPT_VERSION` is `v6`.
 
 ### [2026-09-21] The check is the grade
 From the reader's first *session*: the typed check's result is the *grade* (Good or Forgot) with no

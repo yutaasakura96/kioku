@@ -230,6 +230,44 @@ deck spells or reads it differently (しゃべる and 喋る), so one word can b
 is the duplication ADR 0063 refused, now accepted for one *source* kind. It is accepted because
 the alternative teaches a different word than the one the reader chose to import.
 
+### Settled by the build — #35, 2026-09-22
+
+**Built as decided, with four things the decision left open:**
+
+- **The dictionary fallback is narrow.** When column 2 is empty or not kana, the reading is
+  Sudachi's only when it reads the deck's term as **exactly one known token**. A term that
+  tokenises into several has no dictionary reading *of that term*: すみません is すみ + ませ + ん,
+  and the head's reading (すむ) would key a different word, which is the failure this amendment
+  fixes. Those lines go to the model with `reading=?`, and the unusable column rides along as
+  `deck_reading`.
+- ⚠️ **The fallback's cost, measured and not hidden.** Sudachi reads 来 alone as き, so the N3
+  affix entry `来⇥らい～` keys `来␟き`. It is one of the 3 dictionary fallbacks in N3. The N2 and
+  N1 decks have more affix entries (`室⇥しつ～`, `～こう`), which is why their fallback counts below
+  are higher. If imported affix *notes* get flagged, the next step is to strip the `～` and the
+  bracketed note from column 2 before the kana test, not to go back to Sudachi's key.
+- **A kana column 2 is the reading, so it is no longer also a hint.** `deck_reading` is empty on
+  those *candidates*. `generate`'s `WHAT THE DECK SAID` paragraph no longer says the given reading
+  is the dictionary's, and `PROMPT_VERSION` moved to **v6**.
+- **Provenance.** A deck's reading is written as a `lookup` field, because nothing generated it.
+  ⚠️ **`is_oov` stays the tokeniser's raw signal** (ADR 0019): it is set only when Sudachi has
+  never heard of part of the term. `write_notes` stamps the bit on every looked-up field, the term
+  and part of speech among them, so it cannot also mean *the deck supplied this*. The
+  `lookup` row therefore does not say the reading came from the deck; the *source*'s `kind` does.
+- **ADR 0045's script rule is one function**, `in_script_of` in `extract_candidates.py`, which
+  `reading_of` and the deck path both call.
+
+**Measured after the build**, with the built `normalise` over the four decks in
+`~/Documents/kioku-decks/`, unpacked by the app's own reader:
+
+| Deck | Lines | Terms rewritten | Kana readings changed | Dictionary fallback | `?` fallback |
+| --- | --- | --- | --- | --- | --- |
+| open-anki N3 | 2,140 | **0** | **0** | 3 | 2 |
+| open-anki N2 | 1,906 | 0 | 0 | 173 | 8 |
+| open-anki N1 | 2,699 | 0 | 0 | 50 | 8 |
+| AnkiWeb N2 | 1,877 | 0 | 0 | 173 | 8 |
+
+N3's 3 + 2 are the 5 non-kana lines named above. **Before the build, N3 read 145 and 125.**
+
 ## Alternatives considered
 
 **Skip `generate` and trust the deck's fields.** Rejected for the reasons above. It needs a mapping

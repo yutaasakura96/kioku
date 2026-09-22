@@ -75,7 +75,13 @@ from .deduplicate import Group
 #: ⚠️ **v5 is ADR 0069's**, #28: every word is also asked for ``meanings``, the
 #: list of English answers the *Review* check accepts, which changes the prompt
 #: and the schema of every chunk.
-PROMPT_VERSION = "v5"
+#:
+#: ⚠️ **v6 is #35's** (ADR 0068 § Amended 2026-09-22): an imported word's term
+#: and reading are now the deck's, so a kana `deck_reading` is the `reading`
+#: itself and is no longer on the line, and ``WHAT THE DECK SAID`` no longer
+#: says the given reading is the dictionary's. Only `anki` chunks build a
+#: different string; the version moves anyway, as v4's did.
+PROMPT_VERSION = "v6"
 
 #: ⚠️ **Keyed by the declaration's own field names, and a judgement field with no
 #: entry here raises.** The declaration says *which* fields exist (ADR 0003); a
@@ -198,7 +204,8 @@ def needs_a_reading(group: Group) -> bool:
     ⚠️ **The empty reading is the signal, and `is_oov` is the reason.** A line
     the dictionary could not resolve reaches stage 6 with `reading=""` and
     `is_oov` set (`worker/pipeline/normalise.py`); everything else arrives with
-    a reading SudachiPy supplied and ADR 0045 wrote in the right script. Asking
+    a reading SudachiPy — or, for an `anki` line, the deck (#35) — supplied and
+    ADR 0045 wrote in the right script. Asking
     the model for a reading it did not need would let it overwrite the one thing
     on a *note* that a dictionary is better at than a model.
 
@@ -315,10 +322,11 @@ def build_prompt(declaration: Declaration, text: str, groups: Sequence[Group]) -
             "\n\nWHAT THE DECK SAID\n"
             "A word may carry `deck_reading` and `deck_hint`. They come from an "
             "Anki deck the reader imported, written by its author, and they are "
-            "**hints and not facts**. `deck_reading` is that author's reading; "
-            "where it disagrees with the `reading` given above, the given one is "
-            "the dictionary's and stands. Use `deck_reading` only to tell two "
-            "readings of one spelling apart. `deck_hint` is what the deck said "
+            "**hints and not facts**. `deck_reading` is what the deck's reading "
+            "column held when it was not a plain reading, such as a note in "
+            "brackets or a `～` marking an affix. A `reading` given above still "
+            "stands and is echoed exactly; for `reading=?`, use `deck_reading` "
+            "only to tell which word the deck means. `deck_hint` is what the deck said "
             "about the word's level, and it may be wrong, cumulative, or about a "
             "different word: weigh it against your own judgement and write the "
             "`level` you actually believe.\n"
@@ -396,7 +404,10 @@ def _deck_hints(group: Group) -> str:
     name one level (§1.3).
 
     ⚠️ **Empty for every non-`anki` *candidate***, which is what keeps this out
-    of the cache key of a chunk that has no deck behind it.
+    of the cache key of a chunk that has no deck behind it. ⚠️ **And
+    `deck_reading` is empty for most `anki` ones since #35**: a kana reading
+    column *is* the reading, so only a column `normalise` could not use arrives
+    here.
     """
     parts = ""
     if group.candidate.deck_reading:

@@ -153,24 +153,22 @@ def test_a_source_of_an_undeclared_kind_is_refused_by_name() -> None:
 
 
 def test_a_deck_runs_the_word_list_stages_and_carries_the_deck_s_hints() -> None:
-    """ADR 0068 §4 and §5: `anki` is `word_list` with `unpack` in front, and
-    `unpack` has already run in the app by the time a worker sees the row.
+    """ADR 0068 §4: `anki` is `word_list` with `unpack` in front, and `unpack`
+    has already run in the app by the time a worker sees the row.
 
-    ⚠️ **The *identity key* is Sudachi's on both paths** — the deck's reading
-    rides along as a hint and takes no part in it, so a deck that disagrees with
-    the dictionary keys on the dictionary's (ADR 0068 §5, ADR 0063).
+    ⚠️ **The *identity key* is the deck's, not Sudachi's** (ADR 0068 § Amended
+    2026-09-22, #35). あります stays あります and is read ありまス's way in
+    hiragana; a word list would have resolved it to 有る. A kana reading column
+    is consumed as the reading, so it is no longer carried as a hint too.
     """
     result = stages(
         kind="anki",
         text="\n".join(["図書館\tとしょかん\tJLPT_5", "あります\tありまス\tJLPT N5"]),
     )
 
-    assert [group.candidate.term for group in result.survivors] == ["図書館", "有る"]
-    assert [group.candidate.reading for group in result.survivors] == ["としょかん", "ある"]
-    assert [group.candidate.deck_reading for group in result.survivors] == [
-        "としょかん",
-        "ありまス",
-    ]
+    assert [group.candidate.term for group in result.survivors] == ["図書館", "あります"]
+    assert [group.candidate.reading for group in result.survivors] == ["としょかん", "あります"]
+    assert [group.candidate.deck_reading for group in result.survivors] == ["", ""]
     assert [group.candidate.deck_hint for group in result.survivors] == ["JLPT_5", "JLPT N5"]
     # The *occurrence* covers the term's column and not the hints beside it.
     assert result.survivors[0].candidate.surface_form == "図書館"
@@ -183,9 +181,9 @@ def test_a_deck_s_word_that_is_already_a_note_is_not_regenerated() -> None:
     ⚠️ **`S5` is what this is protecting** — the fiftieth *source* must ask about
     fewer *notes* than the fifth — and an import is the largest *source* the app
     has ever taken, so it is where the saving is worth the most. ⚠️ **The corpus
-    is matched on Sudachi's key and not the deck's reading** (ADR 0068 §5): the
-    deck below reads 図書館 as `としょかん` and the collision holds whatever the
-    dictionary produced.
+    is matched on the key the deck's columns render** (ADR 0068 § Amended
+    2026-09-22): the deck below reads 図書館 as `としょかん`, which is also the
+    dictionary's, so it collides with the *note* a word list or prose made.
     """
     result = stages(
         kind="anki",

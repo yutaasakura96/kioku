@@ -44,7 +44,7 @@ through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue
 drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **retention**,
 **consistency**, **flag rate**, *time-to-first-review* and *cards minted*, and
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
-*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and ⚠️ **the frontier is [#35](https://github.com/yutaasakura96/kioku/issues/35)** (2026-09-22: the first real Anki import failed; ADR 0068 §5 is reversed for `anki`). ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
+*seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and ⚠️ **the frontier is empty**: [#35](https://github.com/yutaasakura96/kioku/issues/35) was built 2026-09-22 (the first real Anki import failed; ADR 0068 §5 is reversed for `anki`, and an imported word keys on the deck's term and reading) — ⚠️ it named #35 as the frontier earlier that day. ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
 2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named

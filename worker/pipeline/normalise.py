@@ -12,18 +12,22 @@ reason this stage uses SudachiPy rather than letting the model read the word.
 ADR 0063 rejected skipping the dictionary here in as many words: a key whose
 value comes from a model is one that changes when the model does, and the
 dictionary is what makes the same word the same *note* next year.
+⚠️ **Except for an `anki` line since #35** (ADR 0068 § Amended 2026-09-22): a
+deck's author already chose the word and its reading, so :func:`_deck_candidate`
+keys on the deck's columns and consults the dictionary only as a fallback.
 
 ⚠️ **Nothing here re-decides a rule `extract_candidates` already owns.**
-`reading_of`, `is_candidate` and `is_katakana_word` are imported, not copied —
+`reading_of`, `is_candidate`, `in_script_of` and `is_kana` are imported, not copied —
 `00-status.md` § Carrying records that the last time a reading rule existed in
 two places it produced あります keyed beside ある, and ADR 0045's amendment names
 `reading_of` as the function the next reader will look in.
 
 ⚠️ **A line Sudachi cannot resolve is kept, not dropped** (ADR 0063). It keeps
 the line as the reader wrote it, carries an **empty reading**, and sets `is_oov`
-— stage 6 then writes the reading with *provenance* `generated` rather than
-`lookup`. A list of tech loanwords is going to contain words the 2026 dictionary
-has never seen, and refusing them would refuse the ones this app exists for.
+— stage 6 then asks the model for the reading, because it is empty, and writes
+it with *provenance* `generated` rather than `lookup`. A list of tech loanwords
+is going to contain words the 2026 dictionary has never seen, and refusing them
+would refuse the ones this app exists for.
 """
 
 from __future__ import annotations
@@ -32,7 +36,7 @@ import unicodedata
 
 from subject import Declaration, is_blank, render_identity_key, strip_blank
 
-from .extract_candidates import Candidate, is_candidate, reading_of
+from .extract_candidates import Candidate, in_script_of, is_candidate, is_kana, reading_of
 from .tokenise import Token, tokenise
 
 
@@ -80,6 +84,11 @@ def normalise(
     ⚠️ **What is trimmed off is only padding**, which is not in the file's
     meaning and would otherwise make `surface_form` carry spaces the reader
     cannot see.
+
+    ⚠️ **An `anki` line is the deck's word, read the deck's way** — ADR 0068
+    § Amended 2026-09-22, #35, which reversed §5. Everything above about the
+    head word is the `word_list` path only; :func:`_deck_candidate` is the
+    other one.
     """
     candidates: list[Candidate] = []
     offset = char_start
@@ -104,8 +113,9 @@ def normalise(
                 # A code-point index into the line, which is the unit `04` §5.5
                 # stores — `shared/ingest/text.ts` is the other end of that.
                 within = head.index(term)
+                build = _deck_candidate if kind == "anki" else _candidate
                 candidates.append(
-                    _candidate(
+                    build(
                         declaration,
                         term,
                         char_start=offset + within,
@@ -130,11 +140,13 @@ def _candidate(
     deck_reading: str = "",
     deck_hint: str = "",
 ) -> Candidate:
-    """One *candidate* from one line, already stripped of its padding.
+    """One *candidate* from one `word_list` line, already stripped of its padding.
 
     ``line`` is the line **without its padding** and ``char_start``/``char_end``
     are that same span, so `occurrence.surface_form` and the position it carries
-    describe the same characters.
+    describe the same characters. ``deck_reading`` and ``deck_hint`` are always
+    empty here — only an `anki` line has columns — and are accepted so that
+    :func:`normalise` calls both builders the same way.
     """
     tokens = tokenise(line)
     resolved = _resolved(tokens)
@@ -144,28 +156,123 @@ def _candidate(
         # NFC-normalised and this term goes into it unmediated by the dictionary
         # — every other term arrives already normalised, having come out of
         # SudachiPy.
-        term = unicodedata.normalize("NFC", line)
-        reading = ""
-        part_of_speech = tokens[0].part_of_speech[0] if tokens else ""
+        #
         # ⚠️ **`is_oov` here means *the reading did not come from the
         # dictionary*, which is wider than *Sudachi had never heard of it*.**
         # That is the question `04` §5.4 asks the column — ADR 0019 keeps it as
-        # the raw signal *provenance* was derived from, and ADR 0063 makes stage
-        # 6 write this note's `reading` with kind `generated` rather than
-        # `lookup` on exactly this bit. A line that tokenised perfectly well and
-        # held two words has no looked-up reading either.
-        is_oov = True
-    else:
-        term = resolved.normalized_form
-        reading = reading_of(resolved)
-        part_of_speech = resolved.part_of_speech[0]
-        is_oov = resolved.is_oov
+        # the raw signal *provenance* was derived from. Stage 6 asks the model
+        # for the reading because it is empty (`needs_a_reading`) and records it
+        # `generated`. A line that tokenised perfectly well and held two words
+        # has no looked-up reading either.
+        return _assembled(
+            declaration,
+            term=unicodedata.normalize("NFC", line),
+            reading="",
+            part_of_speech=tokens[0].part_of_speech[0] if tokens else "",
+            is_oov=True,
+            surface_form=line,
+            char_start=char_start,
+            char_end=char_end,
+        )
 
+    return _assembled(
+        declaration,
+        term=resolved.normalized_form,
+        reading=reading_of(resolved),
+        part_of_speech=resolved.part_of_speech[0],
+        is_oov=resolved.is_oov,
+        surface_form=line,
+        char_start=char_start,
+        char_end=char_end,
+    )
+
+
+def _deck_candidate(
+    declaration: Declaration,
+    line: str,
+    *,
+    char_start: int,
+    char_end: int,
+    deck_reading: str = "",
+    deck_hint: str = "",
+) -> Candidate:
+    """One *candidate* from one deck line — ADR 0068 § Amended 2026-09-22, #35.
+
+    ⚠️ **The term is column 1 whole.** No head-word resolution, no
+    `normalized_form`, no splitting: the deck's author already chose the word,
+    and the head-word rule turned 直に into 直, 上等 into 上 and 為る into 成る on
+    145 of Open Anki N3's 2,140 lines. The model is shown the deck's line, so it
+    answers for the deck's word, and a key naming any other word is one
+    `generate`'s strict match refuses along with the whole paid *chunk*.
+
+    ⚠️ **The reading is column 2 when column 2 is kana**, in ADR 0045's script
+    for the deck's term. For a homograph the deck's reading says which word it
+    is: 角 is すみ in the deck and かく to Sudachi. A column used as the reading
+    is not also carried as ``deck_reading``.
+
+    **When column 2 is empty or not kana** (`すみません (かん)`, `らい～`), the
+    reading is the dictionary's — but only when Sudachi reads the deck's term as
+    exactly one known token. A term that tokenises into several has no
+    dictionary reading *of that term*: the head's (すむ for すみません) would key
+    a different word, which is the failure this function exists to prevent. So
+    that line gets an empty reading and `is_oov`, and the model is asked with
+    `reading=?`. The column rides along as ``deck_reading`` in both fallbacks.
+
+    ⚠️ **`is_oov` stays the tokeniser's raw signal** (ADR 0019) when column 2
+    is the reading: set only when Sudachi has never heard of part of the term.
+    `write_notes` stamps it on every looked-up field, the term and part of
+    speech among them, so it cannot be repurposed to mean *the deck said so*.
+    """
+    term = unicodedata.normalize("NFC", line)
+    tokens = tokenise(line)
+    in_the_dictionary = not any(token.is_oov for token in tokens)
+    one_word = len(tokens) == 1 and tokens[0].surface == line and in_the_dictionary
+
+    if is_kana(deck_reading):
+        reading = in_script_of(term, unicodedata.normalize("NFC", deck_reading))
+        is_oov = not in_the_dictionary
+        deck_reading = ""
+    elif one_word:
+        reading = in_script_of(term, tokens[0].reading_form)
+        is_oov = False
+    else:
+        reading = ""
+        is_oov = True
+
+    return _assembled(
+        declaration,
+        term=term,
+        reading=reading,
+        part_of_speech=tokens[0].part_of_speech[0] if tokens else "",
+        is_oov=is_oov,
+        surface_form=line,
+        char_start=char_start,
+        char_end=char_end,
+        deck_reading=deck_reading,
+        deck_hint=deck_hint,
+    )
+
+
+def _assembled(
+    declaration: Declaration,
+    *,
+    term: str,
+    reading: str,
+    part_of_speech: str,
+    is_oov: bool,
+    surface_form: str,
+    char_start: int,
+    char_end: int,
+    deck_reading: str = "",
+    deck_hint: str = "",
+) -> Candidate:
+    """The one place both paths build a :class:`Candidate`, so the key is
+    rendered one way."""
     return Candidate(
         term=term,
         reading=reading,
         part_of_speech=part_of_speech,
-        surface_form=line,
+        surface_form=surface_form,
         char_start=char_start,
         char_end=char_end,
         is_oov=is_oov,
@@ -175,11 +282,8 @@ def _candidate(
         # rendering rule is a second thing to get wrong, and the rendering rule
         # is part of the identity.
         identity_key=render_identity_key(declaration, {"term": term, "reading": reading}),
-        # ⚠️ **Carried, never consulted.** ADR 0068 §5: the deck's reading is a
-        # hint and the key is Sudachi's, so these two travel beside the
-        # *candidate* to stage 6 and take no part in `identity_key` above. A
-        # deck whose reading disagrees with the dictionary's keys on the
-        # dictionary's.
+        # ⚠️ **Hints, never part of the key.** ADR 0068 §6: both travel beside
+        # the *candidate* to stage 6 and take no part in `identity_key` above.
         deck_reading=deck_reading,
         deck_hint=deck_hint,
     )

@@ -237,3 +237,104 @@ class TestSuruVerbs:
 
         assert candidate.term == "持ってくる"
         assert candidate.is_oov is True
+
+
+def deck(line: str):
+    found = normalise(DECLARATION, line, char_start=0, kind="anki")
+    assert len(found) == 1, found
+    return found[0]
+
+
+class TestAnAnkiLineIsTheDecksWord:
+    """ADR 0068 § Amended 2026-09-22, #35: **trust the deck.**
+
+    ⚠️ **Every line below was a different word before #35.** The first real
+    import (Open Anki N3) had 145 of its 2,140 terms rewritten by the head-word
+    rule and 125 readings replaced by Sudachi's, and `generate` refused the whole
+    paid *chunk* the first time the model answered for the deck's word instead.
+    """
+
+    @pytest.mark.parametrize(
+        ("line", "term", "reading"),
+        [
+            # The head-word rule cut these to 直, 上 and 成る.
+            ("直に\tじかに\tJLPT_3", "直に", "じかに"),
+            ("上等\tじょうとう\tJLPT_3", "上等", "じょうとう"),
+            ("為る\tする\tJLPT_3", "為る", "する"),
+            # Sudachi reads these かく and し — a different word each.
+            ("角\tすみ\tJLPT_3", "角", "すみ"),
+            ("市\tいち\tJLPT_3", "市", "いち"),
+        ],
+    )
+    def test_the_term_and_reading_are_the_deck_s_columns(self, line, term, reading):
+        candidate = deck(line)
+
+        assert (candidate.term, candidate.reading) == (term, reading)
+        assert candidate.identity_key == render_identity_key(
+            DECLARATION, {"term": term, "reading": reading}
+        )
+
+    def test_a_katakana_term_keeps_a_katakana_reading(self):
+        """ADR 0045's script rule applies on top of the deck's reading."""
+        assert (deck("ジーンズ\tジーンズ").term, deck("ジーンズ\tジーンズ").reading) == (
+            "ジーンズ",
+            "ジーンズ",
+        )
+
+    def test_the_script_rule_rewrites_a_deck_that_wrote_the_other_script(self):
+        """A deck writing ジーンズ's reading in hiragana, or 図書館's in katakana,
+        still keys the way ADR 0045 says — or the same word keys twice."""
+        assert deck("ジーンズ\tじーんず").reading == "ジーンズ"
+        assert deck("図書館\tトショカン").reading == "としょかん"
+
+    def test_is_oov_stays_the_tokeniser_s_signal(self):
+        """ADR 0019: `write_notes` stamps `is_oov` on every looked-up field, the
+        term among them, so a deck's reading does not set it — only a term
+        Sudachi has never heard of does."""
+        candidate = deck("角\tすみ")
+
+        assert candidate.is_oov is False
+        # Consumed as the reading, so it is not also carried as a hint.
+        assert candidate.deck_reading == ""
+
+    def test_a_reading_column_that_is_not_kana_asks_the_model(self):
+        """すみません is すみ + ませ + ん to Sudachi — three tokens, so there is no
+        dictionary reading **of the deck's word** to fall back on, and the model
+        is asked with `reading=?`. ⚠️ The head's reading (すむ) would key a
+        different word, which is the failure #35 is about."""
+        candidate = deck("すみません\tすみません (かん)\tJLPT_3")
+
+        assert (candidate.term, candidate.reading) == ("すみません", "")
+        assert candidate.is_oov is True
+        assert candidate.deck_reading == "すみません (かん)"
+
+    def test_a_reading_column_that_is_not_kana_falls_back_to_the_dictionary(self):
+        """来 is one token Sudachi knows, so its reading is the dictionary's for
+        exactly the deck's word, and the deck's column rides along as a hint.
+
+        ⚠️ **The dictionary reads 来 alone as き, not the deck's らい** (measured
+        2026-09-22, `SudachiDict-core` 20260723). That is the fallback ADR 0068's
+        amendment chose, and this asserts it rather than hiding it: an affix
+        entry like `らい～` gets a dictionary reading that is not the affix's."""
+        candidate = deck("来\tらい～\tJLPT_3")
+
+        assert (candidate.term, candidate.reading) == ("来", "き")
+        assert candidate.is_oov is False
+        assert candidate.deck_reading == "らい～"
+
+    def test_an_empty_reading_column_falls_back_the_same_way(self):
+        assert (deck("会議\t\tJLPT_3").term, deck("会議\t\tJLPT_3").reading) == ("会議", "かいぎ")
+        assert deck("すみません").reading == ""
+
+    def test_the_span_and_hint_behave_as_before(self):
+        candidate = normalise(DECLARATION, "x\n  直に \tじかに\tJLPT_3", char_start=10, kind="anki")[1]
+
+        assert candidate.surface_form == "直に"
+        assert (candidate.char_start, candidate.char_end) == (14, 16)
+        assert candidate.deck_hint == "JLPT_3"
+
+    def test_a_word_list_line_is_untouched(self):
+        """The same lines typed as a word list still resolve — §5 stands for
+        `word_list`."""
+        assert one("直に").term == "直"
+        assert one("角").reading == "かく"

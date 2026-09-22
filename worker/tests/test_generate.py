@@ -84,9 +84,11 @@ LIBRARY = group("図書館", "としょかん")
 NEARBY = group("近く", "ちかく")
 GROUPS = (LIBRARY, NEARBY)
 
-#: An imported *candidate* — ADR 0068 §6. Its deck reads 開く as あく where
-#: Sudachi reads ひらく, which is the homograph case the hint exists for.
-IMPORTED = group("開く", "ひらく", deck_reading="あく", deck_hint="JLPT_3 JLPT N3")
+#: An imported *candidate* — ADR 0068 §6. ⚠️ **Since #35 a kana reading
+#: column is the reading itself**, so the only `deck_reading` that still reaches
+#: stage 6 is one `normalise` could not use — here an affix entry, which fell
+#: back to the dictionary's reading.
+IMPORTED = group("来", "き", deck_reading="らい～", deck_hint="JLPT_3 JLPT N3")
 
 
 # ---------------------------------------------------------------------------
@@ -620,20 +622,22 @@ class TestWhatAnImportedDeckSaid:
     def test_the_deck_s_reading_and_hint_are_on_the_word_s_line(self) -> None:
         prompt = build_prompt(DECLARATION, TEXT, (IMPORTED,))
 
-        assert "deck_reading=あく" in prompt
+        assert "deck_reading=らい～" in prompt
         assert "deck_hint=JLPT_3 JLPT N3" in prompt
-        # ⚠️ And the dictionary's reading is still the one handed over to echo.
-        assert "reading=ひらく" in prompt
+        # ⚠️ And the given reading is still the one handed over to echo.
+        assert " reading=き " in prompt
 
-    def test_the_prompt_says_the_dictionary_s_reading_wins(self) -> None:
-        """⚠️ ADR 0068 §5: the *identity key* is Sudachi's. A model told only
-        that two readings exist has no rule for choosing between them.
+    def test_the_prompt_says_the_given_reading_stands(self) -> None:
+        """A model told only that two readings exist has no rule for choosing
+        between them. ⚠️ **It no longer says the given one is the dictionary's**
+        (#35): for an `anki` word it is usually the deck's own.
         """
         prompt = build_prompt(DECLARATION, TEXT, (IMPORTED,))
 
         assert "WHAT THE DECK SAID" in prompt
         assert "hints and not facts" in prompt
-        assert "the given one is the dictionary's and stands" in prompt
+        assert "A `reading` given above still stands and is echoed exactly" in prompt
+        assert "dictionary's and stands" not in prompt
 
     def test_a_chunk_with_no_deck_behind_it_is_asked_the_older_question(self) -> None:
         """⚠️ **The prompt is a cache key** (`04` §6.3), so a paragraph about
@@ -664,3 +668,47 @@ class TestWhatAnImportedDeckSaid:
 
         assert "LEVEL AND DOMAIN" in prompt
         assert "write the `level` you actually believe" in prompt
+
+
+class TestAnImportedChunkIsAnsweredForTheDecksWord:
+    """#35: the first real import was refused chunk by chunk because the key
+    named Sudachi's word and the model answered for the deck's. Built here from
+    the deck's lines through `normalise`, as the worker builds it.
+    """
+
+    LINES = "直に\tじかに\tJLPT_3\n角\tすみ\tJLPT_3\n市\tいち\tJLPT_3"
+
+    def groups(self):
+        from pipeline.normalise import normalise
+
+        return tuple(
+            Group(
+                identity_key=candidate.identity_key,
+                candidate=candidate,
+                sightings=(candidate,),
+                note_id=None,
+            )
+            for candidate in normalise(DECLARATION, self.LINES, char_start=0, kind="anki")
+        )
+
+    def test_the_request_names_the_deck_s_words(self) -> None:
+        prompt = request_for(DECLARATION, self.LINES, self.groups()).prompt
+
+        assert "term=直に reading=じかに" in prompt
+        assert "term=角 reading=すみ" in prompt
+        assert "term=市 reading=いち" in prompt
+
+    def test_an_answer_echoing_the_deck_s_term_and_reading_is_accepted(self) -> None:
+        answer = answered(
+            {"term": "直に", "reading": "じかに", **judged(meaning="directly")},
+            {"term": "角", "reading": "すみ", **judged(meaning="corner")},
+            {"term": "市", "reading": "いち", **judged(meaning="market")},
+        )
+
+        notes = notes_from(DECLARATION, self.groups(), answer)
+
+        assert [(note.fields["term"], note.fields["reading"]) for note in notes] == [
+            ("直に", "じかに"),
+            ("角", "すみ"),
+            ("市", "いち"),
+        ]
