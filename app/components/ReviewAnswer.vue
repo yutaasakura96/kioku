@@ -124,7 +124,10 @@ defineExpose({
         The word's reading, not the kanji's
       </p>
 
-      <p v-else class="given" :class="check.reading ? 'right' : 'wrong'">
+      <!-- ⚠️ **Its own condition, not a `v-else`.** A `v-else` pairs with the
+           retry line above rather than the field, and showed "— Wrong" under
+           an empty field on every *card* until the check ran. -->
+      <p v-else-if="step !== 'reading'" class="given" :class="check.reading ? 'right' : 'wrong'">
         <span class="typed" lang="ja">{{ typed.reading || '—' }}</span>
         <span class="verdict">{{ verdict(check.reading) }}</span>
         <!-- ADR 0060 §2: the result shows **with the stored reading**. On the

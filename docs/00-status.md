@@ -111,7 +111,21 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — #32: a *note* in the export carries its meanings and claims** (`02` `S12`,
+**2026-09-22, latest — the reading result no longer shows before its check.** No ticket, no ADR;
+found by a walkthrough of the running app the same day.
+- **The bug.** #30 (483458d) put the retry line's `v-if` between the reading field's `v-if` and the
+  result's `v-else` in `app/components/ReviewAnswer.vue`, so the `v-else` paired with the retry and
+  every *card* with a reading showed `— Wrong` under the empty field until `Enter`. Display only: the
+  *grade* comes from the check, which runs on `Enter`. The result is now `v-else-if="step !== 'reading'"`.
+- Tests: `test/nuxt/review-screen.test.ts` asserts no result on the reading step, with and without a
+  retry. Red before the fix, green after. 1136 in the suite.
+- **The same walkthrough ran the first live seed request** (tech, N3, 10 words, $0.0013) and
+  ingested it ($0.0127): 49 *cards* minted. Two frictions it found are untriaged: the start block
+  reads `Review · 0 due` with 43 new *cards* waiting (`09` §4 step 5 says due-only), and a finished
+  draft shows only on reload (ADR 0020, nothing on the page says so). The worker also logged one
+  `worker.connection_lost` mid-ingest and recovered.
+
+**2026-09-22 — #32: a *note* in the export carries its meanings and claims** (`02` `S12`,
 `09` §4.12, `10` §8.4, `04` §10, `11` §4 step 3, all amended in the same commit). No ADR.
 - **The shape.** Each exported *note* carries `meaningList` (the `note_meaning` row or `null`),
   `synonyms` (the reader's `meaning_synonym` rows), and **every** `levelClaims` and `domainClaims`

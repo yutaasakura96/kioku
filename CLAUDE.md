@@ -107,7 +107,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1134 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-22, after #32)
+npm run test        # 1136 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-22, after the reading-result fix)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

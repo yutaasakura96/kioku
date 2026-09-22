@@ -223,6 +223,39 @@ describe('the answer steps for a kana-only term', () => {
   })
 })
 
+// #30 put the retry line between the reading field's `v-if` and the result's
+// `v-else`, so the result paired with the retry instead and read "— Wrong" under
+// an empty field on every *card* with a reading.
+describe('the reading step before its check', () => {
+  const answer = (retry: boolean) =>
+    mountSuspended(ReviewAnswer, {
+      props: {
+        step: 'reading',
+        declaration: jlptVocab,
+        typed: { reading: '', meaning: '' },
+        check: { reading: null, meaning: null },
+        storedReading: 'する',
+        asksReading: true,
+        retry,
+      },
+    })
+
+  it('shows the field and no result', async () => {
+    const view = await answer(false)
+
+    expect(view.find('#answer-reading').exists()).toBe(true)
+    expect(view.find('.given').exists()).toBe(false)
+    expect(view.text()).not.toContain('Wrong')
+  })
+
+  it('shows the retry line and no result on a retry', async () => {
+    const view = await answer(true)
+
+    expect(view.find('#answer-reading-retry').exists()).toBe(true)
+    expect(view.find('.given').exists()).toBe(false)
+  })
+})
+
 // #30: EDRDG's licence §3 asks for the acknowledgement on the app's site, with
 // links. The *shell* carries it, so every *place* does and no *mode* does.
 describe('the KANJIDIC2 acknowledgement', () => {
