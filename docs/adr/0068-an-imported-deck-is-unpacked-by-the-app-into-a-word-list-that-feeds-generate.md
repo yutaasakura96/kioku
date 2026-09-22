@@ -90,6 +90,9 @@ length to every line, so the build ticket re-measures with it included.
 `worker/pipeline/__init__.py`), so the declaration still says in order what happens to an `anki`
 *source* (ADR 0003).
 
+⚠️ **§5 was reversed on 2026-09-22 by the first real import** (§ Amended 2026-09-22, below). An
+imported word's term and reading now come from the deck. The original text follows.
+
 **5. The *identity key* is Sudachi's, as it is for every other word list.** `normalise` reads
 column 1 as the term and gets the dictionary form and the reading exactly as ADR 0063 §3 and
 [ADR 0045](0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md) say.
@@ -193,6 +196,39 @@ rather than blocking on it, and § Revisit below says what would reopen this.
 4 MB (§2, research §4.4) is three orders of magnitude of room, and `mkdtempSync` gives each
 invocation its own directory, so two concurrent imports on one warm instance cannot collide. If this
 ever fails it fails as *permission*, not as *space*.
+
+## Amended 2026-09-22 — §5 is reversed: an imported word is the deck's word, read the deck's way
+
+**The first real import failed, and §5 was the cause.** Yuta imported Open Anki JLPT N3 (2,140
+*notes*, 86 *chunks*) on 2026-09-22. The first two *chunks* were refused with *the response carries
+a note for a word that was not asked for*, the run was stopped by hand at $0.07 with no *note*
+written, and the run was marked `failed`. Measured the same day against the stored *source*, with no
+model call:
+
+- **`normalise` rewrote 145 of the 2,140 terms.** Some were harmless spellings (しゃべる → 喋る),
+  and many were different words: 直に → 直, 実は → 実, 上等 → 上, すくなくとも → 少ない,
+  すみません → すむ, 為る → 成る, 遭う → 会う, 挙げる → 上げる. The head-word rule is right for
+  a list the reader typed (勉強する is 勉強) and wrong for a deck, whose author already chose the
+  word.
+- **Sudachi's reading disagreed with the deck's on 125 terms**, spread across 69 of the 86
+  *chunks*: 角 すみ → かく, 市 いち → し, 上 じょう → うえ. For a homograph, the deck's reading
+  says which word it is, and the dictionary's reading replaces it with a different one.
+- **The model answers for the deck's word**, because the *chunk* text in the prompt is the deck's
+  line. The key it echoes then matches nothing that was asked, and `generate` refuses the whole
+  paid *chunk*.
+
+**Decided by Yuta, 2026-09-22: trust the deck.** For an `anki` *candidate* only, the *term* is
+column 1 whole, and the *reading* is column 2 written in the script
+[ADR 0045](0045-the-reading-half-of-the-identity-key-is-written-in-the-word-s-own-script.md)
+requires. The *identity key* renders from those. **When column 2 is not kana**, the line falls back
+to the dictionary's reading, or to `?` for the model. That is 5 of the 2,140 lines, e.g.
+`すみません (かん)` and `らい～`. **Word lists keep §5 unchanged**: the head-word rule and the
+dictionary's reading still decide their key.
+
+⚠️ **What this costs**: an imported word and the same word mined from prose can key apart when the
+deck spells or reads it differently (しゃべる and 喋る), so one word can become two *notes*. That
+is the duplication ADR 0063 refused, now accepted for one *source* kind. It is accepted because
+the alternative teaches a different word than the one the reader chose to import.
 
 ## Alternatives considered
 

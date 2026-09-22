@@ -1900,6 +1900,13 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
+- [#35](https://github.com/yutaasakura96/kioku/issues/35) — an imported deck word keeps the deck's
+  term and reading. `bug`, `ready-for-agent`, **and it is the frontier.** ⚠️ **Filed 2026-09-22
+  from the first real import**: Open Anki JLPT N3 was refused chunk by chunk, stopped by hand at
+  $0.07 with no *note* written, and its job and ingestion were set to `failed` on Neon so no worker
+  resumes it. ADR 0068 § Amended 2026-09-22 reverses §5 for `anki` on Yuta's call. **Re-importing
+  N3 after #35 lands spends about $2.5 and is his call.**
+
 ⚠️ **Read from Neon 2026-09-22: the 2026-09-21 run is still open at 6 of 10** (`completed_at`
 null, all six graded `1`, `meaning_synonym` empty). Done mid-run is a pause (`10` §5.3), so
 `/review` resumes its four remaining new *cards* before it composes the six now due. Working as
