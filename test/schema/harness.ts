@@ -67,6 +67,7 @@ const ALL_TABLES = [
   'note',
   'job',
   'seed',
+  'backfill',
   'ingestion_chunk',
   'generation_cache',
   'ingestion',

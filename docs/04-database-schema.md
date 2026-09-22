@@ -136,6 +136,7 @@ of who is asking. *Personal* is a statement about one reader.
 | `generation_cache` | shared | — | A model's output for a given input. The reader is not in the key |
 | `job` | shared | — | Operational. What the worker must do |
 | `seed` | shared | — | A model request and what it cost (ADR 0070, §6.5). `requested_by` is an audit line that *Ingest* also reads to show the draft to its requester |
+| `backfill` | shared | — | A run of `worker/backfill.py` and what it cost (§6.6). No owner: it runs from a terminal |
 | `note` | shared | — | Fields are about the word (ADR 0012) |
 | `note_field_provenance` | shared | — | Where a field's value came from, not who liked it |
 | `occurrence` | shared | — | This term appeared here, at this position |
@@ -748,6 +749,38 @@ asked of it is *Ingest*'s — the requester's newest seed that is neither submit
 and `seed_open_idx` serves it.
 
 **Example:** `(019c0a…, 'jlpt-vocab', 'tech', 'N3', 25, 'usr_7f…', 10:02Z, 10:02Z, 'claude-sonnet-5', 'seed-v1', 912, 138, 3204, 2026-09-12, 41, {会議,予算,…}, 'laptop', null, null, null)`
+
+### 6.6 `backfill`
+
+⚠️ **Added 2026-09-22, migration `0008`.** One run of `worker/backfill.py` (ADR 0069 §3, #28), and
+**its line in the spend ledger** (`10` §8.3). The backfill is not a job and has no *source*: it runs
+from a terminal and writes `note_meaning` rows for *notes* that already exist. It is still model
+money on the same key, and `03` §12 wants spend as rows written when it happened. Until this table,
+#28's run was on `/stats` nowhere and in the worker's stdout only.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `uuidv7()` | PK |
+| `prompt_version` | `text` | no | — | `backfill-v1`, as on the `note_meaning` rows it wrote |
+| `requested_at` | `timestamptz` | no | `now()` | ⚠️ **When the first batch was answered**: the row is written then, so a run with nothing to ask writes none |
+| `completed_at` | `timestamptz` | yes | — | Set when the run finds nothing left to ask. Null on a run that stopped |
+| `model_id` | `text` | yes | — | |
+| `request_count` | `integer` | no | `0` | Model requests paid for |
+| `written` | `integer` | no | `0` | `note_meaning` rows written. The ledger's title counts these |
+| `input_tokens`, `output_tokens` | `integer` | yes | — | **From the API response**, accumulated per batch, as on `ingestion` (§6.1) |
+| `cost_micro_usd` | `bigint` | yes | — | Same |
+| `price_table_effective_date` | `date` | yes | — | Same |
+| `worker_environment` | `text` | no | `'laptop'` | `CHECK (… IN ('laptop','server'))`, as on `ingestion` |
+
+⚠️ **Each batch adds to the row in the transaction that writes its lists**, so the ledger never
+shows a batch whose lists are missing, or the reverse. A run stopped half-way keeps what it paid for;
+the run that finishes the job is a row of its own, because it is a second spend.
+
+⚠️ **The 2026-09-21 run was recorded by hand on Neon** when the table was added: 12 requests, 475
+lists, 17,967 tokens in, 12,950 out, 165,434 micro-USD. Those are the sums of its twelve
+`backfill.batch` log lines, and they equal its `backfill.done` total exactly.
+
+**Example:** `(01a0c7…, 'backfill-v1', 06:12Z, 06:14Z, 'claude-sonnet-5', 12, 475, 17967, 12950, 165434, 2026-09-12, 'laptop')`
 
 ---
 

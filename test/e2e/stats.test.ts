@@ -277,6 +277,21 @@ describe('the ledger — `10` §8.3', () => {
     expect(document).toContain('4,200')
     expect(document).toContain('$0.0314')
   })
+
+  // `04` §6.6: a backfill run is spend with no *source*, and says which kind
+  // it is in the same aside a *seed* row uses.
+  it('carries a backfill run, named for what it wrote', async () => {
+    await database.client.exec(`
+      INSERT INTO backfill (prompt_version, model_id, request_count, written, input_tokens,
+                            output_tokens, cost_micro_usd)
+      VALUES ('backfill-v1', 'claude-sonnet-5', 12, 475, 17967, 12950, 165434);
+    `)
+
+    const document = await stats()
+
+    expect(document).toMatch(/meanings · 475 notes<span[^>]*> backfill<\/span>/)
+    expect(document).toContain('$0.1654')
+  })
 })
 
 // ⚠️ #33: the start block on `/stats` reads the same three figures as on `/`.

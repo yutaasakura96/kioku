@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// `10` §8.3 — tokens and cost per *ingestion* and per *seed* request (ADR 0070
-// §2), "rows written when they happened
+// `10` §8.3 — tokens and cost per *ingestion*, per *seed* request (ADR 0070
+// §2) and per backfill run (`04` §6.6), "rows written when they happened
 // rather than metrics scraped from logs" (`03` §12).
 //
 // ⚠️ **The title comes from `ingestion.source_title`, not from a join.** `04` §9
@@ -47,8 +47,11 @@ const tokens = (value: number | null) => (value === null ? '—' : value.toLocal
 
     <div v-for="row in rows" :key="`${row.kind}:${row.id}`" class="row">
       <!-- ADR 0070 §2: a *seed* request is a ledger row of its own, and says so
-        in the aside type `10` §7.1 uses — not a colour. -->
-      <span class="title">{{ row.title }}<span v-if="row.kind === 'seed'" class="aside"> seed</span></span>
+        in the aside type `10` §7.1 uses — not a colour. A backfill run does the
+        same (`04` §6.6). -->
+      <!-- ⚠️ Static text, not `{{ row.kind }}`: the compiler condenses the space
+        before an interpolation, and the title ran into the aside. -->
+      <span class="title">{{ row.title }}<span v-if="row.kind === 'seed'" class="aside"> seed</span><span v-else-if="row.kind === 'backfill'" class="aside"> backfill</span></span>
       <span class="fact">{{ row.modelId ?? '—' }}</span>
       <span class="fact value">{{ tokens(row.inputTokens) }}</span>
       <span class="fact value">{{ tokens(row.outputTokens) }}</span>

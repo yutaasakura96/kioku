@@ -1245,6 +1245,10 @@ ones included, newest first among the *ingestions*. Its title is what it asked f
 words`) followed by a 13px italic `seed` aside in `--k-ink-secondary`, the aside type §7.1 uses for
 *deleted*.
 
+⚠️ **Amended 2026-09-22: a run of `worker/backfill.py` is a ledger row too** (`04` §6.6). It has no
+*source*, so its title says what it wrote (`meanings · 475 notes`), followed by a `backfill` aside
+of the same type as `seed`'s.
+
 ### 8.4 The export
 
 **A plain `<a href="/api/export">`** (`09` §4.12), accent link text, reading `Export everything`,

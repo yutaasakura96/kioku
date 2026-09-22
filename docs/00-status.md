@@ -105,13 +105,30 @@ second out: one sampled deck encodes its levels as subdecks and its tags say som
 ⚠️ **And #26's `/tmp` close-out criterion is paid the same day, from the docs** (§ Next).
 ⚠️ **What is left for him is still the reader's run**, and now also a first real import.
 
-**Updated:** 2026-09-21
+**Updated:** 2026-09-22
 
 Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — #33: the start block's Review control counts new *cards*** (`10` §3.2 and
+**2026-09-22, latest — the backfill's spend is on the ledger** (`04` §6.6 added, `10` §8.3 and
+ADR 0069 amended in the same commit). No ticket and no ADR. Yuta asked for it after the walkthrough
+found #28's $0.1654 on `/stats` nowhere.
+- **A `backfill` table, migration `0008`, applied to Neon the same day.** One row per run of
+  `worker/backfill.py`, created by the first answered batch. Each batch adds its tokens and cost
+  **in the transaction that writes its lists**, and `completed_at` is set when a run finds nothing
+  left. The ledger reads it as a third kind, titled `meanings · N notes` with a `backfill` aside.
+- **The 2026-09-21 run was inserted by hand on Neon**: 12 requests, 475 lists, 17,967 in, 12,950
+  out, 165,434 micro-USD. Those are the sums of the run's twelve `backfill.batch` lines, recovered
+  from that session's transcript, and they equal its `backfill.done` total exactly. Seen live on
+  `/stats`.
+- ⚠️ **The render test caught a real bug on the way**: `> {{ row.kind }}` lost its space in SSR
+  and printed `475 notesbackfill`. Each aside is static text, as `seed`'s always was.
+- Tests: `worker/tests/test_backfill.py` (+3: one row per run, none when nothing is asked, a
+  stopped run keeps what it spent), `test/schema/stats.test.ts` (+3), `test/e2e/stats.test.ts`
+  (+1), and the table list in `test/schema/schema.test.ts`. 1150 in the suite, 349 in the worker.
+
+**2026-09-22 — #33: the start block's Review control counts new *cards*** (`10` §3.2 and
 `09` §2 amended in the same commit). No ADR: it amends a screen spec under ADR 0066's rules.
 - It reads `Review · 6 due · 10 new`. The figure is `newOnOffer` in `shared/review/brake.ts`: `0`
   while the fifty-*card* gate is shut, otherwise the smaller of `newAllowance(introducedToday)` and

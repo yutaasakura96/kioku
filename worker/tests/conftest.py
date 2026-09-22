@@ -114,6 +114,9 @@ SCRATCH_TABLES = (
     # #25 — after `job`, which references it, and before `source`, which it
     # references.
     "seed",
+    # The backfill's ledger row — written by `backfill.py` and referencing
+    # nothing.
+    "backfill",
     "ingestion",
     "source_chunk",
     "source",

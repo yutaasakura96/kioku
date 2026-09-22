@@ -37,10 +37,13 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 import psycopg
 
 import db
+import prices
 import provider as provider_module
 from events import log
+from ingest import resolve_worker_environment
 from pipeline.generate import MAX_OUTPUT_TOKENS, GenerationRequest, clean_meanings
 from prices import cost_micro_usd
+from provider import Generation
 
 #: ⚠️ **Not `PROMPT_VERSION`.** This is a different question from `generate`'s —
 #: a list for a *note* that already exists, asked from its gloss rather than a
@@ -188,6 +191,68 @@ def write_lists(
     return written
 
 
+def record_spend(
+    connection: psycopg.Connection,
+    backfill_id: str | None,
+    generation: Generation,
+    *,
+    written: int,
+    environment: str,
+) -> str:
+    """`04` §6.6's ledger row — **from the API response, never estimated** —
+    created by the first answered batch and added to by each one after it.
+
+    ⚠️ **Called inside the transaction that writes the batch's lists**, so the
+    ledger never shows a batch whose lists are missing, or the reverse.
+    """
+    table = prices.current_prices()
+    cost = cost_micro_usd(
+        generation.model_id,
+        input_tokens=generation.input_tokens,
+        output_tokens=generation.output_tokens,
+        table=table,
+    )
+    values = {
+        "id": backfill_id,
+        "prompt_version": BACKFILL_PROMPT_VERSION,
+        "model_id": generation.model_id,
+        "written": written,
+        "input_tokens": generation.input_tokens,
+        "output_tokens": generation.output_tokens,
+        "cost": cost,
+        "effective_date": table.effective_date,
+        "environment": environment,
+    }
+    if backfill_id is None:
+        (created,) = connection.execute(
+            """
+            INSERT INTO backfill
+              (prompt_version, model_id, request_count, written, input_tokens, output_tokens,
+               cost_micro_usd, price_table_effective_date, worker_environment)
+            VALUES (%(prompt_version)s, %(model_id)s, 1, %(written)s, %(input_tokens)s,
+                    %(output_tokens)s, %(cost)s, %(effective_date)s, %(environment)s)
+            RETURNING id::text;
+            """,
+            values,
+        ).fetchone()
+        return created
+    connection.execute(
+        """
+        UPDATE backfill SET
+          model_id = %(model_id)s,
+          request_count = request_count + 1,
+          written = written + %(written)s,
+          input_tokens = input_tokens + %(input_tokens)s,
+          output_tokens = output_tokens + %(output_tokens)s,
+          cost_micro_usd = cost_micro_usd + %(cost)s,
+          price_table_effective_date = %(effective_date)s
+        WHERE id = %(id)s;
+        """,
+        values,
+    )
+    return backfill_id
+
+
 def batches(connection: psycopg.Connection) -> Iterable[list[Pending]]:
     """Every pending *note*, :data:`BATCH_SIZE` at a time, read once — for the
     estimate, which writes nothing and so cannot page by what it wrote."""
@@ -249,15 +314,23 @@ def run(
     generator: provider_module.Provider,
     *,
     limit: int | None = None,
+    environment: str = "laptop",
 ) -> RunResult:
-    """The spend. Stops when nothing is left, or after ``limit`` *notes*."""
+    """The spend. Stops when nothing is left, or after ``limit`` *notes*.
+
+    Each answered batch writes its lists and its ledger line together; the row
+    is marked complete only when a run finds nothing left to ask.
+    """
     written = requests = input_tokens = output_tokens = 0
+    backfill_id: str | None = None
+    exhausted = False
     unanswered: list[str] = []
     asked = 0
     while limit is None or asked < limit:
         size = BATCH_SIZE if limit is None else min(BATCH_SIZE, limit - asked)
         batch = select_pending(connection, limit=size, skip=unanswered)
         if not batch:
+            exhausted = True
             break
         generation = generator.generate(request_for(batch))
         requests += 1
@@ -265,7 +338,12 @@ def run(
         input_tokens += generation.input_tokens
         output_tokens += generation.output_tokens
         lists = lists_from(batch, generation.payload)
-        written += write_lists(connection, lists, model_id=generation.model_id)
+        with connection.transaction():
+            batch_written = write_lists(connection, lists, model_id=generation.model_id)
+            backfill_id = record_spend(
+                connection, backfill_id, generation, written=batch_written, environment=environment
+            )
+        written += batch_written
         unanswered.extend(pending.note_id for pending in batch if pending.note_id not in lists)
         log(
             "backfill.batch",
@@ -279,6 +357,8 @@ def run(
                 output_tokens=generation.output_tokens,
             ),
         )
+    if exhausted and backfill_id is not None:
+        connection.execute("UPDATE backfill SET completed_at = now() WHERE id = %s;", (backfill_id,))
     return RunResult(written, requests, len(unanswered), input_tokens, output_tokens)
 
 
@@ -301,6 +381,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         url = db.require_direct_url()
         generator = provider_module.require_provider()
+        environment = resolve_worker_environment()
     except db.MisconfiguredWorker as error:
         log("backfill.misconfigured", reason=str(error))
         return 1
@@ -324,7 +405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
 
-        result = run(connection, generator, limit=arguments.limit)
+        result = run(connection, generator, limit=arguments.limit, environment=environment)
         spent = cost_micro_usd(
             generator.model_id,
             input_tokens=result.input_tokens,

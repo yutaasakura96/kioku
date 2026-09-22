@@ -63,7 +63,7 @@ build on 2026-09-18, #21 until it was built that day, #23 until earlier that day
 until 2026-09-17.**
 
 **What exists now:** #2 through #18 are built (and the pivot's, above) — a Nuxt app with the rendering split enforced by the
-build, twenty-two tables (twenty-one until #25 added `seed`, nineteen until #28 added `note_meaning` and `meaning_synonym`, eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
+build, twenty-three tables (twenty-two until `backfill` on 2026-09-22, twenty-one until #25 added `seed`, nineteen until #28 added `note_meaning` and `meaning_synonym`, eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
 a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by doing
@@ -84,7 +84,7 @@ client to ask. ⚠️ It fed **UTC** until #21.
 [#21](https://github.com/yutaasakura96/kioku/issues/21) alone after #23, and has no
 `ready-for-agent` ticket since #21 was built later on 2026-09-18** (⚠️ it named #20 and #22 until
 2026-09-17 and #23 until 2026-09-18); ⚠️ **Neon is migrated through `0005` as of 2026-09-19** (this said `0003` to `0005` were unapplied
-until then, and `0003` never was), ⚠️ **and through `0006` (#28) as of 2026-09-21** ⚠️ **and through `0007` (#25) the same day**; ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
+until then, and `0003` never was), ⚠️ **and through `0006` (#28) as of 2026-09-21** ⚠️ **and through `0007` (#25) the same day** ⚠️ **and through `0008` (`backfill`) on 2026-09-22**; ⚠️ **#26 added no migration** — an `anki` *source* is a `source`
 row like any other; ~~`S12`'s export is the one thing
 still unticketed~~ ⚠️ **`S12`'s export is built (#31, 2026-09-22)**, and `docs/00-status.md` § Next names the rest.
 ~~⚠️ **One thing #13 wrote and nothing reads: `note_vetting.flagged_at`.**~~ Read since #20, when a
@@ -97,7 +97,7 @@ and the `Export everything` link on `/stats`, with `11` §4's reconciliation tes
 meaning, with the app proposing the *grade*. **And the worker heartbeats while the model streams**
 (ADR 0061, #17), so a long *chunk* no longer has its job silently reclaimed.
 ⚠️ **And, since 2026-09-12, there is an environment to run it in.** Neon project `kioku`
-(`small-hat-90514806`, Postgres 18.6, `aws-ap-southeast-1`) with all twenty-two tables migrated and
+(`small-hat-90514806`, Postgres 18.6, `aws-ap-southeast-1`) with all twenty-three tables migrated and
 `uuidv7()` live; `.env` and `worker/.env` written and gitignored. ⚠️ **Every value is filled as of
 2026-09-13** — `scripts/first-run.sh` wrote the Google client and the Anthropic key and each was
 checked live — and **the first sign-in happened that day.** The first run (2026-09-14/15) is
@@ -107,7 +107,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1146 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-22, after #33)
+npm run test        # 1150 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-22, after the backfill ledger row)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)

@@ -358,6 +358,48 @@ export const seed = pgTable(
 )
 
 /**
+ * `04` §6.6 — **one run of `worker/backfill.py`, and its line in the spend
+ * ledger** (ADR 0069 §3, `10` §8.3).
+ *
+ * The backfill is not a job: it runs from a terminal, asks for no *source*, and
+ * writes `note_meaning` rows for *notes* that already exist. It is still model
+ * money on the same key, and `03` §12 wants spend as "rows written when they
+ * happened rather than metrics scraped from logs" — so each run gets a row, and
+ * each batch adds to it **in the transaction that writes its lists**. A run
+ * stopped half-way keeps what it paid for, and the run that finishes the job is
+ * a row of its own.
+ *
+ * ⚠️ **Shared, like `ingestion` and `seed`** (`04` §4): spend is reported
+ * whoever ran it, and a terminal has no reader to own it.
+ */
+export const backfill = pgTable(
+  'backfill',
+  {
+    id: primaryId(),
+    /** `backfill-v1` — which question was asked, as on `note_meaning`. */
+    promptVersion: text('prompt_version').notNull(),
+    /** When the first batch was answered — the row is written then, not before. */
+    requestedAt: tstz('requested_at').notNull().defaultNow(),
+    /** Set when the run found nothing left to ask. Null on a run that stopped. */
+    completedAt: tstz('completed_at'),
+    modelId: text('model_id'),
+    /** Model requests paid for. */
+    requestCount: integer('request_count').notNull().default(0),
+    /** `note_meaning` rows written — what the ledger's title counts. */
+    written: integer('written').notNull().default(0),
+    /** **From the API response** (`03` §7), never estimated — as on `ingestion`. */
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    costMicroUsd: bigint('cost_micro_usd', { mode: 'bigint' }),
+    priceTableEffectiveDate: date('price_table_effective_date'),
+    workerEnvironment: text('worker_environment').notNull().default('laptop'),
+  },
+  t => [
+    check('backfill_worker_environment', sql`${t.workerEnvironment} IN ('laptop','server')`),
+  ],
+)
+
+/**
  * `04` §6.4 — ADR 0028: **the job table is the truth and `NOTIFY` only shortens
  * latency.**
  *

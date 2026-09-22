@@ -159,6 +159,8 @@ What the tickets were left to decide, as #27 and #28 decided it. None of it move
 - **The backfill is `worker/backfill.py`**, with a free `--estimate` (Anthropic's token counting)
   and a `--run` that pages by *notes* without a row, so it resumes by construction. Its rows carry
   `prompt_version = 'backfill-v1'`.
+  ⚠️ **Amended 2026-09-22: each run is also a `backfill` row, and a line on `/stats`' spend ledger**
+  (`04` §6.6, `10` §8.3). Until then the spend was in the worker's stdout only.
 
 ## Settled by the build of §5 — 2026-09-21
 

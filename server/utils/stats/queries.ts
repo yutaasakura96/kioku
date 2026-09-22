@@ -56,21 +56,23 @@ import { seedTitle } from '../../../shared/ingest/seed'
 import type { StatsContext, StatsRows } from '../../../shared/metrics/stats'
 
 /**
- * One row of `10` §8.3's spend ledger — an *ingestion*, or since #25 a *seed*
- * request (ADR 0070 §2).
+ * One row of `10` §8.3's spend ledger — an *ingestion*, since #25 a *seed*
+ * request (ADR 0070 §2), and since 2026-09-22 a run of `worker/backfill.py`
+ * (`04` §6.6).
  */
 export interface LedgerRow {
-  kind: 'ingestion' | 'seed'
-  /** `ingestion.id` or `seed.id`, by `kind`. */
+  kind: 'ingestion' | 'seed' | 'backfill'
+  /** `ingestion.id`, `seed.id` or `backfill.id`, by `kind`. */
   id: string
   /**
    * ⚠️ Null once the *source* has been hard-deleted — `04` §6.1's `SET NULL` —
-   * and, for a seed, until its draft is submitted.
+   * and, for a seed, until its draft is submitted. Always null for a backfill,
+   * which has no *source*.
    */
   sourceId: string | null
   /**
    * `ingestion.source_title`, snapshotted at submit so the ledger survives; for
-   * a seed, what it asked for (`seedTitle`).
+   * a seed, what it asked for (`seedTitle`); for a backfill, what it wrote.
    */
   title: string
   modelId: string | null
@@ -345,19 +347,19 @@ async function sourceCount(db: IngestDatabase): Promise<number> {
 }
 
 /**
- * `10` §8.3's ledger — tokens and cost per *ingestion* and per *seed* request,
- * newest first.
+ * `10` §8.3's ledger — tokens and cost per *ingestion*, per *seed* request and
+ * per backfill run, newest first.
  *
- * ⚠️ **It reads `ingestion` and `seed` and joins nothing.** `04` §9 makes
+ * ⚠️ **It reads `ingestion`, `seed` and `backfill` and joins nothing.** `04` §9 makes
  * `ingestion.source_id` `SET NULL` and snapshots `source_title` at submit
  * precisely so **the spend ledger survives a hard delete**; a ledger built by
  * joining `source` would lose the row the moment the material is gone, which is
  * the one case the snapshot exists for.
  *
  * ⚠️ **Every seed row, discarded ones included** (ADR 0070 §2): a draft the
- * reader never submitted was still paid for. Two sequential reads merged here
+ * reader never submitted was still paid for. Sequential reads merged here
  * rather than a `UNION`, for the reason at the top of this file and because the
- * two titles are made differently.
+ * titles are made differently.
  */
 export async function ledger(db: IngestDatabase): Promise<LedgerRow[]> {
   const ingestions = await db
@@ -390,12 +392,31 @@ export async function ledger(db: IngestDatabase): Promise<LedgerRow[]> {
     })
     .from(schema.seed)
 
+  const backfills = await db
+    .select({
+      id: schema.backfill.id,
+      written: schema.backfill.written,
+      modelId: schema.backfill.modelId,
+      inputTokens: schema.backfill.inputTokens,
+      outputTokens: schema.backfill.outputTokens,
+      costMicroUsd: schema.backfill.costMicroUsd,
+      workerEnvironment: schema.backfill.workerEnvironment,
+      submittedAt: schema.backfill.requestedAt,
+    })
+    .from(schema.backfill)
+
   const rows: LedgerRow[] = [
     ...ingestions.map(row => ({ kind: 'ingestion' as const, ...row })),
     ...seeds.map(({ domain, level, count, ...row }) => ({
       kind: 'seed' as const,
       ...row,
       title: seedTitle({ domain, level, count }),
+    })),
+    ...backfills.map(({ written, ...row }) => ({
+      kind: 'backfill' as const,
+      ...row,
+      sourceId: null,
+      title: `meanings · ${written} ${written === 1 ? 'note' : 'notes'}`,
     })),
   ]
   return rows.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime())

@@ -593,3 +593,50 @@ describe('the ledger — seed rows, ADR 0070 §2', () => {
     expect((await ledger(db)).map(row => row.kind)).toEqual(['ingestion', 'seed', 'ingestion'])
   })
 })
+
+// `04` §6.6: a run of `worker/backfill.py` is model money on the same key, so it
+// is a ledger row too — named for what it wrote, since it has no *source*.
+describe('the ledger — backfill runs, `04` §6.6', () => {
+  async function backfilled({ minutesAgo = 0, written = 475 }: { minutesAgo?: number, written?: number } = {}) {
+    const result = await client.query<{ id: string }>(
+      `INSERT INTO backfill (prompt_version, requested_at, model_id, request_count, written,
+         input_tokens, output_tokens, cost_micro_usd, price_table_effective_date)
+       VALUES ('backfill-v1', now() - make_interval(mins => $1), 'claude-sonnet-5', 12, $2,
+         17968, 12950, 165434, '2026-09-12')
+       RETURNING id;`,
+      [minutesAgo, written],
+    )
+    return result.rows[0]!.id
+  }
+
+  it('carries a run, named for the lists it wrote', async () => {
+    const id = await backfilled()
+
+    expect(await ledger(db)).toEqual([
+      expect.objectContaining({
+        kind: 'backfill',
+        id,
+        sourceId: null,
+        title: 'meanings · 475 notes',
+        modelId: 'claude-sonnet-5',
+        inputTokens: 17968,
+        outputTokens: 12950,
+        costMicroUsd: 165_434n,
+        workerEnvironment: 'laptop',
+      }),
+    ])
+  })
+
+  it('says one note, not one notes', async () => {
+    await backfilled({ written: 1 })
+    expect((await ledger(db))[0]!.title).toBe('meanings · 1 note')
+  })
+
+  it('interleaves with the other kinds, newest first', async () => {
+    await ingested('ふるい', { minutesAgo: 90 })
+    await backfilled({ minutesAgo: 30 })
+    await ingested('あたらしい')
+
+    expect((await ledger(db)).map(row => row.kind)).toEqual(['ingestion', 'backfill', 'ingestion'])
+  })
+})
