@@ -713,7 +713,8 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
   it('says the draft is not yet picked up, and gives the controls way while it is open', async () => {
     const html = await asReader('/').then(response => response.text())
 
-    expect(html).toContain('Drafting 25 tech words at N3 — not yet picked up.')
+    // ⚠️ #34: the page never changes by itself, so the sentence names the reload.
+    expect(html).toContain('Drafting 25 tech words at N3 — not yet picked up. Reload to see it.')
     expect(html).not.toContain('DRAFT A LIST')
     expect(html).toContain('Discard the draft')
 
@@ -722,6 +723,22 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
     expect(html).not.toContain('<script')
     expect(html).not.toContain('http-equiv="refresh"')
     expect(html).not.toMatch(/worker is (down|not running)|offline/i)
+  })
+
+  it('says the draft is drafting once claimed, and names the reload — #34', async () => {
+    await database.client.exec(
+      `UPDATE job SET state = 'claimed', claimed_by = 'test', claimed_at = now(), heartbeat_at = now()
+       WHERE kind = 'seed' AND state = 'queued';`,
+    )
+    const html = await asReader('/').then(response => response.text())
+
+    expect(html).toContain('Drafting 25 tech words at N3 — reload to see it.')
+    expect(html).not.toContain('N3 — not yet picked up')
+
+    await database.client.exec(
+      `UPDATE job SET state = 'queued', claimed_by = NULL, claimed_at = NULL, heartbeat_at = NULL
+       WHERE kind = 'seed' AND state = 'claimed';`,
+    )
   })
 
   it('⚠️ lands pre-filled in the word-list field once it has come back — ADR 0070 §1', async () => {

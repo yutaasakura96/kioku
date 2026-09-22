@@ -116,11 +116,13 @@ const readyDraft = seed?.state === 'ready' && seed.terms.length > 0 && !failure
  */
 function sentenceFor(draft: NonNullable<typeof seed>): string {
   const words = `${draft.domain} words at ${draft.level}`
+  // ⚠️ #34: `/` ships no script and does not poll (ADR 0020, `09` §2), so the
+  // draft only appears on a reload, and these two sentences have to say so.
   switch (draft.state) {
     case 'waiting':
-      return `Drafting ${draft.count} ${words} — not yet picked up.`
+      return `Drafting ${draft.count} ${words} — not yet picked up. Reload to see it.`
     case 'drafting':
-      return `Drafting ${draft.count} ${words}.`
+      return `Drafting ${draft.count} ${words} — reload to see it.`
     case 'failed':
       return draft.error
         ? `The draft of ${words} did not come back: ${draft.error}.`

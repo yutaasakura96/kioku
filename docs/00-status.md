@@ -111,7 +111,16 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — the reading result no longer shows before its check.** No ticket, no ADR;
+**2026-09-22, latest — #34: a drafting seed names the reload** (`10` §6.2's seed copy amended in
+the same commit). No ADR. Wording only.
+- The two non-terminal sentences in `sentenceFor` (`app/pages/index.vue`) now read *Drafting 25 tech
+  words at N3 — not yet picked up. Reload to see it.* and *Drafting 25 tech words at N3 — reload to
+  see it.* `ready`, `failed` and the empty-draft sentence are unchanged. Still no polling and no meta
+  refresh (`09` §2).
+- Tests: `test/e2e/ingest.test.ts` asserts the new waiting sentence and gains a claimed-job case,
+  which the seed block had not asserted before.
+
+**2026-09-22 — the reading result no longer shows before its check.** No ticket, no ADR;
 found by a walkthrough of the running app the same day.
 - **The bug.** #30 (483458d) put the retry line's `v-if` between the reading field's `v-if` and the
   result's `v-else` in `app/components/ReviewAnswer.vue`, so the `v-else` paired with the retry and
@@ -1863,9 +1872,9 @@ Seven findings worth knowing without opening it:
   meanings and claims.~~ ⚠️ **Built 2026-09-22** (§ Done). ~~The frontier is empty again.~~
 - [#33](https://github.com/yutaasakura96/kioku/issues/33) — the start block's Review control counts
   the new *cards* the brake would allow today: `Review · 0 due · 10 new`. `ready-for-agent`.
-- [#34](https://github.com/yutaasakura96/kioku/issues/34) — a drafting seed tells the reader to
-  reload. Wording only, `ready-for-agent`. ⚠️ **Both filed 2026-09-22 from the walkthrough's
-  triage; they are the frontier, #34 the smaller.**
+- ~~[#34](https://github.com/yutaasakura96/kioku/issues/34) — a drafting seed tells the reader to
+  reload. Wording only, `ready-for-agent`.~~ ⚠️ **Built 2026-09-22** (§ Done). ⚠️ **Both filed
+  2026-09-22 from the walkthrough's triage; #33 is the frontier.**
 
 ⚠️ **2026-09-21: the reader's run started, and its first *session* produced
 [ADR 0069](adr/0069-the-check-is-the-grade.md) and three tickets.** The typed check becomes the

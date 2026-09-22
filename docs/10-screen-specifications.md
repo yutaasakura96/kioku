@@ -984,8 +984,11 @@ changes what another field means. The control posts urlencoded to `POST /` with 
 `seed_action`, the resume control's pattern.
 
 With a seed open, the controls give way to **one sentence**, 15px `--k-ink`, and a quiet *Discard the
-draft* control under it. The sentence is *Drafting 25 tech words at N3 — not yet picked up.* while
-queued (the run list's wording, and no diagnosis of the laptop, `09` §7), *Drafting …* once claimed,
+draft* control under it. The sentence is *Drafting 25 tech words at N3 — not yet picked up. Reload to
+see it.* while queued (the run list's wording, and no diagnosis of the laptop, `09` §7), *Drafting 25
+tech words at N3 — reload to see it.* once claimed. ⚠️ **Both name the reload** (#34, 2026-09-22): the
+draft is back in seconds but the page never changes, and without the words the wait read as a slow
+worker. They name it instead of refreshing, which would destroy a paste in progress (`09` §2). It is
 *The draft of … did not come back: {job error}.* on a failure, and *N tech words at N3 are in the
 list below. Remove any you do not want, then Ingest.* once it has come back. N is *2 of 25* when fewer
 came back. When none came back, it reads *No new … came back — every one proposed is already yours.*
