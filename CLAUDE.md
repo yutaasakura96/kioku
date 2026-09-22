@@ -46,7 +46,7 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and **the frontier is empty**: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
-⚠️ **`0007` is applied to Neon (2026-09-21); the first live seed request spends on Yuta's key and is his call.** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
+⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
 2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named
 #30 from the research's close, and #29 before that). ⚠️ **#30 left a monthly obligation**: the
 KANJIDIC2 table's licence requires a refresh, logged in `docs/00-status.md` § Carrying.

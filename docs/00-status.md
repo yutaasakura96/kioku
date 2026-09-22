@@ -1900,6 +1900,11 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
+⚠️ **Read from Neon 2026-09-22: the 2026-09-21 run is still open at 6 of 10** (`completed_at`
+null, all six graded `1`, `meaning_synonym` empty). Done mid-run is a pause (`10` §5.3), so
+`/review` resumes its four remaining new *cards* before it composes the six now due. Working as
+designed; nothing to ticket. The first `S` synonym (*look* on 見る) has not been added yet.
+
 - ~~[#31](https://github.com/yutaasakura96/kioku/issues/31) — `S12`'s export.~~ ⚠️ **Built
   2026-09-22** (§ Done). It was the last unticketed story.
 - ~~[#32](https://github.com/yutaasakura96/kioku/issues/32) — a *note* in the export carries its
@@ -1944,8 +1949,9 @@ word's becomes a retry.
   frontier.**~~ ⚠️ **#30 built 2026-09-21** (§ Done); #29 is closed. ~~No `ready-for-agent` ticket is
   left.~~
 - ~~[#25](https://github.com/yutaasakura96/kioku/issues/25) — AI-seeded lists.~~ ⚠️ **Built
-  2026-09-21** (§ Done). **The frontier is empty.** `0007` is applied to Neon (same day). What remains
-  is Yuta's call: the first live seed request, which spends on his key. ⚠️ **Triaged with Yuta
+  2026-09-21** (§ Done). **The frontier is empty.** `0007` is applied to Neon (same day). ~~What remains
+  is Yuta's call: the first live seed request, which spends on his key.~~ ⚠️ **It ran 2026-09-22**
+  (tech, N3, 10 words, $0.0013, then $0.0127 to ingest; all ten minted, § Done). ⚠️ **Triaged with Yuta
   2026-09-21 and `ready-for-agent`; it was the frontier.** [ADR 0070](adr/0070-a-seeded-list-is-a-draft-the-reader-submits.md)
   answers its four questions: the worker returns a draft that lands pre-filled in *Ingest* and is
   submitted as a plain `word_list` *source*; each seed request gets its own ledger row;
