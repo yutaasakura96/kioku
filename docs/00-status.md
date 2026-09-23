@@ -111,7 +111,33 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-23, latest — the N3 deck is imported: 2,030 *cards* for $4.30, and three issues came out
+**2026-09-23, latest — #36: a stray note is dropped and the *chunk* keeps what matched**
+([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), decided in the same session from the
+N3 import's evidence below).
+- **`notes_from` passes `allow_extra=True`** — what `notes_for_cached` has always passed. ⚠️ **The
+  parameter is gone rather than flipped**: both callers now want the same behaviour, so the
+  `allow_extra=False` branch was untested dead code. `_matched` keeps the two callers' *reasons*
+  in its docstring, and the only thing still separating them is what they do with a refusal.
+- **An unanswered group is still an error**, unchanged, and it falls out of the flag rather than
+  needing to be defended — the `unanswered` check runs after the match loop and always did.
+- **The drop is said per *chunk*, as a count and never as the term** — `ingest.note_dropped`, beside
+  `ingest.claim_refused`, which is the same shape for the same reason (`03` §13.4: a stray is model
+  output about the reader's material). ⚠️ **Counted at the call site rather than returned**
+  (`len(payload["notes"]) - len(notes)`, exact because a second note for one group raises), so
+  `notes_from` keeps the signature nineteen tests and the cache path share.
+- **Two tests moved and one is new.** `test_a_note_for_a_word_nobody_asked_about_is_refused` became
+  `…_is_dropped_and_the_chunk_stands`; `test_a_model_that_corrects_the_term_is_refused` now asserts
+  `match="missing"`, because a rewritten term is dropped as a stray and refused on the way *out* —
+  ⚠️ **that test is the shape of chunk 58.** The new one is in `test_generation.py`, against the
+  container, and asserts the log line carries no term.
+- ⚠️ **This does not recover chunk 58's 25 words**, and ADR 0071 § What this does not fix says so.
+  If its stray is 地 answered as another word, the chunk now fails `missing 1 of 25` instead. Letting
+  an unanswered *word* fail alone is a different decision, it weakens the guarantee above, and it is
+  not in #36.
+- Suites green: **365 worker** (was 364) and **1150 TypeScript**, unchanged. `worker/tests/README.md`
+  re-counted: **ninety-eight of three hundred and sixty-five** need Docker.
+
+**2026-09-23 — the N3 deck is imported: 2,030 *cards* for $4.30, and three issues came out
 of the run.** No ticket and no ADR; this is the live verification #35 was built for.
 - **Open Anki JLPT N3, 2,140 words, submitted 2026-09-22 08:06 UTC** — the same
   `kioku-decks/open-anki-jlpt-n3-deck-v0.3.0.apkg` whose first attempt was refused chunk by chunk on
@@ -1953,14 +1979,16 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-⚠️ **The frontier is empty, and three `needs-triage` issues are waiting on Yuta** — all three filed
-2026-09-23 from the N3 import (§ Done). None is `ready-for-agent`, and two of them are questions
-before they are work:
-- [#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note in a model response refuses
-  the whole *chunk*. 100 words lost on the first pass, 25 still out. **The strictness is a recorded
-  decision** (`notes_for`'s docstring: *"Neither is worth half a chunk"*), so this is triage against
-  that argument, with the middle answer — drop the stray, keep what matched, refuse only an
-  unanswered group — on the table. An unanswered group stays an error either way.
+⚠️ **The frontier is empty, and two `needs-triage` issues are waiting on Yuta** — filed 2026-09-23
+from the N3 import (§ Done). Neither is `ready-for-agent`, and both are questions before they are
+work. ⚠️ **This said *three* until #36 was triaged and built later the same day.**
+- ~~[#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note in a model response
+  refuses the whole *chunk*. 100 words lost on the first pass, 25 still out.~~ ⚠️ **Triaged and
+  built 2026-09-23** ([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), § Done): the
+  middle answer was taken — drop the stray, keep what matched, refuse only an unanswered group.
+  ⚠️ **Chunk 58 is still out and this is expected**, not a miss: see ADR 0071 § What this does not
+  fix. Whether an unanswered *word* may fail alone, rather than taking its chunk with it, is
+  undecided and unticketed.
 - [#37](https://github.com/yutaasakura96/kioku/issues/37) — nothing collects a future-dated `job`.
   **This is the ticket § Carrying's entry has been waiting for**, and it owns the `03` §3.1 step 6
   amendment that ADR 0028 and `test_loop.py` pin. No metronome: the shortened block must be
@@ -1969,8 +1997,12 @@ before they are work:
   with nothing raised. ⚠️ **The cause is read from symptoms, not proven**; reproduce first, and check
   libpq keepalive parameters against the psycopg 3 docs rather than assuming the defaults.
 
-⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`** — resumable whenever
-#36 is answered, at about $0.05. 25 words.
+⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`** — resumable at about
+$0.05. 25 words. ⚠️ **#36 is answered and a resume is now worth trying anyway** (ADR 0071): the
+issue's reading of the cause is a guess, so if the stray was *extra* rather than a rewritten 地, the
+chunk now passes. If it was a rewrite, the resume fails `missing 1 of 25` and that is the proof the
+guess was right. **Either outcome is worth $0.05 and it is Yuta's key.** ⚠️ **This said "resumable
+whenever #36 is answered" until 2026-09-23.**
 
 ⚠️ **The N2 and N1 decks are unimported and now have a measured price: about $0.002 a word**
 (§ Done), so N2's ~1,850 words is roughly $3.7. Yuta's call, like this one was, and **the worker goes

@@ -473,6 +473,22 @@ def make_generator(
                 raise
             record_spend(connection, context.ingestion_id, generation)
             notes = notes_from(context.declaration, groups, generation.payload)
+
+            # ⚠️ ADR 0071 and #36: a note matching no group was dropped and the
+            # *chunk* kept what matched. Said per *chunk* as a count and never
+            # as a term — a stray is model output about the reader's material,
+            # and `03` §13.4 keeps that out of the log, exactly as the refused
+            # claim below does.
+            #
+            # ⚠️ **Counted rather than returned.** Every note in the response
+            # either lands in the match or is dropped — a second note for one
+            # group raises — so the arithmetic is exact and `notes_from` keeps
+            # the signature 19 tests and the cache path share. The cache path is
+            # not counted: a superset there is expected, not noise.
+            dropped = len(generation.payload["notes"]) - len(notes)
+            if dropped:
+                log("ingest.note_dropped", ingestion=str(context.ingestion_id), notes=dropped)
+
             write_generation_cache(connection, key, generation)
 
         written = write_notes(

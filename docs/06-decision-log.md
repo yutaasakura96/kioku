@@ -1536,6 +1536,14 @@ prompt excludes the terms the corpus already has for that *domain* and *level*.
 queue (`job_target`: exactly one of `ingestion_id` and `seed_id`); counts 10/25/50/100; the
 exclusion list is the requester's *carded* terms, so cached *pending notes* stay proposable.
 
+### [2026-09-23] A stray note is dropped, not the chunk
+A note matching no group the worker asked about is dropped and the matched notes are kept; the live
+path passes the `allow_extra=True` the cache path always has. A group that went **unanswered** is
+still an error. The deciding reason is the N3 import: the old rule discarded 100 words in four
+chunks that were each ~24/25 right, and three of the four cleared on a resume with an unchanged
+prompt. The drop is logged per *chunk* as a count and never as a value (`03` §13.4).
+→ [ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

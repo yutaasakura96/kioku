@@ -4,7 +4,13 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for ninety-four of the three hundred and forty-six tests here.**
+⚠️ **Docker is required for ninety-eight of the three hundred and sixty-five tests here.**
+⚠️ **Re-counted 2026-09-23 with #36 (ADR 0071):** it said ninety-four of three hundred and
+forty-six, and the suite was **ninety-seven of three hundred and sixty-four** before #36 touched it
+— #30, #31, #32, #33, #34 and #35 all landed between the two counts and none of them recorded a
+move here. #36 added one, and it needs the container (`test_generation.py`: the stray is dropped and
+the *chunk* keeps what matched); the test it replaced in `test_generate.py` was already there and
+needs nothing. Counted with `DOCKER_HOST` pointed at nothing.
 ⚠️ **Re-counted 2026-09-21 with #25 (ADR 0070):** it said eighty-three of three hundred and twenty.
 #25 added twenty-six in `test_seeding.py`; eleven need the container (the exclusion list, the ledger
 row and the job). Counted with `DOCKER_HOST` pointed at nothing.

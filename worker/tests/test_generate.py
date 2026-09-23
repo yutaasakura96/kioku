@@ -326,7 +326,15 @@ def test_notes_are_matched_by_identity_key_and_not_by_position() -> None:
     assert notes[1].fields["meaning"] == "to become open"
 
 
-def test_a_note_for_a_word_nobody_asked_about_is_refused() -> None:
+def test_a_note_for_a_word_nobody_asked_about_is_dropped_and_the_chunk_stands() -> None:
+    """⚠️ **Reversed by [ADR 0071](../../docs/adr/0071-a-stray-note-is-dropped-not-the-chunk.md)
+    from #36**, where this refused the whole *chunk*.
+
+    The N3 import lost 100 words in four chunks that were each ~24/25 right, and
+    three of the four cleared on a resume with an unchanged prompt — so a stray
+    is noise, not a response that has come apart. The `note.fields` half of the
+    old fear is answered by the drop: a note nobody asked about reaches nothing.
+    """
     payload = recorded()
     payload["notes"].append(
         {
@@ -338,8 +346,10 @@ def test_a_note_for_a_word_nobody_asked_about_is_refused() -> None:
         }
     )
 
-    with pytest.raises(GenerationRefused):
-        notes_from(DECLARATION, GROUPS, payload)
+    notes = notes_from(DECLARATION, GROUPS, payload)
+
+    assert [note.group.identity_key for note in notes] == [g.identity_key for g in GROUPS]
+    assert all(note.fields["term"] != "新聞" for note in notes)
 
 
 def test_a_missing_note_is_refused_rather_than_half_a_chunk() -> None:
@@ -360,11 +370,17 @@ def test_a_model_that_corrects_the_term_is_refused() -> None:
 
     The echo is matched, not merged, so a "correction" fails to find its group
     rather than arriving as a second *note* for a word that already has one.
+
+    ⚠️ **Since ADR 0071 it is refused on the way out rather than on the way in**,
+    and the message says so: the rewritten note is dropped as a stray, which
+    leaves the group it was answering unanswered. **This is the shape of chunk
+    58** of the N3 import (#36) — the one failure ADR 0071 expects not to fix,
+    and the reason its § What this does not fix is written down.
     """
     payload = recorded()
     payload["notes"][0]["term"] = "図書舘"
 
-    with pytest.raises(GenerationRefused):
+    with pytest.raises(GenerationRefused, match="missing"):
         notes_from(DECLARATION, GROUPS, payload)
 
 

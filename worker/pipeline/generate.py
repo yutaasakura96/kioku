@@ -438,12 +438,23 @@ def notes_from(
     chunk either: 開く appears as both ひらく and あく, and keeping that pair
     apart is the whole of ADR 0006.
 
-    ⚠️ **A group with no note, and a note matching no group, are both errors.**
-    The first is the model quietly dropping a word the reader paid for; the
-    second is a word nobody asked about reaching `note.fields`. Neither is worth
-    half a chunk.
+    ⚠️ **A group with no note is an error; a note matching no group is dropped**
+    ([ADR 0071](../../docs/adr/0071-a-stray-note-is-dropped-not-the-chunk.md),
+    #36). The first is the model quietly dropping a word the reader paid for,
+    and that one is worth the chunk: `03` §5.4 makes the *chunk* the unit that
+    fails, and nothing downstream can tell a word that was never generated from
+    one the reader was never shown.
+
+    ⚠️ **This said both were errors until 2026-09-23** — *"Neither is worth half
+    a chunk"* — and the N3 import is what reversed it. Four of 86 chunks were
+    refused for a stray, each carrying ~24 usable notes, and three of the four
+    cleared on a plain resume with an unchanged prompt: **100 words for a rule
+    defending `note.fields` against a note that never reaches them.** The stray
+    is dropped before it is assembled, so the second fear was already answered
+    by the drop. The drop is counted and said per *chunk* by `ingest.py`, never
+    with the term — `03` §13.4.
     """
-    return _matched(declaration, groups, payload, allow_extra=False)
+    return _matched(declaration, groups, payload)
 
 
 def notes_for_cached(
@@ -466,14 +477,19 @@ def notes_for_cached(
     cost of being wrong here is money, and the cost of trusting it is a *note*.
     """
     try:
-        return _matched(declaration, groups, payload, allow_extra=True)
+        return _matched(declaration, groups, payload)
     except GenerationRefused:
         return None
 
 
 def _matched(
-    declaration: Declaration, groups: Sequence[Group], payload: Any, *, allow_extra: bool
+    declaration: Declaration, groups: Sequence[Group], payload: Any
 ) -> tuple[GeneratedNote, ...]:
+    """⚠️ **Both callers drop a note matching no group** (ADR 0071). The
+    reasons differ and the behaviour no longer does: a cached superset is
+    *expected*, a live stray is *noise*. What still separates the two is what
+    they do with a refusal, which is in the callers.
+    """
     if not isinstance(payload, dict) or not isinstance(payload.get("notes"), list):
         raise GenerationRefused("the response carries no `notes` array")
 
@@ -495,9 +511,9 @@ def _matched(
         key = _identity_key_of(declaration, arrived)
         group = by_key.get(key) or by_term.get(_term_of(arrived))
         if group is None:
-            if allow_extra:
-                continue
-            raise GenerationRefused("the response carries a note for a word that was not asked for")
+            # Dropped before it is assembled, so it reaches neither `note.fields`
+            # nor the log. `ingest.py` says how many, per *chunk*, never which.
+            continue
         if group.identity_key in seen:
             raise GenerationRefused("the response carries two notes for one word")
         seen[group.identity_key] = _generated(declaration, group, arrived)

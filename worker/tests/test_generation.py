@@ -55,6 +55,9 @@ class FakeProvider:
         #: Terms this provider refuses, so one *chunk* can fail while the others
         #: keep what they produced (`03` §5.4).
         self.refuse: set[str] = set()
+        #: A term to answer about that no *candidate* asked for — ADR 0071's
+        #: stray. ``None`` answers only what the prompt listed.
+        self.stray: str | None = None
         #: ADR 0065's two claims, answered for every word. Settable so a test can
         #: make the model say something outside the declared set.
         self.level = "N3"
@@ -81,6 +84,18 @@ class FakeProvider:
             if self.meanings is not None:
                 answer["meanings"] = self.meanings
             notes.append(answer)
+        if self.stray is not None:
+            notes.append(
+                {
+                    "term": self.stray,
+                    "reading": "しんぶん",
+                    "meaning": f"meaning of {self.stray}",
+                    "example_sentence": f"{self.stray}です。",
+                    "example_gloss": f"It is {self.stray}.",
+                    "level": self.level,
+                    "domain": self.domain,
+                }
+            )
         return Generation(
             payload={"notes": notes},
             model_id=self.model_id,
@@ -352,6 +367,33 @@ def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_writt
     refused = [fields for event, fields in said if event == "ingest.claim_refused"]
     assert refused and all(fields["claim"] == "domain" for fields in refused)
     assert sum(fields["notes"] for fields in refused) == len(notes(connection))
+
+
+def test_a_stray_note_is_dropped_and_the_chunk_keeps_what_matched(connection):
+    """⚠️ **ADR 0071 and #36**: *the response carries a note for a word that was
+    not asked for* used to fail the whole *chunk*. The N3 import lost 100 words
+    that way in four chunks that were each ~24/25 right.
+
+    The drop is said per *chunk*, as a count and **never as the term** — a stray
+    is model output about the reader's material (`03` §13.4), and a rising count
+    is what a prompt starting to invent words looks like in the log.
+    """
+    make_run(connection)
+    provider = FakeProvider()
+    provider.stray = "新聞"
+    said: list[tuple[str, dict]] = []
+
+    run(connection, provider, log=lambda event, **fields: said.append((event, fields)))
+
+    written = notes(connection)
+    assert len(written) > 0
+    # The stray reached neither the corpus nor a *card*.
+    assert all(fields["term"] != "新聞" for fields in written.values())
+    assert connection.execute("SELECT count(*) FROM card;").fetchone()[0] == len(written)
+
+    dropped = [fields for event, fields in said if event == "ingest.note_dropped"]
+    assert dropped and all(fields["notes"] == 1 for fields in dropped)
+    assert all("新聞" not in str(fields.values()) for fields in dropped)
 
 
 def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection):
