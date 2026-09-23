@@ -111,7 +111,33 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-23, latest — #36: a stray note is dropped and the *chunk* keeps what matched**
+**2026-09-23, latest — chunk 58 is recovered and the N3 run is `complete`: 2,140 *cards* for
+$4.335.** No ticket and no ADR; this is the live verification #36 was built for, and it is
+[ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md) § Amended 2026-09-23.
+- **The worker was restarted first, and that was the point.** The process still running held the
+  **pre-#36** `generate.py` — started 15:13 local, the fix committed 15:47 — so a resume claimed by
+  it would have failed chunk 58 exactly as before and proved nothing. ⚠️ **A resume tests the code
+  the worker imported, not the code on disk.**
+- ⚠️ **And it had not been killed.** `pkill -f "caffeinate -i uv run"` matched the `caffeinate`
+  wrapper only; `uv run` was reparented to launchd (PPID 1) and kept running. **Kill the `uv run`,
+  or the whole process group — not the wrapper.** Relaunched detached at last, per the run's own
+  lesson: `nohup caffeinate -i uv run --env-file .env python . &` with `disown`, logging to
+  `~/Library/Logs/kioku-worker.log`.
+- **The resume was a script, not the control**, for the same reason the submission was: the browser
+  pane has no session. It mirrors `recordResume` — the three guards, one `job` row at
+  `kind = 'resume'`, then `pg_notify` after the commit.
+- **Chunk 58 completed on its third attempt with all 25 words**, 地␟ち among them, for **$0.0386**.
+  25 occurrences, 25 *cards*, 24 new *notes* — the twenty-fifth word was already known.
+- ⚠️ **Nothing was dropped, so this proves neither reading of #36.** `ingest.note_dropped` fires
+  only on a non-zero count and never fired: the response carried no stray at all. The chunk was not
+  rescued by ADR 0071, it answered correctly on a third ask. **A third outcome** — neither the
+  recovery § Next predicted nor the `missing 1 of 25` that would have proved the 地-rewrite guess.
+  The failure did not reproduce, and **whether an unanswered *word* may fail alone is still
+  undecided and still unticketed.**
+- **The run's real total: $4.335, 364k input and 361k output tokens, 2,140 *cards*** — the $4.30 and
+  2,030 below are the figures before this resume. **$0.002 a word still holds** for N2 and N1.
+
+**2026-09-23 — #36: a stray note is dropped and the *chunk* keeps what matched**
 ([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), decided in the same session from the
 N3 import's evidence below).
 - **`notes_from` passes `allow_extra=True`** — what `notes_for_cached` has always passed. ⚠️ **The
@@ -130,10 +156,10 @@ N3 import's evidence below).
   `match="missing"`, because a rewritten term is dropped as a stray and refused on the way *out* —
   ⚠️ **that test is the shape of chunk 58.** The new one is in `test_generation.py`, against the
   container, and asserts the log line carries no term.
-- ⚠️ **This does not recover chunk 58's 25 words**, and ADR 0071 § What this does not fix says so.
-  If its stray is 地 answered as another word, the chunk now fails `missing 1 of 25` instead. Letting
-  an unanswered *word* fail alone is a different decision, it weakens the guarantee above, and it is
-  not in #36.
+- ~~⚠️ **This does not recover chunk 58's 25 words**~~ — ⚠️ **a resume recovered them the same day**
+  (entry above), though not by this decision: the response carried no stray on the third attempt, so
+  nothing was dropped. Letting an unanswered *word* fail alone is still a different decision, it
+  still weakens the guarantee above, and it was never in #36.
 - Suites green: **365 worker** (was 364) and **1150 TypeScript**, unchanged. `worker/tests/README.md`
   re-counted: **ninety-eight of three hundred and sixty-five** need Docker.
 
@@ -158,7 +184,8 @@ of the run.** No ticket and no ADR; this is the live verification #35 was built 
   Four claims of five were spent on those deaths; a fifth would have failed the run.
 - **Four chunks of 86 failed `the response carries a note for a word that was not asked for`.** A
   resume on 2026-09-23 cleared three (+67 *notes*, $0.20) and **chunk 58 failed the same way twice**;
-  the run is `incomplete`, which is resumable, not an error. 25 words are still out.
+  the run was `incomplete`, which is resumable, not an error. ⚠️ **A third resume later that day
+  cleared it** (entry above): the run is `complete` and the 25 words are in.
 - **Three issues, all `needs-triage`:**
   [#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note refuses the whole *chunk*,
   which cost 100 words here and is a **decision to re-open, not a bug to fix**: `notes_for`'s
@@ -1986,9 +2013,11 @@ work. ⚠️ **This said *three* until #36 was triaged and built later the same 
   refuses the whole *chunk*. 100 words lost on the first pass, 25 still out.~~ ⚠️ **Triaged and
   built 2026-09-23** ([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), § Done): the
   middle answer was taken — drop the stray, keep what matched, refuse only an unanswered group.
-  ⚠️ **Chunk 58 is still out and this is expected**, not a miss: see ADR 0071 § What this does not
-  fix. Whether an unanswered *word* may fail alone, rather than taking its chunk with it, is
-  undecided and unticketed.
+  ~~⚠️ **Chunk 58 is still out and this is expected**~~ — ⚠️ **recovered 2026-09-23** (§ Done): a
+  third resume, on the restarted worker, completed it with all 25 words and **nothing dropped**, so
+  it proves neither reading of the cause. Whether an unanswered *word* may fail alone, rather than
+  taking its chunk with it, is **still undecided and unticketed**, and the resume did not raise its
+  price.
 - [#37](https://github.com/yutaasakura96/kioku/issues/37) — nothing collects a future-dated `job`.
   **This is the ticket § Carrying's entry has been waiting for**, and it owns the `03` §3.1 step 6
   amendment that ADR 0028 and `test_loop.py` pin. No metronome: the shortened block must be
@@ -1997,12 +2026,17 @@ work. ⚠️ **This said *three* until #36 was triaged and built later the same 
   with nothing raised. ⚠️ **The cause is read from symptoms, not proven**; reproduce first, and check
   libpq keepalive parameters against the psycopg 3 docs rather than assuming the defaults.
 
-⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`** — resumable at about
-$0.05. 25 words. ⚠️ **#36 is answered and a resume is now worth trying anyway** (ADR 0071): the
-issue's reading of the cause is a guess, so if the stray was *extra* rather than a rewritten 地, the
-chunk now passes. If it was a rewrite, the resume fails `missing 1 of 25` and that is the proof the
-guess was right. **Either outcome is worth $0.05 and it is Yuta's key.** ⚠️ **This said "resumable
-whenever #36 is answered" until 2026-09-23.**
+~~⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`**~~ ⚠️ **Resumed and
+recovered 2026-09-23** for **$0.0386** (§ Done). The run is `complete`: **2,140 *cards*, $4.335**.
+⚠️ **The outcome was the third one nobody named** — not the recovery-by-dropping this paragraph
+predicted, and not the `missing 1 of 25` that would have proved the 地-rewrite guess. Nothing was
+dropped; the chunk simply answered correctly on a third ask, and **#36's reading of the cause is
+still a guess.** ⚠️ **This said "resumable whenever #36 is answered" until 2026-09-23, and offered
+the two outcomes until later that day.**
+
+⚠️ **And the resume carried a lesson worth more than the 25 words: restart the worker before you
+test a fix with one.** The process running at the time held the pre-#36 module — Python imports at
+start, so the code on disk is not the code being tested. See § Carrying.
 
 ⚠️ **The N2 and N1 decks are unimported and now have a measured price: about $0.002 a word**
 (§ Done), so N2's ~1,850 words is roughly $3.7. Yuta's call, like this one was, and **the worker goes
@@ -2591,6 +2625,17 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **A running worker holds the code it imported at start, so restart it before a resume is used
+  to test a fix** (2026-09-23). Python binds `worker/pipeline/*` at import; editing and committing
+  changes nothing about the process already claiming jobs. The #36 fix landed at 15:47 with a worker
+  up since 15:13, and a resume claimed by it would have failed chunk 58 in the old way and been read
+  as evidence about the *new* code. **Check the start time against the commit before spending
+  anything on a resume**: `ps -o lstart -p $(pgrep -f "uv run")` against `git log -1 --format=%ad`.
+- ⚠️ **`pkill -f "caffeinate -i uv run"` does not stop the worker** (2026-09-23). It matches the
+  `caffeinate` wrapper; `uv run` is a child, survives, and is reparented to launchd — so `pgrep -fl
+  "caffeinate"` then reports nothing while the worker is still claiming jobs, which is exactly how a
+  session comes to believe it killed something it did not. **Kill the `uv run` pid itself**, or the
+  process group. `pgrep -fl "uv run"` is the check that tells the truth.
 - ⚠️ **`/api/export` is the one `/api/**` path refused with a `302`, not a `401`** (#31, `08` §6.3 as
   amended). `server/middleware/session.ts` names it. A refactor that folds it back into the `/api/`
   branch hands a signed-out reader a bare 401 document instead of the door, and

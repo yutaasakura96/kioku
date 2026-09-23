@@ -45,6 +45,22 @@ old message. Recovering those words needs a different decision: whether an unans
 alone instead of taking its chunk with it. **That is not decided here**, it weakens the guarantee §2
 keeps, and it is not in #36.
 
+### Amended 2026-09-23 — the resume recovered them, and proved neither reading
+
+The resume ran on this decision's code the same day and **chunk 58 completed on its third attempt
+with all 25 words**, 地␟ち among them, for $0.0386. The run is `complete`: 2,140 *cards* for $4.335.
+
+⚠️ **Nothing was dropped.** `ingest.note_dropped` is emitted only when the count is non-zero and it
+never fired, so the response carried no stray at all — the chunk was not rescued by this decision,
+it simply answered correctly on a third ask.
+
+That is a **third outcome**, and the two this section and `00-status.md` § Next both named are still
+unresolved by it: the ticket's 地-rewrite reading is neither proven nor disproven, because the
+failure did not reproduce. What the run does settle is the *cost* side of §2's argument — 25 words
+sat out for a day behind a transient model slip, which is the case for dropping rather than
+refusing, made on evidence rather than on the guess. **Whether an unanswered *word* may fail alone
+is still undecided and still unticketed**, and nothing has raised its price.
+
 ## Alternatives considered
 
 - **Keep the strictness.** A stray is evidence the response is untrustworthy, so nothing in it should
