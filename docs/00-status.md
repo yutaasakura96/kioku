@@ -111,7 +111,39 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-22, latest — #35: an imported deck word keeps the deck's term and reading**
+**2026-09-23, latest — the N3 deck is imported: 2,030 *cards* for $4.30, and three issues came out
+of the run.** No ticket and no ADR; this is the live verification #35 was built for.
+- **Open Anki JLPT N3, 2,140 words, submitted 2026-09-22 08:06 UTC** — the same
+  `kioku-decks/open-anki-jlpt-n3-deck-v0.3.0.apkg` whose first attempt was refused chunk by chunk on
+  2026-09-22 and stopped by hand at $0.07. ⚠️ **Submitted from a script calling `unpackDeck`,
+  `readSubmission` and `recordSource` directly**, not through the form, because the browser pane had
+  no session; the rows are the four the form writes and the run is a `source` like any other.
+- **#35 holds on real data.** 2,030 *notes*, each with its *card*; **0 chunks refused for a rewritten
+  term**, **0 empty readings**, 99 words already known and skipped. The deck's own readings are the
+  keys — `直␟じき`, not `直␟ちょく`. ⚠️ **One `来␟き`**, which is the imperfection ADR 0068 § Settled
+  by the build already names.
+- **$4.30, 346k input and 341k output tokens** — ⚠️ **the estimate was $2.5 and it was low.** About
+  $0.002 a word: every word gets an example sentence, a gloss and a meaning list, ~170 output tokens.
+  **Use $0.002 a word for the N2 and N1 decks**, not the figure in ADR 0068.
+- **The run took a day rather than 90 minutes, and none of the delay was the pipeline.** The worker
+  died twice with the terminal tab that held it, the laptop slept under it once, and a deferred job
+  sat 28 minutes with nothing to collect it. ⚠️ **A long run's worker belongs detached**
+  (`nohup … & disown`, under `caffeinate -i`, logging to a file) — a tab is not a place to keep one.
+  Four claims of five were spent on those deaths; a fifth would have failed the run.
+- **Four chunks of 86 failed `the response carries a note for a word that was not asked for`.** A
+  resume on 2026-09-23 cleared three (+67 *notes*, $0.20) and **chunk 58 failed the same way twice**;
+  the run is `incomplete`, which is resumable, not an error. 25 words are still out.
+- **Three issues, all `needs-triage`:**
+  [#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note refuses the whole *chunk*,
+  which cost 100 words here and is a **decision to re-open, not a bug to fix**: `notes_for`'s
+  docstring argues the strictness on purpose.
+  [#37](https://github.com/yutaasakura96/kioku/issues/37) — nothing collects a deferred `job`; this
+  is the ticket § Carrying's entry said would own the `03` §3.1 step 6 amendment.
+  [#38](https://github.com/yutaasakura96/kioku/issues/38) — a listening connection stopped delivering
+  with no `connection_lost` raised, and a hand-sent `NOTIFY` did not reach it. ⚠️ **Read, not
+  proven** — #38's first job is to reproduce it.
+
+**2026-09-22 — #35: an imported deck word keeps the deck's term and reading**
 (ADR 0068 § Amended 2026-09-22, *Settled by the build*, added in the same commit). No new ADR.
 - **`normalise`'s `anki` branch** (`_deck_candidate` in `worker/pipeline/normalise.py`): the term
   is column 1 whole, NFC, padding trimmed. The reading is column 2 when it is kana, in ADR 0045's
@@ -129,7 +161,8 @@ Read `CLAUDE.md` first, then this.
 - Tests: `worker/tests/test_normalise.py` (+13), `test_generate.py` (+2, the deck fixture moved to a
   reachable state), `test_pipeline.py` (the deck test now asserts the deck's key). 364 in the
   worker, 1150 in the suite.
-- ⚠️ **N3 has not been re-imported.** It spends about $2.5 on Yuta's key and is his call.
+- ~~⚠️ **N3 has not been re-imported.** It spends about $2.5 on Yuta's key and is his call.~~
+  ⚠️ **Imported 2026-09-22/23 for $4.30** — see the entry above. The fix holds; the estimate did not.
 
 **2026-09-22 — the backfill's spend is on the ledger** (`04` §6.6 added, `10` §8.3 and
 ADR 0069 amended in the same commit). No ticket and no ADR. Yuta asked for it after the walkthrough
@@ -1920,6 +1953,29 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
+⚠️ **The frontier is empty, and three `needs-triage` issues are waiting on Yuta** — all three filed
+2026-09-23 from the N3 import (§ Done). None is `ready-for-agent`, and two of them are questions
+before they are work:
+- [#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note in a model response refuses
+  the whole *chunk*. 100 words lost on the first pass, 25 still out. **The strictness is a recorded
+  decision** (`notes_for`'s docstring: *"Neither is worth half a chunk"*), so this is triage against
+  that argument, with the middle answer — drop the stray, keep what matched, refuse only an
+  unanswered group — on the table. An unanswered group stays an error either way.
+- [#37](https://github.com/yutaasakura96/kioku/issues/37) — nothing collects a future-dated `job`.
+  **This is the ticket § Carrying's entry has been waiting for**, and it owns the `03` §3.1 step 6
+  amendment that ADR 0028 and `test_loop.py` pin. No metronome: the shortened block must be
+  conditional on a deferral the drain saw.
+- [#38](https://github.com/yutaasakura96/kioku/issues/38) — a listening connection stopped delivering
+  with nothing raised. ⚠️ **The cause is read from symptoms, not proven**; reproduce first, and check
+  libpq keepalive parameters against the psycopg 3 docs rather than assuming the defaults.
+
+⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`** — resumable whenever
+#36 is answered, at about $0.05. 25 words.
+
+⚠️ **The N2 and N1 decks are unimported and now have a measured price: about $0.002 a word**
+(§ Done), so N2's ~1,850 words is roughly $3.7. Yuta's call, like this one was, and **the worker goes
+detached before either is started.**
+
 - ~~[#35](https://github.com/yutaasakura96/kioku/issues/35) — an imported deck word keeps the deck's
   term and reading. `bug`, `ready-for-agent`, **and it is the frontier.**~~ ⚠️ **Built 2026-09-22**
   (§ Done). **The frontier is empty.** ⚠️ **Filed 2026-09-22
@@ -2465,6 +2521,12 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
   future-dated row*, which only helps if something then queries; that is the step that would amend
   step 6, and ADR 0028 and `tests/test_loop.py` both pin it. **The cap is thirty minutes so the gap
   stays small rather than closed.** The ticket that wants it closed owns the amendment.
+  ⚠️ **That ticket exists as of 2026-09-23: [#37](https://github.com/yutaasakura96/kioku/issues/37),
+  filed after this cost a live run 28 idle minutes** (§ Done) — the gap is measured now, not
+  reasoned about. ⚠️ **And it does not stand alone**: the wake-up that should have collected the
+  deferral never arrived, because the listener was dead and said nothing
+  ([#38](https://github.com/yutaasakura96/kioku/issues/38)). A fix to either one alone leaves the
+  other able to stall a run.
 - ~~**One `psycopg.connect()`** against the direct Neon endpoint. Verification §9.1 is documentary; a
   live connection falsifies it cheaply. ⚠️ **A second line settles ADR 0043's open half** in the same
   session: `SELECT pg_notify('kioku_job','')` on the **pooled** string. PgBouncer's matrix says
