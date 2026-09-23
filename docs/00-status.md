@@ -111,7 +111,55 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-23, latest — chunk 58 is recovered and the N3 run is `complete`: 2,140 *cards* for
+**2026-09-23, latest — [#37](https://github.com/yutaasakura96/kioku/issues/37) is triaged and
+built: a deferred `job` is collected by a deadline the drain recorded**
+([ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)). `03` §3.1
+step 6 is amended — the timeout branch still issues no query *unless* the last drain saw a
+future-dated `queued` row whose time has arrived. **374 worker tests (was 365), 1150 TypeScript,
+typecheck clean.**
+- ⚠️ **The sketch everything had been carrying was wrong in one word, and the word was load-bearing.**
+  § Carrying, ADR 0046 and #37's own body all said *a shorter block timeout*. **There was nothing to
+  shorten**: `BLOCK_TIMEOUT_SECONDS` is 5 s and `__main__` does not override it, so the loop was
+  already waking twelve times a minute and discarding every wake-up. A deferral is 1–30 minutes. The
+  wake-up was never missing — **a deadline was**, and the fix is three lines rather than a timeout
+  change.
+- **The two pins ADR 0046 gave as reasons not to do this cost nothing.** `11` §7 and
+  `test_the_timeout_branch_issues_no_query_and_no_poll` both survive **unchanged**: a branch that
+  drains nothing records no deadline, so the old assertion still holds and a case was added beside
+  it. ADR 0046's third reason stands — the harmful half was closed by the ceiling alone.
+- **`jobs.next_deferral` is one statement at the end of a drain**, `min(available_at)` over
+  `state = 'queued' AND available_at > now()`, **read as an interval server-side** so a laptop/Neon
+  skew cannot move the deadline invisibly. ⚠️ **No migration**: `job_queued_idx` is already partial
+  on `(available_at) WHERE state = 'queued'`. ⚠️ **And it is read from the table, not off the
+  sweep's `RETURNING`** — the sweep only knows the deferrals it just wrote, and a job left
+  future-dated by an *earlier* run of the worker is exactly the case this exists for.
+- **Sabotage, per § Carrying's standard.** Three: the branch removed (4 of the 5 new tests fail), a
+  metronome in its place (7 fail, including the old no-query pin), and a deadline that outlives its
+  connection (6 fail). ⚠️ **The metronome sabotage is the one that matters** — it is three lines to
+  read and a different number to count, so the assertion is a drain **count** across eight expiries,
+  not a reading of the branch.
+- **`worker.deferred` is a new log line**, seconds only (`03` §11). ⚠️ **The line #37 did not have**:
+  the 28-minute gap had to be read off Neon after the fact, and a worker waiting on a deadline should
+  say so on stdout.
+- ⚠️ **What this does for [#38](https://github.com/yutaasakura96/kioku/issues/38), and what it does
+  not.** The deadline drain issues a query, so on a silently dead connection it raises and step 7
+  reconnects — **for a deferred job, #37's fix turns #38's stall into a reconnect, and alone it would
+  have collected the measured job at 12:29:34.** It does **not** fix #38: a job *notified* while the
+  listener is dead still waits for the teardown to be noticed. § Carrying's *"a fix to either one
+  alone leaves the other able to stall a run"* is right in general and pessimistic for the case that
+  was actually measured.
+- ⚠️ **One fact was checked rather than assumed, and it came back silent.** Python's `time`
+  documentation does not say whether `monotonic()` advances while macOS is suspended — only that
+  macOS calls `mach_absolute_time()`; the one place suspend is addressed is `CLOCK_BOOTTIME`, which
+  is Linux-only. **The design was built not to need the answer** (ADR 0072 § The clock): early costs
+  one indexed query, late is overtaken by the reconnect that waking causes. **Measuring it was
+  refused deliberately** — it needs the laptop the worker is running on to suspend, and it would
+  change no line.
+- **Nothing was spent and nothing was run against Neon.** The change is the worker's loop; the
+  running worker still holds the pre-#37 module, and **it has not been restarted** — this session's
+  own § Carrying entry, applied to itself.
+
+**2026-09-23 — chunk 58 is recovered and the N3 run is `complete`: 2,140 *cards* for
 $4.335.** No ticket and no ADR; this is the live verification #36 was built for, and it is
 [ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md) § Amended 2026-09-23.
 - **The worker was restarted first, and that was the point.** The process still running held the
@@ -2006,9 +2054,10 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-⚠️ **The frontier is empty, and two `needs-triage` issues are waiting on Yuta** — filed 2026-09-23
-from the N3 import (§ Done). Neither is `ready-for-agent`, and both are questions before they are
-work. ⚠️ **This said *three* until #36 was triaged and built later the same day.**
+⚠️ **The frontier is empty, and one `needs-triage` issue is waiting on Yuta** —
+[#38](https://github.com/yutaasakura96/kioku/issues/38), filed 2026-09-23 from the N3 import
+(§ Done). It is not `ready-for-agent`, and it is a question before it is work. ⚠️ **This said *two*
+until #37 was triaged and built later the same day, and *three* until #36 earlier the same day.**
 - ~~[#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note in a model response
   refuses the whole *chunk*. 100 words lost on the first pass, 25 still out.~~ ⚠️ **Triaged and
   built 2026-09-23** ([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), § Done): the
@@ -2018,13 +2067,24 @@ work. ⚠️ **This said *three* until #36 was triaged and built later the same 
   it proves neither reading of the cause. Whether an unanswered *word* may fail alone, rather than
   taking its chunk with it, is **still undecided and unticketed**, and the resume did not raise its
   price.
-- [#37](https://github.com/yutaasakura96/kioku/issues/37) — nothing collects a future-dated `job`.
-  **This is the ticket § Carrying's entry has been waiting for**, and it owns the `03` §3.1 step 6
-  amendment that ADR 0028 and `test_loop.py` pin. No metronome: the shortened block must be
-  conditional on a deferral the drain saw.
+- ~~[#37](https://github.com/yutaasakura96/kioku/issues/37) — nothing collects a future-dated `job`.~~
+  ⚠️ **Triaged and built 2026-09-23**
+  ([ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md), § Done). It
+  was the ticket § Carrying's entry had been waiting for, and it owns the `03` §3.1 step 6 amendment.
+  ⚠️ **The instruction in this bullet was wrong**: *the shortened block must be conditional on a
+  deferral the drain saw* — the block is 5 s and never needed shortening. What the drain's deferral
+  makes conditional is **a deadline**, and the no-metronome constraint is kept by querying once per
+  deferral rather than once per expiry.
 - [#38](https://github.com/yutaasakura96/kioku/issues/38) — a listening connection stopped delivering
   with nothing raised. ⚠️ **The cause is read from symptoms, not proven**; reproduce first, and check
   libpq keepalive parameters against the psycopg 3 docs rather than assuming the defaults.
+  ⚠️ **#37 shrank it without fixing it** (§ Done): a *deferred* job now reaches a query on its own
+  deadline, and a query on a dead connection raises and reconnects — so the case that was measured is
+  covered. What is left is a job **notified** while the listener is dead, which still waits for the
+  teardown to be noticed. ⚠️ **And one data point from the recovery session's log**:
+  `worker.connection_lost` repeats on a clean ~315-second cadence, which is the five-minute idle
+  reconnect § Carrying calls the common case — **not** the silent death #38 describes. The gaps in
+  that cadence (~20 min, ~65 min) are what a sleeping laptop would also explain. Symptoms again.
 
 ~~⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`**~~ ⚠️ **Resumed and
 recovered 2026-09-23** for **$0.0386** (§ Done). The run is `complete`: **2,140 *cards*, $4.335**.
@@ -2580,6 +2640,17 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
   ADR 0045's reading script. Both were decided with no real *source* to look at, and the rejected set
   is the evidence: a filter the allowlist should have made shows up as a cluster of rejections
   sharing a part of speech.
+- ~~⚠️ **Nothing comes back for a future-dated `job`, and ADR 0046 made that reachable.**~~
+  ⚠️ **Paid 2026-09-23 by #37 —
+  [ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)** (§ Done).
+  The drain answers *how long until the next future-dated row*, the loop holds it as a deadline, and
+  step 6 drains **once** when it passes. ⚠️ **The sketch below is wrong in one word and is kept for
+  it**: *a shorter block timeout* — the block is 5 s and a deferral is 1–30 minutes, so the wake-up
+  was always there and only the deadline was missing. **A sentence written next to a constant,
+  repeated for eleven days by three documents and one issue body, and never read against the
+  constant.** It is the same failure mode as the `<textarea>` comment and the skip-in-that-directory
+  claim below. The original text, which is still the best statement of the problem:
+
 - ⚠️ **Nothing comes back for a future-dated `job`, and ADR 0046 made that reachable.** The sweep now
   sets `available_at` forward from the second abandonment, and `03` §3.1 step 6 forbids the timeout
   branch from issuing a query — so a deferred job waits for the next notification or reconnect.
@@ -3406,10 +3477,13 @@ Nothing.
 - ~~⚠️ **Nothing sets `job.available_at` forward, and the loop has no branch that would notice if it
   did.**~~ **Half paid 2026-09-12 by #8 — [ADR 0046](adr/0046-a-job-gives-up-after-five-abandonments-and-the-retry-after-the-first-is-deferred.md).**
   The sweep now sets `available_at` forward from the second abandonment and gives up on a job at five,
-  so the **infinite re-claim is closed**. ⚠️ **The other half is open and is in § Next**: nothing is
-  scheduled to come back for a future-dated job, so the cap is thirty minutes rather than hours and a
-  deferred job waits for the next notification or reconnect. The original text, which is still the
-  best statement of the problem:
+  so the **infinite re-claim is closed**. ⚠️ **And the other half is paid as of 2026-09-23 — #37,
+  [ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)**: the drain
+  reports the wait, the loop holds it as a deadline, and something does come back for a future-dated
+  job. **The cap stays at thirty minutes** for ADR 0046's own reason rather than for this one. ⚠️
+  **This entry read "the other half is open and is in § Next" from 2026-09-12 to 2026-09-23**, and
+  what closed it was not a new argument but a measurement: 28 idle minutes in a live import. The
+  original text, which is still the best statement of the problem:
 
 - ⚠️ **Nothing sets `job.available_at` forward, and the loop has no branch that would notice if it
   did.** `04` §6.4 calls it backoff — "a retry sets it forward rather than sleeping in the worker" —

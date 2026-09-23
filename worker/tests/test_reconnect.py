@@ -28,7 +28,7 @@ import psycopg
 import pytest
 
 from loop import JOB_CHANNEL, serve
-from jobs import drain as real_drain
+from jobs import drain as real_drain, next_deferral
 from runs import run_ingestion
 from test_runs import make_run, status_of
 
@@ -59,13 +59,16 @@ def test_on_reconnect_the_subscription_happens_before_the_poll(connection, postg
             postgres_dsn, autocommit=True, application_name=APPLICATION_NAME
         )
 
-    def recording_drain(worker_connection: psycopg.Connection) -> int:
+    def recording_drain(worker_connection: psycopg.Connection) -> float | None:
         # ⚠️ Asked of the server, on the worker's own connection, at the moment
         # the poll happens. An empty list here is `LISTEN` running second.
         subscriptions.append(listening_channels(worker_connection))
-        handled = real_drain(worker_connection, owner="the-worker", handle=run_ingestion)
+        real_drain(worker_connection, owner="the-worker", handle=run_ingestion)
         drains.release()
-        return handled
+        # ADR 0072's contract, answered honestly against a real table: this test
+        # queues nothing future-dated, so the loop arms no deadline and what it
+        # asserts stays the *ordering* of `LISTEN` and the poll.
+        return next_deferral(worker_connection)
 
     worker = threading.Thread(
         target=serve,

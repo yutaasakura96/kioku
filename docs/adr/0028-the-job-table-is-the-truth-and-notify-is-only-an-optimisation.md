@@ -59,6 +59,14 @@ step 2" catches it — verified against the real failure rather than against a f
 is all `tests/test_reconnect.py` could do. **The worker will take this path every five idle minutes
 in normal operation**; it is the common case, not the exceptional one.
 
+⚠️ **Amended 2026-09-23 — step 6 gains one conditional query
+([ADR 0072](0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)).** When the last
+drain saw a future-dated `queued` row, the loop holds the wait as a deadline and drains once when it
+passes. **Nothing in this decision moves**: the job table is still the truth, the notification is
+still only an optimisation, and the deadline is another way of *not* depending on a notification
+arriving. What it refuses — a metronome that queries on every expiry and holds the compute awake — is
+untouched, because this queries once per deferral.
+
 ## It is the pattern the project already uses twice
 
 ADR 0007 stamps each *grade* client-side and flushes through an outbox, so the interface never waits

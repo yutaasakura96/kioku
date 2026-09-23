@@ -1544,6 +1544,15 @@ chunks that were each ~24/25 right, and three of the four cleared on a resume wi
 prompt. The drop is logged per *chunk* as a count and never as a value (`03` §13.4).
 → [ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md)
 
+### [2026-09-23] A deferred job is collected by a deadline the drain recorded
+`03` §3.1 step 6 becomes conditional: the timeout branch still issues no query unless the last drain
+saw a future-dated `queued` row whose time has arrived. The deciding reason is measurement — a
+deferred job sat idle for 28 minutes mid-import (#37). ⚠️ **The long-standing sketch said *a shorter
+block timeout* and there was nothing to shorten**: the block is already 5 s, so the wake-up was never
+missing — a deadline was. A query fires once per deferral rather than once per timeout, which is why
+this is not the metronome ADR 0028 refused.
+→ [ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

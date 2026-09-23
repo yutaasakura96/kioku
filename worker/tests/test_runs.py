@@ -18,7 +18,7 @@ from __future__ import annotations
 import psycopg
 import pytest
 
-from jobs import claim_next_job, drain
+from jobs import claim_next_job, drain, next_deferral
 from runs import incomplete_chunks, open_chunk_queue, run_ingestion, settle_run
 from test_jobs import state_of
 
@@ -203,6 +203,70 @@ def test_the_drain_sweeps_before_it_claims(connection):
 
     assert drain(connection, owner="the-next-worker", handle=run_ingestion) == 1
     assert state_of(connection, job_id) == "done"
+
+
+def test_nothing_deferred_is_the_ordinary_answer(connection):
+    """ADR 0072. A queue with work due *now* defers nothing, so the loop arms no
+    deadline and step 6 stays the silent branch it has always been."""
+    make_run(connection, chunks=1)
+
+    assert next_deferral(connection) is None
+
+
+def test_a_future_dated_job_is_answered_as_seconds_from_now(connection):
+    """The half of #37 that is SQL: the row the claim will not take is still the
+    row something has to come back for.
+
+    ⚠️ **Asserted as a range, not a value.** The interval is computed against the
+    server's `now()` between two statements, so pinning it to a number would be
+    pinning the test to the round trip.
+    """
+    _ingestion_id, job_id = make_run(connection, chunks=1)
+    connection.execute(
+        "UPDATE job SET available_at = now() + interval '90 seconds' WHERE id = %s;",
+        (job_id,),
+    )
+
+    # The claim refuses it — which is the behaviour that opened the gap …
+    assert claim_next_job(connection, owner="w") is None
+    # … and this is what closes it.
+    deferred_for = next_deferral(connection)
+    assert deferred_for is not None
+    assert 80.0 < deferred_for <= 90.0
+
+
+def test_the_soonest_deferral_wins(connection):
+    """Two deferred jobs are one deadline, and it belongs to the nearer of them:
+    waking for the later one first would leave the earlier waiting again."""
+    _first, sooner = make_run(connection, chunks=1, title="一")
+    _second, later = make_run(connection, chunks=1, title="二")
+    connection.execute(
+        "UPDATE job SET available_at = now() + interval '20 minutes' WHERE id = %s;",
+        (later,),
+    )
+    connection.execute(
+        "UPDATE job SET available_at = now() + interval '2 minutes' WHERE id = %s;",
+        (sooner,),
+    )
+
+    deferred_for = next_deferral(connection)
+    assert deferred_for is not None
+    assert deferred_for <= 120.0
+
+
+def test_a_claimed_job_is_not_a_deferral(connection):
+    """⚠️ **`state = 'queued'` and not "anything with a future `available_at`".**
+    A job in flight keeps whatever `available_at` it was claimed with, so a
+    predicate written the loose way would arm a deadline for work that is
+    already running — and re-arm it on every drain until the job finished."""
+    _ingestion_id, job_id = make_run(connection, chunks=1)
+    connection.execute(
+        "UPDATE job SET available_at = now() + interval '10 minutes' WHERE id = %s;",
+        (job_id,),
+    )
+    connection.execute("UPDATE job SET state = 'claimed' WHERE id = %s;", (job_id,))
+
+    assert next_deferral(connection) is None
 
 
 def test_the_drain_empties_the_queue_rather_than_taking_one(connection):

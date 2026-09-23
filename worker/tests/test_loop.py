@@ -11,7 +11,7 @@ here — against a fake connection that records what it was asked to do, in orde
 one that proves it survives a real teardown; this one is the one that fails in
 946 ms when somebody reorders two lines.
 
-Three of the assertions below are written as traps rather than as readings:
+Four of the assertions below are written as traps rather than as readings:
 
 - **The payload is never read** is enforced by a `Notify` whose `payload`
   property raises. An assertion that the loop "does not use the payload" can
@@ -20,6 +20,10 @@ Three of the assertions below are written as traps rather than as readings:
   *and* drains across a timeout, not by inspecting the branch.
 - **Reconnect resumes at `LISTEN`** is enforced by asserting the whole call log
   of the second connection, not just that `LISTEN` appears in it.
+- **The deadline is not a metronome** (ADR 0072) is enforced by counting drains
+  across eight expiries. A branch that drains once per deferral and one that
+  drains once per timeout are the same three lines to read and a different
+  number to count.
 
 ⚠️ Needs no Docker and no database. ADR 0038's three are the other file.
 """
@@ -87,6 +91,17 @@ class StopTheLoop(Exception):
     """Ends a test once its script is spent. Never raised by the worker."""
 
 
+def tick_clock(conn: "FakeConnection", block_timeout: float = 5.0):
+    """A clock that advances one block per expiry, and never in real time.
+
+    ⚠️ **The fake connection is the clock.** Every `notifies()` call is one
+    block, so `len(conn.timeouts) * block_timeout` is exactly how much time the
+    loop believes has passed — which makes "the deadline fires on the third
+    expiry" an assertion rather than a sleep.
+    """
+    return lambda: len(conn.timeouts) * block_timeout
+
+
 class Stop:
     """`threading.Event`'s two-method shape, without the thread."""
 
@@ -99,10 +114,21 @@ class Stop:
         return self.checks > self.after
 
 
-def drain_recorder(log: list[str]):
-    def drain(_conn: object) -> int:
+def drain_recorder(log: list[str], deferrals: list[float | None] | None = None):
+    """A drain that records itself and answers **the wait until the next
+    future-dated row** (ADR 0072), not a count.
+
+    ⚠️ `None` is the ordinary answer and the default: nothing is deferred, so
+    the loop arms no deadline and step 6 stays silent. `deferrals` scripts one
+    answer per drain and repeats its last entry once spent.
+    """
+    script = list(deferrals or [])
+
+    def drain(_conn: object) -> float | None:
         log.append("drain")
-        return 0
+        if not script:
+            return None
+        return script.pop(0) if len(script) > 1 else script[0]
 
     return drain
 
@@ -163,6 +189,142 @@ def test_the_block_timeout_is_what_makes_shutdown_responsive():
 
     assert log == [f"LISTEN {JOB_CHANNEL}", "drain", "close"]
     assert conn.closed
+
+
+# ---------------------------------------------------------------------------
+# The deadline — ADR 0072, and the one exception to "step 6 issues no query"
+# ---------------------------------------------------------------------------
+
+
+def test_a_deferred_job_is_collected_when_its_time_arrives():
+    """#37's whole subject: a future-dated job that nothing came back for.
+
+    ⚠️ **The sketch this replaces said *a shorter block timeout*.** There was
+    nothing to shorten — the block is already five seconds and a deferral is one
+    to thirty minutes, so the wake-up was always there and the loop was throwing
+    it away. What was missing is the deadline asserted here.
+    """
+    log: list[str] = []
+    conn = FakeConnection(log, wakeups=[False, False, False])
+
+    # The poll finds a row due in twelve seconds, and then nothing deferred.
+    with pytest.raises(StopTheLoop):
+        serve(
+            lambda: conn,
+            drain=drain_recorder(log, deferrals=[12.0, None]),
+            stop=Stop(),
+            sleep=lambda _s: None,
+            clock=tick_clock(conn),
+        )
+
+    # Expiries at 5 s and 10 s pass in silence; the one at 15 s drains.
+    assert log == [f"LISTEN {JOB_CHANNEL}", "drain", "drain", "close"]
+
+
+def test_the_deadline_fires_once_and_not_on_every_timeout():
+    """The metronome trap, and it is the reason this is not one.
+
+    ADR 0028 and `03` §3.1 refuse a periodic query because every connection
+    resets Neon's scale-to-zero timer (verification §7.2). **Counting drains
+    across eight expiries is what separates once-per-deferral from
+    once-per-timeout** — inspecting the branch could not.
+    """
+    log: list[str] = []
+    conn = FakeConnection(log, wakeups=[False] * 8)
+
+    with pytest.raises(StopTheLoop):
+        serve(
+            lambda: conn,
+            drain=drain_recorder(log, deferrals=[12.0, None]),
+            stop=Stop(),
+            sleep=lambda _s: None,
+            clock=tick_clock(conn),
+        )
+
+    # Eight timeouts. Two drains: the poll, and the deadline once.
+    assert log.count("drain") == 2
+    assert conn.timeouts == [5.0] * 9
+
+
+def test_a_deferral_that_is_still_pending_re_arms_rather_than_re_firing():
+    """A drain that finds the row *still* future-dated must not spin.
+
+    The sweep can push `available_at` further out while the loop is waiting
+    (`04` §6.4), so the answer to "when" is re-read on every drain rather than
+    remembered from the first one.
+    """
+    log: list[str] = []
+    conn = FakeConnection(log, wakeups=[False] * 8)
+
+    # Twelve seconds, and on arrival it is twelve seconds away again.
+    with pytest.raises(StopTheLoop):
+        serve(
+            lambda: conn,
+            drain=drain_recorder(log, deferrals=[12.0]),
+            stop=Stop(),
+            sleep=lambda _s: None,
+            clock=tick_clock(conn),
+        )
+
+    # Fires at 15 s and again at 30 s — not on the six expiries between them.
+    assert log.count("drain") == 3
+
+
+def test_a_notification_arms_the_deadline_too():
+    """Step 5's drain reports the same thing step 3's does.
+
+    ⚠️ A notification that empties the queue can still leave a deferred row
+    behind it — the sweep runs at the top of every drain — so the wake-up path
+    has to arm the deadline or the gap reopens on a busy worker.
+    """
+    log: list[str] = []
+    conn = FakeConnection(log, wakeups=[True, False, False])
+
+    with pytest.raises(StopTheLoop):
+        serve(
+            lambda: conn,
+            drain=drain_recorder(log, deferrals=[None, 8.0, None]),
+            stop=Stop(),
+            sleep=lambda _s: None,
+            clock=tick_clock(conn),
+        )
+
+    # Poll (nothing deferred), notification at 5 s (deferred 8 s), deadline at
+    # 15 s. The expiry at 10 s is silent.
+    assert log == [f"LISTEN {JOB_CHANNEL}", "drain", "drain", "drain", "close"]
+
+
+def test_the_deadline_does_not_outlive_its_connection():
+    """A deadline is about a connection that is gone, so step 3 re-reads it.
+
+    ⚠️ Otherwise a reconnect would inherit a deadline measured against the old
+    connection's poll and drain on a schedule nobody chose.
+    """
+    log: list[str] = []
+    dropped = psycopg.OperationalError("SSL connection has been closed unexpectedly")
+    first = FakeConnection(log, wakeups=[dropped])
+    second = FakeConnection(log, wakeups=[False, False])
+    connections = iter([first, second])
+
+    with pytest.raises(StopTheLoop):
+        serve(
+            lambda: next(connections),
+            drain=drain_recorder(log, deferrals=[12.0, None]),
+            stop=Stop(),
+            sleep=lambda _s: None,
+            clock=tick_clock(second),
+        )
+
+    # The first connection armed a deadline and died before it could fire. The
+    # second polls and finds nothing deferred, so its two expiries are silent.
+    assert log == [
+        f"LISTEN {JOB_CHANNEL}",
+        "drain",
+        "close",
+        f"LISTEN {JOB_CHANNEL}",
+        "drain",
+        "close",
+    ]
 
 
 # ---------------------------------------------------------------------------

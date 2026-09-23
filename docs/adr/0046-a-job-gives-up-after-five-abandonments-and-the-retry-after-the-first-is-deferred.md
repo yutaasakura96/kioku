@@ -49,6 +49,21 @@ closed by the ceiling alone, which needs no loop change.
 because a deferral longer than the interval between reconnects is indistinguishable from losing the
 job. The residual gap is named in `00-status.md` § Next rather than papered over.
 
+⚠️ **Amended 2026-09-23 — the amendment refused here is made, in
+[ADR 0072](0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md).** The residual gap
+stopped being residual: it cost a live import 28 idle minutes
+([#37](https://github.com/yutaasakura96/kioku/issues/37)). Two of the three reasons given above for
+not making it turned out to cost nothing — `11` §7 and `tests/test_loop.py` pin *the timeout branch
+issues no query*, and both survive unchanged, because a branch that drains nothing records no
+deadline. The third reason stands as written: the harmful half was closed by the ceiling alone, which
+is why this was the right thing to defer and not the right thing to skip.
+
+⚠️ **And the sketch quoted above is wrong in one word.** *A shorter block timeout* — there was
+nothing to shorten. `BLOCK_TIMEOUT_SECONDS` is 5 s and a deferral is 1–30 minutes, so the loop was
+already waking twelve times a minute and discarding every one of them. What was missing was a
+deadline, not a shorter wait. **The cap stays at thirty minutes regardless**, for the reason given
+above.
+
 ## Alternatives considered
 
 **A ceiling with no backoff.** Rejected: without a deferral, a job that kills the worker is re-claimed

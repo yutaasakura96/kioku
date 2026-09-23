@@ -153,7 +153,9 @@ ADR 0028 is the whole of it: **the job table is the truth and `NOTIFY` only shor
 3. **Then poll** the job table for unclaimed work, and drain it.
 4. Block on `Connection.notifies(timeout=…)`.
 5. On a notification — poll and drain. The payload is not read.
-6. On the timeout expiring — check for a shutdown signal, and go back to waiting. **No query.**
+6. On the timeout expiring — check for a shutdown signal, and go back to waiting. **No query** —
+   ⚠️ **unless the last drain saw a future-dated `queued` row and its time has arrived**, in which
+   case drain once (ADR 0072).
 7. On any connection error — reconnect, and resume at step 2.
 
 **Steps 2 and 3 are in that order and the order is the decision.** Polling first opens a window
@@ -170,6 +172,16 @@ resets Neon's scale-to-zero timer (verification §7.2), so a metronome poll woul
 awake and spend the month's budget on asking a question whose answer arrives by notification
 anyway. While a session is live, `NOTIFY` is reliable — it is only the *torn-down* session that
 loses notifications, and step 7 into step 3 is what catches those up.
+
+⚠️ **Amended 2026-09-23 — [ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md).**
+Step 6 has one conditional query: when the last drain reported a future-dated `queued` row, the loop
+holds the wait as a deadline and drains **once** when it passes. **The rule this keeps is *no query on
+a timer*, which is what the sentence always meant** — a metronome queries on every expiry, and this
+queries once per deferral. The gap it closes was measured rather than reasoned about: a deferred job
+idle for 28 minutes mid-import ([#37](https://github.com/yutaasakura96/kioku/issues/37)). ⚠️ **The
+block timeout itself does not change.** The long-standing sketch of this fix said *a shorter block
+timeout* and there was nothing to shorten — the block is 5 s and a deferral is 1–30 minutes, so the
+wake-up was always there and only the deadline was missing.
 
 **`autocommit=True` is not stylistic.** Without it, psycopg opens an implicit transaction on the
 first statement and the listening connection sits idle *in a transaction*, where Neon's

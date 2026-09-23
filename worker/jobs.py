@@ -47,13 +47,19 @@ MAX_ATTEMPTS = 5
 #: ⚠️ `04` §6.4 calls `available_at` backoff — *"a retry sets it forward rather
 #: than sleeping in the worker"* — and until #8 nothing ever set it forward.
 #:
-#: Doubling from a minute, capped at thirty. ⚠️ **The cap matters more than the
-#: base**: nothing in this loop is scheduled to come back for a future-dated job
-#: (`03` §3.1 step 6 forbids the timeout branch from issuing a query), so the
-#: deferral is collected by the next notification or the next reconnect. A long
-#: cap would turn "deferred" into "forgotten until the reader submits something
-#: else". **The remaining half of this is open and named** — `00-status.md`
-#: § Next carries it.
+#: Doubling from a minute, capped at thirty.
+#:
+#: ⚠️ **Something does come back for a future-dated job as of #37** — the loop
+#: holds the wait as a deadline and drains once when it passes (ADR 0072,
+#: `next_deferral` below). Until then nothing did: `03` §3.1 step 6 forbade the
+#: timeout branch from issuing any query, so a deferral waited for the next
+#: notification or the next reconnect, and on 2026-09-22 one of them waited 28
+#: minutes in the middle of a live import.
+#:
+#: ⚠️ **The cap stays at thirty minutes regardless**, and its reason is ADR
+#: 0046's own: a deferral longer than the interval between reconnects is
+#: indistinguishable from losing the job. It is no longer the *only* thing
+#: keeping the gap small, which is what it was built to be.
 FIRST_RETRY_DELAY = "1 minute"
 MAX_RETRY_DELAY = "30 minutes"
 
@@ -142,6 +148,42 @@ def claim_next_job(connection: psycopg.Connection, *, owner: str) -> ClaimedJob 
         claimed_by=row[4],
         seed_id=row[5],
     )
+
+
+# ADR 0072. **The other half of the claim**: `_CLAIM` takes what is due, and this
+# says when the next thing becomes due. One statement, at the end of a drain,
+# where the claim has just come back empty — so whatever is left in the queue is
+# either nothing or future-dated.
+#
+# ⚠️ **It answers an interval, computed server-side, not a timestamp.** The
+# worker runs on a laptop and the database does not; subtracting one clock from
+# the other would put a skew of a few seconds into a deadline where nobody could
+# see it from either end.
+#
+# ⚠️ **No index was added for this and none is needed**: `job_queued_idx` is
+# already partial on `(available_at) WHERE state = 'queued'`
+# (`0000_schema.sql`), which is exactly this shape.
+_NEXT_DEFERRAL = """
+SELECT extract(epoch FROM min(available_at) - now())
+FROM job
+WHERE state = 'queued' AND available_at > now();
+"""
+
+
+def next_deferral(connection: psycopg.Connection) -> float | None:
+    """How long until the next future-dated `queued` job, or `None` — ADR 0072.
+
+    ⚠️ **Asked of the table, not of the sweep.** The sweep only knows about the
+    deferrals it just wrote; a job left future-dated by an *earlier* run of the
+    worker — a laptop closed mid-backoff, which is the case this whole mechanism
+    exists for — is invisible to it and visible here.
+    """
+    row = connection.execute(_NEXT_DEFERRAL).fetchone()
+    if row is None or row[0] is None:
+        return None
+    # `min(…) > now()` cannot be negative, but a deadline in the past is
+    # meaningless and the floor costs nothing.
+    return max(float(row[0]), 0.0)
 
 
 #: ⚠️ Never source text and never the provider's name (`03` §13.4, `03` §11) —

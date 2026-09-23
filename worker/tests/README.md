@@ -4,7 +4,11 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for ninety-eight of the three hundred and sixty-five tests here.**
+⚠️ **Docker is required for one hundred and two of the three hundred and seventy-four tests here.**
+⚠️ **Re-counted 2026-09-23 with #37 (ADR 0072):** it said ninety-eight of three hundred and
+sixty-five. #37 added nine — five in `test_loop.py`, which need nothing because the fake connection
+is also the clock, and four in `test_runs.py` for `next_deferral`, which are SQL and need the
+container. Counted with `DOCKER_HOST` pointed at nothing.
 ⚠️ **Re-counted 2026-09-23 with #36 (ADR 0071):** it said ninety-four of three hundred and
 forty-six, and the suite was **ninety-seven of three hundred and sixty-four** before #36 touched it
 — #30, #31, #32, #33, #34 and #35 all landed between the two counts and none of them recorded a

@@ -10,7 +10,7 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-two more ADRs** with it — **71** as of 2026-09-23 (ADR 0071, from #36's triage, drops a stray note rather than the *chunk*; ⚠️ this said *70* until then): five are the
+code since 2026-09-09 and **thirty-three more ADRs** with it — **72** as of 2026-09-23 (ADR 0072, from #37's triage, gives a deferred `job` a deadline the drain recorded; ⚠️ this said *71* until then, and *70* earlier the same day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
 languages, ADR 0068 decides how an Anki deck gets in, and ADR 0069 makes the typed check the *grade*, from the reader's first *session* (⚠️ this said *69* until #25's triage on 2026-09-21, *68* until earlier that day, *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
 before). ⚠️ **#25 added no ADR and amended ADR 0070 in place** (2026-09-21: § Settled by the build — a `seed`
@@ -46,8 +46,15 @@ drop. ⚠️ **And the metrics are retired as of 2026-09-18**: `/stats` reads **
 `shared/metrics/acceptance.ts` is deleted. **Everything below about *acceptance rate* and
 *seconds-per-note* is history.** `docs/00-status.md` § Next holds the ticket order, and ⚠️ **the frontier is empty**: [#35](https://github.com/yutaasakura96/kioku/issues/35) was built 2026-09-22 (the first real Anki import failed; ADR 0068 §5 is reversed for `anki`, and an imported word keys on the deck's term and reading) — ⚠️ it named #35 as the frontier earlier that day. ⚠️ **N3 is imported as of 2026-09-23 — 2,030 *cards* for $4.30, and #35 holds on real data** (§ Done); the run left three `needs-triage` issues, [#36](https://github.com/yutaasakura96/kioku/issues/36), [#37](https://github.com/yutaasakura96/kioku/issues/37) and [#38](https://github.com/yutaasakura96/kioku/issues/38), and **a long run's worker belongs detached rather than in a terminal tab.** ⚠️ **And a worker holds the code it imported at start** — restart it before a resume is read as evidence about a fix (`docs/00-status.md` § Carrying). ⚠️ **#36 was triaged and built 2026-09-23** (ADR 0071): a note matching no group is dropped and the *chunk* keeps what matched, an unanswered group is still an error, and the drop is logged per *chunk* as a count. ~~**Chunk 58's 25 words are still out and ADR 0071 expects that**~~ — ⚠️ **recovered the same day
 for $0.0386 on a restarted worker: the run is `complete`, 2,140 *cards* for $4.335, and nothing was
-dropped, so #36's reading of the cause is still a guess** (ADR 0071 § Amended 2026-09-23); #37 and
-#38 still wait on Yuta. ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
+dropped, so #36's reading of the cause is still a guess** (ADR 0071 § Amended 2026-09-23).
+⚠️ **#37 was triaged and built 2026-09-23** (ADR 0072): `03` §3.1 step 6 becomes conditional — the
+drain reports how long until the next future-dated `queued` row, the loop holds it as a deadline, and
+it drains **once** when it passes, so a deferred job is no longer waiting on a notification that may
+never come. ⚠️ **The long-standing sketch of that fix said *a shorter block timeout* and there was
+nothing to shorten**: the block is 5 s and a deferral is 1–30 minutes, so the wake-up was always
+there and only the deadline was missing — a sentence three documents repeated without reading it
+against the constant beside it. **#38 alone still waits on Yuta**, and #37 shrank it without fixing
+it. ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
 2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named

@@ -555,7 +555,7 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | The chunk queue | Claiming opens `ingestion_chunk`, one `pending` row per *chunk*, and **opening it twice adds nothing** — a resume must not reset what the first run paid for (`03` §5.4). ⚠️ Seeded with a second *source*, because a correlation written the wrong way passes for exactly as long as there is one row to be wrong about |
 | The resume query | `04` §6.2's `<> 'complete'`, which includes a `failed` chunk. `= 'pending'` silently abandons money already spent |
 | The settle | `complete` only when nothing is left, `incomplete` otherwise, and `completed_at` stamped only in the first case. ⚠️ **`failed` is not reachable from it** — `04` §6.1 calls `incomplete` "`S2`'s resumable state, not an error" |
-| The drain | Sweeps **before** it claims (`04` §6.4), empties the queue rather than taking one job, fails a bad job without stopping the queue — and ⚠️ **never turns a dropped connection into a failed job**, which is `03` §3.1 step 7's business |
+| The drain | Sweeps **before** it claims (`04` §6.4), empties the queue rather than taking one job, fails a bad job without stopping the queue — and ⚠️ **never turns a dropped connection into a failed job**, which is `03` §3.1 step 7's business. ⚠️ **It also reports the wait until the next future-dated row** (ADR 0072), read as an interval server-side, and `None` when the queue holds nothing deferred |
 | `started_at` | A resume does not move it. It is one endpoint of *time-to-first-review* (`03` §12), and resetting it would flatter the number |
 
 **And two that need neither Docker nor a database**, which is why they are not in the count:
@@ -563,6 +563,7 @@ and what goes red is the worker's, with `worker/tests/conftest.py` printing the 
 | Test | Asserts |
 | --- | --- |
 | The loop's shape | `03` §3.1's seven steps against a fake connection: `LISTEN` before the poll, a notification drains, the timeout branch issues **no query**, reconnect resumes at `LISTEN`, the backoff doubles to a 30 s cap and resets after a working connection. ⚠️ **The payload is never read** is enforced by a notification whose `payload` property *raises* |
+| The deadline | ADR 0072, and it is the **one** exception to the row above: a drain that reports a future-dated row makes the loop drain once when that time passes, and not before. ⚠️ **Asserted as a count, not as a branch** — many expiries, one extra drain — and a drain that reports nothing deferred puts the loop back to silence |
 | The connection string | The direct string is taken verbatim (ADR 0027) and the **pooled one is refused by name** — `03` §4.1's "it silently never wakes", turned into a startup error |
 
 **And what #8 added beside them** (`worker/tests/test_ingest.py`, `test_scratch_cleanup.py`,

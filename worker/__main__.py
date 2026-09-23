@@ -46,7 +46,7 @@ import db
 from events import log
 import provider as provider_module
 from ingest import make_chunk_processor, make_generator, resolve_worker_environment
-from jobs import ClaimedJob, drain as drain_jobs, worker_id
+from jobs import ClaimedJob, drain as drain_jobs, next_deferral, worker_id
 from loop import JOB_CHANNEL, serve
 from pipeline import UnknownStage, check_pipelines
 from pipeline.generate import PROMPT_VERSION
@@ -109,7 +109,13 @@ def main() -> int:
             process_chunk=make_chunk_processor(job, generate=generate),
         )
 
-    def drain(connection: psycopg.Connection) -> int:
+    def drain(connection: psycopg.Connection) -> float | None:
+        """`03` §3.1 step 3, and what the loop learns from it.
+
+        ⚠️ **It answers the deferral, not the count** (ADR 0072). How many jobs
+        were handled is a log line; when the next future-dated row comes due is
+        the only thing `serve` has a use for.
+        """
         handled = drain_jobs(
             connection,
             owner=owner,
@@ -118,7 +124,15 @@ def main() -> int:
         )
         if handled:
             log("worker.drained", jobs=handled, owner=owner)
-        return handled
+
+        deferred_for = next_deferral(connection)
+        if deferred_for is not None:
+            # ⚠️ **The line #37 did not have.** A deferred job was invisible
+            # from the log — the gap had to be read off Neon after the fact —
+            # and a worker that is waiting on a deadline should say so. Seconds
+            # only: `03` §11 keeps job identity and source text out of here.
+            log("worker.deferred", seconds=round(deferred_for, 3), owner=owner)
+        return deferred_for
 
     # ⚠️ The dictionary is **not** constructed here. `03` §3.4 says once per
     # process, and `pipeline.tokenise.dictionary` builds it on first use — a
