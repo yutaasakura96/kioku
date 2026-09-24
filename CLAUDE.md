@@ -10,7 +10,7 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-three more ADRs** with it — **72** as of 2026-09-23 (ADR 0072, from #37's triage, gives a deferred `job` a deadline the drain recorded; ⚠️ this said *71* until then, and *70* earlier the same day): five are the
+code since 2026-09-09 and **thirty-four more ADRs** with it — **73** as of 2026-09-24 (ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
 languages, ADR 0068 decides how an Anki deck gets in, and ADR 0069 makes the typed check the *grade*, from the reader's first *session* (⚠️ this said *69* until #25's triage on 2026-09-21, *68* until earlier that day, *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
 before). ⚠️ **#25 added no ADR and amended ADR 0070 in place** (2026-09-21: § Settled by the build — a `seed`
@@ -53,8 +53,14 @@ it drains **once** when it passes, so a deferred job is no longer waiting on a n
 never come. ⚠️ **The long-standing sketch of that fix said *a shorter block timeout* and there was
 nothing to shorten**: the block is 5 s and a deferral is 1–30 minutes, so the wake-up was always
 there and only the deadline was missing — a sentence three documents repeated without reading it
-against the constant beside it. **#38 alone still waits on Yuta**, and #37 shrank it without fixing
-it. ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
+against the constant beside it. ~~**#38 alone still waits on Yuta**, and #37 shrank it without fixing
+it.~~ ⚠️ **#38 was re-scoped and built 2026-09-24** (ADR 0073): the worker's listening connection sets
+`keepalives_idle=30`, `keepalives_interval=10`, `keepalives_count=3`, ~60 s to notice a peer that
+stopped answering without saying so. **The evidence it was filed on was wrong — macOS sleep — and the
+ticket was right anyway**, because an idle `serve` issues no statements and so cannot notice a
+half-open socket. ⚠️ **One link is unmeasured and ADR 0073 §4 names it rather than rounding it up.**
+**Nothing is `needs-triage` and the frontier is empty**; N2 and N1 are Yuta's call at ~$0.002 a word.
+~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
 2026-09-21 from ADR 0069 and the KANJIDIC2 research (`docs/kanjidic-research.md`, #29) (⚠️ it named
@@ -225,16 +231,21 @@ history.
 
 ## Tooling state
 
-- `mattpocock-skills` is enabled at **project** scope via the committed `.claude/settings.json`.
-  **The tracker was configured on 2026-09-08** and the pointer is §Agent skills below. The planned
+- `mattpocock-skills` is enabled at **user** scope. ⚠️ **This said *project* scope, via the committed
+  `.claude/settings.json`, until 2026-09-24** — `6a1101d` dropped the project flag because it only
+  repeated what user scope already enabled, so the committed file now carries **one** entry and it is
+  the `frontend-design` override below. **The tracker was configured on 2026-09-08** and the pointer
+  is §Agent skills below. The planned
   flow held: `/grill-with-docs` first, then `/setup-matt-pocock-skills`, because the grilling
   produces the material the tickets are made from — eleven documents and 39 ADRs of it. There is
   still no `.scratch/`, and there will not be one: issues are on GitHub, not on disk.
 - `superpowers` must stay disabled here. Its `brainstorming` skill sets no
   `disable-model-invocation` and its description reads `You MUST use this before any creative work`,
   so it will seize interviews that belong to mattpocock's question banks.
-- `frontend-design` is disabled here too, in the same committed `.claude/settings.json`, **for a
-  different reason** — the two are often conflated and the distinction matters. It runs no interview
+- `frontend-design` is disabled here, in the committed `.claude/settings.json`, **for a reason of its
+  own** — it is enabled at user scope and this project turns it off, which is the whole point of the
+  file. Do not read that as the `superpowers` case: the two are often conflated and the distinction
+  matters. It runs no interview
   and collides with nothing; it is off because the visual direction for Vet and Review is decided and
   recorded, and a skill whose instruction is to take an aesthetic risk per brief would push toward
   re-deciding it during implementation. Re-enable it only for a screen or *subject* that genuinely
