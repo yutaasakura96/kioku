@@ -1,0 +1,47 @@
+# docs/11-testing-plan.md §1: every tier, on every push.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    # No Postgres service: the TypeScript tiers use in-process PGlite (ADR 0038),
+    # and the worker tier starts its own postgres:18.3-alpine through
+    # testcontainers against the runner's Docker.
+    #
+    # No env either. The repo is public, so nothing here is a secret: the e2e
+    # tier boots the app with the fixture values in test/e2e/environment.ts, and
+    # the worker tests never reach the model provider (its boundary is faked).
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Schema tests
+        run: npm run test:schema
+      - name: Nuxt tests
+        run: npm run test:nuxt
+      # review.test.ts and vet.test.ts call createPage(), so the e2e tier needs
+      # a Chromium that matches the pinned playwright-core.
+      - name: Install Chromium
+        run: npx playwright-core install --with-deps chromium
+      - name: End-to-end tests
+        run: npm run test:e2e
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          working-directory: worker
+      - name: Worker tests
+        working-directory: worker
+        run: uv run pytest
