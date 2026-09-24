@@ -39,7 +39,7 @@ jobs:
         run: npx playwright-core install --with-deps chromium
       - name: End-to-end tests
         run: npm run test:e2e
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           working-directory: worker
       - name: Worker tests
