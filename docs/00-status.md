@@ -2058,6 +2058,10 @@ Seven findings worth knowing without opening it:
 [#38](https://github.com/yutaasakura96/kioku/issues/38), filed 2026-09-23 from the N3 import
 (§ Done). It is not `ready-for-agent`, and it is a question before it is work. ⚠️ **This said *two*
 until #37 was triaged and built later the same day, and *three* until #36 earlier the same day.**
+⚠️ **#38 was investigated on 2026-09-23 and the findings are on the issue**
+([comment](https://github.com/yutaasakura96/kioku/issues/38#issuecomment-5811998197)); what is left
+is Yuta's call on how to book it — re-scope and build, or close. **The evidence it was filed on is
+explained, the mechanism it names is not.**
 - ~~[#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note in a model response
   refuses the whole *chunk*. 100 words lost on the first pass, 25 still out.~~ ⚠️ **Triaged and
   built 2026-09-23** ([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), § Done): the
@@ -2083,8 +2087,40 @@ until #37 was triaged and built later the same day, and *three* until #36 earlie
   covered. What is left is a job **notified** while the listener is dead, which still waits for the
   teardown to be noticed. ⚠️ **And one data point from the recovery session's log**:
   `worker.connection_lost` repeats on a clean ~315-second cadence, which is the five-minute idle
-  reconnect § Carrying calls the common case — **not** the silent death #38 describes. The gaps in
-  that cadence (~20 min, ~65 min) are what a sleeping laptop would also explain. Symptoms again.
+  reconnect § Carrying calls the common case — **not** the silent death #38 describes. ~~The gaps in
+  that cadence (~20 min, ~65 min) are what a sleeping laptop would also explain. Symptoms again.~~
+  ⚠️ **Checked against `pmset -g log` on 2026-09-23, and a sleeping laptop is what explains them.**
+  Every gap in the log lines up with a sleep, and so does the incident #38 was filed on. That
+  worker's last loss was 21:25:32 JST, the machine slept at 21:25:39 and did not wake again until
+  21:56:26, with **two seconds** of full wake in between. The hand-sent `NOTIFY` landed **34 s**
+  after that wake and the restart **2 min 8 s** after it — not enough awake time to conclude the
+  listener was dead. ⚠️ **The cadence is not a metronome either**: the 21:25:32 loss fired the same
+  second as a DarkWake, and the next worker ran 65 minutes with no loss while awake *and* drained a
+  job mid-way, so its connection was alive. Neither the cadence nor its gaps carry the weight #38
+  puts on them.
+  ⚠️ **Three things were measured, and they make the fix affordable rather than proven**
+  (the issue comment carries the numbers):
+  - **The OS keepalive is useless by default, so setting it is a real change.** libpq's `keepalives`
+    defaults to `1` and leaves the intervals to the OS (PG 18 §32.1: *"A value of zero uses the
+    system default"*); macOS' `net.inet.tcp.keepidle` is **7200000 ms — two hours**. libpq documents
+    `keepalives_idle` as needing `TCP_KEEPIDLE` *"or an equivalent socket option"* and macOS has
+    `TCP_KEEPALIVE` instead, so the mapping was measured on a live connection rather than assumed:
+    `keepalives_idle=30` lands as `TCP_KEEPALIVE=30`. (`tcp_user_timeout` is Linux-only — no effect
+    here, available after ADR 0022's move.)
+  - **Keepalive probes do not defeat Neon's scale-to-zero**, which was the objection that could have
+    killed the fix. One idle connection probing every 30 s for fifteen minutes, no laptop sleep in
+    the window, and the worker still lost its connection at 21:40:30 and 21:45:46 — **315.2 s apart,
+    the usual cadence**. A probe is not a query and the compute suspends straight through it, so
+    step 6's budget argument does not reach keepalives.
+  - **What is left unproven is the half that matters.** A keepalive timeout marks the socket dead in
+    the *kernel*; the application still only learns on a read or a write. The loop does read —
+    `notifies(timeout=5)` selects on the fd every five seconds — so it *should* raise within ~60 s,
+    and that has not been shown. The probe connection is the warning: `connection.closed` stayed
+    `False` for the whole fifteen minutes while the compute suspended twice beneath it, because
+    psycopg's `closed` reflects an explicit close and says nothing about the peer. **This needs
+    a blackholed peer** — a local proxy in front of the direct endpoint, dropped mid-`LISTEN` while
+    discarding packets — **not a live Neon connection.** That test is the acceptance criterion if
+    this is ever built.
 
 ~~⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`**~~ ⚠️ **Resumed and
 recovered 2026-09-23** for **$0.0386** (§ Done). The run is `complete`: **2,140 *cards*, $4.335**.
@@ -2688,7 +2724,12 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
   and `worker/db.py`'s `CONNECTION_LOST` already catches it** — now verified against the real failure
   rather than a fake connection. **The worker takes its reconnect path every five idle minutes in
   normal operation**; treat that path as the common case, not the exceptional one. ADR 0028 carries
-  the table.
+  the table. ⚠️ **Amended 2026-09-23 (#38's triage): "every five idle minutes" is the mechanism, not
+  a cadence you can read backwards.** Two days of a real log say the reconnect is also *wake*-
+  triggered — one loss fired in the same second as a macOS DarkWake — and that a worker can run 65
+  minutes awake with no loss at all while still draining jobs. So **a gap in the cadence is not
+  evidence that the listener died**, which is the inference #38 was filed on. Check `pmset -g log`
+  before reading anything into one.
 
 ## Blocked
 
