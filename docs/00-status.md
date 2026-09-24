@@ -2124,6 +2124,8 @@ retired on 2026-09-18 along with the manual vetting it measured. **Its loop is b
 the label was the only thing still claiming work. Closed as completed, label removed; the reasoning
 is in the [closing comment](https://github.com/yutaasakura96/kioku/issues/1#issuecomment-5813087566).
 *Time-to-first-review*, the other half of its criterion, survives and `/stats` reads it.
+⚠️ **[#40](https://github.com/yutaasakura96/kioku/issues/40) was filed and built the same day** (§ Done),
+so the frontier is still empty once its PR closes it.
 
 ⚠️ **#38 was booked on the mechanism, not on the evidence, and that is the part worth keeping.** The
 2026-09-23 triage
