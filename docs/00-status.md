@@ -2094,6 +2094,17 @@ Seven findings worth knowing without opening it:
 ([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md), § Done) — *two* until #37 was triaged and
 built on 2026-09-23, and *three* until #36 earlier that day.
 
+⚠️ **And [#1](https://github.com/yutaasakura96/kioku/issues/1), the milestone-1 spec, is closed
+(2026-09-24): the tracker now has no open issue at all.** It was the last one, and it was still
+labelled `ready-for-agent` — pointing an agent at a body that opens *"eleven documents, 39 ADRs, an
+empty frontier, and no code"* and whose success condition is *acceptance rate*, which
+[ADR 0062](adr/0062-retention-and-consistency-are-the-headline-and-acceptance-rate-retires.md)
+retired on 2026-09-18 along with the manual vetting it measured. **Its loop is built** — #2 through
+#18 and the pivot's tickets — so the spec was satisfied in substance and unsatisfiable verbatim, and
+the label was the only thing still claiming work. Closed as completed, label removed; the reasoning
+is in the [closing comment](https://github.com/yutaasakura96/kioku/issues/1#issuecomment-5813087566).
+*Time-to-first-review*, the other half of its criterion, survives and `/stats` reads it.
+
 ⚠️ **#38 was booked on the mechanism, not on the evidence, and that is the part worth keeping.** The
 2026-09-23 triage
 ([comment](https://github.com/yutaasakura96/kioku/issues/38#issuecomment-5811998197)) explained every
