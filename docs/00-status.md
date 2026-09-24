@@ -111,7 +111,27 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-24, latest — [#38](https://github.com/yutaasakura96/kioku/issues/38) is re-scoped and
+**2026-09-24, latest — [#40](https://github.com/yutaasakura96/kioku/issues/40) is built: the door
+and the refusal page take `10` §9's treatment.** Both are `EmptyBlock.vue` in `--k-measure-empty`,
+left-aligned, no shell, every value from `tokens.css`. The block gained three props — `rule`
+(default `true`), `size` (`statement`, `mark`, `datum`: three rows of `05` §4's ramp) and `tag` (the
+refusal's statement stays its `<h1>`) — plus an optional `name` slot for the door's `Kioku` line.
+`05` §7 and `10` §4.5 amended. **1158 TypeScript tests (was 1150), typecheck and build clean.** No
+behaviour of sign-in, sign-out or the refusal moved.
+- ⚠️ **The refusal passes `:rule="false"`, and that attribute is `10` §9.2's specification.** Every
+  other caller omits the prop and relies on the default; flipping it turns
+  `test/nuxt/empty-block.test.ts` and `review-brake.test.ts`'s *Nothing due* red (checked once).
+- ⚠️ **The door's inset is not in `05` or `10`.** A screen with no chrome has no stated top margin,
+  so the pages use `--k-space-10` down and `--k-gutter` across — the inset *Vet* gives its column
+  below the bar. Steps on the scale, not a new value.
+- ⚠️ **The primary control's rule is written a second time**, in `app/pages/auth/index.vue`, beside
+  Ingest's `.submit`. Moving Ingest's into a shared component was out of scope; the two are the same
+  eleven declarations and a future ticket can fold them.
+- Checked by eye in `nuxt dev` at 1280×800, signed out, signed in and refused: the mark renders in
+  `--k-face-ja`, the gaps read 12 / 20 / 32 / 32, the column is 560px at a 44px gutter, and after
+  the press the label reads `Signing in…` with the face unchanged and nothing disabled.
+
+**2026-09-24 — [#38](https://github.com/yutaasakura96/kioku/issues/38) is re-scoped and
 built: a TCP keepalive is not a query**
 ([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md)). The worker's direct connection sets
 `keepalives_idle=30`, `keepalives_interval=10`, `keepalives_count=3` — about **sixty seconds** to
@@ -4056,13 +4076,17 @@ Nothing.
   payload. `app/utils/auth-client.ts` constructs the client **lazily**, so an SSR call gets nothing
   rather than a subtly signed-out render.
 - ~~⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
-  own it.**~~ ⚠️ **Half-closed 2026-09-11 by #6**, which landed `05`'s tokens as the first screen
+  own it.**~~ ~~⚠️ **Half-closed 2026-09-11 by #6**, which landed `05`'s tokens as the first screen
   ticket to need them. **The door and the refusal page were not restyled** — #6 did not touch
   `app/pages/auth/`, so those two still carry the content and structure without the treatment. What
-  changed is that the tokens are now there for whoever does. The original bullet follows.
+  changed is that the tokens are now there for whoever does. The original bullet follows.~~
+  ⚠️ **Closed 2026-09-24 by [#40](https://github.com/yutaasakura96/kioku/issues/40)**: both pages are
+  `EmptyBlock.vue` in `--k-measure-empty` with no shell, and the refusal passes `:rule="false"`. **That
+  one attribute is the §9.2 specification** — dropping it draws a rule and no test but
+  `test/e2e/auth.test.ts`'s *draws no rule* notices.
 
-- ⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
-  own it.** Both pages carry the content and the structure `10` §9 names — the mark, the name, the
+- ~~⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
+  own it.**~~ Both pages carry the content and the structure `10` §9 names — the mark, the name, the
   body line, the rule, the control; the statement, the body, and no rule — with no treatment, because
   `05-design-system.md`'s tokens do not exist in the repo yet and **no ticket owns them.** The first
   screen ticket to need them lands them. This is a gap in the tracker, not a decision.

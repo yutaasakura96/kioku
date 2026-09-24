@@ -55,31 +55,72 @@ async function signOut() {
 </script>
 
 <template>
-  <main>
-    <!-- ⚠️ `10` §9 specifies both of these screens as the empty-state block in a
-    560px column, left-aligned, in tokens from `05-design-system.md`. No token
-    layer exists in the repo yet and #5 does not own one, so this is the content
-    and the structure without the treatment. What is here is what `10` §9.1
-    names, in order: the mark, the name, one body line, the rule, the control. -->
-    <template v-if="signedInEmail">
-      <p>{{ signedInEmail }}</p>
-      <p>You are signed in as the invited account.</p>
-      <hr>
-      <button type="button" @click="signOut()">
+  <!-- `10` §9: the empty-state block in `--k-measure-empty`, left-aligned, with
+  no shell — there is nowhere to navigate to before you are in. What is here is
+  what §9.1 names, in order: the mark, the name, one body line, the rule, the
+  control. Signed in, the email takes the statement's place. -->
+  <main class="door">
+    <EmptyBlock v-if="signedInEmail" size="datum">
+      <template #statement>
+        {{ signedInEmail }}
+      </template>
+      <template #body>
+        You are signed in as the invited account.
+      </template>
+
+      <button type="button" class="primary" @click="signOut()">
         Sign out
       </button>
-    </template>
+    </EmptyBlock>
 
-    <template v-else>
-      <p lang="ja">
-        記憶
-      </p>
-      <p>Kioku</p>
-      <p>Kioku is invite-only.</p>
-      <hr>
-      <button type="button" @click="signIn()">
+    <EmptyBlock v-else size="mark">
+      <template #statement>
+        <span lang="ja">記憶</span>
+      </template>
+      <template #name>
+        Kioku
+      </template>
+      <template #body>
+        Kioku is invite-only.
+      </template>
+
+      <!-- ⚠️ `10` §9.1: **the key hint slot is empty** — there is no key. -->
+      <button type="button" class="primary" @click="signIn()">
         {{ signingIn ? 'Signing in…' : 'Continue with Google' }}
       </button>
-    </template>
+    </EmptyBlock>
   </main>
 </template>
+
+<style scoped>
+/* ⚠️ **Neither `05` nor `10` gives the block's inset on a screen with no
+   chrome**, so these are steps off `05` §5's scale: `--k-gutter` at the sides,
+   as on every screen, and `52px` down — the same inset *Vet* gives its reading
+   column below the bar. */
+.door {
+  padding: var(--k-space-10) var(--k-gutter);
+}
+
+/* `05` §7's primary control, full width of its column — the same rule as
+   Ingest's submit (`app/pages/index.vue`), written here rather than shared
+   because moving Ingest's is not this ticket (#40). */
+.primary {
+  display: block;
+  width: 100%;
+  padding: 9px 0;
+  background: var(--k-ink-ground);
+  border: 1px solid var(--k-ink-ground);
+  border-radius: var(--k-radius-control);
+  font-family: var(--k-face-en);
+  font-size: 14px;
+  color: var(--k-ground);
+  cursor: pointer;
+}
+
+/* An inverted control has no face left to darken, so its hover moves its ink —
+   `10` §3.3. ⚠️ And **nothing greys out** while signing in (ADR 0035): the
+   label changes and that is all. */
+.primary:hover {
+  color: var(--k-on-ink);
+}
+</style>

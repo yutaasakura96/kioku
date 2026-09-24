@@ -20,9 +20,23 @@
 </script>
 
 <template>
-  <main>
-    <!-- `10` §9.2 gives this sentence exactly. -->
-    <h1>This account is not invited.</h1>
-    <p>Kioku admits one account.</p>
+  <!-- `10` §9.2 gives this sentence exactly, and `rule` is `false` because the
+  absent rule is the specification. -->
+  <main class="refused">
+    <EmptyBlock :rule="false" tag="h1">
+      <template #statement>
+        This account is not invited.
+      </template>
+      <template #body>
+        Kioku admits one account.
+      </template>
+    </EmptyBlock>
   </main>
 </template>
+
+<style scoped>
+/* The door's inset (`app/pages/auth/index.vue`), for the same reason. */
+.refused {
+  padding: var(--k-space-10) var(--k-gutter);
+}
+</style>

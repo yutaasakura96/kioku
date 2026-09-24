@@ -336,6 +336,15 @@ exactly — *between a body block and what introduced it*. The figure above is t
 **The body's 18px type size is unchanged**: §5 exempts type sizes from the snap and only ever moved
 the gap. `10` §4.5 carries the same amendment.
 
+⚠️ **Amended 2026-09-24 with [#40](https://github.com/yutaasakura96/kioku/issues/40) — the rule is
+optional, and exactly one screen omits it: `/auth/refused`.** The rule separates the statement from
+what the state *offers*; the refusal offers nothing by design rather than for now, and a rule there
+would point at empty ground (`10` §9.2). Every other empty state still draws it, and "the rule is the
+last thing on the screen" stays a state's shape where it offers nothing *yet*. The statement also
+takes other rows of §4's ramp where `10` §9.1 names them: the door's 54px Mincho 500 mark, with the
+17px `Kioku` name line `12px` under it, and the signed-in door's 24px Newsreader 400 email. In code:
+`EmptyBlock.vue`'s `rule` prop (default `true`), `size` and `tag`.
+
 Where an empty state offers an action it is a **quiet** affordance: `--k-raised` face,
 `1px --k-border-control`, `--k-radius-control`, `13px 20px`, a 17px label in `--k-ink` and an accent
 `→`. It is not the primary control — nothing here is urgent.
