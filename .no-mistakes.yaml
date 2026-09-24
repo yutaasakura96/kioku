@@ -1,0 +1,20 @@
+# no-mistakes gate config. commands/agent/pr.base_branch are read only from the
+# default branch (main), so this file must exist there too.
+allow_repo_commands: true
+
+commands:
+  # The run worktree has tracked files only; copy the local, gitignored env file in.
+  prepare: 'for f in .env .env.local .env.develop.local; do [ -f "$HOME/Documents/GitHub/kioku/$f" ] && cp "$HOME/Documents/GitHub/kioku/$f" .; done; true && npm ci --prefer-offline'
+  lint: "npm run typecheck"
+  test: "npm run test:unit"
+
+pr:
+  base_branch: develop
+
+test:
+  instructions: |
+    Run `npm run dev` and open the Nuxt app in a browser; drive the changed flow the
+    way a user would. The Python worker runs separately:
+    `cd worker && uv run --env-file .env python .`. See CLAUDE.md and START-HERE.md.
+  evidence:
+    attach_media: true
