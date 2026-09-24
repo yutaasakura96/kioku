@@ -183,6 +183,25 @@ block timeout itself does not change.** The long-standing sketch of this fix sai
 timeout* and there was nothing to shorten — the block is 5 s and a deferral is 1–30 minutes, so the
 wake-up was always there and only the deadline was missing.
 
+⚠️ **Amended 2026-09-24 — [ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md). A *TCP* keepalive
+is not a query, and the paragraph above had been read as forbidding both.** It forbids
+queries, and for a good reason. It does not reach a keepalive probe, which the peer's kernel answers
+without waking Postgres — **measured, not argued**: one idle connection probing every 30 s for
+fifteen minutes, and Neon's compute suspended underneath it **twice** on the usual ~315 s cadence.
+The budget argument does not apply, so the worker's listening connection now sets
+`keepalives_idle=30`, `keepalives_interval=10`, `keepalives_count=3` — about **sixty seconds** to
+notice a peer that stopped answering without saying so, which step 7 then treats as any other
+connection error.
+
+⚠️ **The hole that closes is step 6's own shape.** A loop that issues no statements learns a socket
+is dead only when a read fails, and a half-open socket never becomes readable — so before this, a
+*notified* job whose listener had silently died waited for as long as the process ran, with nothing
+logged. The **clean** teardown was never the problem and is asserted by `test_reconnect.py`.
+⚠️ **libpq's `keepalives` defaults to `1` and was already doing nothing**: it leaves the intervals to
+the OS, and macOS' `net.inet.tcp.keepidle` is two hours. ⚠️ **One link is unmeasured on purpose** —
+that a keepalive timeout is what puts the error on the descriptor — and ADR 0073 §4 states it rather
+than rounding it up.
+
 **`autocommit=True` is not stylistic.** Without it, psycopg opens an implicit transaction on the
 first statement and the listening connection sits idle *in a transaction*, where Neon's
 `idle_in_transaction_session_timeout` default of 5 minutes (verification §7.2) would kill it on a
@@ -266,12 +285,22 @@ app send the wake-up from its pooled connection** (ADR 0043) instead of needing 
 for it. ⚠️ Nothing has been run against Neon, and the design holds either way — a notification that
 never arrives costs latency and never work (ADR 0028).
 
+⚠️ **Amended 2026-09-24 — [ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md): the direct string
+is still taken verbatim, and it is no longer the whole story.** The worker's connection carries
+`keepalives_idle=30`, `keepalives_interval=10` and `keepalives_count=3`, passed to `psycopg.connect`
+as **keyword arguments beside the string rather than appended to it** — which is how ADR 0027's
+verbatim rule and a sixty-second detection window hold at the same time. §3.1 has the reasoning; the
+app's pooled connections are deliberately untouched, because a connection that issues statements
+finds out on its own.
+
 The direct endpoint is bounded by `max_connections` — 104 at 0.25 CU, 7 reserved, **97 usable**.
 One worker uses one.
 
 **Use Neon's issued connection strings verbatim.** ADR 0027 is explicit: no `options=endpoint%3D…`
-rewriting, no hand-edited TLS parameters. `psycopg[binary]` bundles libpq 17.2, which sets
+rewriting, no hand-edited TLS parameters. `psycopg[binary]` bundles libpq 18.6, which sets
 `sslsni=1` by default, and the string Neon issues already carries what it needs.
+
+⚠️ **The version was re-measured 2026-09-24 and this said *17.2* until then** — psycopg 3.3.5 bundles **libpq 18.6** (`psycopg.pq.version() == 180006`). The `sslsni=1` conclusion is unaffected; only the number moved.
 
 ### 4.2 One migration owner
 
@@ -866,7 +895,7 @@ makes the usual mistake structurally impossible.
 ### 13.3 Transport
 
 HTTPS end to end. Vercel terminates TLS for the app. The worker reaches Neon over TLS using the
-issued connection string unmodified — `psycopg[binary]` bundles libpq 17.2, which sets `sslsni=1`
+issued connection string unmodified — `psycopg[binary]` bundles libpq 18.6, which sets `sslsni=1`
 by default (§4.1). **Nothing in this design exposes a local port to the internet**, because the
 worker has no inbound surface at all (§1).
 

@@ -23,8 +23,10 @@ appears nowhere on the page except per-row, about SNI.
 
 Neon's own Python and Django guides then use psycopg 3 with a plain connection string and no SNI
 workaround, and the Django guide steers explicitly toward `psycopg[binary]` and away from psycopg2.
-`psycopg[binary]` bundles libpq 17.2; libpq sets `sslsni=1` by default. Full sourcing in
+`psycopg[binary]` bundles libpq 18.6; libpq sets `sslsni=1` by default. Full sourcing in
 `phase-4-verification.md` §9.
+
+⚠️ **The version was re-measured 2026-09-24 and this said *17.2* until then** — psycopg 3.3.5 bundles **libpq 18.6** (`psycopg.pq.version() == 180006`). The `sslsni=1` conclusion is unaffected; only the number moved.
 
 ## ≥ 3.2.4 is a reason, not a version pin
 

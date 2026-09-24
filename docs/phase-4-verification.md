@@ -639,8 +639,10 @@ reading above is ours.
 Corroborating, from Neon's own guides: the [Python quickstart](https://neon.com/docs/guides/python)
 installs `psycopg[binary]` and uses a plain connection string with **no** `options=endpoint%3D...`;
 the Django guide says to use "`psycopg[binary]` (psycopg v3), **not** the older `psycopg2`" and aims
-its SNI troubleshooting at psycopg2 only. `psycopg[binary]` bundles **libpq 17.2**, and libpq sets
+its SNI troubleshooting at psycopg2 only. `psycopg[binary]` bundles **libpq 18.6**, and libpq sets
 `sslsni=1` by default ([PostgreSQL docs](https://www.postgresql.org/docs/current/libpq-connect.html)).
+
+⚠️ **The version was re-measured 2026-09-24 and this said *17.2* until then** — psycopg 3.3.5 bundles **libpq 18.6** (`psycopg.pq.version() == 180006`). The `sslsni=1` conclusion is unaffected; only the number moved.
 
 SNI is still required and none of the four documented workarounds is retired; only the
 password-field form carries an intent to deprecate. A libpq client needs none of them.
@@ -653,7 +655,7 @@ pick one.
 Notification support, all confirmed: psycopg 3 has a blocking `notifies(timeout=...)` generator and
 works on a plain synchronous `Connection` in autocommit; asyncpg has `add_listener()` (async only);
 pg8000 exposes a `notifications` deque with no blocking API. ~~**Not verified:** no live connection
-was made. The chain (libpq 17.2 → `sslsni=1` → Neon's stated libpq ≥ 14 rule) is documentary. One
+was made. The chain (libpq 18.6 → `sslsni=1` → Neon's stated libpq ≥ 14 rule) is documentary. One
 `psycopg.connect()` falsifies it cheaply.~~
 
 **⚠️ Verified 2026-09-12 — the connection was made, and the chain holds.** Against the real `kioku`

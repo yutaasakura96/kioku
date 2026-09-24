@@ -4,7 +4,13 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for one hundred and two of the three hundred and seventy-four tests here.**
+⚠️ **Docker is required for one hundred and four of the three hundred and seventy-nine tests here.**
+⚠️ **Re-counted 2026-09-24 with #38 (ADR 0073):** it said one hundred and two of three hundred and
+seventy-four. #38 added five — three in `test_db.py`, which need nothing because the keepalive
+parameters can be spied on before a connection exists, and two in the new `test_half_open.py`, which
+need the container for the only reason that matters: libpq is *allowed* to ignore these three
+silently, so the assertion has to be `getsockopt` on a real socket rather than anything the
+connection string says. Counted with `DOCKER_HOST` pointed at nothing.
 ⚠️ **Re-counted 2026-09-23 with #37 (ADR 0072):** it said ninety-eight of three hundred and
 sixty-five. #37 added nine — five in `test_loop.py`, which need nothing because the fake connection
 is also the clock, and four in `test_runs.py` for `next_deferral`, which are SQL and need the

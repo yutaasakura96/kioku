@@ -111,7 +111,42 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-23, latest — [#37](https://github.com/yutaasakura96/kioku/issues/37) is triaged and
+**2026-09-24, latest — [#38](https://github.com/yutaasakura96/kioku/issues/38) is re-scoped and
+built: a TCP keepalive is not a query**
+([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md)). The worker's direct connection sets
+`keepalives_idle=30`, `keepalives_interval=10`, `keepalives_count=3` — about **sixty seconds** to
+notice a peer that stopped answering without saying so, where before it waited as long as the
+process ran. `03` §3.1 and §4.1 amended. **379 worker tests (was 374), 104 need Docker (was 102),
+1150 TypeScript, typecheck clean.**
+- ⚠️ **The issue was filed on evidence that turned out to be macOS sleep, and was built anyway.**
+  The triage explained every symptom away (§ Next, and 2026-09-23 below) and could have closed it.
+  What kept it open was reading `loop.py` afterwards: while idle with nothing deferred, `serve`
+  issues **no statements at all**, and an application learns a socket is dead only on a read or a
+  write. A half-open socket never becomes readable. **The mechanism #38 guessed at was in the source
+  the whole time** — the symptoms just never proved it.
+- ⚠️ **The fix was blocked by one word.** `03` §3.1 says a periodic
+  query is a keepalive and refuses it on Neon's scale-to-zero budget. That forbids *queries*. A TCP
+  keepalive is a bare segment the peer's kernel answers, and the 2026-09-23 measurement showed the
+  compute suspending twice underneath a connection probing every 30 s. **The objection was never an
+  objection to this**, and the rule survives untouched.
+- ⚠️ **libpq's `keepalives` defaults to `1`, so this looked like a no-op.** It is not: the intervals
+  default to the OS and macOS' idle is **two hours**. The setting was on and useless.
+- ⚠️ **Measured, not read off the docs, because libpq gives itself permission to ignore all three**
+  (*"on other systems, it has no effect"*) and macOS spells its option `TCP_KEEPALIVE`. All three
+  land — `TCP_KEEPALIVE=30`, `TCP_KEEPINTVL=10`, `TCP_KEEPCNT=3`, first against Neon over the real
+  internet, now asserted every run by `test_half_open.py` with `getsockopt` rather than anything the
+  connection string claims.
+- ⚠️ **One link is not measured and the ADR says so in a table rather than rounding it up**: that a
+  keepalive timeout is what puts the error on the descriptor. It needs a **blackholed** peer, which
+  needs `pfctl`, a password and a rewrite of the machine's firewall — so it is not in the suite and
+  not a script in the repo. Every cheaper imitation turns out to be a *clean* teardown, which
+  `test_reconnect.py` already covers. **Shipping is still right: if the link holds, an indefinite
+  hang becomes a 60-second one; if it does not, nothing changes.**
+- ⚠️ **Found while measuring, and corrected in five places: `psycopg[binary]` bundles libpq 18.6,
+  not 17.2.** `03` §4.1 and §13, `phase-4-verification.md` §9.1 and ADR 0027 all carried the old
+  number. The `sslsni=1` conclusion each drew from it is unaffected.
+
+**2026-09-23 — [#37](https://github.com/yutaasakura96/kioku/issues/37) is triaged and
 built: a deferred `job` is collected by a deadline the drain recorded**
 ([ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)). `03` §3.1
 step 6 is amended — the timeout branch still issues no query *unless* the last drain saw a
@@ -2054,14 +2089,21 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-⚠️ **The frontier is empty, and one `needs-triage` issue is waiting on Yuta** —
-[#38](https://github.com/yutaasakura96/kioku/issues/38), filed 2026-09-23 from the N3 import
-(§ Done). It is not `ready-for-agent`, and it is a question before it is work. ⚠️ **This said *two*
-until #37 was triaged and built later the same day, and *three* until #36 earlier the same day.**
-⚠️ **#38 was investigated on 2026-09-23 and the findings are on the issue**
-([comment](https://github.com/yutaasakura96/kioku/issues/38#issuecomment-5811998197)); what is left
-is Yuta's call on how to book it — re-scope and build, or close. **The evidence it was filed on is
-explained, the mechanism it names is not.**
+⚠️ **The frontier is empty and no `needs-triage` issue is left.** ⚠️ **This said *one* until
+2026-09-24**, when [#38](https://github.com/yutaasakura96/kioku/issues/38) was re-scoped and built
+([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md), § Done) — *two* until #37 was triaged and
+built on 2026-09-23, and *three* until #36 earlier that day.
+
+⚠️ **#38 was booked on the mechanism, not on the evidence, and that is the part worth keeping.** The
+2026-09-23 triage
+([comment](https://github.com/yutaasakura96/kioku/issues/38#issuecomment-5811998197)) explained every
+symptom away as macOS sleep; what re-opened it was `loop.py` itself, where an idle `serve` issues no
+statements and therefore cannot notice a half-open socket. **The evidence it was filed on was wrong
+and the ticket was right**, which is not the usual direction. The rest of this section's #38 material
+is kept below because the measurements are the argument.
+
+**What is still Yuta's call is the N2 and N1 imports**, at the measured ~$0.002 a word — N2's ~1,850
+words is roughly $3.7. The worker is already detached, so nothing blocks them.
 - ~~[#36](https://github.com/yutaasakura96/kioku/issues/36) — a stray note in a model response
   refuses the whole *chunk*. 100 words lost on the first pass, 25 still out.~~ ⚠️ **Triaged and
   built 2026-09-23** ([ADR 0071](adr/0071-a-stray-note-is-dropped-not-the-chunk.md), § Done): the
@@ -2079,8 +2121,14 @@ explained, the mechanism it names is not.**
   deferral the drain saw* — the block is 5 s and never needed shortening. What the drain's deferral
   makes conditional is **a deadline**, and the no-metronome constraint is kept by querying once per
   deferral rather than once per expiry.
-- [#38](https://github.com/yutaasakura96/kioku/issues/38) — a listening connection stopped delivering
-  with nothing raised. ⚠️ **The cause is read from symptoms, not proven**; reproduce first, and check
+- ~~[#38](https://github.com/yutaasakura96/kioku/issues/38) — a listening connection stopped
+  delivering with nothing raised.~~ ⚠️ **Re-scoped and built 2026-09-24**
+  ([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md), § Done): the three keepalive parameters,
+  ~60 s detection, and `03` §3.1's rule left intact because a TCP keepalive is not a query. ⚠️ **The
+  bullet's own instruction was followed and produced the opposite of what it expected** — the libpq
+  parameters were checked against the docs rather than assumed, and the docs turned out to *hedge*
+  (*"on other systems, it has no effect"*), which is why the assertion ended up being `getsockopt` on
+  a real socket. ⚠️ **The cause is read from symptoms, not proven**; reproduce first, and check
   libpq keepalive parameters against the psycopg 3 docs rather than assuming the defaults.
   ⚠️ **#37 shrank it without fixing it** (§ Done): a *deferred* job now reaches a query on its own
   deadline, and a query on a dead connection raises and reconnects — so the case that was measured is
@@ -2121,6 +2169,15 @@ explained, the mechanism it names is not.**
     a blackholed peer** — a local proxy in front of the direct endpoint, dropped mid-`LISTEN` while
     discarding packets — **not a live Neon connection.** That test is the acceptance criterion if
     this is ever built.
+    ⚠️ **Amended 2026-09-24 — the criterion was not met and the ticket was built regardless, which
+    is ADR 0073 §4.** Two of the three links are measured: the parameters reach the kernel
+    (`test_half_open.py`), and an error on the descriptor surfaces *through* `notifies()`
+    (`test_reconnect.py`, since ADR 0038 — so the psycopg half was already covered and the triage
+    overstated the gap). The third — that a keepalive timeout is what puts the error there — is
+    standard TCP and **still unmeasured**, because every blackhole that does not need `pfctl` turns
+    out to be a clean teardown. **What decided it was the asymmetry**: if the link holds, an
+    indefinite hang becomes a 60-second one; if it does not, the parameters do nothing. There is no
+    outcome in which shipping is worse than waiting.
 
 ~~⚠️ **Chunk 58 of the N3 run is still failed and the run is still `incomplete`**~~ ⚠️ **Resumed and
 recovered 2026-09-23** for **$0.0386** (§ Done). The run is `complete`: **2,140 *cards*, $4.335**.
@@ -3790,6 +3847,29 @@ Nothing.
   while the worker was away. **ADR 0028 is the answer and it holds whichever way the cost question
   resolves** — the job table is the truth, `NOTIFY` only shortens latency, and the worker
   re-`LISTEN`s *then* polls on every reconnect, in that order.
+- ⚠️ **A TCP keepalive is not a query, and `03` §3.1 had been read as forbidding both**
+  ([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md), 2026-09-24). The rule is *no query on a
+  timer* and the reason is Neon's scale-to-zero budget; a keepalive probe is answered by the peer's
+  kernel without waking Postgres, so the budget argument never reached it. **Measured before it was
+  believed**: fifteen idle minutes probing every 30 s, and the compute suspended underneath that
+  connection **twice**. The worker's direct connection now carries `keepalives_idle=30`,
+  `keepalives_interval=10`, `keepalives_count=3` — ~60 s to notice a peer that stopped answering
+  without saying so.
+  - ⚠️ **They are keyword arguments to `psycopg.connect`, never appended to the URL.** ADR 0027
+    forbids editing the string Neon issued and the obvious implementation breaks it.
+  - ⚠️ **libpq's `keepalives` was already `1` and already doing nothing** — it leaves the intervals
+    to the OS and macOS' `net.inet.tcp.keepidle` is **two hours**. A setting that is on and useless
+    is how this went unnoticed; do not read `keepalives=1` in any future connection string as
+    evidence that the detection exists.
+  - ⚠️ **One link is unmeasured on purpose and ADR 0073 §4 names it**: that a keepalive timeout is
+    what puts the error on the descriptor. A blackholed peer would prove it and needs `pfctl`.
+    **If a `worker.connection_lost` ever appears ~60 s after a sleep or a network change, that is
+    the missing measurement arriving on its own — record it and amend ADR 0073 §4.**
+  - ⚠️ **The ~315 s `worker.connection_lost` cadence is not a metronome and a gap in it is not
+    evidence a listener died** (2026-09-23). One loss fired in the same second as a DarkWake, and a
+    worker ran 65 minutes awake with no loss while draining a job. Every gap in the pre-#37 log
+    lines up with `pmset -g log`. The raw evidence is `~/Library/Logs/kioku-worker.pre-37.log`;
+    **do not overwrite it.**
 - **⚠️ Two pipeline findings, now carried by `03` §5.2:** numerals come back `is_oov=True` with
   `normalized_form` rewritten to ASCII (六 → `6`), which ADR 0006's *identity key* depends on — the
   rule is that numerals are excluded at candidate extraction rather than reaching the key; and

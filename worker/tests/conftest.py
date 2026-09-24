@@ -15,6 +15,12 @@ sweep branches and `test_scratch_cleanup.py`, then #9's generation cache, spend
 ledger and *note* writes. All of it needs a database rather than a second
 session, and in Python that is the same container.
 
+⚠️ **`test_half_open.py` (#38, ADR 0073) is here for a third reason**, and it is
+neither concurrency nor SQL: it needs a **real TCP socket**, because libpq is
+documented as free to ignore the keepalive parameters on platforms without the
+matching socket option and does so *silently*. The connection string cannot be
+asked; the kernel has to be. It issues no queries at all.
+
 ⚠️ **The count is not written in this file**, and that is deliberate: it lived in
 four files, went stale twice, and `worker/tests/README.md` is the one place that
 has to be right. :data:`NO_DOCKER` below names the **files**, which is what a
@@ -129,7 +135,8 @@ Docker is not available, and this test needs a real Postgres 18 container.
 
 ⚠️ Every red test below is in one of the worker's database files —
 `test_jobs.py`, `test_runs.py`, `test_reconnect.py`, `test_ingest.py`,
-`test_generation.py`, `test_backfill.py`, `test_seeding.py` and `test_scratch_cleanup.py`. (`worker/tests/README.md`
+`test_generation.py`, `test_backfill.py`, `test_seeding.py`, `test_scratch_cleanup.py`
+and `test_half_open.py`. (`worker/tests/README.md`
 carries how many that is; this message names the files, because those are what
 you are looking at.)
 

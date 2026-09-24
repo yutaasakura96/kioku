@@ -1553,6 +1553,17 @@ missing — a deadline was. A query fires once per deferral rather than once per
 this is not the metronome ADR 0028 refused.
 → [ADR 0072](adr/0072-a-deferred-job-is-collected-by-a-deadline-the-drain-recorded.md)
 
+### [2026-09-24] A TCP keepalive is not a query
+The worker's listening connection sets `keepalives_idle=30`, `keepalives_interval=10` and
+`keepalives_count=3` — about sixty seconds to notice a peer that stopped answering without saying so.
+The deciding reason is that the only objection was measured away: a keepalive probe does **not** reset
+Neon's scale-to-zero (fifteen idle minutes probing every 30 s, and the compute suspended twice
+underneath it), so `03` §3.1's *no query on a timer* rule never applied to it. ⚠️ **libpq's
+`keepalives` was already on and already useless** — macOS' system idle default is two hours — which is
+how this escaped notice. The parameters go beside the connection string rather than into it, so
+ADR 0027 holds. ⚠️ **One link is honestly unmeasured** and ADR 0073 §4 says which.
+→ [ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:
