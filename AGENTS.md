@@ -123,7 +123,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1150 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-22, after the backfill ledger row)
+npm run test        # 1158 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-24, after #40)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
@@ -310,3 +310,10 @@ module; and the write-immediately-with-an-outbox pattern.
 is `review_log` and it is guarded by `RESTRICT` in `04` §9 *and* by a trigger *and* by a test
 (`11` §5); the numbers live in pure modules (`11` §8); and the outbox pattern turned out to appear
 three times, which is ADR 0039.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.
