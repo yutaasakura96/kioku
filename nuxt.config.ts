@@ -7,7 +7,32 @@ export default defineNuxtConfig({
   // screen inherits. ⚠️ It is a **stylesheet**, not a script — `noScripts`
   // strips `<script>` and leaves the `<link rel="stylesheet">` alone, which is
   // what lets three client-less *places* be styled at all (`03` §2.1).
-  css: ['~/assets/css/tokens.css'],
+  //
+  // `05` §4's three faces, self-hosted from `@fontsource` (ADR 0074), one
+  // stylesheet per weight the ramp draws and no other. They are stylesheets
+  // for the same reason tokens.css is: the `@font-face` rules land in the
+  // bundled CSS and the browser fetches only the files a page's text needs.
+  // Mincho is 120 `unicode-range` slices a weight, so a page pays for the
+  // kanji it shows rather than for the face.
+  //
+  // ⚠️ **Mincho is global on purpose.** tokens.css' `:lang(ja)` rule gives it
+  // to any `lang="ja"` element on any page — the door's 記憶, a *source*'s
+  // text — so importing it per component misses pages silently. Its rules
+  // cost ~80 KB brotli of CSS, once (ADR 0074 §3).
+  // ⚠️ No `<link rel="preload" as="font">`: `/auth/refused` carries no link but
+  // its stylesheet (`08` §2.1, `test/e2e/auth.test.ts`).
+  css: [
+    '@fontsource/shippori-mincho/400.css',
+    '@fontsource/shippori-mincho/500.css',
+    '@fontsource/shippori-mincho/600.css',
+    '@fontsource/newsreader/300.css',
+    '@fontsource/newsreader/400.css',
+    '@fontsource/newsreader/400-italic.css',
+    '@fontsource/newsreader/500.css',
+    '@fontsource/ibm-plex-mono/400.css',
+    '@fontsource/ibm-plex-mono/500.css',
+    '~/assets/css/tokens.css',
+  ],
 
   // The rendering split is enforced by the build, not by discipline — ADR 0013,
   // ADR 0020, `03` §2.1. It is the reason Nuxt was chosen at all.

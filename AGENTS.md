@@ -10,7 +10,9 @@ dev / networking / cloud terminology follow.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-four more ADRs** with it — **73** as of 2026-09-24 (ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
+code since 2026-09-09 and **thirty-five more ADRs** with it — **74** as of 2026-09-25 (ADR 0074 self-hosts the three faces
+from `@fontsource` and closes the last "Still open" entry in the decision log; ⚠️ this said *73*
+until then. ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
 languages, ADR 0068 decides how an Anki deck gets in, and ADR 0069 makes the typed check the *grade*, from the reader's first *session* (⚠️ this said *69* until #25's triage on 2026-09-21, *68* until earlier that day, *67* until 2026-09-19, *66* until 2026-09-17, *61* until 2026-09-16 and *nineteen* until the day
 before). ⚠️ **#25 added no ADR and amended ADR 0070 in place** (2026-09-21: § Settled by the build — a `seed`

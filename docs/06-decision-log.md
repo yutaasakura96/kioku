@@ -1564,6 +1564,19 @@ how this escaped notice. The parameters go beside the connection string rather t
 ADR 0027 holds. ⚠️ **One link is honestly unmeasured** and ADR 0073 §4 says which.
 → [ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md)
 
+### [2026-09-25] The app ships its own faces
+Shippori Mincho, Newsreader and IBM Plex Mono are self-hosted from `@fontsource`, one stylesheet per
+weight `05` §4 draws. This closes the 2026-09-11 "Still open: whether the app ships its own font
+files" entry. The deciding reason is the one that entry leaned on: ADR 0022's move to EC2 or
+Lightsail stays a preset change plus a `pg_dump` only if no page depends on a third-party origin,
+and `@fontsource` needs no Nuxt module beside the pinned 4.5.2. Mincho's weight files are sliced
+into 120 `unicode-range` subsets (measured), so `/vet` fetches ~240 KB of fonts rather than a
+face. ⚠️ **Its 366 `@font-face` rules are ~80 KB brotli of CSS on every page, and that is chosen**:
+`tokens.css`' `:lang(ja)` rule puts Mincho on any page that marks Japanese, so a per-component import
+misses pages without failing. ⚠️ **No font preload**: `/auth/refused` still carries no link but its
+stylesheet.
+→ [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:
