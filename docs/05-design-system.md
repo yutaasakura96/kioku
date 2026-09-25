@@ -84,8 +84,11 @@ Related fills, which are not rules:
 
 ## 4. Type
 
-Three families, all Google Fonts. **Whether the app ships them from Google is a Phase 4 question**,
-not a design-system one; this file records only that these are the faces.
+Three families, all Google Fonts. ~~**Whether the app ships them from Google is a Phase 4 question**,
+not a design-system one; this file records only that these are the faces.~~ ⚠️ **Answered
+2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md):** the app self-hosts them from
+the `@fontsource` packages, exactly the weights in the table below, all three globally. Before that
+date every screen rendered in the fallbacks.
 
 | Role | Family | Weights drawn |
 | --- | --- | --- |

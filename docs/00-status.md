@@ -3,7 +3,8 @@
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
 and is the app they're studied in. First subject: JLPT vocabulary.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**70 ADRs** — ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
+**74 ADRs** — ⚠️ **ADR 0074, the app ships its own faces, added 2026-09-25** (this said *70* from
+2026-09-21 until then, three ADRs behind the directory). ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
 contributes only the words in it that name a level, on the re-measurement that ADR asked #26 for).
 ⚠️ **This said *67* until 2026-09-20, while ADR 0068 had been on disk and in the decision log since
 2026-09-19** — the commit that wrote the ADR updated `CLAUDE.md`'s count and not this one.
@@ -111,7 +112,29 @@ Read `CLAUDE.md` first, then this.
 
 ## Done
 
-**2026-09-24, latest — [#40](https://github.com/yutaasakura96/kioku/issues/40) is built: the door
+**2026-09-25, latest — the app ships its three faces**
+([ADR 0074](adr/0074-the-app-ships-its-own-faces.md)). Shippori Mincho, Newsreader and IBM Plex
+Mono are self-hosted from `@fontsource` 5.3.0, the weights `05` §4 draws and no others. That closes
+the decision log's 2026-09-11 "Still open" entry. Until now every screen rendered in Georgia and the
+system serif. `05` §4, `03` §13.5, `tokens.css` and `renovate.json` amended. **1158 TypeScript tests
+(unchanged), typecheck clean.** No ticket: the question was delegated and decided as (b), self-hosted
+`@fontsource`, over a Google stylesheet and `@nuxt/fonts`.
+- ⚠️ **Mincho is sliced, and that was measured before committing.** Each weight file is 120
+  `unicode-range` slices (median 14 KB). The same package also ships a `japanese-400.css` that is
+  the whole face in one 1.39 MB file. In Chrome against the build, each screen from an empty cache:
+  `/vet` fetched 15 font files, 240 KB; `/auth/refused` fetched 2, 45 KB.
+- ⚠️ **Mincho is global, and its stylesheet is the price.** 366 `@font-face` rules, mostly
+  `unicode-range` lists, make the entry CSS 79 KB brotli on every page, where it was ~1.3 KB. A
+  split that imported Mincho only in *Vet* and *Review* was built and reverted the same day:
+  `tokens.css`' global `:lang(ja)` rule means the door's 記憶 and `/sources/:id` also draw Mincho,
+  and the split left them on the system face with nothing failing (ADR 0074 §3).
+- ⚠️ **No font preload**, so `/auth/refused` still carries no `href` but its stylesheet and its e2e
+  test is untouched (ADR 0074 §4).
+- ⚠️ **One flake seen, not caused here.** `review.test.ts`'s offline replay failed once in a full
+  run: it waits a fixed 500 ms for the outbox to drain. It passed on four later runs, three of them
+  alone. Recorded so the next failure is recognised rather than re-diagnosed.
+
+**2026-09-24 — [#40](https://github.com/yutaasakura96/kioku/issues/40) is built: the door
 and the refusal page take `10` §9's treatment.** Both are `EmptyBlock.vue` in `--k-measure-empty`,
 left-aligned, no shell, every value from `tokens.css`. The block gained three props — `rule`
 (default `true`), `size` (`statement`, `mark`, `datum`: three rows of `05` §4's ramp) and `tag` (the
@@ -1743,6 +1766,8 @@ what JavaScript's `.length` does to a Japanese *source*.
   `app/assets/css/tokens.css` is `05` §§1–6, ADR 0024's four greys included. ⚠️ **The font *files* are
   still not shipped and that question is genuinely open** — `05` §4 deferred it to Phase 4 and Phase 4
   never answered; the stacks carry `05` §4's own fallbacks and `06-decision-log.md` records the gap.
+  ⚠️ **Answered 2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)** — self-hosted
+  from `@fontsource`.
 - ⚠️ **The end-to-end tier can sign in.** `11` §6.1 handed that to #10 and `00-status.md` § Next left
   the door open for #6 to argue it. #6 argued it, because its own criteria put the over-cap re-render
   in the end-to-end column and every route that pair touches is gated. PGlite behind a socket server,
@@ -3724,6 +3749,12 @@ Nothing.
   `05` §4's own fallbacks, so a reader today sees Georgia rather than Newsreader. It was left open
   rather than decided in passing because it is a dependency decision with a pin obligation
   (`03` §13.5); the leaning and the reasoning are in `06-decision-log.md`.
+  ⚠️ **Answered 2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)**: the faces
+  are self-hosted from `@fontsource`, all three in `nuxt.config.ts`'s global `css` list. ⚠️ **Do not
+  move Mincho out of it to save the ~80 KB of CSS** without a guard: `:lang(ja)` puts it on any page
+  that marks Japanese, and a page that loads no Mincho falls back silently (ADR 0074 §3 tried it).
+  ⚠️ **And no `<link rel="preload" as="font">`, ever**: `/auth/refused`'s e2e test allows
+  no `href` except a stylesheet, and ADR 0074 §4 declines to widen it.
 - ⚠️ **The e2e tier signs in now, and no endpoint mints a session.** PGlite behind
   `@electric-sql/pglite-socket` 0.2.11 gives the built app a real wire-protocol database;
   `test/e2e/session.ts` writes the row and signs the cookie with Better Auth's own scheme, read off
