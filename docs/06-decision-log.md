@@ -928,6 +928,9 @@ anyway.
 
 ### [2026-09-11] ⚠️ Still open: whether the app ships its own font files
 
+⚠️ **Answered 2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)** — self-hosted
+from `@fontsource`, as leaned below. The entry is kept as written.
+
 **Not a decision — a gap, recorded so it stops being invisible.** `05` §4 says "whether the app ships
 them from Google is a **Phase 4 question**, not a design-system one". Phase 4 never answered it, and
 nothing in eleven documents or forty-two ADRs chooses between a Google Fonts stylesheet, self-hosted
