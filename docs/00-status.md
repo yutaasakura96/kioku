@@ -1766,6 +1766,8 @@ what JavaScript's `.length` does to a Japanese *source*.
   `app/assets/css/tokens.css` is `05` §§1–6, ADR 0024's four greys included. ⚠️ **The font *files* are
   still not shipped and that question is genuinely open** — `05` §4 deferred it to Phase 4 and Phase 4
   never answered; the stacks carry `05` §4's own fallbacks and `06-decision-log.md` records the gap.
+  ⚠️ **Answered 2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)** — self-hosted
+  from `@fontsource`.
 - ⚠️ **The end-to-end tier can sign in.** `11` §6.1 handed that to #10 and `00-status.md` § Next left
   the door open for #6 to argue it. #6 argued it, because its own criteria put the over-cap re-render
   in the end-to-end column and every route that pair touches is gated. PGlite behind a socket server,
