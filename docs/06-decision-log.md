@@ -1580,6 +1580,43 @@ misses pages without failing. ⚠️ **No font preload**: `/auth/refused` still 
 stylesheet.
 → [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)
 
+### [2026-09-25] A local signed-in session comes from a script, still never from the app
+
+**Decision.** `npm run dev:session` (`scripts/dev-session.ts`) gives an agent a signed-in browser on
+the app running locally, so that a UI change can be checked on the screens behind the Google gate. It
+boots a PGlite database kept in `.data/dev-session/`, writes one reader (`usr_dev_session`, reused
+across runs) and a session into it with the e2e tier's own `signIn` (`test/e2e/session.ts`), signs
+the cookie with the e2e fixture secret, and runs `nuxt dev --dotenv .data/dev-session/app.env`
+against exactly that database and secret — so the root `.env`, and Neon with it, is never behind a
+forged session. It hands the cookie over three ways: a URL on a loopback server **inside the script**
+that sets the cookie and redirects into the app (cookies are scoped by host, not port, so any browser
+tool can be signed in by navigating); a Playwright `storageState` file; and the cookie's name, value,
+domain and path, printed. `scripts/dev-session/guard.ts` refuses before anything is written when
+`NODE_ENV` is `production`, when `VERCEL` is set, when the database URL is not localhost, when the
+app URL is not `http` on localhost, or when the secret is the root `.env`'s real one.
+`test/e2e/session.ts` and `test/e2e/database.ts` gained parameters (a client, a secret, a data
+directory, a port) and nothing else; the tests call them as before. The captain's brief said `pnpm`;
+this repository is npm, so it is `npm run`.
+
+**Alternatives considered.** A sign-in route or flag inside the app, local-only or not — ⚠️
+**refused again, for the reason given on 2026-09-11** (*The e2e tier signs in, and it is still
+PGlite*): `S1` says refused at every route, the app is publicly reachable, and a route that mints a
+session is a hole in the property #5 exists to establish however it is guarded. Pointing the script
+at the `.env` database — that is Neon, with the real secret, and a forged session there opens the
+deployed app; the guard refuses exactly that. A second copy of the cookie signing — `11` §6.1's whole
+argument for the forgery is that one implementation fails loudly when it is wrong, and two could
+disagree quietly.
+
+**Reason.** The captain requires UI changes to be checked in a real browser, and every screen but
+`/auth` is behind Google, which an agent cannot pass. The e2e tier already reaches those screens
+safely; this reuses that exact code from outside the app. Nothing under `app/`, `server/` or
+`shared/` imports it — `test/unit/dev-session-guard.test.ts` asserts that, and the guard's refusals.
+`test/e2e/dev-session.test.ts` asserts the prepared session is one the built app accepts.
+
+**Revisit if** the app ever reads its session somewhere other than the Better Auth cookie, or the
+e2e signing in `test/e2e/session.ts` changes shape — the script inherits either change rather than
+duplicating it.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

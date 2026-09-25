@@ -13,6 +13,14 @@
  * a hole in exactly the property #5 was built to establish. Nothing here is
  * imported by anything under `app/` or `server/`.
  *
+ * ⚠️ **One other caller, and it is not the application either:**
+ * `scripts/dev-session.ts` (`npm run dev:session`) signs a local reader in with
+ * this same function, so an agent can look at the screens behind the gate in a
+ * real browser. It passes its own client and secret — both local — and never
+ * runs inside the app. That is why the client, the secret and the email are
+ * parameters, and why the import below carries its `.ts`: Node runs that script
+ * directly, and Node does not guess extensions.
+ *
  * The signing is Better Auth's own, read off `better-call` 's
  * `signCookieValue` on 2026-09-11:
  *
@@ -28,17 +36,37 @@
  */
 
 import { createHmac } from 'node:crypto'
-import type { PGlite } from '@electric-sql/pglite'
 
-import { TEST_ENVIRONMENT } from './environment'
+import { TEST_ENVIRONMENT } from './environment.ts'
 
 /** Better Auth's default cookie name, with no `cookiePrefix` configured. */
-const SESSION_COOKIE = 'better-auth.session_token'
+export const SESSION_COOKIE = 'better-auth.session_token'
+
+/** How long the row lives — `session.expiresIn` in `server/utils/auth.ts`. */
+export const SESSION_SECONDS = 60 * 60 * 24 * 7
+
+/**
+ * Anything that runs a string of SQL. `PGlite` is one as it stands; a
+ * `node-postgres` client is one through `{ exec: sql => client.query(sql) }`.
+ */
+export interface SqlClient {
+  exec: (sql: string) => Promise<unknown>
+}
+
+export interface SignInOptions {
+  /** The secret the app under test signs with. Defaults to the e2e fixture. */
+  secret?: string
+  /** Must be the app's `KIOKU_INVITED_EMAIL`. Defaults to the e2e fixture. */
+  email?: string
+}
 
 export interface SignedInReader {
   userId: string
   /** Ready for a `Cookie:` request header. */
   cookie: string
+  /** The two halves of {@link cookie}, for a browser's cookie jar. */
+  cookieName: string
+  cookieValue: string
 }
 
 /**
@@ -48,12 +76,18 @@ export interface SignedInReader {
  * allowlist the process refuses to start without (`08` §4.3). A different
  * address here would be a reader the application is configured to turn away.
  */
-export async function signIn(client: PGlite, userId = 'usr_e2e'): Promise<SignedInReader> {
+export async function signIn(
+  client: SqlClient,
+  userId = 'usr_e2e',
+  options: SignInOptions = {},
+): Promise<SignedInReader> {
   const token = `e2e-session-token-${userId}`
+  const secret = options.secret ?? TEST_ENVIRONMENT.BETTER_AUTH_SECRET!
+  const email = options.email ?? TEST_ENVIRONMENT.KIOKU_INVITED_EMAIL!
 
   await client.exec(`
     INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
-    VALUES ('${userId}', 'Reader', '${TEST_ENVIRONMENT.KIOKU_INVITED_EMAIL}', true, now(), now())
+    VALUES ('${userId}', 'Reader', '${email}', true, now(), now())
     ON CONFLICT (id) DO NOTHING;
   `)
 
@@ -61,7 +95,7 @@ export async function signIn(client: PGlite, userId = 'usr_e2e'): Promise<Signed
     INSERT INTO auth."session" (id, expires_at, token, created_at, updated_at, user_id)
     VALUES (
       'ses_${userId}',
-      now() + interval '7 days',
+      now() + interval '${SESSION_SECONDS} seconds',
       '${token}',
       now(),
       now(),
@@ -70,11 +104,18 @@ export async function signIn(client: PGlite, userId = 'usr_e2e'): Promise<Signed
     ON CONFLICT (id) DO UPDATE SET expires_at = excluded.expires_at;
   `)
 
-  return { userId, cookie: `${SESSION_COOKIE}=${signCookieValue(token)}` }
+  const cookieValue = signCookieValue(token, secret)
+
+  return {
+    userId,
+    cookie: `${SESSION_COOKIE}=${cookieValue}`,
+    cookieName: SESSION_COOKIE,
+    cookieValue,
+  }
 }
 
-function signCookieValue(value: string): string {
-  const signature = createHmac('sha256', TEST_ENVIRONMENT.BETTER_AUTH_SECRET!)
+function signCookieValue(value: string, secret: string): string {
+  const signature = createHmac('sha256', secret)
     .update(value)
     .digest('base64')
 
