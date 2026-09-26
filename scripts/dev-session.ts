@@ -29,6 +29,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
+import { createServer } from 'node:net'
 import { fileURLToPath } from 'node:url'
 import { parseEnv } from 'node:util'
 
@@ -49,8 +50,31 @@ function realSecrets(): string[] {
   return secret ? [secret] : []
 }
 
+async function checkAppPort(): Promise<void> {
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new DevSessionRefused('DEV_SESSION_PORT must be an integer from 1 to 65535.')
+
+  for (const host of ['127.0.0.1', '::1']) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const server = createServer()
+        server.once('error', reject)
+        server.listen(port, host, () => server.close(() => resolve()))
+      })
+    }
+    catch (error) {
+      if (host === '::1' && ['EADDRNOTAVAIL', 'EAFNOSUPPORT'].includes((error as NodeJS.ErrnoException).code ?? ''))
+        continue
+      if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE')
+        throw new DevSessionRefused(`Port ${port} is already in use on ${host}. Stop the other process or set DEV_SESSION_PORT.`)
+      throw error
+    }
+  }
+}
+
 async function prepare(): Promise<DevSession> {
   try {
+    await checkAppPort()
     return await prepareDevSession({
       stateDir: STATE_DIR,
       appUrl,

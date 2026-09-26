@@ -6,7 +6,7 @@
  *
  * ⚠️ **Nothing here is new signing code.** The database is the e2e tier's
  * (`test/e2e/database.ts`) with a directory to keep it in, and the session is
- * the e2e tier's (`test/e2e/session.ts`) with a local secret passed in. Both
+ * the e2e tier's (`test/e2e/session.ts`) with its local fixture secret. Both
  * were already trusted for exactly this — a session the app accepts, with no
  * route that mints one (decision log, 2026-09-11 and 2026-09-25).
  */
@@ -76,10 +76,7 @@ export async function prepareDevSession(options: DevSessionOptions): Promise<Dev
   mkdirSync(options.stateDir, { recursive: true })
   const database = await startTestDatabase({ dataDir: join(options.stateDir, 'pgdata') })
 
-  const reader = await signIn(database.client, DEV_READER_ID, {
-    secret,
-    email: TEST_ENVIRONMENT.KIOKU_INVITED_EMAIL,
-  })
+  const reader = await signIn(database.client, DEV_READER_ID)
 
   const appEnv: Record<string, string> = {
     ...TEST_ENVIRONMENT,
@@ -144,7 +141,7 @@ export interface Handoff {
  * script runs**, and the cookie it sets opens a database that lives in the same
  * process. It is not a route of the app and the app does not know it exists.
  */
-export async function startHandoff(reader: SignedInReader, appUrl: string, port = 0): Promise<Handoff> {
+export async function startHandoff(reader: SignedInReader, appUrl: string): Promise<Handoff> {
   const host = new URL(appUrl).hostname
   const cookie = [
     `${reader.cookieName}=${reader.cookieValue}`,
@@ -161,7 +158,7 @@ export async function startHandoff(reader: SignedInReader, appUrl: string, port 
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(port, '127.0.0.1', resolve)
+    server.listen(0, '127.0.0.1', resolve)
   })
 
   const address = server.address() as AddressInfo

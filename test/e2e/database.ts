@@ -70,8 +70,6 @@ export interface TestDatabase {
 export interface TestDatabaseOptions {
   /** A directory to keep the data in across runs. Omitted, it is in memory. */
   dataDir?: string
-  /** Omitted, the OS picks a free one — see below. */
-  port?: number
 }
 
 /**
@@ -91,7 +89,7 @@ export async function startTestDatabase(options: TestDatabaseOptions = {}): Prom
   // Port 0 asks the OS for a free one. A fixed port would make two test files
   // run in parallel into a race whose symptom is a connection refused in
   // whichever one lost.
-  const server = new PGLiteSocketServer({ db: client, port: options.port ?? 0, host: '127.0.0.1' })
+  const server = new PGLiteSocketServer({ db: client, port: 0, host: '127.0.0.1' })
   await server.start()
 
   const address = (server as unknown as { server?: { address: () => AddressInfo | null } })

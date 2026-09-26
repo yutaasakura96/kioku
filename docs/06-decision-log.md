@@ -1594,9 +1594,8 @@ tool can be signed in by navigating); a Playwright `storageState` file; and the 
 domain and path, printed. `scripts/dev-session/guard.ts` refuses before anything is written when
 `NODE_ENV` is `production`, when `VERCEL` is set, when the database URL is not localhost, when the
 app URL is not `http` on localhost, or when the secret is the root `.env`'s real one.
-`test/e2e/session.ts` and `test/e2e/database.ts` gained parameters (a client, a secret, a data
-directory, a port) and nothing else; the tests call them as before. The captain's brief said `pnpm`;
-this repository is npm, so it is `npm run`.
+`test/e2e/database.ts` gained only a data directory option; the tests call it as before. The
+captain's brief said `pnpm`; this repository is npm, so it is `npm run`.
 
 **Alternatives considered.** A sign-in route or flag inside the app, local-only or not — ⚠️
 **refused again, for the reason given on 2026-09-11** (*The e2e tier signs in, and it is still
@@ -1609,8 +1608,9 @@ disagree quietly.
 
 **Reason.** The captain requires UI changes to be checked in a real browser, and every screen but
 `/auth` is behind Google, which an agent cannot pass. The e2e tier already reaches those screens
-safely; this reuses that exact code from outside the app. Nothing under `app/`, `server/` or
-`shared/` imports it — `test/unit/dev-session-guard.test.ts` asserts that, and the guard's refusals.
+safely; this reuses that exact code from outside the app. The helper lives under `scripts/` and
+`test/e2e/`, which the app does not import. `test/unit/dev-session-guard.test.ts` asserts the
+guard's refusals.
 `test/e2e/dev-session.test.ts` asserts the prepared session is one the built app accepts.
 
 **Revisit if** the app ever reads its session somewhere other than the Better Auth cookie, or the
