@@ -110,10 +110,13 @@ dev:session — a local reader is signed in (${session.reader.userId}).
   Local database only (${session.database.connectionString}). Ctrl-C stops everything.
 `)
 
+const childEnv = { ...process.env, ...session.appEnv }
+delete childEnv._PORT
+
 const nuxt = spawn(
   fileURLToPath(new URL('../node_modules/.bin/nuxt', import.meta.url)),
-  ['dev', '--port', String(port), '--dotenv', '.data/dev-session/app.env'],
-  { cwd: ROOT, stdio: 'inherit', env: { ...process.env, ...session.appEnv } },
+  ['dev', '--host', '127.0.0.1', '--port', String(port), '--dotenv', '.data/dev-session/app.env'],
+  { cwd: ROOT, stdio: 'inherit', env: childEnv },
 )
 
 let stopping = false
