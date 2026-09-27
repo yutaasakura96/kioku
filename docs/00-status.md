@@ -108,7 +108,7 @@ second out: one sampled deck encodes its levels as subdecks and its tags say som
 
 **Updated:** 2026-09-22
 
-Read `CLAUDE.md` first, then this.
+Read `AGENTS.md` first, then this.
 
 ## Done
 
@@ -4118,11 +4118,6 @@ Nothing.
   one attribute is the §9.2 specification** — dropping it draws a rule and no test but
   `test/e2e/auth.test.ts`'s *draws no rule* notices.
 
-- ~~⚠️ **`10` §9's visual specification for the door and the refusal page is not built, and #5 did not
-  own it.**~~ Both pages carry the content and the structure `10` §9 names — the mark, the name, the
-  body line, the rule, the control; the statement, the body, and no rule — with no treatment, because
-  `05-design-system.md`'s tokens do not exist in the repo yet and **no ticket owns them.** The first
-  screen ticket to need them lands them. This is a gap in the tracker, not a decision.
 - **Sign-in itself is not tested, and `11` §8 already said it would not be.** The flow through
   Google's redirect is in the end-to-end-only column and `11` §9 declines to test Better Auth's own
   behaviour. What #5 tests is everything around it. ⚠️ The e2e app boots with a `DATABASE_URL` that

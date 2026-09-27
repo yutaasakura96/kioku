@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { fetch, setup } from '@nuxt/test-utils/e2e'
+import { Client } from 'pg'
 import { afterAll, describe, expect, it } from 'vitest'
 
 import { DEV_READER_ID, prepareDevSession, startHandoff } from '../../scripts/dev-session/prepare'
@@ -47,6 +48,21 @@ afterAll(async () => {
 })
 
 describe('npm run dev:session', () => {
+  it('keeps the local database reachable when the app opens several connections', async () => {
+    const checks = Array.from({ length: 4 }, async () => {
+      const client = new Client(session.database.connectionString)
+      try {
+        await client.connect()
+        return (await client.query('SELECT 1 AS alive')).rows[0]?.alive
+      }
+      finally {
+        await client.end().catch(() => {})
+      }
+    })
+
+    expect(await Promise.all(checks)).toEqual([1, 1, 1, 1])
+  })
+
   it('reuses one local reader across runs', async () => {
     const users = await session.database.client.query<{ id: string }>('SELECT id FROM auth."user"')
     expect(users.rows.map(row => row.id)).toEqual([DEV_READER_ID])

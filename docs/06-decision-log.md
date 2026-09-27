@@ -1588,7 +1588,9 @@ boots a PGlite database kept in `.data/dev-session/`, writes one reader (`usr_de
 across runs) and a session into it with the e2e tier's own `signIn` (`test/e2e/session.ts`), signs
 the cookie with the e2e fixture secret, and runs `nuxt dev --dotenv .data/dev-session/app.env`
 against exactly that database and secret — so the root `.env`, and Neon with it, is never behind a
-forged session. It hands the cookie over three ways: a URL on a loopback server **inside the script**
+forged session. Before writing the database, the script refuses an occupied app port on either
+available loopback address; Nuxt binds to `127.0.0.1` on that checked port and ignores an inherited
+`_PORT` override. It hands the cookie over three ways: a URL on a loopback server **inside the script**
 that sets the cookie and redirects into the app (cookies are scoped by host, not port, so any browser
 tool can be signed in by navigating); a Playwright `storageState` file; and the cookie's name, value,
 domain and path, printed. `scripts/dev-session/guard.ts` refuses before anything is written when

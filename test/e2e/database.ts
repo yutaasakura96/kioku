@@ -89,7 +89,9 @@ export async function startTestDatabase(options: TestDatabaseOptions = {}): Prom
   // Port 0 asks the OS for a free one. A fixed port would make two test files
   // run in parallel into a race whose symptom is a connection refused in
   // whichever one lost.
-  const server = new PGLiteSocketServer({ db: client, port: 0, host: '127.0.0.1' })
+  // Nuxt's connection pool can open several sockets while rendering a page.
+  // The socket server defaults to one and resets any additional connections.
+  const server = new PGLiteSocketServer({ db: client, port: 0, host: '127.0.0.1', maxConnections: 10 })
   await server.start()
 
   const address = (server as unknown as { server?: { address: () => AddressInfo | null } })
