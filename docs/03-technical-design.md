@@ -262,6 +262,12 @@ ARM line stays open for ADR 0022's destination.
 **Neon Postgres 18, a branch per environment** (ADR 0022). Branching is copy-on-write and each
 branch gets its own compute, which also scales to zero.
 
+⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): production and development are not two Neon
+branches.** The existing database is production, and development is PGlite (§13.1). The app's
+functions run in Vercel's **`sin1`** (Singapore), the region Neon's `aws-ap-southeast-1` is in, so a
+query does not leave the region. Vercel's default for a new project is `iad1`. ⚠️ **The latency
+difference between the two is not measured.**
+
 ### 4.1 Two connection strings, on purpose
 
 | Consumer | String | Why |
@@ -308,6 +314,21 @@ rewriting, no hand-edited TLS parameters. `psycopg[binary]` bundles libpq 18.6, 
 is already the tax ADR 0019 accepted knowingly, and two of them able to alter the schema would make
 "what shape is this table" a question with two answers. The worker reads and writes rows. `04`
 owns what those rows are.
+
+⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): a migration reaches production by hand,
+and before the code that needs it.** Merging `develop` into `main` deploys, through Vercel's Git
+integration. So the release step comes first: apply the pending migrations to the production
+database, check `drizzle.__drizzle_migrations` to confirm they landed, and only then merge. The
+check is not optional. `0003` to `0005` were once written up as missing from Neon while `0003` was
+already there (`00-status.md` § Done, 2026-09-19). And code that runs ahead of its schema breaks
+*Ingest*, because `/` reads `seed` on every render. The rule does not put migrations in Vercel's build
+command, because that would give the build a database string. It does not put them in a GitHub Actions
+job either, because the Actions secrets belong to a public repository. **Revisit if a migration is ever
+forgotten.** ⚠️ **Two things are not settled yet, and
+[#48](https://github.com/yutaasakura96/kioku/issues/48) owns both.** One is where the production
+string for this step lives once the root `.env` no longer points the app at production (§13.1).
+The other is whether `drizzle-kit migrate` is safe through the pooled PgBouncer endpoint that
+`drizzle.config.ts` documents. That second one is **unverified**.
 
 ⚠️ Better Auth's `getMigrations` **does not work with the Drizzle adapter** (verification §2.3) —
 its schema is generated (`npx auth@latest generate --adapter … --dialect …`) and then lands in the
@@ -873,6 +894,18 @@ by adding one convenience endpoint.
 
 Environment variables per environment, matching Neon's branch-per-environment: production never
 shares a string with development.
+
+⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the rule holds, and it is not held by a
+second Neon branch.** Production is the **existing** Neon database. Its five app values go into
+Vercel's **Production** environment only, with a `BETTER_AUTH_SECRET` of its own. Previews are
+turned off, so no other Vercel environment holds a database string. **Development is PGlite:**
+`npm run dev:session` writes its own database, secret and origin into `.data/dev-session/app.env`
+and runs the app against that file instead of the root `.env` (decision log, 2026-09-25). The laptop keeps one production string,
+the worker's **direct** one in `worker/.env`, because the laptop worker is the production worker.
+⚠️ **Until [#48](https://github.com/yutaasakura96/kioku/issues/48) lands, the root `.env` still
+points the app at that same database**, so the rule is decided and not yet true on disk. #48's first
+half lands with the first deployment,
+[#45](https://github.com/yutaasakura96/kioku/issues/45).
 
 ### 13.2 How input is validated, and where
 

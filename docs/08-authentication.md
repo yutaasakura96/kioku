@@ -203,6 +203,13 @@ readable the moment it was pushed.
 The environment variable also gets **per-environment values for free**, which matters because Neon
 runs a branch per environment and production has never shared a string with development.
 
+⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the per-environment values are Vercel's
+Production environment and a local file, not two Neon branches.** Production's `KIOKU_INVITED_EMAIL`
+is set in Vercel's **Production** environment. Preview deployments are off, so there is no third
+value. Local development runs on `npm run dev:session`, which signs in a fixture reader on PGlite
+(decision log, 2026-09-25) and never passes through this comparison. The reason above is unchanged.
+Only the mechanism it pointed at has changed.
+
 ### 4.2 Why not a table
 
 ADR 0017's revisit condition is precise: the allowlist stops being a single constant **when a second
@@ -551,6 +558,27 @@ generated per deployment, so registering them with Google means either a wildcar
 accept or an entry per deploy. Production and one local development origin are registered; a preview
 build is for looking at, not for signing into. This is one more thing the move in ADR 0022 tidies
 away.
+
+⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the first deployment is planned, and four
+of this section's blanks are filled.**
+
+- **`<host>` is `<project>.vercel.app`.** The redirect URI to register is
+  `https://<project>.vercel.app/api/auth/callback/google`, and `BETTER_AUTH_URL` is
+  `https://<project>.vercel.app`. The project name is chosen when the Vercel project is created. A
+  domain comes only with ADR 0022's move, and at that point one redirect URI and one bookmark change.
+- **Previews are not just unable to sign in. They are off.** Deploys go through Vercel's Git
+  integration, production is `main`, and preview deployments are disabled. So no preview exists that
+  would need a database string or a redirect URI.
+- **The five variables are set in Vercel's Production environment only**, and `BETTER_AUTH_SECRET`
+  is a new value, not the laptop's (`03` §13.1). `DATABASE_URL` is the existing Neon database's
+  pooled string, verbatim (ADR 0027).
+- **Registering the URI, creating the project and entering the values are Yuta's steps**, in
+  [#45](https://github.com/yutaasakura96/kioku/issues/45). None of the values goes in an issue: the
+  repository is public.
+
+⚠️ **The local origin, `http://localhost:3000/api/auth/callback/google`, is still registered**
+(`00-status.md` § Done, 2026-09-13). Whether local development still uses it, now that UI work runs
+on `npm run dev:session`, **is not decided**. Nothing is removed until it is.
 
 ---
 

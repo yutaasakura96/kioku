@@ -1619,6 +1619,23 @@ guard's refusals.
 e2e signing in `test/e2e/session.ts` changes shape — the script inherits either change rather than
 duplicating it.
 
+### [2026-09-28] The first deployment is planned: the existing database, `sin1`, from `main`
+Yuta chose to carry out ADR 0022 next, over a second *subject*, a production template and decks,
+and took every recommendation on the planning board. **The existing Neon database becomes
+production, and local development moves to PGlite** (`npm run dev:session`). The functions run in
+**`sin1`**, beside Neon. Deploys use **Vercel's Git integration, with production on `main` and
+previews off**. **A migration is applied by hand before `develop` is merged into `main`.** The
+address is **`<project>.vercel.app`** until the move. The work is **done when every screen and every
+input works from the deployed app**, the `.apkg` upload and the `noScripts` check included. **Yuta
+walks typed *Review* on a real phone**, and each finding becomes a ticket. The deciding reason is that
+this was decided three weeks earlier and never done. Everything built for away from the desk (the
+phone layout, Done, `S8`'s outbox) has only ever run on the laptop, and retention and consistency
+only grow on days he studies. Amends `03` §4, §4.2 and §13.1, and `08` §4.1 and §10. No new ADR,
+because no answer went against ADR 0022. ⚠️ **Drafted as
+[#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48),
+all `needs-triage` until he confirms them.**
+→ [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:
