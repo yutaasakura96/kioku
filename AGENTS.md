@@ -275,7 +275,10 @@ history.
   `package.json`, and why `--legacy-peer-deps` is not it. ⚠️ **Amended 2026-09-08:** this said
   *four* and listed `drizzle-orm` in place of `ts-fsrs`, while `03` §13.5 carried neither
   `drizzle-orm` nor PGlite. `03` §13.5 is the list; it now has all seven and this line matches it.
-- **Branches: `develop` is where work happens; `main` is the integration branch.** The remote is
+- **Branches: `develop` is the integration branch and the GitHub default; `main` is release and
+  production.** A release goes `develop` → `main` in a separate release PR, and merging to `main`
+  deploys (ADR 0022 § Amended 2026-09-28). ⚠️ **This said `main` was the integration branch until
+  2026-09-28.** The remote is
   [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku) and it is **public** — so
   `KIOKU_INVITED_EMAIL` and every other value in `03` §13.1 stays out of the repository.
 

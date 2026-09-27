@@ -4164,7 +4164,11 @@ Nothing.
   against a database that enforces nothing.
 - ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it
   replaces the arrangement that stood until then, where `main` was both the default and the working
-  branch. `main` is the integration branch. Neon still gets a branch per environment to match.
+  branch. ~~`main` is the integration branch. Neon still gets a branch per environment to match.~~
+  ⚠️ **Amended 2026-09-28: `develop` is the integration branch and the GitHub default, and `main` is
+  release and production.** A release goes `develop` → `main` in a separate release PR, and merging
+  to `main` deploys. Production and development are not two Neon branches: development is PGlite
+  (ADR 0022 § Amended 2026-09-28).
 
 ## Skipped
 
