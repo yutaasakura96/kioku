@@ -928,6 +928,9 @@ anyway.
 
 ### [2026-09-11] ⚠️ Still open: whether the app ships its own font files
 
+⚠️ **Answered 2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)** — self-hosted
+from `@fontsource`, as leaned below. The entry is kept as written.
+
 **Not a decision — a gap, recorded so it stops being invisible.** `05` §4 says "whether the app ships
 them from Google is a **Phase 4 question**, not a design-system one". Phase 4 never answered it, and
 nothing in eleven documents or forty-two ADRs chooses between a Google Fonts stylesheet, self-hosted
@@ -1563,6 +1566,58 @@ underneath it), so `03` §3.1's *no query on a timer* rule never applied to it. 
 how this escaped notice. The parameters go beside the connection string rather than into it, so
 ADR 0027 holds. ⚠️ **One link is honestly unmeasured** and ADR 0073 §4 says which.
 → [ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md)
+
+### [2026-09-25] The app ships its own faces
+Shippori Mincho, Newsreader and IBM Plex Mono are self-hosted from `@fontsource`, one stylesheet per
+weight `05` §4 draws. This closes the 2026-09-11 "Still open: whether the app ships its own font
+files" entry. The deciding reason is the one that entry leaned on: ADR 0022's move to EC2 or
+Lightsail stays a preset change plus a `pg_dump` only if no page depends on a third-party origin,
+and `@fontsource` needs no Nuxt module beside the pinned 4.5.2. Mincho's weight files are sliced
+into 120 `unicode-range` subsets (measured), so `/vet` fetches ~240 KB of fonts rather than a
+face. ⚠️ **Its 366 `@font-face` rules are ~80 KB brotli of CSS on every page, and that is chosen**:
+`tokens.css`' `:lang(ja)` rule puts Mincho on any page that marks Japanese, so a per-component import
+misses pages without failing. ⚠️ **No font preload**: `/auth/refused` still carries no link but its
+stylesheet.
+→ [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)
+
+### [2026-09-25] A local signed-in session comes from a script, still never from the app
+
+**Decision.** `npm run dev:session` (`scripts/dev-session.ts`) gives an agent a signed-in browser on
+the app running locally, so that a UI change can be checked on the screens behind the Google gate. It
+boots a PGlite database kept in `.data/dev-session/`, writes one reader (`usr_dev_session`, reused
+across runs) and a session into it with the e2e tier's own `signIn` (`test/e2e/session.ts`), signs
+the cookie with the e2e fixture secret, and runs `nuxt dev --dotenv .data/dev-session/app.env`
+against exactly that database and secret — so the root `.env`, and Neon with it, is never behind a
+forged session. Before writing the database, the script refuses an occupied app port on either
+available loopback address; Nuxt binds to `127.0.0.1` on that checked port and ignores an inherited
+`_PORT` override. It hands the cookie over three ways: a URL on a loopback server **inside the script**
+that sets the cookie and redirects into the app (cookies are scoped by host, not port, so any browser
+tool can be signed in by navigating); a Playwright `storageState` file; and the cookie's name, value,
+domain and path, printed. `scripts/dev-session/guard.ts` refuses before anything is written when
+`NODE_ENV` is `production`, when `VERCEL` is set, when the database URL is not localhost, when the
+app URL is not `http` on localhost, or when the secret is the root `.env`'s real one.
+`test/e2e/database.ts` gained only a data directory option; the tests call it as before. The
+captain's brief said `pnpm`; this repository is npm, so it is `npm run`.
+
+**Alternatives considered.** A sign-in route or flag inside the app, local-only or not — ⚠️
+**refused again, for the reason given on 2026-09-11** (*The e2e tier signs in, and it is still
+PGlite*): `S1` says refused at every route, the app is publicly reachable, and a route that mints a
+session is a hole in the property #5 exists to establish however it is guarded. Pointing the script
+at the `.env` database — that is Neon, with the real secret, and a forged session there opens the
+deployed app; the guard refuses exactly that. A second copy of the cookie signing — `11` §6.1's whole
+argument for the forgery is that one implementation fails loudly when it is wrong, and two could
+disagree quietly.
+
+**Reason.** The captain requires UI changes to be checked in a real browser, and every screen but
+`/auth` is behind Google, which an agent cannot pass. The e2e tier already reaches those screens
+safely; this reuses that exact code from outside the app. The helper lives under `scripts/` and
+`test/e2e/`, which the app does not import. `test/unit/dev-session-guard.test.ts` asserts the
+guard's refusals.
+`test/e2e/dev-session.test.ts` asserts the prepared session is one the built app accepts.
+
+**Revisit if** the app ever reads its session somewhere other than the Better Auth cookie, or the
+e2e signing in `test/e2e/session.ts` changes shape — the script inherits either change rather than
+duplicating it.
 
 ## Adding an entry
 

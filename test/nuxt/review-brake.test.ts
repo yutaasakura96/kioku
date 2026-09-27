@@ -161,5 +161,8 @@ describe('`10` §5.7\'s third empty state (ADR 0066 §7)', () => {
     const view = await open('.statement')
 
     await vi.waitFor(() => expect(view.find('.statement').text()).toBe('Nothing due.'))
+
+    // `10` §4.6: the empty-state block's rule, drawn by default (#40).
+    expect(view.find('hr.rule').exists()).toBe(true)
   })
 })

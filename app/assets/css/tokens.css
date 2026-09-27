@@ -19,15 +19,12 @@
  * a resting control on `--k-raised`, and `--k-ink-ground` is its active face
  * (ADR 0035).
  *
- * ⚠️ **The three font families are named and their files are not shipped.**
- * `05` §4 says "whether the app ships them from Google is a Phase 4 question,
- * not a design-system one" — and Phase 4 never answered it. Nothing in eleven
- * documents or 39 ADRs decides between a Google Fonts stylesheet, self-hosted
- * `@fontsource` packages and `@nuxt/fonts`, and the choice is a dependency
- * decision with a pin obligation (`03` §13.5) rather than something #6's
- * acceptance criteria ask for. So the stacks below are `05` §4's own, fallbacks
- * included, and a reader today sees the fallbacks. **The question is open and
- * recorded in `06-decision-log.md`.**
+ * ⚠️ **The three font families are named here and their files ship
+ * elsewhere** (ADR 0074, 2026-09-25): all three come from `@fontsource`
+ * through `nuxt.config.ts`'s `css` list, globally, because `:lang(ja)` below
+ * puts Mincho on any page that marks Japanese. The stacks below are still
+ * `05` §4's own, fallbacks included. Until ADR 0074 the fallbacks were all
+ * anyone saw.
  */
 
 :root {

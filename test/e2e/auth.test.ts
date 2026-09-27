@@ -118,6 +118,23 @@ describe('/auth/refused — where the empty space is the requirement', () => {
 
     expect(html).toContain('This account is not invited.')
   })
+
+  it('draws no rule, because the absent rule is the specification', async () => {
+    // ⚠️ `10` §9.2. The empty-state block draws its rule by default (`05` §7),
+    // so this is the one structural property of the page a regression could
+    // add back silently — by dropping `:rule="false"` — and it would look like
+    // a component that failed to load.
+    const html = await $fetch<string>('/auth/refused')
+
+    expect(html).not.toMatch(/<hr[\s>]/i)
+  })
+
+  it('keeps the statement as the page\'s heading', async () => {
+    // Vue's SSR fragment markers sit inside the element; they are not content.
+    const html = (await $fetch<string>('/auth/refused')).replace(/<!--.*?-->/g, '')
+
+    expect(html).toMatch(/<h1[^>]*>\s*This account is not invited\.\s*<\/h1>/)
+  })
 })
 
 describe('/auth — the door', () => {
@@ -135,5 +152,19 @@ describe('/auth — the door', () => {
 
     expect(html.match(/<button[\s>]/gi) ?? []).toHaveLength(1)
     expect(html).not.toContain('Sign out')
+  })
+
+  it('draws the mark, one rule, and the control after it', async () => {
+    // `10` §9.1, in order: 記憶 in Japanese, then the rule, then the control.
+    const html = await $fetch<string>('/auth')
+
+    const mark = html.search(/lang="ja"[^>]*>\s*記憶/)
+    const rules = [...html.matchAll(/<hr[\s>]/gi)]
+    const control = html.search(/<button[\s>]/i)
+
+    expect(mark).toBeGreaterThan(-1)
+    expect(rules).toHaveLength(1)
+    expect(rules[0]!.index).toBeGreaterThan(mark)
+    expect(control).toBeGreaterThan(rules[0]!.index!)
   })
 })

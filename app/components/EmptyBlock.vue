@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // `05` §7's empty-state block — `10` §4.5, §4.6, §4.8 and §10.5 all use it, and
-// so do *Review*'s two non-terminal states.
+// so do *Review*'s two non-terminal states and `10` §9's door and refusal.
 //
 // ⚠️ **Left-aligned in a 560px column, never centred** (`10` §4.5). It is the
 // measure `05` §5 reserves for "when there is nothing to do", and the alignment
@@ -13,19 +13,44 @@
 // wrong advice in both, because an *ingestion* is already running — and "the
 // rule is the last thing on the screen" is that state's shape rather than an
 // oversight.
+//
+// ⚠️ **With one exception, and it is why `rule` is a prop: `/auth/refused`**
+// (`10` §9.2, #40). There the state offers nothing *by design* rather than for
+// now, and a rule would point at empty ground on the one screen where a dead end
+// is the feature. The default is `true` so that every other caller draws it
+// without saying so; `false` is written once, where it is the specification.
+//
+// `size` is `05` §4's ramp, three rows of it: the 46px screen-level statement
+// every empty state uses, the 54px Mincho mark the door says its own name in,
+// and the 24px datum the signed-in door gives the reader's email (`10` §9.1).
+// `name` is the door's `Kioku` line, `12px` under the mark; no other caller has
+// one, so it renders only when given.
+withDefaults(
+  defineProps<{
+    rule?: boolean
+    size?: 'statement' | 'mark' | 'datum'
+    /** `/auth/refused`'s statement is the page's `<h1>`; everywhere else it is a `<p>`. */
+    tag?: 'p' | 'h1'
+  }>(),
+  { rule: true, size: 'statement', tag: 'p' },
+)
 </script>
 
 <template>
   <div class="block">
-    <p class="statement">
+    <component :is="tag" :class="['statement', size === 'statement' ? null : size]">
       <slot name="statement" />
+    </component>
+
+    <p v-if="$slots.name" class="name">
+      <slot name="name" />
     </p>
 
     <p class="body">
       <slot name="body" />
     </p>
 
-    <hr class="rule">
+    <hr v-if="rule" class="rule">
 
     <div class="after">
       <slot />
@@ -47,6 +72,32 @@
   line-height: 1.15;
   letter-spacing: -0.01em;
   color: var(--k-ink);
+}
+
+/* `05` §4's 54px Mincho 500, lh 1 — the "term being judged" row, which `10`
+   §9.1 borrows for the mark. The face comes from the `:lang(ja)` rule on the
+   mark itself; English display tracking does not apply to Japanese. */
+.statement.mark {
+  font-size: 54px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: normal;
+}
+
+/* `05` §4's 24px Newsreader 400, lh 1.3 — "a single datum given weight". */
+.statement.datum {
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: normal;
+}
+
+/* `10` §9.1: `Kioku`, `12px` below the mark, 17px Newsreader 400. */
+.name {
+  margin: var(--k-space-3) 0 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--k-ink-secondary);
 }
 
 /* ⚠️ **`20px`, and `05` §7 and `10` §4.5 both say `18`.** `05` §5's scale is

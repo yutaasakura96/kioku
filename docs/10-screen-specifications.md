@@ -379,6 +379,10 @@ it exactly, *between a body block and what introduced it*. The `18` above and in
 canvas's figure restated without the snap; **the body's 18px type size is unchanged**, because §5
 exempts type sizes. `05` §7 carries the same amendment.
 
+⚠️ **Amended 2026-09-24 with [#40](https://github.com/yutaasakura96/kioku/issues/40): the block's
+rule is optional**, and §9.2's refusal is the one screen that omits it, for the reason §9.2 gives.
+All three states here draw it; `05` §7 carries the amendment.
+
 **The chrome bar stays in all three**, carrying `VET` and the Done cluster. Its counts are empty.
 
 | | Statement (46px) | Body (18px) | After the rule |

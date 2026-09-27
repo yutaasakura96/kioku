@@ -64,6 +64,15 @@
       "enabled": false
     },
     {
+      "description": "NOT A PIN \u2014 the three faces `05` \u00a74 draws, self-hosted since ADR 0074 (2026-09-25). A release can redraw a glyph or re-cut a unicode-range slice and cannot touch a *note*, a security floor or a test database, so any version Renovate likes is fine (`03` \u00a713.5). Grouped so the three faces move together in one PR rather than three.",
+      "matchPackageNames": [
+        "@fontsource/shippori-mincho",
+        "@fontsource/newsreader",
+        "@fontsource/ibm-plex-mono"
+      ],
+      "groupName": "fonts"
+    },
+    {
       "description": "Everything else: group the devDependencies so the weekly check is one PR to read rather than nine.",
       "matchDepTypes": [
         "devDependencies"

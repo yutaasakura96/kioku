@@ -1014,6 +1014,15 @@ pins" — while this list did not carry it. §13.2 had the reason all along. Bot
   what the fold does would change which answers count as right without any test in this repository
   noticing the reason. Its last publish was 2023-11-20, so the pin costs nothing. **It makes eight.**
 
+⚠️ **`@fontsource/shippori-mincho`, `@fontsource/newsreader` and `@fontsource/ibm-plex-mono` —
+deliberately *not* pins**, added 2026-09-25 by [ADR 0074](adr/0074-the-app-ships-its-own-faces.md)
+at **5.3.0**, declared `^5.3.0`. They are named here for the same reason as `anthropic`: a release
+can redraw a glyph or re-cut a `unicode-range` slice, and neither changes a *note*, moves a security
+floor or forks a test database. Renovate's npm manager covers them with no new manager.
+`renovate.json` carries one rule that **groups** the three, so the faces move in one PR rather than
+three. A major is where the imported stylesheet paths (`400.css`, `400-italic.css`) could change,
+and the build fails loudly if they do. The list above is still eight.
+
 ⚠️ **One `overrides` entry, and it is not a pin.** `package.json` carries
 `"overrides": { "better-auth": { "vitest": "$vitest" } }`.
 

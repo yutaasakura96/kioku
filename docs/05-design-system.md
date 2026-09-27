@@ -84,8 +84,8 @@ Related fills, which are not rules:
 
 ## 4. Type
 
-Three families, all Google Fonts. **Whether the app ships them from Google is a Phase 4 question**,
-not a design-system one; this file records only that these are the faces.
+Three families, self-hosted from `@fontsource` at exactly the weights in the table below, all three
+globally ([ADR 0074](adr/0074-the-app-ships-its-own-faces.md)).
 
 | Role | Family | Weights drawn |
 | --- | --- | --- |
@@ -335,6 +335,15 @@ snap record resolves this one by name: `18 → 20`. §5 also gives 20 a meaning 
 exactly — *between a body block and what introduced it*. The figure above is the canvas's, unsnapped.
 **The body's 18px type size is unchanged**: §5 exempts type sizes from the snap and only ever moved
 the gap. `10` §4.5 carries the same amendment.
+
+⚠️ **Amended 2026-09-24 with [#40](https://github.com/yutaasakura96/kioku/issues/40) — the rule is
+optional, and exactly one screen omits it: `/auth/refused`.** The rule separates the statement from
+what the state *offers*; the refusal offers nothing by design rather than for now, and a rule there
+would point at empty ground (`10` §9.2). Every other empty state still draws it, and "the rule is the
+last thing on the screen" stays a state's shape where it offers nothing *yet*. The statement also
+takes other rows of §4's ramp where `10` §9.1 names them: the door's 54px Mincho 500 mark, with the
+17px `Kioku` name line `12px` under it, and the signed-in door's 24px Newsreader 400 email. In code:
+`EmptyBlock.vue`'s `rule` prop (default `true`), `size` and `tag`.
 
 Where an empty state offers an action it is a **quiet** affordance: `--k-raised` face,
 `1px --k-border-control`, `--k-radius-control`, `13px 20px`, a 17px label in `--k-ink` and an accent
