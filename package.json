@@ -19,7 +19,8 @@
     "test:unit": "vitest run --project unit",
     "test:schema": "vitest run --project schema",
     "test:nuxt": "vitest run --project nuxt",
-    "test:e2e": "vitest run --project e2e"
+    "test:e2e": "vitest run --project e2e",
+    "dev:session": "node scripts/dev-session.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

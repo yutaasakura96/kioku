@@ -128,6 +128,9 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 npm run test        # 1158 across four tiers — unit, schema, nuxt, e2e (counted 2026-09-24, after #40)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
+npm run dev:session # the app on localhost:3000, signed in: open the "Sign in" URL it prints (or load
+                    # its Playwright storageState). Local PGlite + fixture secret only; the app
+                    # itself is unchanged (decision log, 2026-09-25)
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
 cd worker && uv run --env-file .env python .   # the worker
 # ⚠️ --env-file is not optional: the worker has NO dotenv loader (it reads

@@ -53,8 +53,6 @@ import { migrate } from 'drizzle-orm/pglite/migrator'
 import { fileURLToPath } from 'node:url'
 import type { AddressInfo } from 'node:net'
 
-import * as schema from '../../server/db/schema'
-
 const MIGRATIONS = fileURLToPath(new URL('../../server/db/migrations', import.meta.url))
 
 export interface TestDatabase {
@@ -69,6 +67,11 @@ export interface TestDatabase {
   stop: () => Promise<void>
 }
 
+export interface TestDatabaseOptions {
+  /** A directory to keep the data in across runs. Omitted, it is in memory. */
+  dataDir?: string
+}
+
 /**
  * Boots PGlite, runs **the real migrations** through Drizzle's own migrator —
  * the same choice `test/schema/harness.ts` argues, and for the same reason: a
@@ -76,14 +79,19 @@ export interface TestDatabase {
  * argument is that copies drift in the most damaging direction, because the copy
  * is what the tests would then be proving correct.
  */
-export async function startTestDatabase(): Promise<TestDatabase> {
-  const client = new PGlite()
-  await migrate(drizzle(client, { schema }), { migrationsFolder: MIGRATIONS })
+export async function startTestDatabase(options: TestDatabaseOptions = {}): Promise<TestDatabase> {
+  const client = new PGlite(options.dataDir)
+  // No `schema` here: the migrator reads the folder, not the models, and
+  // leaving the models out is what lets `scripts/dev-session.ts` run this file
+  // under plain Node, which does not resolve `../../server/db/schema`.
+  await migrate(drizzle(client), { migrationsFolder: MIGRATIONS })
 
   // Port 0 asks the OS for a free one. A fixed port would make two test files
   // run in parallel into a race whose symptom is a connection refused in
   // whichever one lost.
-  const server = new PGLiteSocketServer({ db: client, port: 0, host: '127.0.0.1' })
+  // Nuxt's connection pool can open several sockets while rendering a page.
+  // The socket server defaults to one and resets any additional connections.
+  const server = new PGLiteSocketServer({ db: client, port: 0, host: '127.0.0.1', maxConnections: 10 })
   await server.start()
 
   const address = (server as unknown as { server?: { address: () => AddressInfo | null } })
