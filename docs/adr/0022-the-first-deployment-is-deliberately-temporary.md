@@ -224,6 +224,10 @@ everywhere this ADR, `03` §13.1 and `08` §10 say it. The first production depl
 - **Cookies are `Secure`.** Starting a Google sign-in set `__Secure-better-auth.state` with `HttpOnly;
   Secure; SameSite=Lax`, and the authorisation URL carried `redirect_uri=https://kioku-pink.vercel.app/api/auth/callback/google`.
   Both derive from `BETTER_AUTH_URL` (`08` §5.3).
+- **Yuta signed in and graded from the deployed origin.** Once the production redirect URI was
+  registered, the function logs show `GET /api/auth/callback/google` `302`, `POST
+  /api/review/session` `200` and `POST /api/review/grade` `200`, and production's `review_log` went
+  from 6 rows to 10, every new one dated 2026-09-28. **That is #45's done-when, observed.**
 - **Production had every migration before the deploy.** `drizzle.__drizzle_migrations` held nine
   rows whose hashes are the SHA-256 of `0000` to `0008` in `server/db/migrations/`. Nothing was
   applied.
