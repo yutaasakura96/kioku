@@ -1,8 +1,8 @@
 # The first deployment is Vercel, Neon and a laptop — and it is deliberately temporary
 
-**The Nuxt app deploys to Vercel, the database is Neon Postgres with a branch per environment, and
-the Python *ingestion* worker runs on the developer's own machine.** All three are chosen to be
-thrown away: the stated destination is EC2 or Lightsail once the developer's other projects move
+**The Nuxt app deploys to Vercel, production data is on Neon Postgres, local development uses
+PGlite, and the Python *ingestion* worker runs on the developer's own machine.** The deployed tiers
+are chosen to be thrown away: the stated destination is EC2 or Lightsail once the developer's other projects move
 there. Findings in [`../phase-4-verification.md`](../phase-4-verification.md) §7.
 
 ⚠️ **Amended 2026-09-28: production and development are not two Neon branches.** The existing

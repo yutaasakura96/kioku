@@ -200,8 +200,8 @@ change — it was already the right one — but the margin it was made with is g
 re-examine it if anyone proposes a repo constant is now much shorter: the file would be world
 readable the moment it was pushed.
 
-The environment variable also gets **per-environment values for free**, which matters because Neon
-runs a branch per environment and production has never shared a string with development.
+The environment variable also gets **per-environment values**, so production and local development
+can use separate readers (`03` §13.1).
 
 ⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the per-environment values are Vercel's
 Production environment and a local file, not two Neon branches.** Production's `KIOKU_INVITED_EMAIL`

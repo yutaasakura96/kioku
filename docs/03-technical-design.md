@@ -46,7 +46,7 @@ from the internet.
                                     ▼
                     ┌──────────────────────────────────────┐
                     │  Neon Postgres 18                     │
-                    │  branch per environment               │
+                    │  production database                  │
                     │  the job table is the truth (ADR 0028)│
                     └───────────────▲──────────────────────┘
                                     │ direct connection string
@@ -259,8 +259,7 @@ ARM line stays open for ADR 0022's destination.
 
 ## 4. The database tier
 
-**Neon Postgres 18, a branch per environment** (ADR 0022). Branching is copy-on-write and each
-branch gets its own compute, which also scales to zero.
+**Neon Postgres 18 holds production data** (ADR 0022). Local development uses PGlite (§13.1).
 
 ⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): production and development are not two Neon
 branches.** The existing database is production, and development is PGlite (§13.1). The app's
@@ -885,7 +884,7 @@ Mandatory, per the phase's own exit criterion. `S1` is the requirement; this is 
 
 | Secret | Held by | Mechanism |
 | --- | --- | --- |
-| Pooled `DATABASE_URL` | Nuxt app | Vercel environment variables, per environment |
+| Pooled `DATABASE_URL` | Nuxt app | Vercel Production environment |
 | `BETTER_AUTH_SECRET`, Google client id and secret | Nuxt app | Same |
 | Invited email address | Nuxt app | Same — one value, per ADR 0017 |
 | **Direct `DATABASE_URL`** | Worker | A gitignored `.env` on the laptop |
@@ -896,8 +895,7 @@ process with an internet-facing surface has no ability to spend money, and the p
 spend money has no internet-facing surface. That is worth stating because it is easy to undo later
 by adding one convenience endpoint.
 
-Environment variables per environment, matching Neon's branch-per-environment: production never
-shares a string with development.
+Production and local development have separate environment values (ADR 0022).
 
 ⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the rule holds, and it is not held by a
 second Neon branch.** Production is the **existing** Neon database. Its five app values go into
