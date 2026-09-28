@@ -117,10 +117,9 @@ of its own. They are recorded here.
   string. Manual CLI deploys were set aside because they are one more step to forget. **The region
   and previews-off are set in `vercel.json`, in the repository**, not in the dashboard, so they are
   reviewed like code. That is configuration, not a runtime dependency, so § What must not happen
-  holds. `regions` is documented (Vercel, "Configuring regions for Vercel Functions"). ⚠️ **The
-  previews-off key is not verified yet**, and
-  [#45](https://github.com/yutaasakura96/kioku/issues/45) checks it against Vercel's docs before
-  writing it.
+  holds. `regions` is documented (Vercel, "Configuring regions for Vercel Functions"). ~~⚠️ **The
+  previews-off key is not verified yet**~~ ⚠️ **Verified 2026-09-28 by #45**, see § The
+  `vercel.json` keys below.
 - **A migration reaches production as a manual release step, before `develop` is merged into
   `main`.** This is how every migration so far has been applied. It keeps a database string out of
   both Vercel's build and the public repository's Actions secrets. `03` §4.2 carries the rule, and
@@ -152,7 +151,8 @@ if.
 - `noScripts` on the deployed origin (#45), and `os.tmpdir()` being writable plus `unpackDeck`'s
   duration against 300 s (#46).
 - Neon's docs on running migrations over the direct string, which #48 reads before relying on it.
-- The `vercel.json` key that turns previews off (#45).
+- ~~The `vercel.json` key that turns previews off (#45).~~ Verified 2026-09-28; see § The
+  `vercel.json` keys.
 - How many Neon branches exist today. It was not checked, because the planning read no live Neon
   state.
 
@@ -164,6 +164,36 @@ URL; [#46](https://github.com/yutaasakura96/kioku/issues/46) every input and eve
 [#47](https://github.com/yutaasakura96/kioku/issues/47) typed *Review* on a real phone;
 [#48](https://github.com/yutaasakura96/kioku/issues/48) the release path, with local development off
 production. #46 and #47 are blocked by #45. The local-development half of #48 lands with #45.
+
+### The `vercel.json` keys (#45, 2026-09-28)
+
+`vercel.json` at the repository root carries two settings and nothing else:
+
+```json
+"regions": ["sin1"],
+"git": { "deploymentEnabled": { "**": false, "main": true } }
+```
+
+- **`regions`** is the project-level default function region, from Vercel's
+  [Configuring regions for Vercel Functions](https://vercel.com/docs/functions/configuring-functions/region).
+- **Previews off is `git.deploymentEnabled`**, from Vercel's
+  [Git Configuration](https://vercel.com/docs/project-configuration/git-configuration) (read
+  2026-09-28). Its value is a map from a branch name or minimatch pattern to a boolean, and *"any
+  unspecified branch is set to `true`"*. The page also says *"If a branch matches multiple rules and
+  at least one rule is `true`, a deployment will occur"*, so `main` deploys and every other branch
+  does not.
+- ⚠️ **The pattern is `**`, not `*`, and that was measured rather than read.** This repo's branches
+  carry slashes (`fm/…`, `renovate/…`). Under minimatch 10.2.6, `*` matches `main` and `develop` but
+  **not** `fm/kioku-first-deploy`, and `**` matches all three. With `*`, every agent and Renovate
+  branch would still get a preview. The docs say minimatch without naming a version or options, so
+  what Vercel's matcher does with a slash is **documented by inference, not observed**; the first
+  push to a slashed branch after the project exists is the observation.
+- ⚠️ **Vercel reads `vercel.json` from the commit being deployed.** Until a release carries this file
+  to `main`, a production deploy of `main` runs in the default `iad1`, and until `develop` carries
+  it, a push there builds a preview. So the project is created after the release that carries this
+  file reaches `main`, or its first production deploy is redeployed once it does.
+- It sets **no** preset, no `functions`, no `crons` and no rewrites. The app still builds and runs
+  with this file deleted, which is what § What must not happen asks.
 
 ## Alternatives considered
 

@@ -2167,7 +2167,8 @@ whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified*
 2026-09-28** (decision log): the string lives in 1Password and is injected at run time, and the
 migration runs over Neon's direct string. The local redirect URI stays registered, and the region
 and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
-direct string (#48 reads them), the `vercel.json` previews-off key (#45 reads it), how many Neon branches exist today, and whether any Vercel project exists outside the
+direct string (#48 reads them), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
+written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), how many Neon branches exist today, and whether any Vercel project exists outside the
 repo. The planning read neither Neon nor Vercel.
 
 ⚠️ **Everything below this point was written before 2026-09-28, when the frontier was empty.**
