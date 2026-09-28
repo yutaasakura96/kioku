@@ -5,6 +5,10 @@ the Python *ingestion* worker runs on the developer's own machine.** All three a
 thrown away: the stated destination is EC2 or Lightsail once the developer's other projects move
 there. Findings in [`../phase-4-verification.md`](../phase-4-verification.md) §7.
 
+⚠️ **Amended 2026-09-28: production and development are not two Neon branches.** The existing
+database becomes production, and development runs on PGlite rather than on a second branch. See
+§ Amended 2026-09-28 below, which also records how the deployment is carried out.
+
 ## Vercel cannot host the worker, and that is what shapes this
 
 Not a preference. Vercel's maximum function duration is **300s on Hobby**, 800s on Pro, and it
@@ -81,6 +85,85 @@ documented only platform-agnostically. **`noScripts` is the main reason ADR 0020
 
 **Build one throwaway page with it and read the network tab, in the first week.** If it does not
 survive, ADR 0020's revisit condition fires.
+
+⚠️ **Answered 2026-09-06 from `nitropack@2.13.4`'s source** (`phase-4-verification.md` §8; decision
+log § Still open), and made a local test by `11` §6.1. **It has still not been observed on a
+deployment**, because there has been none. [#45](https://github.com/yutaasakura96/kioku/issues/45)
+does that.
+
+## Amended 2026-09-28: the deployment is planned, and seven questions it left open are answered
+
+This ADR decided the shape on 2026-09-06, and nobody carried it out. `00-status.md` § Carrying still
+reads *"Nothing has ever deployed this app"*. On 2026-09-28 Yuta chose the first deployment as the
+next work, over a second *subject*, a production template and decks, and accepted every
+recommendation on the planning board. None of the answers goes against this ADR, so none needs an ADR
+of its own. They are recorded here.
+
+- **Production is the existing Neon database, and local development moves to PGlite.** No data
+  moves, and no second branch is made. UI work runs on `npm run dev:session` (decision log
+  2026-09-25, #43). That is what makes `03` §13.1's *production never shares a string with
+  development* true, and it supersedes this ADR's *a branch per environment*. The laptop keeps only
+  the worker's **direct** string, because the laptop worker is the production worker. Alternatives
+  set aside: a Neon `dev` branch (it shares Free's 100 CU-hours), local development on the production
+  database (it would have meant amending `03` §13.1), and a fresh branch with a `pg_dump` (it copies
+  `review_log` for no benefit, and a mistake costs it).
+- **The function region is `sin1`** (Singapore), the same AWS region as Neon
+  (`aws-ap-southeast-1`). Hobby allows one function region, and Vercel's default for a new project is
+  `iad1`, so this has to be set. (Both verified against Vercel's docs on 2026-09-28.) Every screen
+  renders server-side over several sequential queries, and `sin1` keeps each round trip in-region.
+  ⚠️ **The latency difference between regions is not measured.** This rests on topology.
+- **Deploys go through Vercel's Git integration: production is `main`, and preview deployments are
+  off.** A preview cannot sign in (`08` §10), and with previews off no preview ever needs a database
+  string. Manual CLI deploys were set aside because they are one more step to forget. **The region
+  and previews-off are set in `vercel.json`, in the repository**, not in the dashboard, so they are
+  reviewed like code. That is configuration, not a runtime dependency, so § What must not happen
+  holds. `regions` is documented (Vercel, "Configuring regions for Vercel Functions"). ⚠️ **The
+  previews-off key is not verified yet**, and
+  [#45](https://github.com/yutaasakura96/kioku/issues/45) checks it against Vercel's docs before
+  writing it.
+- **A migration reaches production as a manual release step, before `develop` is merged into
+  `main`.** This is how every migration so far has been applied. It keeps a database string out of
+  both Vercel's build and the public repository's Actions secrets. `03` §4.2 carries the rule, and
+  [#48](https://github.com/yutaasakura96/kioku/issues/48) writes out the procedure. Revisit if a
+  migration is ever forgotten. **The release step's production string is kept in 1Password** and
+  injected into the migrate command alone at run time (for example with `op run`). It is never
+  written to a file, so no file on the laptop gives a command the production database except the
+  worker's `worker/.env`. **The migration uses Neon's direct string, not the pooled one.** DDL does
+  not go through PgBouncer's transaction mode. ⚠️ **#48 confirms that against Neon's docs before the
+  procedure relies on it.**
+- **The address is `<project>.vercel.app`.** A domain comes only with this ADR's move to EC2 or
+  Lightsail. At the move, one redirect URI and one bookmark change.
+- **Done means every screen and every input works from the deployed app**, including the `.apkg`
+  upload and the `noScripts` check, not only sign-in and *Review*. That is what turns ADR 0068 §2's
+  `/tmp` answer and this ADR's `noScripts` answer from documented into observed.
+- **Yuta does a real-phone pass of typed *Review*:** IME input, `S`, `X`, Done, and airplane mode
+  mid-*session* then back online. Each finding becomes a ticket. A phone-viewport e2e test can follow
+  as one of those tickets. It cannot replace the pass, because it can test neither an IME nor a real
+  network drop.
+
+**What stands unchanged:** Vercel Hobby for the app, Neon Free, the worker on the laptop, and
+nothing Vercel-only. The app uses the pooled string and the worker the direct one, and the model key
+never reaches the app tier. **Moving the worker is not part of this**: it still waits for § Revisit
+if.
+
+**Still unverified, and the slices carry each one:**
+
+- Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).
+- `noScripts` on the deployed origin (#45), and `os.tmpdir()` being writable plus `unpackDeck`'s
+  duration against 300 s (#46).
+- Neon's docs on running migrations over the direct string, which #48 reads before relying on it.
+- The `vercel.json` key that turns previews off (#45).
+- How many Neon branches exist today. It was not checked, because the planning read no live Neon
+  state.
+
+**Tickets, drafted 2026-09-28 and confirmed by Yuta the same day, so they are `ready-for-agent`.**
+The human-only steps in each are still his: the Vercel project, the Google Cloud console, the values,
+the phone, and any model-key spend.
+[#45](https://github.com/yutaasakura96/kioku/issues/45) sign in and grade one card from the deployed
+URL; [#46](https://github.com/yutaasakura96/kioku/issues/46) every input and every screen;
+[#47](https://github.com/yutaasakura96/kioku/issues/47) typed *Review* on a real phone;
+[#48](https://github.com/yutaasakura96/kioku/issues/48) the release path, with local development off
+production. #46 and #47 are blocked by #45. The local-development half of #48 lands with #45.
 
 ## Alternatives considered
 

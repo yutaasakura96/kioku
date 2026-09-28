@@ -1619,6 +1619,36 @@ guard's refusals.
 e2e signing in `test/e2e/session.ts` changes shape — the script inherits either change rather than
 duplicating it.
 
+### [2026-09-28] The first deployment is planned: the existing database, `sin1`, from `main`
+Yuta chose to carry out ADR 0022 next, over a second *subject*, a production template and decks,
+and took every recommendation on the planning board. **The existing Neon database becomes
+production, and local development moves to PGlite** (`npm run dev:session`). The functions run in
+**`sin1`**, beside Neon. Deploys use **Vercel's Git integration, with production on `main` and
+previews off**. **A migration is applied by hand before `develop` is merged into `main`.** The
+address is **`<project>.vercel.app`** until the move. The work is **done when every screen and every
+input works from the deployed app**, the `.apkg` upload and the `noScripts` check included. **Yuta
+walks typed *Review* on a real phone**, and each finding becomes a ticket. The deciding reason is that
+this was decided three weeks earlier and never done. Everything built for away from the desk (the
+phone layout, Done, `S8`'s outbox) has only ever run on the laptop, and retention and consistency
+only grow on days he studies. Amends `03` §4, §4.2 and §13.1, and `08` §4.1 and §10. No new ADR,
+because no answer went against ADR 0022. ⚠️ **Drafted as
+[#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48),
+all `needs-triage` until he confirms them.** ⚠️ **Confirmed later the same day, so they are
+`ready-for-agent`**, with the human-only steps still his (next entry).
+→ [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+
+### [2026-09-28] The release string, the migration string, the local redirect and `vercel.json`
+Yuta answered the four things the first entry of the day left open, and confirmed #45–#48. **The
+release step's production string lives in 1Password** and is injected into the migrate command alone
+at run time, never written to a file. **The migration runs over Neon's direct string**, not the
+pooled one the app uses; ⚠️ that is not yet checked against Neon's docs, and #48 checks it before the
+procedure relies on it. **The local redirect URI, `http://localhost:3000/api/auth/callback/google`,
+stays registered**, because a real Google sign-in against a local app still needs it. **The region
+and previews-off go in `vercel.json`**, reviewed like code; `regions` is documented, and ⚠️ #45
+verifies the previews-off key before writing it. Amends `03` §4.2 and §13.1 and `08` §10. No new ADR,
+because none of the four goes against ADR 0022.
+→ [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

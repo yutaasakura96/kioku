@@ -32,7 +32,7 @@ done.
 | `superpowers` | **Off**, and must stay off — `CLAUDE.md` § Tooling state says why |
 | `frontend-design` | **Off**, for a different reason — same section, and the distinction matters |
 | Git | Clean. Remote is [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku), **public** |
-| Branches | **`develop` is where work happens**; `main` is the integration branch |
+| Branches | **`develop` is the integration branch** and the default; `main` is release and production, reached by a release PR (⚠️ this called `main` the integration branch until 2026-09-28) |
 | `.gitignore` | Present, and `.claude/settings.json` is committed on purpose |
 | Planning docs | `docs/00` through `docs/11`, plus `phase-4-verification.md` and 39 ADRs |
 | Code | **None.** No `package.json`, no `requirements.txt`, no stack on disk |
