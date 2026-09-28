@@ -1644,8 +1644,9 @@ at run time, never written to a file. **The migration runs over Neon's direct st
 pooled one the app uses; ⚠️ that is not yet checked against Neon's docs, and #48 checks it before the
 procedure relies on it. **The local redirect URI, `http://localhost:3000/api/auth/callback/google`,
 stays registered**, because a real Google sign-in against a local app still needs it. **The region
-and previews-off go in `vercel.json`**, reviewed like code; `regions` is documented, and ⚠️ #45
-verifies the previews-off key before writing it. Amends `03` §4.2 and §13.1 and `08` §10. No new ADR,
+and previews-off go in `vercel.json`**, reviewed like code; `regions` is documented, and ~~⚠️ #45
+verifies the previews-off key before writing it~~ ⚠️ #45 verified it the same day
+(`git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys). Amends `03` §4.2 and §13.1 and `08` §10. No new ADR,
 because none of the four goes against ADR 0022.
 → [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 

@@ -576,7 +576,9 @@ of this section's blanks are filled.**
   [#45](https://github.com/yutaasakura96/kioku/issues/45). None of the values goes in an issue: the
   repository is public.
 - **The region and previews-off are set in `vercel.json`**, in the repository (ADR 0022 § Amended
-  2026-09-28). ⚠️ #45 verifies the previews-off key against Vercel's docs before writing it.
+  2026-09-28). ~~⚠️ #45 verifies the previews-off key against Vercel's docs before writing it.~~
+  ⚠️ **Verified and written by #45 on 2026-09-28:** `git.deploymentEnabled` with `"**": false` and
+  `"main": true`. ADR 0022 § The `vercel.json` keys has the doc and why the pattern is `**`.
 
 **The local origin, `http://localhost:3000/api/auth/callback/google`, stays registered** (decided
 2026-09-28). UI work runs on `npm run dev:session` and does not need it, but a real Google sign-in
