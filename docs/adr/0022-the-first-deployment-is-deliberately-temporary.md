@@ -87,9 +87,11 @@ documented only platform-agnostically. **`noScripts` is the main reason ADR 0020
 survive, ADR 0020's revisit condition fires.
 
 ⚠️ **Answered 2026-09-06 from `nitropack@2.13.4`'s source** (`phase-4-verification.md` §8; decision
-log § Still open), and made a local test by `11` §6.1. **It has still not been observed on a
+log § Still open), and made a local test by `11` §6.1. ~~**It has still not been observed on a
 deployment**, because there has been none. [#45](https://github.com/yutaasakura96/kioku/issues/45)
-does that.
+does that.~~ ⚠️ **Observed 2026-09-28 by #45 on the first deployment:** `/auth/refused` from
+`https://kioku-pink.vercel.app` carries **0** `<script` tags and no `.js` reference, built by the
+`vercel` preset. The source reading held. See § Observed on the first deployment.
 
 ## Amended 2026-09-28: the deployment is planned, and seven questions it left open are answered
 
@@ -147,14 +149,15 @@ if.
 
 **Still unverified, and the slices carry each one:**
 
-- Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).
-- `noScripts` on the deployed origin (#45), and `os.tmpdir()` being writable plus `unpackDeck`'s
-  duration against 300 s (#46).
+- ~~Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).~~
+  Observed 2026-09-28: the build log prints `Nitro preset: vercel`.
+- ~~`noScripts` on the deployed origin (#45)~~ (observed 2026-09-28, **0**), and `os.tmpdir()` being
+  writable plus `unpackDeck`'s duration against 300 s (#46).
 - Neon's docs on running migrations over the direct string, which #48 reads before relying on it.
 - ~~The `vercel.json` key that turns previews off (#45).~~ Verified 2026-09-28; see § The
   `vercel.json` keys.
-- How many Neon branches exist today. It was not checked, because the planning read no live Neon
-  state.
+- ~~How many Neon branches exist today. It was not checked, because the planning read no live Neon
+  state.~~ Read 2026-09-28 by #45: **one**, the default `main` branch of project `kioku`.
 
 **Tickets, drafted 2026-09-28 and confirmed by Yuta the same day, so they are `ready-for-agent`.**
 The human-only steps in each are still his: the Vercel project, the Google Cloud console, the values,
@@ -194,6 +197,44 @@ production. #46 and #47 are blocked by #45. The local-development half of #48 la
   file reaches `main`, or its first production deploy is redeployed once it does.
 - It sets **no** preset, no `functions`, no `crons` and no rewrites. The app still builds and runs
   with this file deleted, which is what § What must not happen asks.
+
+### Observed on the first deployment (#45, 2026-09-28)
+
+The Vercel project is **`kioku`**, on the Hobby team `yuta-asakuras-projects`, linked to
+`yutaasakura96/kioku` with production branch `main`. `kioku.vercel.app` belongs to someone else, so
+**the address Vercel assigned is `https://kioku-pink.vercel.app`**. That is `<project>.vercel.app`
+everywhere this ADR, `03` §13.1 and `08` §10 say it. The first production deployment built `main` at
+`dc12d3f`.
+
+- **Preset: `vercel`.** The build log prints `Nitro preset: vercel` and `Building Nuxt Nitro server
+  (preset: vercel …)`. Zero-config detection works, so `nuxt.config.ts` still sets none.
+- **Node: `24.x`.** That is the project's default and the deployment's `nodeVersion`. `engines` is
+  `^22.19.0 || ^24.11.0 || >=26.0.0`, and the install printed no `EBADENGINE`. ⚠️ **The log prints no
+  patch number**, so `>=24.11` is inferred from Vercel running the current 24 line, not read. `node:sqlite`
+  is unflagged across all of 24.x, which is what #46 needs.
+- **Region: `sin1`.** The deployment's `regions` is `["sin1"]`, and a response from the function
+  carries `x-vercel-id: hnd1::sin1::…` (edge in Tokyo, function in Singapore). **The build itself ran
+  in `iad1`**, which is where Vercel builds, not where it runs; `regions` does not govern it.
+- **`noScripts` survives the preset.** `curl -s https://kioku-pink.vercel.app/auth/refused | grep -c
+  '<script'` printed **0**, and the body names no `.js` file. `/auth` (`ssr: true`, not `noScripts`)
+  carries its entry script, as it should.
+- **Signed out, every *place* and *mode* redirects to `/auth`.** `/`, `/sources`, `/sources/:id`,
+  `/stats`, `/vet`, `/review` and `/api/export` each answered `302` to `/auth`; `/api/review/session`
+  answered `401`.
+- **Cookies are `Secure`.** Starting a Google sign-in set `__Secure-better-auth.state` with `HttpOnly;
+  Secure; SameSite=Lax`, and the authorisation URL carried `redirect_uri=https://kioku-pink.vercel.app/api/auth/callback/google`.
+  Both derive from `BETTER_AUTH_URL` (`08` §5.3).
+- **Production had every migration before the deploy.** `drizzle.__drizzle_migrations` held nine
+  rows whose hashes are the SHA-256 of `0000` to `0008` in `server/db/migrations/`. Nothing was
+  applied.
+- **The six values are in Vercel's Production environment only**, and `BETTER_AUTH_SECRET` is newly
+  generated. `DATABASE_URL`, the secret, `GOOGLE_CLIENT_SECRET` and `KIOKU_INVITED_EMAIL` are stored
+  as Vercel *sensitive* values, which cannot be read back.
+- **Deployment Protection is Vercel's default for a new project** (`all_except_custom_domains`). The
+  production address above answers the public. The team aliases and per-deployment URLs
+  (`kioku-*-yuta-asakuras-projects.vercel.app`) answer `302` to Vercel's login, so only
+  `kioku-pink.vercel.app` can sign in, which matches the one registered redirect URI. Nothing was
+  changed.
 
 ## Alternatives considered
 

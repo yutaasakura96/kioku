@@ -2168,8 +2168,9 @@ whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified*
 migration runs over Neon's direct string. The local redirect URI stays registered, and the region
 and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
 direct string (#48 reads them), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
-written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), how many Neon branches exist today, and whether any Vercel project exists outside the
-repo. The planning read neither Neon nor Vercel.
+written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), ~~how many Neon branches exist today, and whether any Vercel project exists outside the
+repo~~ (⚠️ read by #45 on 2026-09-28: **one** Neon branch, `main`, and no Vercel project for kioku
+until #45 created `kioku`). The planning read neither Neon nor Vercel.
 
 ⚠️ **Everything below this point was written before 2026-09-28, when the frontier was empty.**
 
@@ -2977,7 +2978,9 @@ Nothing.
 - ⚠️ **The `.apkg` reader's one unmeasured assumption is that `os.tmpdir()` can be written to, and
   it is documented rather than observed.** Vercel's Runtimes page says `/tmp` is writable to 500 MB
   and Node only leaves `/tmp` for a `TMPDIR`/`TMP`/`TEMP` Vercel does not set (ADR 0068 § Amended
-  2026-09-20). **Nothing has ever deployed this app**, so the composition has never met reality.
+  2026-09-20). ~~**Nothing has ever deployed this app**, so the composition has never met reality.~~
+  ⚠️ **Struck 2026-09-28: #45 deployed it** to `https://kioku-pink.vercel.app`. The `/tmp` path is
+  still unobserved until #46 uploads a deck there.
   ⚠️ **A first import that throws `EACCES`, `EROFS` or `ENOENT` out of `mkdtempSync` is that
   revisit condition arriving, not a bug in the reader** — and the fix named in the ADR is
   `DatabaseSync.deserialize()` with `engines` moved to `>=24.16.0`, **not** a retry, a different
