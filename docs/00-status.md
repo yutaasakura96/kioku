@@ -105,8 +105,13 @@ alternatives were raising `S2`'s cap or dropping the deck name entirely (researc
 second out: one sampled deck encodes its levels as subdecks and its tags say something else).
 ⚠️ **And #26's `/tmp` close-out criterion is paid the same day, from the docs** (§ Next).
 ⚠️ **What is left for him is still the reader's run**, and now also a first real import.
+⚠️ **2026-09-28: the first deployment is the next work, in four
+tickets, [#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48)**,
+confirmed by Yuta the same day and `ready-for-agent` (§ Next, ADR 0022 § Amended 2026-09-28). ⚠️
+They were drafted `needs-triage` first. ⚠️ **The paragraph above that names #1 and #25 as open is
+stale.** The tracker had no open issue from #40's close on 2026-09-25 until these four were filed.
 
-**Updated:** 2026-09-22
+**Updated:** 2026-09-28 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
@@ -2134,6 +2139,40 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
+⚠️ **2026-09-28: the frontier holds the first deployment, confirmed by Yuta the same day.** ⚠️ It
+was drafted and waiting for him to confirm it earlier that day. He chose ADR 0022's deployment, and *Review* on the phone, as the next work, over a second
+*subject*, a production template and decks. He took every recommendation on the planning board. The
+answers are in [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md),
+and `03` §4, §4.2 and §13.1 and `08` §4.1 and §10 are amended to match. **Four slices are filed and
+`ready-for-agent`**; the human-only steps in each are still Yuta's (⚠️ they were `needs-triage` until
+he confirmed them):
+
+- [#45](https://github.com/yutaasakura96/kioku/issues/45): **sign in and grade one card from the
+  deployed URL.** Vercel project on `main`, `sin1`, previews off, the five variables, the production
+  redirect URI, and the `noScripts` check against the deployed origin. **Mostly Yuta's**: the
+  Vercel account, the Google Cloud console and the values.
+- [#46](https://github.com/yutaasakura96/kioku/issues/46): **every input and every screen from the
+  deployed app.** A word list, a seed and an `.apkg` upload, with the laptop worker draining. It
+  observes `/tmp` and `unpackDeck`'s duration. Blocked by #45. It spends on Yuta's key, which is his
+  call.
+- [#47](https://github.com/yutaasakura96/kioku/issues/47): **typed *Review* on a real phone,
+  including airplane mode.** Yuta's walkthrough, with one ticket per finding. Blocked by #45.
+- [#48](https://github.com/yutaasakura96/kioku/issues/48): **the release path.** Migrate by hand
+  before merging to `main`, local development off production, and the stale-doc list from the
+  planning. Its first half lands with #45.
+
+~~⚠️ **Two things the planning left open**, and #48 has to answer both before it is `ready-for-agent`:
+where the release step's production string lives once the root `.env` stops holding it, and
+whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified**).~~ ⚠️ **Answered
+2026-09-28** (decision log): the string lives in 1Password and is injected at run time, and the
+migration runs over Neon's direct string. The local redirect URI stays registered, and the region
+and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
+direct string (#48 reads them), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
+written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), how many Neon branches exist today, and whether any Vercel project exists outside the
+repo. The planning read neither Neon nor Vercel.
+
+⚠️ **Everything below this point was written before 2026-09-28, when the frontier was empty.**
+
 ⚠️ **The frontier is empty and no `needs-triage` issue is left.** ⚠️ **This said *one* until
 2026-09-24**, when [#38](https://github.com/yutaasakura96/kioku/issues/38) was re-scoped and built
 ([ADR 0073](adr/0073-a-tcp-keepalive-is-not-a-query.md), § Done) — *two* until #37 was triaged and
@@ -4131,7 +4170,11 @@ Nothing.
   against a database that enforces nothing.
 - ⚠️ **Branches: `develop` is where work happens, from 2026-09-07.** Yuta's decision, and it
   replaces the arrangement that stood until then, where `main` was both the default and the working
-  branch. `main` is the integration branch. Neon still gets a branch per environment to match.
+  branch. ~~`main` is the integration branch. Neon still gets a branch per environment to match.~~
+  ⚠️ **Amended 2026-09-28: `develop` is the integration branch and the GitHub default, and `main` is
+  release and production.** A release goes `develop` → `main` in a separate release PR, and merging
+  to `main` deploys. Production and development are not two Neon branches: development is PGlite
+  (ADR 0022 § Amended 2026-09-28).
 
 ## Skipped
 

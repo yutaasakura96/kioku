@@ -61,7 +61,7 @@ it.~~ ⚠️ **#38 was re-scoped and built 2026-09-24** (ADR 0073): the worker's
 stopped answering without saying so. **The evidence it was filed on was wrong — macOS sleep — and the
 ticket was right anyway**, because an idle `serve` issues no statements and so cannot notice a
 half-open socket. ⚠️ **One link is unmeasured and ADR 0073 §4 names it rather than rounding it up.**
-**Nothing is `needs-triage` and the frontier is empty**; N2 and N1 are Yuta's call at ~$0.002 a word.
+~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-09-28 the frontier is the first deployment** (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). N2 and N1 are Yuta's call at ~$0.002 a word.
 ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
@@ -275,7 +275,10 @@ history.
   `package.json`, and why `--legacy-peer-deps` is not it. ⚠️ **Amended 2026-09-08:** this said
   *four* and listed `drizzle-orm` in place of `ts-fsrs`, while `03` §13.5 carried neither
   `drizzle-orm` nor PGlite. `03` §13.5 is the list; it now has all seven and this line matches it.
-- **Branches: `develop` is where work happens; `main` is the integration branch.** The remote is
+- **Branches: `develop` is the integration branch and the GitHub default; `main` is release and
+  production.** A release goes `develop` → `main` in a separate release PR, and merging to `main`
+  deploys (ADR 0022 § Amended 2026-09-28). ⚠️ **This said `main` was the integration branch until
+  2026-09-28.** The remote is
   [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku) and it is **public** — so
   `KIOKU_INVITED_EMAIL` and every other value in `03` §13.1 stays out of the repository.
 
