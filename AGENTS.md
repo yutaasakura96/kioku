@@ -289,6 +289,9 @@ history.
 GitHub Issues on [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku), via the `gh` CLI.
 ⚠️ **The repo is public and so are the issues** — the `03` §13.1 values stay out of issue bodies for
 the same reason they stay out of the code. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+⚠️ **A closing keyword (`close`, `fix`, `resolve` and their forms) beside an issue number closes it, even
+negated** — PR #50's "does not close #45" closed #45 on merge. Write "part of #N" or "refs #N" unless
+the PR really closes it.
 
 ### Triage labels
 
