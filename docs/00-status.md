@@ -117,7 +117,29 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-25, latest — the app ships its three faces**
+**2026-09-28, latest — [#45](https://github.com/yutaasakura96/kioku/issues/45): the app is deployed,
+and a grade from it is on production.** Vercel project `kioku`, production branch `main`, at
+**`https://kioku-pink.vercel.app`** (`kioku.vercel.app` was taken). Yuta signed in there and graded,
+and production's `review_log` went from 6 rows to 10. ADR 0022 § Observed on the first deployment
+has every reading; `03` §13.1 and `08` §10 are amended. No code changed.
+- **Observed, not read:** Nitro preset `vercel` (zero-config, `nuxt.config.ts` still sets none),
+  Node `24.x`, functions in `sin1`, `/auth/refused` with **0** `<script` tags, every *place* and
+  *mode* `302` to `/auth` signed out, and a `__Secure-` cookie with `Secure` on the origin. A push to
+  `fm/kioku-vercel-setup` built no preview, so `vercel.json`'s `**` pattern works on a slashed branch.
+- ⚠️ **Production already had every migration.** `drizzle.__drizzle_migrations` held nine rows whose
+  hashes match `0000`–`0008`; nothing was applied. Neon has one branch, `main`.
+- ⚠️ **The six values are Production-only and four are Vercel *sensitive*** (the database string,
+  the auth secret, the Google client secret, the invited address): they cannot be read back, even
+  from the dashboard. Changing one means entering it again. `BETTER_AUTH_SECRET` is new and is not
+  the laptop's.
+- ⚠️ **Only `kioku-pink.vercel.app` signs in.** The team aliases and per-deployment URLs sit behind
+  Vercel's default Deployment Protection, which was left as it is.
+- ⚠️ **Still unobserved:** the Node patch number (the build log prints none), the session cookie's
+  own attributes (only the state cookie was read; both come from `BETTER_AUTH_URL`), and `/tmp` on
+  Vercel, which is #46's. **#48's local half is not done**: the root `.env` still points the app at
+  production (`03` §13.1).
+
+**2026-09-25 — the app ships its three faces**
 ([ADR 0074](adr/0074-the-app-ships-its-own-faces.md)). Shippori Mincho, Newsreader and IBM Plex
 Mono are self-hosted from `@fontsource` 5.3.0, the weights `05` §4 draws and no others. That closes
 the decision log's 2026-09-11 "Still open" entry. Until now every screen rendered in Georgia and the
@@ -2147,8 +2169,10 @@ and `03` §4, §4.2 and §13.1 and `08` §4.1 and §10 are amended to match. **F
 `ready-for-agent`**; the human-only steps in each are still Yuta's (⚠️ they were `needs-triage` until
 he confirmed them):
 
-- [#45](https://github.com/yutaasakura96/kioku/issues/45): **sign in and grade one card from the
-  deployed URL.** Vercel project on `main`, `sin1`, previews off, the five variables, the production
+- ~~[#45](https://github.com/yutaasakura96/kioku/issues/45): **sign in and grade one card from the
+  deployed URL.**~~ ⚠️ **Done 2026-09-28** (§ Done): live at `https://kioku-pink.vercel.app`, and
+  #46 and #47 are unblocked.
+  **Was:** Vercel project on `main`, `sin1`, previews off, the five variables, the production
   redirect URI, and the `noScripts` check against the deployed origin. **Mostly Yuta's**: the
   Vercel account, the Google Cloud console and the values.
 - [#46](https://github.com/yutaasakura96/kioku/issues/46): **every input and every screen from the
@@ -2168,8 +2192,9 @@ whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified*
 migration runs over Neon's direct string. The local redirect URI stays registered, and the region
 and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
 direct string (#48 reads them), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
-written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), how many Neon branches exist today, and whether any Vercel project exists outside the
-repo. The planning read neither Neon nor Vercel.
+written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), ~~how many Neon branches exist today, and whether any Vercel project exists outside the
+repo~~ (⚠️ read by #45 on 2026-09-28: **one** Neon branch, `main`, and no Vercel project for kioku
+until #45 created `kioku`). The planning read neither Neon nor Vercel.
 
 ⚠️ **Everything below this point was written before 2026-09-28, when the frontier was empty.**
 
@@ -2977,7 +3002,9 @@ Nothing.
 - ⚠️ **The `.apkg` reader's one unmeasured assumption is that `os.tmpdir()` can be written to, and
   it is documented rather than observed.** Vercel's Runtimes page says `/tmp` is writable to 500 MB
   and Node only leaves `/tmp` for a `TMPDIR`/`TMP`/`TEMP` Vercel does not set (ADR 0068 § Amended
-  2026-09-20). **Nothing has ever deployed this app**, so the composition has never met reality.
+  2026-09-20). ~~**Nothing has ever deployed this app**, so the composition has never met reality.~~
+  ⚠️ **Struck 2026-09-28: #45 deployed it** to `https://kioku-pink.vercel.app`. The `/tmp` path is
+  still unobserved until #46 uploads a deck there.
   ⚠️ **A first import that throws `EACCES`, `EROFS` or `ENOENT` out of `mkdtempSync` is that
   revisit condition arriving, not a bug in the reader** — and the fix named in the ADR is
   `DatabaseSync.deserialize()` with `engines` moved to `>=24.16.0`, **not** a retry, a different

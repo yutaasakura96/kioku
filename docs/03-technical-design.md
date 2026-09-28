@@ -913,6 +913,14 @@ points the app at that same database**, so the rule is decided and not yet true 
 half lands with the first deployment,
 [#45](https://github.com/yutaasakura96/kioku/issues/45).
 
+⚠️ **Observed 2026-09-28 by #45 (ADR 0022 § Observed on the first deployment).** The Vercel project
+`kioku` holds six values (`DATABASE_URL` and `08` §10's five) in its **Production** environment and
+in no other. `BETTER_AUTH_SECRET` was newly generated for it and shares nothing with the laptop.
+`DATABASE_URL`, the auth secret, the Google client secret and the invited address are Vercel
+*sensitive* values, so not even the dashboard shows them again. The functions run in **`sin1`** on
+Node **24.x**, built with the **`vercel`** Nitro preset, and the address is
+`https://kioku-pink.vercel.app`.
+
 ### 13.2 How input is validated, and where
 
 **Server-side, always. Three of the five screens have no client to validate on** (§2.1), which
