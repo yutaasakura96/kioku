@@ -45,7 +45,7 @@ Vocabulary is [`../CONTEXT.md`](../CONTEXT.md). Requirements are
 
 | | |
 | --- | --- |
-| **Postgres** | 18 on Neon, one branch per environment (ADR 0022). `jsonb` never `json` — only `jsonb` is indexable and `json` is reparsed on every execution (verification §6.2) |
+| **Postgres** | 18 on Neon in production (`03` §4; ADR 0022). `jsonb` never `json` — only `jsonb` is indexable and `json` is reparsed on every execution (verification §6.2) |
 | **Case** | `snake_case` for tables and columns. **Singular table names**, matching the four Better Auth already owns |
 | **Primary keys** | `id uuid primary key default uuidv7()`. Postgres 18 ships `uuidv7()` as a built-in — time-ordered, so inserts stay at the right-hand edge of the index instead of scattering (verification §10.1) |
 | **Foreign keys** | `<referenced_table>_id`. **Every one carries an explicit `ON DELETE`** — §9 |
