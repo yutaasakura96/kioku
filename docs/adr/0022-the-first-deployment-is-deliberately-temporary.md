@@ -114,12 +114,23 @@ of its own. They are recorded here.
   ⚠️ **The latency difference between regions is not measured.** This rests on topology.
 - **Deploys go through Vercel's Git integration: production is `main`, and preview deployments are
   off.** A preview cannot sign in (`08` §10), and with previews off no preview ever needs a database
-  string. Manual CLI deploys were set aside because they are one more step to forget.
+  string. Manual CLI deploys were set aside because they are one more step to forget. **The region
+  and previews-off are set in `vercel.json`, in the repository**, not in the dashboard, so they are
+  reviewed like code. That is configuration, not a runtime dependency, so § What must not happen
+  holds. `regions` is documented (Vercel, "Configuring regions for Vercel Functions"). ⚠️ **The
+  previews-off key is not verified yet**, and
+  [#45](https://github.com/yutaasakura96/kioku/issues/45) checks it against Vercel's docs before
+  writing it.
 - **A migration reaches production as a manual release step, before `develop` is merged into
   `main`.** This is how every migration so far has been applied. It keeps a database string out of
   both Vercel's build and the public repository's Actions secrets. `03` §4.2 carries the rule, and
   [#48](https://github.com/yutaasakura96/kioku/issues/48) writes out the procedure. Revisit if a
-  migration is ever forgotten.
+  migration is ever forgotten. **The release step's production string is kept in 1Password** and
+  injected into the migrate command alone at run time (for example with `op run`). It is never
+  written to a file, so no file on the laptop gives a command the production database except the
+  worker's `worker/.env`. **The migration uses Neon's direct string, not the pooled one.** DDL does
+  not go through PgBouncer's transaction mode. ⚠️ **#48 confirms that against Neon's docs before the
+  procedure relies on it.**
 - **The address is `<project>.vercel.app`.** A domain comes only with this ADR's move to EC2 or
   Lightsail. At the move, one redirect URI and one bookmark change.
 - **Done means every screen and every input works from the deployed app**, including the `.apkg`
@@ -140,12 +151,14 @@ if.
 - Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).
 - `noScripts` on the deployed origin (#45), and `os.tmpdir()` being writable plus `unpackDeck`'s
   duration against 300 s (#46).
-- Whether `drizzle-kit migrate` is safe through Neon's pooled PgBouncer endpoint, and where the
-  release step's production string lives once the root `.env` stops holding it (#48).
+- Neon's docs on running migrations over the direct string, which #48 reads before relying on it.
+- The `vercel.json` key that turns previews off (#45).
 - How many Neon branches exist today. It was not checked, because the planning read no live Neon
   state.
 
-**Tickets, drafted 2026-09-28 and `needs-triage` until Yuta confirms them:**
+**Tickets, drafted 2026-09-28 and confirmed by Yuta the same day, so they are `ready-for-agent`.**
+The human-only steps in each are still his: the Vercel project, the Google Cloud console, the values,
+the phone, and any model-key spend.
 [#45](https://github.com/yutaasakura96/kioku/issues/45) sign in and grade one card from the deployed
 URL; [#46](https://github.com/yutaasakura96/kioku/issues/46) every input and every screen;
 [#47](https://github.com/yutaasakura96/kioku/issues/47) typed *Review* on a real phone;

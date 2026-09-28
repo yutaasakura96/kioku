@@ -324,11 +324,15 @@ already there (`00-status.md` § Done, 2026-09-19). And code that runs ahead of 
 *Ingest*, because `/` reads `seed` on every render. The rule does not put migrations in Vercel's build
 command, because that would give the build a database string. It does not put them in a GitHub Actions
 job either, because the Actions secrets belong to a public repository. **Revisit if a migration is ever
-forgotten.** ⚠️ **Two things are not settled yet, and
-[#48](https://github.com/yutaasakura96/kioku/issues/48) owns both.** One is where the production
-string for this step lives once the root `.env` no longer points the app at production (§13.1).
-The other is whether `drizzle-kit migrate` is safe through the pooled PgBouncer endpoint that
-`drizzle.config.ts` documents. That second one is **unverified**.
+forgotten.** Two things about the step were settled on 2026-09-28 as well:
+
+- **The production string lives in 1Password and is injected into the migrate command alone at run
+  time**, for example with `op run`. It is never written to a file (§13.1).
+- **The migration runs over Neon's direct string, not the pooled one.** `drizzle.config.ts` reads
+  `DATABASE_URL` and its comment documents the pooled string, which is the app's. The release step
+  gives that one command the direct string instead. ⚠️ **Not yet checked against Neon's docs.**
+  [#48](https://github.com/yutaasakura96/kioku/issues/48) confirms it before the procedure relies on
+  it, and corrects the comment.
 
 ⚠️ Better Auth's `getMigrations` **does not work with the Drizzle adapter** (verification §2.3) —
 its schema is generated (`npx auth@latest generate --adapter … --dialect …`) and then lands in the
@@ -902,7 +906,9 @@ turned off, so no other Vercel environment holds a database string. **Developmen
 `npm run dev:session` writes its own database, secret and origin into `.data/dev-session/app.env`
 and runs the app against that file instead of the root `.env` (decision log, 2026-09-25). The laptop keeps one production string,
 the worker's **direct** one in `worker/.env`, because the laptop worker is the production worker.
-⚠️ **Until [#48](https://github.com/yutaasakura96/kioku/issues/48) lands, the root `.env` still
+**The release step's production string is not held on disk at all.** It lives in 1Password and is
+injected into the migrate command alone at run time (§4.2). ⚠️ **Until
+[#48](https://github.com/yutaasakura96/kioku/issues/48) lands, the root `.env` still
 points the app at that same database**, so the rule is decided and not yet true on disk. #48's first
 half lands with the first deployment,
 [#45](https://github.com/yutaasakura96/kioku/issues/45).

@@ -559,7 +559,7 @@ accept or an entry per deploy. Production and one local development origin are r
 build is for looking at, not for signing into. This is one more thing the move in ADR 0022 tidies
 away.
 
-⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the first deployment is planned, and four
+⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the first deployment is planned, and five
 of this section's blanks are filled.**
 
 - **`<host>` is `<project>.vercel.app`.** The redirect URI to register is
@@ -575,10 +575,12 @@ of this section's blanks are filled.**
 - **Registering the URI, creating the project and entering the values are Yuta's steps**, in
   [#45](https://github.com/yutaasakura96/kioku/issues/45). None of the values goes in an issue: the
   repository is public.
+- **The region and previews-off are set in `vercel.json`**, in the repository (ADR 0022 § Amended
+  2026-09-28). ⚠️ #45 verifies the previews-off key against Vercel's docs before writing it.
 
-⚠️ **The local origin, `http://localhost:3000/api/auth/callback/google`, is still registered**
-(`00-status.md` § Done, 2026-09-13). Whether local development still uses it, now that UI work runs
-on `npm run dev:session`, **is not decided**. Nothing is removed until it is.
+**The local origin, `http://localhost:3000/api/auth/callback/google`, stays registered** (decided
+2026-09-28). UI work runs on `npm run dev:session` and does not need it, but a real Google sign-in
+against a local app still does.
 
 ---
 

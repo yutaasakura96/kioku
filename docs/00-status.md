@@ -105,9 +105,10 @@ alternatives were raising `S2`'s cap or dropping the deck name entirely (researc
 second out: one sampled deck encodes its levels as subdecks and its tags say something else).
 ⚠️ **And #26's `/tmp` close-out criterion is paid the same day, from the docs** (§ Next).
 ⚠️ **What is left for him is still the reader's run**, and now also a first real import.
-⚠️ **2026-09-28: the first deployment is the next work, and it is drafted as four `needs-triage`
-tickets, [#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48)**
-(§ Next, ADR 0022 § Amended 2026-09-28). ⚠️ **The paragraph above that names #1 and #25 as open is
+⚠️ **2026-09-28: the first deployment is the next work, in four
+tickets, [#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48)**,
+confirmed by Yuta the same day and `ready-for-agent` (§ Next, ADR 0022 § Amended 2026-09-28). ⚠️
+They were drafted `needs-triage` first. ⚠️ **The paragraph above that names #1 and #25 as open is
 stale.** The tracker had no open issue from #40's close on 2026-09-25 until these four were filed.
 
 **Updated:** 2026-09-28 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
@@ -2138,12 +2139,13 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
-⚠️ **2026-09-28: the frontier holds the first deployment, drafted and waiting for Yuta to confirm
-it.** He chose ADR 0022's deployment, and *Review* on the phone, as the next work, over a second
+⚠️ **2026-09-28: the frontier holds the first deployment, confirmed by Yuta the same day.** ⚠️ It
+was drafted and waiting for him to confirm it earlier that day. He chose ADR 0022's deployment, and *Review* on the phone, as the next work, over a second
 *subject*, a production template and decks. He took every recommendation on the planning board. The
 answers are in [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md),
-and `03` §4, §4.2 and §13.1 and `08` §4.1 and §10 are amended to match. **Four slices are filed, all
-`needs-triage` and none `ready-for-agent`, until he confirms them:**
+and `03` §4, §4.2 and §13.1 and `08` §4.1 and §10 are amended to match. **Four slices are filed and
+`ready-for-agent`**; the human-only steps in each are still Yuta's (⚠️ they were `needs-triage` until
+he confirmed them):
 
 - [#45](https://github.com/yutaasakura96/kioku/issues/45): **sign in and grade one card from the
   deployed URL.** Vercel project on `main`, `sin1`, previews off, the five variables, the production
@@ -2159,10 +2161,13 @@ and `03` §4, §4.2 and §13.1 and `08` §4.1 and §10 are amended to match. **F
   before merging to `main`, local development off production, and the stale-doc list from the
   planning. Its first half lands with #45.
 
-⚠️ **Two things the planning left open**, and #48 has to answer both before it is `ready-for-agent`:
+~~⚠️ **Two things the planning left open**, and #48 has to answer both before it is `ready-for-agent`:
 where the release step's production string lives once the root `.env` stops holding it, and
-whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified**). ⚠️ **Also
-unverified:** how many Neon branches exist today, and whether any Vercel project exists outside the
+whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified**).~~ ⚠️ **Answered
+2026-09-28** (decision log): the string lives in 1Password and is injected at run time, and the
+migration runs over Neon's direct string. The local redirect URI stays registered, and the region
+and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
+direct string (#48 reads them), the `vercel.json` previews-off key (#45 reads it), how many Neon branches exist today, and whether any Vercel project exists outside the
 repo. The planning read neither Neon nor Vercel.
 
 ⚠️ **Everything below this point was written before 2026-09-28, when the frontier was empty.**
