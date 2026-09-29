@@ -58,6 +58,11 @@ And `03` §13.6 names the laptop as the security weak point rather than mitigati
 direct connection string and the provider key at once. That is a known cost of ADR 0022's temporary
 shape, not an oversight to fix in a ticket.
 
+⚠️ **Since 2026-09-29 (#48): UI work runs on `npm run dev:session`, against local PGlite**, and no
+local command reaches production except two. The worker is the production worker and reads
+`worker/.env`. The release step migrates production over the direct string from 1Password, before
+`develop` is merged into `main` (`03` §4.2). Nothing else on the laptop holds a production string.
+
 ---
 
 ## 2. The prompt — paste this as the first message

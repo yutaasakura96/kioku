@@ -130,8 +130,9 @@ of its own. They are recorded here.
   injected into the migrate command alone at run time (for example with `op run`). It is never
   written to a file, so no file on the laptop gives a command the production database except the
   worker's `worker/.env`. **The migration uses Neon's direct string, not the pooled one.** DDL does
-  not go through PgBouncer's transaction mode. ⚠️ **#48 confirms that against Neon's docs before the
-  procedure relies on it.**
+  not go through PgBouncer's transaction mode. ~~⚠️ **#48 confirms that against Neon's docs before the
+  procedure relies on it.**~~ ⚠️ **Confirmed 2026-09-29 by #48**: Neon's docs name Drizzle Kit among
+  the tools that need the direct string (`03` §4.2 cites the pages).
 - **The address is `<project>.vercel.app`.** A domain comes only with this ADR's move to EC2 or
   Lightsail. At the move, one redirect URI and one bookmark change.
 - **Done means every screen and every input works from the deployed app**, including the `.apkg`
@@ -153,7 +154,9 @@ if.
   Observed 2026-09-28: the build log prints `Nitro preset: vercel`.
 - ~~`noScripts` on the deployed origin (#45)~~ (observed 2026-09-28, **0**), and `os.tmpdir()` being
   writable plus `unpackDeck`'s duration against 300 s (#46).
-- Neon's docs on running migrations over the direct string, which #48 reads before relying on it.
+- ~~Neon's docs on running migrations over the direct string, which #48 reads before relying on it.~~
+  Read 2026-09-29 by #48: *"we recommend using a direct (non-pooled) connection when performing
+  migrations"* (Neon, Schema migration with Drizzle ORM). `03` §4.2 carries the procedure.
 - ~~The `vercel.json` key that turns previews off (#45).~~ Verified 2026-09-28; see § The
   `vercel.json` keys.
 - ~~How many Neon branches exist today. It was not checked, because the planning read no live Neon

@@ -130,7 +130,10 @@ npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # the app on localhost:3000, signed in: open the "Sign in" URL it prints (or load
                     # its Playwright storageState). Local PGlite + fixture secret only; the app
-                    # itself is unchanged (decision log, 2026-09-25)
+                    # itself is unchanged (decision log, 2026-09-25). THE path for UI work: no local
+                    # command reaches production except the worker and 03 §4.2's release step
+                    # (#48). ⚠️ drizzle-kit reads the root .env by itself, so `npm run db:migrate`
+                    # migrates whatever that file names
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
 cd worker && uv run --env-file .env python .   # the worker
 # ⚠️ --env-file is not optional: the worker has NO dotenv loader (it reads

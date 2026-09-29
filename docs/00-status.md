@@ -17,7 +17,7 @@ issues**: #1 the spec, #24 the Anki parent (closable now that #26 has landed) an
 `needs-triage` — ⚠️ **amended later the same day: #24 is closed** (both halves done, comment on the
 ticket), so the three open are **#1** the spec, **#25**, and **#26**, which is built and merged and
 whose last close-out criterion was paid 2026-09-20; it has lost `ready-for-agent` and is Yuta's to
-close — ⚠️ **amended 2026-09-21: Yuta closed #26**, so the two open are **#1** the spec and **#25**, now `ready-for-agent` (ADR 0070) (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
+close — ⚠️ **amended 2026-09-21: Yuta closed #26**, so the two open are **#1** the spec and **#25**, now `ready-for-agent` (ADR 0070) (⚠️ **this is stale and said so only further down until 2026-09-29**: #25 closed 2026-09-21 and #1 on 2026-09-24, and the tracker had no open issue from #40's close on 2026-09-25 until #45–#48 were filed on 2026-09-28) (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
 parenthetical that recorded #21 closing was added and the number beside it was not; it said eight
 before that day, and it counted #26 from 2026-09-19 until #26 was built). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
@@ -109,15 +109,41 @@ second out: one sampled deck encodes its levels as subdecks and its tags say som
 tickets, [#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48)**,
 confirmed by Yuta the same day and `ready-for-agent` (§ Next, ADR 0022 § Amended 2026-09-28). ⚠️
 They were drafted `needs-triage` first. ⚠️ **The paragraph above that names #1 and #25 as open is
-stale.** The tracker had no open issue from #40's close on 2026-09-25 until these four were filed.
+stale**, and since 2026-09-29 it says so where it says it. The tracker had no open issue from #40's
+close on 2026-09-25 until these four were filed.
 
-**Updated:** 2026-09-28 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
+**Updated:** 2026-09-29 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-28, latest — [#45](https://github.com/yutaasakura96/kioku/issues/45): the app is deployed,
+**2026-09-29, latest — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
+procedure is written down, and its local half is still Yuta's.** `03` §4.2 carries the procedure as
+six numbered steps, and § Carrying repeats them. Each step injects the **direct** production string
+from 1Password with `op run`. The procedure also says what to do when a migration is not additive:
+expand, then contract, in two releases. No code changed. `drizzle.config.ts`'s comment and the
+stale-doc list are corrected.
+- **Neon's docs, read:** migrations need the direct string. *Choosing your connection method* names
+  Drizzle Kit, and *Schema migration with Drizzle ORM* says a pooled string *"can lead to errors"*.
+  `03` §4.2 cites all three pages.
+- ⚠️ **Measured, and it reverses a § Carrying line: drizzle-kit reads the root `.env` on its own.**
+  Its 0.31.10 CLI bundles `dotenv/config`. On a local Postgres 18, with `DATABASE_URL` unset and only
+  a `.env`, both `drizzle-kit migrate` and `npm run db:migrate` applied all nine migrations, and an
+  exported variable won over the file. drizzle-kit has been 0.31.10 since 2026-09-09. So the `0006`
+  entry's *"does not read `.env` by itself"* was wrong when it was written. The header's
+  2026-09-19 paragraph, where `npm run db:migrate` applied `0004` and `0005`, already showed it.
+- ⚠️ **So the root `.env` is a live hazard, not only a rule unmet.** On 2026-09-29 it still names a
+  Neon `DATABASE_URL`, and while it does, a bare `npm run db:migrate` from the main checkout migrates
+  production. Removing it is **Yuta's** step, and so is the 1Password item. Neither can be done from
+  the repository.
+- **Re-read `0001` to `0008`:** each adds or loosens, and every rule one adds was already kept by the
+  code before it. `0007`'s swap of `job_kind` and its dropped `NOT NULL` are the closest to a change,
+  and neither broke old code.
+- ⚠️ **Unrun:** the procedure has not met production, and neither has `op run`. Production had every
+  migration at #45, so the first release with a new migration is the first run.
+
+**2026-09-28 — [#45](https://github.com/yutaasakura96/kioku/issues/45): the app is deployed,
 and a grade from it is on production.** Vercel project `kioku`, production branch `main`, at
 **`https://kioku-pink.vercel.app`** (`kioku.vercel.app` was taken). Yuta signed in there and graded,
 and production's `review_log` went from 6 rows to 10. ADR 0022 § Observed on the first deployment
@@ -2184,14 +2210,18 @@ he confirmed them):
 - [#48](https://github.com/yutaasakura96/kioku/issues/48): **the release path.** Migrate by hand
   before merging to `main`, local development off production, and the stale-doc list from the
   planning. Its first half lands with #45.
+  ⚠️ **Written 2026-09-29** (§ Done): the procedure is in `03` §4.2 and § Carrying, Neon's docs are
+  cited, and the stale-doc list is paid. ⚠️ **Two steps are still Yuta's**: taking the production
+  `DATABASE_URL` out of the root `.env`, and making the 1Password item that holds the direct string.
 
 ~~⚠️ **Two things the planning left open**, and #48 has to answer both before it is `ready-for-agent`:
 where the release step's production string lives once the root `.env` stops holding it, and
 whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified**).~~ ⚠️ **Answered
 2026-09-28** (decision log): the string lives in 1Password and is injected at run time, and the
 migration runs over Neon's direct string. The local redirect URI stays registered, and the region
-and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
-direct string (#48 reads them), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
+and previews-off go in `vercel.json`. ⚠️ **Still unverified:** ~~Neon's docs on migrating over the
+direct string (#48 reads them)~~ (⚠️ read by #48 on 2026-09-29: Neon names Drizzle Kit among the
+tools that need the direct string, `03` §4.2), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
 written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), ~~how many Neon branches exist today, and whether any Vercel project exists outside the
 repo~~ (⚠️ read by #45 on 2026-09-28: **one** Neon branch, `main`, and no Vercel project for kioku
 until #45 created `kioku`). The planning read neither Neon nor Vercel.
@@ -2779,10 +2809,16 @@ handler started making network calls. Kept because each is still the shortest st
   is simply correct — which is the point of § Carrying's `.length`-versus-`len()` bullet: the app was
   made to match Python rather than the other way round, so the worker needs no special handling and
   must not add any.
-- ⚠️ **Chunk-level retry policy is not built.** `03` §11 says bounded retries then the chunk is
+- ~~⚠️ **Chunk-level retry policy is not built.** `03` §11 says bounded retries then the chunk is
   marked `failed` and the job stays resumable; #7 marks it `failed` on the first raise and moves on,
   which is the `attempts = 1` version of that. **`job.available_at` is the other half and nothing
-  sets it** — see § Carrying.
+  sets it** — see § Carrying.~~ ⚠️ **Stale until 2026-09-29.** `worker/provider.py` retries a
+  transient failure (408, 409, 429, 5xx, a lost connection) through the SDK's own `max_retries`, 2
+  after the first try, with backoff, and only then does `runs.py` mark the *chunk* `failed`. **What is
+  not retried is a refusal**: a `refusal` stop, a `max_tokens` cut or an answer that is not JSON
+  raises `ProviderRefused` and fails the *chunk* on the first try, leaving the run resumable. And
+  `jobs.py`'s sweep has set `available_at` forward since #8 (ADR 0046), with #37 collecting it
+  (ADR 0072).
 - ✔ **`03` §13.5's container half of PIN 6/6 is guarded** — `worker/tests/conftest.py`'s
   `_assert_postgres_18`, before the migrations run, so a Postgres 17 says so in one line instead of
   failing on the first `uuidv7()`.
@@ -2916,6 +2952,22 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **A migration reaches production by hand, before `develop` is merged into `main`** (#48,
+  2026-09-29). Merging to `main` deploys, so code that lands ahead of its schema breaks production
+  (`/` reads `seed` on every render). `03` §4.2 carries the commands and the reasons. Run from a clean
+  checkout of the `develop` commit being released, after `npm ci`, with the **direct** string's
+  1Password reference as `<ref>`:
+  1. Read `drizzle.__drizzle_migrations` on production, under `op run`.
+  2. Name the pending migrations: the journal entries with no row.
+  3. Check that each is additive. If one is not, split it into expand and contract (`03` §4.2).
+  4. Apply them: `DATABASE_URL='<ref>' op run -- ./node_modules/.bin/drizzle-kit migrate`.
+  5. Verify: read the table again, one row per journal entry with matching hashes.
+  6. Only then merge `develop` into `main`.
+
+  ⚠️ **No production string is written to a file for this**, and the root `.env` must not hold one:
+  drizzle-kit reads the root `.env` on its own, so a bare `npm run db:migrate` would migrate whatever
+  that file names. ⚠️ **On 2026-09-29 it still names production**, and removing it is Yuta's step.
+  The laptop's one production string belongs in `worker/.env`, for the worker.
 - ⚠️ **A running worker holds the code it imported at start, so restart it before a resume is used
   to test a fix** (2026-09-23). Python binds `worker/pipeline/*` at import; editing and committing
   changes nothing about the process already claiming jobs. The #36 fix landed at 15:47 with a worker
@@ -2961,9 +3013,12 @@ Nothing.
 
 - ~~⚠️ **Neon is at `0005` and the code expects `0006`** (2026-09-21, #28).~~ ⚠️ **Applied to Neon
   2026-09-21**, the same day: `note_meaning` and `meaning_synonym` both exist there. `snapshotOf`
-  joins them, so any database behind this code needs `0006` first. ⚠️ `npm run db:migrate` does not
-  read `.env` by itself and `.env` does not source in zsh (line 16); `node --env-file=.env
-  ./node_modules/.bin/drizzle-kit migrate` is what worked.
+  joins them, so any database behind this code needs `0006` first. ~~⚠️ `npm run db:migrate` does not
+  read `.env` by itself~~ and `.env` does not source in zsh (line 16); `node --env-file=.env
+  ./node_modules/.bin/drizzle-kit migrate` is what worked. ⚠️ **Measured wrong on 2026-09-29
+  (#48):** drizzle-kit 0.31.10 bundles `dotenv/config` and reads the root `.env` itself, and
+  `npm run db:migrate` applied all nine migrations from a `.env` alone. The release step no longer
+  uses either file (the first entry of this section).
 - ⚠️ **A synonym is not an answer, and `unsentAnswers` is where that is enforced** (#28). Read as
   one, a reload would mark its *card* flagged and skip it unanswered. Any new outbox kind that is not
   an answer owes the same line.
