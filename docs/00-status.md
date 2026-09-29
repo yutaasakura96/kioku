@@ -118,7 +118,24 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-29, latest — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
+**2026-09-29, latest — [#46](https://github.com/yutaasakura96/kioku/issues/46), without the
+`.apkg`: a seed and its word list minted *cards* on production from the deployed app, and every other
+screen renders there.** Yuta chose one seed at 10 words and no deck. So #46's `.apkg` criteria, the
+`/tmp` observation and `unpackDeck`'s duration, **are not met** (§ Carrying). The production worker
+was restarted detached on `main` `dc12d3f`. ADR 0022 § Observed from the deployed app has every
+reading, and ADR 0043 is amended. No code changed.
+- **Minted from `https://kioku-pink.vercel.app`:** *daily · N2 · 10* drafted, landed in the form and
+  was submitted as a `word_list` *source*. *Cards minted* went **2183 → 2190**: three of the ten words
+  already had *notes* from the N3 import. Spend **$0.0190** ($0.0070 seed, $0.0120 ingest).
+- **The wake-up is the `NOTIFY` from `sin1`:** both jobs were claimed **under 0.2 s** after their
+  rows were written, where a missed notification would have waited indefinitely (ADR 0028).
+- **Screens:** `/`, `/sources`, `/sources/:id` and `/stats` carry **0** scripts signed in. `/vet`
+  loads and shows *Nothing to vet*. `Export everything` answers `200` with 4.1 MB.
+- ⚠️ **Two findings, neither fixed here:** `/sources/:id/delete` is a `404` because `S11` never
+  built it, and `/sources` prints submitted times in **UTC** on Vercel, because `submittedAtFormat`
+  names no `timeZone` and the server's zone is no longer JST.
+
+**2026-09-29 — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
 procedure is written down, and its local half is still Yuta's.** `03` §4.2 carries the procedure as
 six numbered steps, and § Carrying repeats them. Each step injects the **direct** production string
 from 1Password with `op run`. The procedure also says what to do when a migration is not additive:
@@ -2202,9 +2219,10 @@ he confirmed them):
   redirect URI, and the `noScripts` check against the deployed origin. **Mostly Yuta's**: the
   Vercel account, the Google Cloud console and the values.
 - [#46](https://github.com/yutaasakura96/kioku/issues/46): **every input and every screen from the
-  deployed app.** A word list, a seed and an `.apkg` upload, with the laptop worker draining. It
-  observes `/tmp` and `unpackDeck`'s duration. Blocked by #45. It spends on Yuta's key, which is his
-  call.
+  deployed app.** ⚠️ **Run 2026-09-29 without the `.apkg`** (§ Done): the seed and its word list
+  minted on production and every screen rendered, but `/tmp` and `unpackDeck`'s duration still wait
+  for a deck uploaded from the deployed app. **Was:** a word list, a seed and an `.apkg` upload, with
+  the laptop worker draining. It spends on Yuta's key, which is his call.
 - [#47](https://github.com/yutaasakura96/kioku/issues/47): **typed *Review* on a real phone,
   including airplane mode.** Yuta's walkthrough, with one ticket per finding. Blocked by #45.
 - [#48](https://github.com/yutaasakura96/kioku/issues/48): **the release path.** Migrate by hand
@@ -3059,7 +3077,9 @@ Nothing.
   and Node only leaves `/tmp` for a `TMPDIR`/`TMP`/`TEMP` Vercel does not set (ADR 0068 § Amended
   2026-09-20). ~~**Nothing has ever deployed this app**, so the composition has never met reality.~~
   ⚠️ **Struck 2026-09-28: #45 deployed it** to `https://kioku-pink.vercel.app`. The `/tmp` path is
-  still unobserved until #46 uploads a deck there.
+  still unobserved until #46 uploads a deck there. ⚠️ **#46 ran 2026-09-29 without one**, by Yuta's
+  choice (a 10-word seed was the only spend), so this is **still unobserved** and waits for the
+  first `.apkg` uploaded from the deployed app.
   ⚠️ **A first import that throws `EACCES`, `EROFS` or `ENOENT` out of `mkdtempSync` is that
   revisit condition arriving, not a bug in the reader** — and the fix named in the ADR is
   `DatabaseSync.deserialize()` with `engines` moved to `>=24.16.0`, **not** a retry, a different
