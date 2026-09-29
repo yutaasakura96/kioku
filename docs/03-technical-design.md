@@ -25,7 +25,8 @@ nine sections, checked 2026-09-06 against primary sources.
 - **What the screens look like.** [`05-design-system.md`](05-design-system.md) and
   `10-screen-specifications.md`.
 - **Which model wins.** ADR 0018 made that a measurement, not a document.
-- **The answers to the three first-week experiments** (§18). Nothing below assumes them.
+- **The answers to the three first-week experiments** (§18). Nothing below assumes them. ⚠️ All
+  three are answered, and §18 says where; this read as open until 2026-09-29.
 
 ---
 
@@ -672,7 +673,8 @@ it would cost.
 
 **Generation sits behind a provider boundary with a declared output schema** (ADR 0018). The
 working default is `claude-sonnet-5`, with `claude-opus-5` run once as a ceiling probe, walked
-*down* toward `gpt-5.6-luna` until measured *acceptance rate* degrades. **Which model wins is a
+*down* toward `gpt-5.6-luna` until measured *flag rate* says the fills got worse (⚠️ this said
+*acceptance rate* until 2026-09-29; ADR 0062 retired it, ADR 0018 § Amendment). **Which model wins is a
 measurement, not a document** — and starting cheap would confound the instrument §5 exists to
 build.
 
