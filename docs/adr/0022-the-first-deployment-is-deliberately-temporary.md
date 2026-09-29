@@ -153,7 +153,9 @@ if.
 - ~~Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).~~
   Observed 2026-09-28: the build log prints `Nitro preset: vercel`.
 - ~~`noScripts` on the deployed origin (#45)~~ (observed 2026-09-28, **0**), and `os.tmpdir()` being
-  writable plus `unpackDeck`'s duration against 300 s (#46).
+  writable plus `unpackDeck`'s duration against 300 s (#46). ⚠️ **#46 ran on 2026-09-29 without an
+  `.apkg`**, by Yuta's choice, so these two are still unobserved and wait for the first deck
+  uploaded from the deployed app.
 - ~~Neon's docs on running migrations over the direct string, which #48 reads before relying on it.~~
   Read 2026-09-29 by #48: *"we recommend using a direct (non-pooled) connection when performing
   migrations"* (Neon, Schema migration with Drizzle ORM). `03` §4.2 carries the procedure.
@@ -242,6 +244,39 @@ everywhere this ADR, `03` §13.1 and `08` §10 say it. The first production depl
   (`kioku-*-yuta-asakuras-projects.vercel.app`) answer `302` to Vercel's login, so only
   `kioku-pink.vercel.app` can sign in, which matches the one registered redirect URI. Nothing was
   changed.
+
+### Observed from the deployed app (#46, 2026-09-29)
+
+Every input and screen was driven from `https://kioku-pink.vercel.app` in Yuta's signed-in Chrome,
+with the production worker running detached on the laptop at `main` `dc12d3f`. Yuta chose the spend:
+**one seed at 10 words and no `.apkg`**. Times are UTC.
+
+- **A seed drafted and minted from the deployed origin.** *daily · N2 · 10* was requested at
+  21:21:53. The worker claimed its job **0.18 s** after the row was written, logged `seed.drafted`
+  (asked 10, got 10) about 10 s after the request, and the draft was in the word-list form on the next
+  reload. It cost **$0.0070**. Submitting it made a `word_list` *source* at 21:22:58. Its `ingest` job
+  was claimed **0.19 s** later and drained about 23 s after that, for **$0.0120**. *Cards minted* on
+  `/stats` went from **2183 to 2190**: 7 of the 10 words are new *notes*. The other three (用心, 手間,
+  迷惑) already had *notes* from the N3 import of 2026-09-22. That seed doubles as #46's word list,
+  because a seed is submitted as a plain `word_list` *source* (ADR 0070).
+- **The wake-up is the notification, not a poll.** Both claims came under 0.2 s after the insert. The
+  worker's 5 s block timeout issues no query (`worker/loop.py`), and no job was deferred, so only a
+  `NOTIFY` could have woken it. The `NOTIFY` went out from a Vercel Function in `sin1` through the
+  pooled string and reached the laptop's direct `LISTEN` (ADR 0043 § Amended 2026-09-29).
+- **Every *place* renders signed in, with no script.** `/`, `/sources`, `/sources/:id` and `/stats`
+  each carry **0** `<script>` elements. `/vet` is a *mode*: it loads its queue from
+  `/api/vet/queue` (`200`) and showed *Nothing to vet*, with no console error. `Export everything`
+  (`GET /api/export`) answered `200` with 4.1 MB of JSON, including 2,190 *cards* and 2,545 *notes*,
+  in about 1 s.
+- ⚠️ **`/sources/:id/delete` answers `404`.** It was never built: the delete confirmation is still
+  `S11`'s (`00-status.md` § Carrying), so #46's line to "render it" had nothing to render.
+- ⚠️ **`/sources` and `/sources/:id` print the submitted time in UTC.** `submittedAtFormat`
+  (`app/composables/usePlace.ts`) sets no `timeZone`, so it uses the server's zone. That was JST on
+  the laptop and is UTC on Vercel: the source submitted at 06:22 JST reads *21:22*.
+- ⚠️ ***Time to first review* still reads 6d.** None of the seven new *cards* has been reviewed, so
+  the figure did not move.
+- ⚠️ **`/tmp` and `unpackDeck`'s duration are still unobserved.** No `.apkg` was uploaded, by Yuta's
+  choice, so ADR 0068 § Amended 2026-09-20 still rests on the docs.
 
 ## Alternatives considered
 

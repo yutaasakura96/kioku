@@ -73,6 +73,13 @@ nothing, and look healthy indefinitely. The only thing standing between that con
 a permanently idle queue is `worker/db.py:require_direct_url`'s hostname refusal, which is therefore
 load-bearing and not a nicety. **Do not relax it into a warning.**
 
+**⚠️ Amended 2026-09-29 — observed from the deployment (#46).** The `NOTIFY` now comes from a Vercel
+Function in `sin1` over the pooled string, and the direct `LISTEN` is on the laptop worker. A seed
+job and an ingest job, each submitted from `https://kioku-pink.vercel.app`, were claimed **0.18 s**
+and **0.19 s** after their rows were written. The worker's block timeout issues no query and no job
+was deferred, so the notification is the only thing that could have woken it that fast. ADR 0022
+§ Observed from the deployed app has the readings.
+
 ## The channel, and the one thing that makes it dangerous
 
 `kioku_job`. It is a **cross-language constant**: `server/utils/ingest/notify.ts` sends it and
