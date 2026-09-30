@@ -270,6 +270,7 @@ with the production worker running detached on the laptop at `main` `dc12d3f`. Y
   in about 1 s.
 - ⚠️ **`/sources/:id/delete` answers `404`.** It was never built: the delete confirmation is still
   `S11`'s (`00-status.md` § Carrying), so #46's line to "render it" had nothing to render.
+  ⚠️ **Built by #59 (2026-09-30):** the page and its `POST` exist (`10` §7.3).
 - ⚠️ **`/sources` and `/sources/:id` print the submitted time in UTC.** `submittedAtFormat`
   (`app/composables/usePlace.ts`) sets no `timeZone`, so it uses the server's zone. That was JST on
   the laptop and is UTC on Vercel: the source submitted at 06:22 JST reads *21:22*. ⚠️ **Fixed by
