@@ -877,6 +877,10 @@ that *note* `accepted` on arrival. Both call `mint_cards(note_id, owner_id, temp
 function from migration `0003`. It is one `INSERT … ON CONFLICT DO NOTHING` per template, it never
 writes an epoch, and it is a function, not a trigger, so §7.5's count of one trigger stands
 ([ADR 0067](adr/0067-minting-is-a-database-function-because-two-toolchains-mint.md)).
+⚠️ **Amended 2026-09-30 with #59:** migration `0009` replaces it so a *card* whose *note* originated
+in a *source* with `deleted_at` set is minted suspended as `source_deleted` (§9.1), under a
+`FOR SHARE` lock on that *source* row — an ingestion still running after `S11`'s delete keeps
+minting, and those *cards* must not reach scheduling.
 
 **Example:** `(019bd3…, note 019bd3…, 'usr_7f…', 'recognition', null, null, 2026-09-06T10:02Z)`
 

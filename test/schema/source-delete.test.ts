@@ -223,3 +223,45 @@ describe('deleteSource — `09` §4.11 step 3', () => {
     expect((await suspension(cardId)).suspended_at).toEqual(suspendedAt)
   })
 })
+
+// ⚠️ **A delete made while the ingestion is still running.** The `POST` can only
+// suspend the *cards* that exist; every *chunk* written after it mints through
+// `mint_cards`, which is where the rule has to hold for those.
+describe('mint_cards after the source is deleted', () => {
+  async function note(key: string, ingestionId: string): Promise<string> {
+    return one(`
+      INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
+      VALUES ('jlpt-vocab', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
+      RETURNING id;
+    `)
+  }
+
+  async function mint(noteId: string) {
+    await client.exec(`SELECT mint_cards('${noteId}'::uuid, '${OWNER}', ARRAY['recognition']::text[]);`)
+    return (await client.query<{ suspended_at: Date | null, suspended_reason: string | null }>(
+      `SELECT suspended_at, suspended_reason FROM card WHERE note_id = '${noteId}';`,
+    )).rows
+  }
+
+  it('mints a later chunk\'s card suspended as source_deleted', async () => {
+    const { sourceId, ingestionId } = await source('一冊目')
+    await card('図書館', ingestionId)
+    await deleteSource(db, sourceId)
+
+    const [minted, ...rest] = await mint(await note('駅', ingestionId))
+
+    expect(rest).toEqual([])
+    expect(minted!.suspended_reason).toBe('source_deleted')
+    expect(minted!.suspended_at).toBeInstanceOf(Date)
+    expect((await sourceDeletion(db, sourceId))!.cardCount).toBe(0)
+  })
+
+  it('mints unsuspended for a source that is not deleted', async () => {
+    const first = await source('一冊目')
+    const second = await source('二冊目')
+    await deleteSource(db, first.sourceId)
+
+    expect(await mint(await note('駅', second.ingestionId)))
+      .toEqual([{ suspended_at: null, suspended_reason: null }])
+  })
+})
