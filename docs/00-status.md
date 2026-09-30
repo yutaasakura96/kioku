@@ -118,7 +118,12 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-29, latest — [#46](https://github.com/yutaasakura96/kioku/issues/46), without the
+**2026-09-30, latest — [#60](https://github.com/yutaasakura96/kioku/issues/60): Sources shows
+submission times in the reader's zone.** `/sources` and `/sources/:id` format `submitted_at` with
+`formatSubmittedAt` (`shared/time/submitted-at.ts`) in `readerZone`'s zone, the one `/stats` reads,
+and UTC only for a reader who never sent one. `submittedAtFormat` is gone. No ADR, no migration.
+
+**2026-09-29 — [#46](https://github.com/yutaasakura96/kioku/issues/46), without the
 `.apkg`: a seed and its word list minted *cards* on production from the deployed app, and every other
 screen renders there.** Yuta chose one seed at 10 words and no deck. So #46's `.apkg` criteria, the
 `/tmp` observation and `unpackDeck`'s duration, **are not met** (§ Carrying). The production worker
@@ -133,7 +138,8 @@ reading, and ADR 0043 is amended. No code changed.
   loads and shows *Nothing to vet*. `Export everything` answers `200` with 4.1 MB.
 - ⚠️ **Two findings, neither fixed here:** `/sources/:id/delete` is a `404` because `S11` never
   built it, and `/sources` prints submitted times in **UTC** on Vercel, because `submittedAtFormat`
-  names no `timeZone` and the server's zone is no longer JST.
+  names no `timeZone` and the server's zone is no longer JST. ⚠️ **The second is fixed by #60
+  (2026-09-30).**
 
 **2026-09-29 — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
 procedure is written down, and its local half is still Yuta's.** `03` §4.2 carries the procedure as
@@ -3175,7 +3181,10 @@ Nothing.
   [#21](https://github.com/yutaasakura96/kioku/issues/21) lands the zone and **one line changes**.
   ⚠️ **Do not "fix" it by reading `Accept-Language` or by adding a `<script>` to `/stats`** — the
   first carries no zone and the second is the property ADR 0020 exists to hold.~~ **Paid 2026-09-18
-  by #21**: `/stats` reads `readerZone`, the zone the newest *session* stored. ⚠️ **What is still
+  by #21**: `/stats` reads `readerZone`, the zone the newest *session* stored. ⚠️ **Since #60
+  (2026-09-30) `/sources` and `/sources/:id` read the same zone**, through `useReaderZone()` and
+  `shared/time/submitted-at.ts`: a date formatted on a *place* names that zone, never the runtime's,
+  because Vercel renders in UTC. ⚠️ **What is still
   true: a reader who has never composed a run from a client that sent a zone is in UTC**, and so is
   every run composed before #21 — `zone` is null on all of them. The warning about `Accept-Language`
   and `<script>` stands.

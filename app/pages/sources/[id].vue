@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatSubmittedAt } from '#shared/time/submitted-at'
+
 // One *source*, readable — `10` §7.2's **first half only**.
 //
 // ⚠️ **This is deliberately not `S11`.** `10` §7.2 gives this screen the
@@ -15,6 +17,8 @@ const route = useRoute()
 
 const counts = await useStartBlockCounts()
 const source = (await usePlace()?.sourceDetail(String(route.params.id))) ?? null
+
+const zone = await useReaderZone()
 
 if (!source)
   throw createError({ statusCode: 404, statusMessage: 'No such source', fatal: true })
@@ -34,7 +38,7 @@ if (!source)
       </h1>
 
       <p class="facts">
-        <span>{{ submittedAtFormat.format(source.submittedAt) }}</span>
+        <span>{{ formatSubmittedAt(source.submittedAt, zone) }}</span>
         <span class="dot" aria-hidden="true">·</span>
         <span>{{ source.status ?? 'not ingested' }}</span>
         <span class="dot" aria-hidden="true">·</span>
