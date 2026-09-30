@@ -126,8 +126,7 @@ one predicate (`server/utils/ingest/delete.ts`). No ADR.
 - ⚠️ **Migration `0009` replaces `mint_cards`** so a *card* minted for a deleted *source*'s *note* is
   born suspended (`04` §7.3 as amended). It is a `CREATE OR REPLACE FUNCTION`, additive for the
   release procedure (§ Carrying), and **is not yet on Neon**.
-- ⚠️ **`/sources/:id` still has no delete link** (`10` §7.2 as amended): the confirmation is reached
-  only by its URL.
+- `/sources/:id` carries the `Delete this source` link at its foot (`10` §7.2 as amended).
 
 **2026-09-30 — [#60](https://github.com/yutaasakura96/kioku/issues/60): Sources shows
 submission times in the reader's zone.** `/sources` and `/sources/:id` format `submitted_at` with
@@ -3937,8 +3936,8 @@ Nothing.
   one row is an inner join) **and once it was not.**
 - ⚠️ **`/sources/:id` exists and is only the readable half.** #6's criteria put the detail route in
   `S11`, and two of its other criteria link there — a link to a `404` is not an offer. Title, fact
-  line, retained material. **The *notes*, the *occurrence* positions and the delete link are
-  still `S11`'s** (`/sources/:id/delete` itself is built, #59); `10` §7.2 is amended to say which half is which.
+  line, retained material. **The *notes* and the *occurrence* positions are still `S11`'s**
+  (`/sources/:id/delete` and the link to it are built, #59); `10` §7.2 is amended to say which half is which.
 
 - ⚠️ **TypeScript widens every string in an imported JSON module, so the declaration is derived and
   still untyped.** `typeof declaration.fields[number]['name']` reads exactly like it produces a union

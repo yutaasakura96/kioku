@@ -82,6 +82,14 @@ const minted = await source('三枚の本', ['図書館', '駅', '本'])
 const single = await source('一枚の本', ['電車'])
 const empty = await source('空の本', [])
 
+describe('the way in — `10` §7.2', () => {
+  it('links the source to its confirmation, as a link and not a control', async () => {
+    const html = await asReader(`/sources/${single}`).then(response => response.text())
+
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/sources/${single}/delete"[^>]*>\\s*Delete this source\\s*</a>`))
+  })
+})
+
 describe('the confirmation — `10` §7.3', () => {
   it('states the count as the page\'s statement', async () => {
     const response = await asReader(`/sources/${minted}/delete`)
