@@ -977,6 +977,9 @@ Neon `DATABASE_URL`. Removing it is Yuta's step, because it is his file. ⚠️ 
 looked**: drizzle-kit reads the root `.env` on its own (§4.2, step 4), so while the file holds that
 string, a bare `npm run db:migrate` migrates production. Until he removes it, UI work runs on
 `npm run dev:session`, which does not read the file.
+⚠️ **Done 2026-09-30: the root `.env` no longer holds `DATABASE_URL`**, so the rule is now true on
+disk. The two paragraphs above said the file still named production until then; they are kept as
+the record. UI work still runs on `npm run dev:session`.
 
 ⚠️ **Observed 2026-09-28 by #45 (ADR 0022 § Observed on the first deployment).** The Vercel project
 `kioku` holds six values (`DATABASE_URL` and `08` §10's five) in its **Production** environment and

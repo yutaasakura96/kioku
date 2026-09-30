@@ -2993,8 +2993,8 @@ Nothing.
 
   ⚠️ **No production string is written to a file for this**, and the root `.env` must not hold one:
   drizzle-kit reads the root `.env` on its own, so a bare `npm run db:migrate` would migrate whatever
-  that file names. ⚠️ **On 2026-09-29 it still names production**, and removing it is Yuta's step.
-  The laptop's one production string belongs in `worker/.env`, for the worker.
+  that file names. ⚠️ **As of 2026-09-30 the root `.env` no longer holds `DATABASE_URL`**; this said
+  *on 2026-09-29 it still names production, and removing it is Yuta's step* until then. The laptop's one production string belongs in `worker/.env`, for the worker.
 - ⚠️ **A running worker holds the code it imported at start, so restart it before a resume is used
   to test a fix** (2026-09-23). Python binds `worker/pipeline/*` at import; editing and committing
   changes nothing about the process already claiming jobs. The #36 fix landed at 15:47 with a worker
