@@ -344,7 +344,7 @@ forgotten.** Two things about the step were settled on 2026-09-28 as well:
 **The release procedure** (#48). Run it from a clean checkout of the `develop` commit being released,
 after `npm ci` and before the release PR into `main` is merged. A clean checkout has no root `.env`.
 `<ref>` is the 1Password secret reference to the **direct** production string,
-`op://<vault>/<item>/<field>`. It is a pointer, not the value, but it still stays out of the
+`op://<vault>/<item>/<field>`, held by the owner. It is a pointer, not the value, but it still stays out of the
 repository and the tracker.
 
 1. **Read what production has.**

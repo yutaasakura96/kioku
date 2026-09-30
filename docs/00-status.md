@@ -142,7 +142,7 @@ reading, and ADR 0043 is amended. No code changed.
   (2026-09-30).**
 
 **2026-09-29 — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
-procedure is written down, and its local half is still Yuta's.** `03` §4.2 carries the procedure as
+procedure is written down.** ⚠️ **This said *its local half is still Yuta's* until 2026-09-30, when both owner steps were done; see the entry below.** `03` §4.2 carries the procedure as
 six numbered steps, and § Carrying repeats them. Each step injects the **direct** production string
 from 1Password with `op run`. The procedure also says what to do when a migration is not additive:
 expand, then contract, in two releases. No code changed. `drizzle.config.ts`'s comment and the
@@ -158,8 +158,11 @@ stale-doc list are corrected.
   2026-09-19 paragraph, where `npm run db:migrate` applied `0004` and `0005`, already showed it.
 - ⚠️ **So the root `.env` is a live hazard, not only a rule unmet.** On 2026-09-29 it still names a
   Neon `DATABASE_URL`, and while it does, a bare `npm run db:migrate` from the main checkout migrates
-  production. Removing it is **Yuta's** step, and so is the 1Password item. Neither can be done from
-  the repository.
+  production. Removing it was **Yuta's** step, and so was the 1Password item. Neither can be done from
+  the repository. ⚠️ **Both are done as of 2026-09-30**: `DATABASE_URL` is out of the root `.env`
+  (`worker/.env` untouched), and the production direct string is in a 1Password item the owner
+  holds. It resolves, and the host is the direct endpoint, not `-pooler`. The reference stays out of
+  the repository (`03` §4.2).
 - **Re-read `0001` to `0008`:** each adds or loosens, and every rule one adds was already kept by the
   code before it. `0007`'s swap of `job_kind` and its dropped `NOT NULL` are the closest to a change,
   and neither broke old code.
@@ -185,8 +188,8 @@ has every reading; `03` §13.1 and `08` §10 are amended. No code changed.
   Vercel's default Deployment Protection, which was left as it is.
 - ⚠️ **Still unobserved:** the Node patch number (the build log prints none), the session cookie's
   own attributes (only the state cookie was read; both come from `BETTER_AUTH_URL`), and `/tmp` on
-  Vercel, which is #46's. **#48's local half is not done**: the root `.env` still points the app at
-  production (`03` §13.1).
+  Vercel, which is #46's. **#48's local half is not done** ⚠️ (**it was done 2026-09-30**): the root `.env` still
+  pointed the app at production (`03` §13.1).
 
 **2026-09-25 — the app ships its three faces**
 ([ADR 0074](adr/0074-the-app-ships-its-own-faces.md)). Shippori Mincho, Newsreader and IBM Plex
@@ -2235,7 +2238,7 @@ he confirmed them):
   before merging to `main`, local development off production, and the stale-doc list from the
   planning. Its first half lands with #45.
   ⚠️ **Written 2026-09-29** (§ Done): the procedure is in `03` §4.2 and § Carrying, Neon's docs are
-  cited, and the stale-doc list is paid. ⚠️ **Two steps are still Yuta's**: taking the production
+  cited, and the stale-doc list is paid. ⚠️ **Two steps were Yuta's, and both were done 2026-09-30**: taking the production
   `DATABASE_URL` out of the root `.env`, and making the 1Password item that holds the direct string.
 
 ~~⚠️ **Two things the planning left open**, and #48 has to answer both before it is `ready-for-agent`:
