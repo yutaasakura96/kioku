@@ -74,6 +74,7 @@ export default defineEventHandler((event) => {
     sources: () => allSources(db),
     sourceTitle: (id: string) => sourceTitle(db, id),
     sourceDetail: (id: string) => sourceDetail(db, id),
+    zone: () => readerZone(db, ownerId),
     // ⚠️ **The zone is the one the newest *session* stored** (#21). `/stats`
     // ships no JavaScript (ADR 0020), so it cannot ask; the *session* request
     // is the one place a client reports it (ADR 0066 §4), and `readerZone`

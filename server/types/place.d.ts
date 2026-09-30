@@ -28,6 +28,11 @@ interface PlaceReader {
   /** One *source*, readable — `10` §7.2's first half. */
   sourceDetail: (id: string) => Promise<SourceDetail | null>
   /**
+   * The zone the newest *session* stored, UTC if none — for a *place* that
+   * cannot ask the client (ADR 0066 §4).
+   */
+  zone: () => Promise<string>
+  /**
    * `S10`'s six figures and the spend ledger — `10` §8.
    *
    * ⚠️ **Lazy like the rest of this reader.** Stats is five sequential reads

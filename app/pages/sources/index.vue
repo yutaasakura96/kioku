@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatSubmittedAt } from '#shared/time/submitted-at'
+
 // Sources — the *place*. `10` §7.1, a **940px** column: a list is read across,
 // which is what 940 means (`05` §5, `10` §2.2).
 //
@@ -15,6 +17,7 @@
 
 const counts = await useStartBlockCounts()
 const sources = (await usePlace()?.sources()) ?? []
+const zone = await useReaderZone()
 </script>
 
 <template>
@@ -32,7 +35,7 @@ const sources = (await usePlace()?.sources()) ?? []
         </p>
 
         <p class="facts">
-          <span>{{ submittedAtFormat.format(source.submittedAt) }}</span>
+          <span>{{ formatSubmittedAt(source.submittedAt, zone) }}</span>
           <span class="dot" aria-hidden="true">·</span>
           <span>{{ source.status ?? 'not ingested' }}</span>
           <span class="dot" aria-hidden="true">·</span>
