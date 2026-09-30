@@ -272,7 +272,8 @@ with the production worker running detached on the laptop at `main` `dc12d3f`. Y
   `S11`'s (`00-status.md` § Carrying), so #46's line to "render it" had nothing to render.
 - ⚠️ **`/sources` and `/sources/:id` print the submitted time in UTC.** `submittedAtFormat`
   (`app/composables/usePlace.ts`) sets no `timeZone`, so it uses the server's zone. That was JST on
-  the laptop and is UTC on Vercel: the source submitted at 06:22 JST reads *21:22*.
+  the laptop and is UTC on Vercel: the source submitted at 06:22 JST reads *21:22*. ⚠️ **Fixed by
+  #60 (2026-09-30):** both screens now format in the reader's stored zone (`00-status.md` § Carrying).
 - ⚠️ ***Time to first review* still reads 6d.** None of the seven new *cards* has been reviewed, so
   the figure did not move.
 - ⚠️ **`/tmp` and `unpackDeck`'s duration are still unobserved.** No `.apkg` was uploaded, by Yuta's
