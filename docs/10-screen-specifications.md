@@ -1066,7 +1066,9 @@ exist anyway: `09` §4.2's "offers to open the existing one" and §7.1's list ro
 link to a `404` is not an offer. So `/sources/:id` today renders the title, the fact line and **the
 retained material**, in full — the part ADR 0008 kept the content *for* — and nothing else. **The
 *notes*, the *occurrence* positions and the route to §7.3's confirmation are still `S11`'s**, and the
-ticket that owns them owns this section.
+ticket that owns them owns this section. ⚠️ **Amended 2026-09-30 with #59:** §7.3's page and its
+`POST` are built, and a deleted *source* shows `deleted` beside its title here; **the delete link at
+this screen's foot is still not**, so the confirmation is reached only by its URL.
 
 **Header block**, 940px: the title at 24px Newsreader 400 `--k-ink` (the "single datum given weight"
 slot — a *source* title is a heading, not a 46px screen statement), then the fact line as §7.1,

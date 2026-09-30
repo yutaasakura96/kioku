@@ -118,7 +118,18 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-30, latest — [#60](https://github.com/yutaasakura96/kioku/issues/60): Sources shows
+**2026-09-30, latest — [#59](https://github.com/yutaasakura96/kioku/issues/59): `S11`'s delete
+confirmation is built.** `/sources/:id/delete` renders `10` §7.3 (the count as the statement, `No
+cards will be suspended.` at zero), and `POST /api/source/:id/delete` sets `deleted_at`, suspends as
+`source_deleted` and answers `303` to `/sources/:id`. The page's count and the `POST`'s write share
+one predicate (`server/utils/ingest/delete.ts`). No ADR.
+- ⚠️ **Migration `0009` replaces `mint_cards`** so a *card* minted for a deleted *source*'s *note* is
+  born suspended (`04` §7.3 as amended). It is a `CREATE OR REPLACE FUNCTION`, additive for the
+  release procedure (§ Carrying), and **is not yet on Neon**.
+- ⚠️ **`/sources/:id` still has no delete link** (`10` §7.2 as amended): the confirmation is reached
+  only by its URL.
+
+**2026-09-30 — [#60](https://github.com/yutaasakura96/kioku/issues/60): Sources shows
 submission times in the reader's zone.** `/sources` and `/sources/:id` format `submitted_at` with
 `formatSubmittedAt` (`shared/time/submitted-at.ts`) in `readerZone`'s zone, the one `/stats` reads,
 and UTC only for a reader who never sent one. `submittedAtFormat` is gone. No ADR, no migration.
@@ -139,7 +150,7 @@ reading, and ADR 0043 is amended. No code changed.
 - ⚠️ **Two findings, neither fixed here:** `/sources/:id/delete` is a `404` because `S11` never
   built it, and `/sources` prints submitted times in **UTC** on Vercel, because `submittedAtFormat`
   names no `timeZone` and the server's zone is no longer JST. ⚠️ **The second is fixed by #60
-  (2026-09-30).**
+  (2026-09-30), and the first by #59 the same day.**
 
 **2026-09-29 — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
 procedure is written down.** ⚠️ **This said *its local half is still Yuta's* until 2026-09-30, when both owner steps were done; see the entry below.** `03` §4.2 carries the procedure as
@@ -3926,8 +3937,8 @@ Nothing.
   one row is an inner join) **and once it was not.**
 - ⚠️ **`/sources/:id` exists and is only the readable half.** #6's criteria put the detail route in
   `S11`, and two of its other criteria link there — a link to a `404` is not an offer. Title, fact
-  line, retained material. **The *notes*, the *occurrence* positions and `/sources/:id/delete` are
-  still `S11`'s**; `10` §7.2 is amended to say which half is which.
+  line, retained material. **The *notes*, the *occurrence* positions and the delete link are
+  still `S11`'s** (`/sources/:id/delete` itself is built, #59); `10` §7.2 is amended to say which half is which.
 
 - ⚠️ **TypeScript widens every string in an imported JSON module, so the declaration is derived and
   still untyped.** `typeof declaration.fields[number]['name']` reads exactly like it produces a union
