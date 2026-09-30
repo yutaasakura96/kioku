@@ -5,6 +5,7 @@
 
 import type { RunRow, SourceDetail, SourceRow, StartBlockCounts } from '../utils/ingest/queries'
 import type { SeedDraft } from '../utils/ingest/seed'
+import type { SourceDeletion } from '../utils/ingest/delete'
 import type { StatsData } from '../utils/stats/queries'
 
 /**
@@ -32,6 +33,11 @@ interface PlaceReader {
    * cannot ask the client (ADR 0066 §4).
    */
   zone: () => Promise<string>
+  /**
+   * The delete confirmation's count — `10` §7.3. ⚠️ **The same predicate the
+   * `POST` suspends by**, so the page cannot promise one number and do another.
+   */
+  sourceDeletion: (id: string) => Promise<SourceDeletion | null>
   /**
    * `S10`'s six figures and the spend ledger — `10` §8.
    *
