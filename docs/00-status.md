@@ -112,7 +112,7 @@ They were drafted `needs-triage` first. ⚠️ **The paragraph above that names 
 stale**, and since 2026-09-29 it says so where it says it. The tracker had no open issue from #40's
 close on 2026-09-25 until these four were filed.
 
-**Updated:** 2026-09-29 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
+**Updated:** 2026-09-30 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
