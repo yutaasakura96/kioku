@@ -6,9 +6,9 @@ migration `0003_mint_cards.sql`. `server/utils/vet/decide.ts` and `worker/pipeli
 call it, and neither spells an `INSERT INTO card`.
 
 ⚠️ **Amended 2026-10-01:** the signature is `mint_cards(note_id, owner_id, template_keys,
-ingestion_id DEFAULT NULL)` as of migration `0010`. The worker names the run it mints for, and whether
-a *card* is born suspended follows that run's *source* (`04` §7.3, §9.1); no ingestion falls back to
-the *note*'s origin.
+ingestion_id DEFAULT NULL)` as of migration `0010`. The worker names the run it mints for, and a *card*
+is born suspended only when both that run's *source* and the *note*'s origin *source* are deleted
+(`04` §7.3, §9.1); no ingestion means the run is the *note*'s origin.
 
 ## Why this needed deciding
 

@@ -468,11 +468,12 @@ def accept_and_mint(
     asked only when the row reads `accepted` after the upsert, which is what
     keeps a rejected *note* card-less.
 
-    ⚠️ **The mint is told which run it is minting for** (`0010`). Whether a
-    *card* is born suspended follows *that* run's *source*, not the *source* the
-    *note* first came from: a live *source* meeting a word a deleted one had no
-    *card* for mints it studyable, and a run still going on a deleted *source*
-    keeps minting suspended (`04` §9.1).
+    ⚠️ **The mint is told which run it is minting for** (`0010`). A *card* is
+    born suspended only when both that run's *source* and the *source* the
+    *note* first came from are deleted: a live *source* meeting a word a deleted
+    one had no *card* for mints it studyable, a run still going on a deleted
+    *source* mints its own *notes* suspended, and a live *source*'s *note* it
+    meets studyable (`04` §9.1).
     """
     if owner_id is None:
         return False

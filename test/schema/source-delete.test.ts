@@ -266,14 +266,27 @@ describe('mint_cards after the source is deleted', () => {
       .toEqual([{ suspended_at: null, suspended_reason: null }])
   })
 
-  // ⚠️ The mint follows the run it is minting for, not where the *note* first
-  // came from: a word the deleted *source* had no *card* for, met again by a
-  // live one, is studyable. Nothing un-suspends a card born suspended.
+  // ⚠️ A card is born suspended only when both the *note*'s origin and the run
+  // minting it are deleted: a word the deleted *source* had no *card* for, met
+  // again by a live one, is studyable. Nothing un-suspends a card born suspended.
   it('mints studyable for a live source a note first came from a deleted one', async () => {
     const first = await source('一冊目')
     const second = await source('二冊目')
     const noteId = await note('駅', first.ingestionId)
     await deleteSource(db, first.sourceId)
+
+    expect(await mint(noteId, second.ingestionId))
+      .toEqual([{ suspended_at: null, suspended_reason: null }])
+  })
+
+  // ⚠️ The mirror case, `delete.ts`'s rule: a *note* a live *source* brought in
+  // is not the deleted one's to withdraw, so its still-running run mints it
+  // studyable.
+  it('mints studyable for a deleted source\'s run that meets a live source\'s note', async () => {
+    const first = await source('一冊目')
+    const second = await source('二冊目')
+    const noteId = await note('駅', first.ingestionId)
+    await deleteSource(db, second.sourceId)
 
     expect(await mint(noteId, second.ingestionId))
       .toEqual([{ suspended_at: null, suspended_reason: null }])

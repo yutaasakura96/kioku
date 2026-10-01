@@ -874,8 +874,9 @@ def test_a_note_left_pending_before_the_pivot_is_minted_when_it_is_chosen(connec
 def test_a_card_minted_for_a_live_source_is_studyable_though_its_note_came_from_a_deleted_one(
     connection,
 ):
-    """`S11`, `04` §9.1 as amended by `0010`: the suspension follows the run
-    that is minting, not the *source* the *note* first came from.
+    """`S11`, `04` §9.1 as amended by `0010`: a *card* is born suspended only
+    when both the run minting it and the *source* its *note* came from are
+    deleted.
 
     ⚠️ **Nothing un-suspends a *card* born suspended**, so a word the deleted
     *source* had no *card* for, met again by a live one, would never reach
