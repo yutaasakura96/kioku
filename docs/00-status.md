@@ -126,6 +126,11 @@ one predicate (`server/utils/ingest/delete.ts`). No ADR.
 - ⚠️ **Migration `0009` replaces `mint_cards`** so a *card* minted for a deleted *source*'s *note* is
   born suspended (`04` §7.3 as amended). It is a `CREATE OR REPLACE FUNCTION`, additive for the
   release procedure (§ Carrying), and **is not yet on Neon**.
+- ⚠️ **Amended 2026-10-01: migration `0010` makes the suspension follow the run that is minting.**
+  `mint_cards` takes a defaulted `p_ingestion_id`; a live *source* meeting a word a deleted one had no
+  *card* for mints it studyable (`0009` left it suspended for good). The worker passes its ingestion,
+  *Vet* passes none and keeps `0009`'s origin rule. It drops the three-argument function and creates
+  the four-argument one, so an old caller still resolves, but it is **not yet on Neon**. No ADR.
 - `/sources/:id` carries the `Delete this source` link at its foot (`10` §7.2 as amended).
 
 **2026-09-30 — [#60](https://github.com/yutaasakura96/kioku/issues/60): Sources shows

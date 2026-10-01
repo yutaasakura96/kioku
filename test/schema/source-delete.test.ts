@@ -236,8 +236,9 @@ describe('mint_cards after the source is deleted', () => {
     `)
   }
 
-  async function mint(noteId: string) {
-    await client.exec(`SELECT mint_cards('${noteId}'::uuid, '${OWNER}', ARRAY['recognition']::text[]);`)
+  async function mint(noteId: string, ingestionId?: string) {
+    const run = ingestionId ? `, '${ingestionId}'::uuid` : ''
+    await client.exec(`SELECT mint_cards('${noteId}'::uuid, '${OWNER}', ARRAY['recognition']::text[]${run});`)
     return (await client.query<{ suspended_at: Date | null, suspended_reason: string | null }>(
       `SELECT suspended_at, suspended_reason FROM card WHERE note_id = '${noteId}';`,
     )).rows
@@ -263,5 +264,29 @@ describe('mint_cards after the source is deleted', () => {
 
     expect(await mint(await note('駅', second.ingestionId)))
       .toEqual([{ suspended_at: null, suspended_reason: null }])
+  })
+
+  // ⚠️ The mint follows the run it is minting for, not where the *note* first
+  // came from: a word the deleted *source* had no *card* for, met again by a
+  // live one, is studyable. Nothing un-suspends a card born suspended.
+  it('mints studyable for a live source a note first came from a deleted one', async () => {
+    const first = await source('一冊目')
+    const second = await source('二冊目')
+    const noteId = await note('駅', first.ingestionId)
+    await deleteSource(db, first.sourceId)
+
+    expect(await mint(noteId, second.ingestionId))
+      .toEqual([{ suspended_at: null, suspended_reason: null }])
+  })
+
+  it('still mints suspended for the deleted source\'s own run, naming it', async () => {
+    const first = await source('一冊目')
+    const noteId = await note('駅', first.ingestionId)
+    await deleteSource(db, first.sourceId)
+
+    const [minted, ...rest] = await mint(noteId, first.ingestionId)
+
+    expect(rest).toEqual([])
+    expect(minted!.suspended_reason).toBe('source_deleted')
   })
 })

@@ -186,7 +186,11 @@ def _write_note(
         connection, note_id=note_id, meanings=note.meanings, provenance=to.provenance
     )
     accept_and_mint(
-        connection, note_id=note_id, owner_id=to.owner_id, declaration=to.declaration
+        connection,
+        note_id=note_id,
+        owner_id=to.owner_id,
+        declaration=to.declaration,
+        ingestion_id=to.ingestion_id,
     )
     append_occurrences(
         connection,
@@ -431,6 +435,7 @@ def accept_and_mint(
     note_id: str,
     owner_id: str | None,
     declaration: Declaration,
+    ingestion_id: str,
 ) -> bool:
     """ADR 0064 §1 — the *note* is `accepted` for this reader, and its *cards*
     are minted.
@@ -462,6 +467,12 @@ def accept_and_mint(
     `04` §7.3's *minting its cards* is still one statement in one place. It is
     asked only when the row reads `accepted` after the upsert, which is what
     keeps a rejected *note* card-less.
+
+    ⚠️ **The mint is told which run it is minting for** (`0010`). Whether a
+    *card* is born suspended follows *that* run's *source*, not the *source* the
+    *note* first came from: a live *source* meeting a word a deleted one had no
+    *card* for mints it studyable, and a run still going on a deleted *source*
+    keeps minting suspended (`04` §9.1).
     """
     if owner_id is None:
         return False
@@ -477,10 +488,10 @@ def accept_and_mint(
     )
     connection.execute(
         """
-        SELECT mint_cards(v.note_id, v.owner_id, %s::text[])
+        SELECT mint_cards(v.note_id, v.owner_id, %s::text[], %s::uuid)
         FROM note_vetting v
         WHERE v.note_id = %s AND v.owner_id = %s AND v.state = 'accepted';
         """,
-        (template_keys(declaration), note_id, owner_id),
+        (template_keys(declaration), ingestion_id, note_id, owner_id),
     )
     return True

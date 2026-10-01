@@ -343,6 +343,7 @@ def append_corpus_occurrences(
                 note_id=group.note_id,
                 owner_id=run.owner_id,
                 declaration=declaration,
+                ingestion_id=ingestion_id,
             )
 
     # ⚠️ ADR 0064 §2 on the hit path: *mints nothing, and says so.* The generator

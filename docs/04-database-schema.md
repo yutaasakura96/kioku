@@ -881,6 +881,12 @@ writes an epoch, and it is a function, not a trigger, so §7.5's count of one tr
 in a *source* with `deleted_at` set is minted suspended as `source_deleted` (§9.1), under a
 `FOR SHARE` lock on that *source* row — an ingestion still running after `S11`'s delete keeps
 minting, and those *cards* must not reach scheduling.
+⚠️ **Amended 2026-10-01:** migration `0010` gives it a fourth, defaulted parameter, `p_ingestion_id`,
+and the suspension follows **the run that is minting**, not the *source* the *note* first came from.
+A word the deleted *source* had no *card* for, met again by a live *source*, is minted studyable —
+nothing un-suspends a *card* born suspended, so `0009`'s rule left it out of *Review* for good. The
+worker passes its ingestion; *Vet*'s acceptance passes none and falls back to the *note*'s origin,
+which is `0009`'s rule unchanged.
 
 **Example:** `(019bd3…, note 019bd3…, 'usr_7f…', 'recognition', null, null, 2026-09-06T10:02Z)`
 
@@ -1227,7 +1233,8 @@ forever, because that row *is* the filter that keeps `S5` true.
 `source_chunk` and `occurrence` — the positional links, which mean nothing without the text. It
 **preserves** notes, cards, epochs, review logs, flags and the ingestion's cost record, which is what
 `S11` and ADR 0011 require. Cards suspended by the soft delete stay suspended; nothing un-suspends
-itself.
+itself. ⚠️ A *card* minted afterwards is suspended only when the *source* it is minted for is the
+deleted one (§7.3, amended 2026-10-01); a live *source* that meets the same word mints it normally.
 
 **Deleting a note, card, epoch or review log:** there is no path, in the app or in the worker. If one
 is ever needed it is a migration written by a person who has read this section. ⚠️ **One exception,

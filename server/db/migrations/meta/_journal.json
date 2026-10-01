@@ -71,6 +71,13 @@
       "when": 1790772743548,
       "tag": "0009_mint_cards_source_deleted",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790860000000,
+      "tag": "0010_mint_cards_live_source",
+      "breakpoints": true
     }
   ]
 }

@@ -871,6 +871,72 @@ def test_a_note_left_pending_before_the_pivot_is_minted_when_it_is_chosen(connec
     ).fetchone() == (1,)
 
 
+def test_a_card_minted_for_a_live_source_is_studyable_though_its_note_came_from_a_deleted_one(
+    connection,
+):
+    """`S11`, `04` §9.1 as amended by `0010`: the suspension follows the run
+    that is minting, not the *source* the *note* first came from.
+
+    ⚠️ **Nothing un-suspends a *card* born suspended**, so a word the deleted
+    *source* had no *card* for, met again by a live one, would never reach
+    *Review*. The deleted *source*'s own run still mints suspended.
+    """
+    from pipeline.write_notes import accept_and_mint
+    from subject import load_declaration
+
+    first = make_run(connection)
+    written = write_one_note(connection, char_start=5)
+    connection.execute("DELETE FROM card;")
+    connection.execute(
+        "UPDATE note_vetting SET state = 'pending', vetted_at = NULL WHERE note_id = %s;",
+        (written.note_id,),
+    )
+    connection.execute(
+        "UPDATE source SET deleted_at = now() WHERE id = (SELECT source_id FROM ingestion WHERE id = %s);",
+        (first,),
+    )
+    live_source = connection.execute(
+        """
+        INSERT INTO source (subject_id, title, content, content_hash, char_count)
+        VALUES ('jlpt-vocab', '二冊目', '図書館', 'hash-live', 3) RETURNING id;
+        """
+    ).fetchone()[0]
+    live = connection.execute(
+        """
+        INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_by)
+        VALUES (%s, '二冊目', 'jlpt-vocab', 'queued', %s) RETURNING id;
+        """,
+        (live_source, OWNER),
+    ).fetchone()[0]
+    declaration = load_declaration()
+
+    accept_and_mint(
+        connection,
+        note_id=written.note_id,
+        owner_id=OWNER,
+        declaration=declaration,
+        ingestion_id=str(live),
+    )
+
+    assert connection.execute(
+        "SELECT suspended_at, suspended_reason FROM card WHERE note_id = %s;",
+        (written.note_id,),
+    ).fetchall() == [(None, None)]
+
+    connection.execute("DELETE FROM card;")
+    accept_and_mint(
+        connection,
+        note_id=written.note_id,
+        owner_id=OWNER,
+        declaration=declaration,
+        ingestion_id=str(first),
+    )
+
+    assert connection.execute(
+        "SELECT suspended_reason FROM card WHERE note_id = %s;", (written.note_id,)
+    ).fetchall() == [("source_deleted",)]
+
+
 def test_a_rejected_note_stays_rejected_and_mints_nothing(connection):
     """`S5`, which ADR 0064 moves to *Vet*'s drop: *the reader still says no once
     and means it.* A write that reaches a rejected row — a resume, a concurrent
