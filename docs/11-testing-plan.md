@@ -192,7 +192,7 @@ drift.
 | ⚠️ `Z` un-mints a card | A `Z` on an acceptance deletes its *card* in the same transaction — **and fails on the `RESTRICT`** if that *card* has reached a `review_session_card` or a `review_log` | ADR 0033, `04` §9.1 (as amended) |
 | One live epoch per card | The partial unique index refuses a second `scheduling_epoch` with `superseded_at IS NULL` | `04` §7.4 |
 | A reset is an `INSERT` | After a reset, ordinal 1 still exists with its original `stability`, `reps` and `lapses` | `04` §7.4 |
-| Soft-deleting a *source* | Suspends its *cards* with `suspended_reason='source_deleted'`; `review_log` is **row-for-row identical** before and after; the *source* stays readable | `09` §4.11 |
+| Soft-deleting a *source* | Suspends its *cards* with `suspended_reason='source_deleted'`; `review_log` is **row-for-row identical** before and after; the *source* stays readable. ⚠️ **A *card* minted afterwards is suspended only when both its *note*'s origin and the run minting it are deleted:** suspended for the deleted *source*'s own run on its own *note*, studyable for a live *source* that meets a word the deleted one had no *card* for, and studyable for the deleted *source*'s run meeting a live *source*'s *note* (`test/schema/source-delete.test.ts`, `worker/tests/test_generation.py`) | `09` §4.11, `04` §7.3 as amended |
 | The over-cap `CHECK` | `char_count > 100000` is refused by the schema as well as by the handler | `04` §5.1 |
 | `rating` bounds | `0` and `5` are refused — ⚠️ **`Manual = 0` is excluded**, matching `ts-fsrs`' `Grade` type | `04` §7.5 |
 | A card appears once per session | `UNIQUE (review_session_id, card_id)` — ADR 0016's *no same-day relearning* as a constraint | `04` §7.7 |
