@@ -27,6 +27,7 @@ import {
   sourceTitle,
   startBlockCounts,
 } from '../utils/ingest/queries'
+import { sourceDeletion } from '../utils/ingest/delete'
 import { openSeed } from '../utils/ingest/seed'
 import { statsData } from '../utils/stats/queries'
 import { readerZone } from '../utils/review/queries'
@@ -75,6 +76,7 @@ export default defineEventHandler((event) => {
     sourceTitle: (id: string) => sourceTitle(db, id),
     sourceDetail: (id: string) => sourceDetail(db, id),
     zone: () => readerZone(db, ownerId),
+    sourceDeletion: (id: string) => sourceDeletion(db, id),
     // ⚠️ **The zone is the one the newest *session* stored** (#21). `/stats`
     // ships no JavaScript (ADR 0020), so it cannot ask; the *session* request
     // is the one place a client reports it (ADR 0066 §4), and `readerZone`
