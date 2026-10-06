@@ -1,8 +1,8 @@
 # The first deployment is Vercel, Neon and a laptop — and it is deliberately temporary
 
-**The Nuxt app deploys to Vercel, the database is Neon Postgres with a branch per environment, and
-the Python *ingestion* worker runs on the developer's own machine.** All three are chosen to be
-thrown away: the stated destination is EC2 or Lightsail once the developer's other projects move
+**The Nuxt app deploys to Vercel, production data is on Neon Postgres, local development uses
+PGlite, and the Python *ingestion* worker runs on the developer's own machine.** The deployed tiers
+are chosen to be thrown away: the stated destination is EC2 or Lightsail once the developer's other projects move
 there. Findings in [`../phase-4-verification.md`](../phase-4-verification.md) §7.
 
 ⚠️ **Amended 2026-09-28: production and development are not two Neon branches.** The existing
@@ -87,9 +87,11 @@ documented only platform-agnostically. **`noScripts` is the main reason ADR 0020
 survive, ADR 0020's revisit condition fires.
 
 ⚠️ **Answered 2026-09-06 from `nitropack@2.13.4`'s source** (`phase-4-verification.md` §8; decision
-log § Still open), and made a local test by `11` §6.1. **It has still not been observed on a
+log § Still open), and made a local test by `11` §6.1. ~~**It has still not been observed on a
 deployment**, because there has been none. [#45](https://github.com/yutaasakura96/kioku/issues/45)
-does that.
+does that.~~ ⚠️ **Observed 2026-09-28 by #45 on the first deployment:** `/auth/refused` from
+`https://kioku-pink.vercel.app` carries **0** `<script` tags and no `.js` reference, built by the
+`vercel` preset. The source reading held. See § Observed on the first deployment.
 
 ## Amended 2026-09-28: the deployment is planned, and seven questions it left open are answered
 
@@ -128,8 +130,9 @@ of its own. They are recorded here.
   injected into the migrate command alone at run time (for example with `op run`). It is never
   written to a file, so no file on the laptop gives a command the production database except the
   worker's `worker/.env`. **The migration uses Neon's direct string, not the pooled one.** DDL does
-  not go through PgBouncer's transaction mode. ⚠️ **#48 confirms that against Neon's docs before the
-  procedure relies on it.**
+  not go through PgBouncer's transaction mode. ~~⚠️ **#48 confirms that against Neon's docs before the
+  procedure relies on it.**~~ ⚠️ **Confirmed 2026-09-29 by #48**: Neon's docs name Drizzle Kit among
+  the tools that need the direct string (`03` §4.2 cites the pages).
 - **The address is `<project>.vercel.app`.** A domain comes only with this ADR's move to EC2 or
   Lightsail. At the move, one redirect URI and one bookmark change.
 - **Done means every screen and every input works from the deployed app**, including the `.apkg`
@@ -147,14 +150,19 @@ if.
 
 **Still unverified, and the slices carry each one:**
 
-- Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).
-- `noScripts` on the deployed origin (#45), and `os.tmpdir()` being writable plus `unpackDeck`'s
-  duration against 300 s (#46).
-- Neon's docs on running migrations over the direct string, which #48 reads before relying on it.
+- ~~Nitro's zero-config detection of Vercel for this app. `nuxt.config.ts` sets no preset (#45).~~
+  Observed 2026-09-28: the build log prints `Nitro preset: vercel`.
+- ~~`noScripts` on the deployed origin (#45)~~ (observed 2026-09-28, **0**), and `os.tmpdir()` being
+  writable plus `unpackDeck`'s duration against 300 s (#46). ⚠️ **#46 ran on 2026-09-29 without an
+  `.apkg`**, by Yuta's choice, so these two are still unobserved and wait for the first deck
+  uploaded from the deployed app.
+- ~~Neon's docs on running migrations over the direct string, which #48 reads before relying on it.~~
+  Read 2026-09-29 by #48: *"we recommend using a direct (non-pooled) connection when performing
+  migrations"* (Neon, Schema migration with Drizzle ORM). `03` §4.2 carries the procedure.
 - ~~The `vercel.json` key that turns previews off (#45).~~ Verified 2026-09-28; see § The
   `vercel.json` keys.
-- How many Neon branches exist today. It was not checked, because the planning read no live Neon
-  state.
+- ~~How many Neon branches exist today. It was not checked, because the planning read no live Neon
+  state.~~ Read 2026-09-28 by #45: **one**, the default `main` branch of project `kioku`.
 
 **Tickets, drafted 2026-09-28 and confirmed by Yuta the same day, so they are `ready-for-agent`.**
 The human-only steps in each are still his: the Vercel project, the Google Cloud console, the values,
@@ -194,6 +202,83 @@ production. #46 and #47 are blocked by #45. The local-development half of #48 la
   file reaches `main`, or its first production deploy is redeployed once it does.
 - It sets **no** preset, no `functions`, no `crons` and no rewrites. The app still builds and runs
   with this file deleted, which is what § What must not happen asks.
+
+### Observed on the first deployment (#45, 2026-09-28)
+
+The Vercel project is **`kioku`**, on the Hobby team `yuta-asakuras-projects`, linked to
+`yutaasakura96/kioku` with production branch `main`. `kioku.vercel.app` belongs to someone else, so
+**the address Vercel assigned is `https://kioku-pink.vercel.app`**. That is `<project>.vercel.app`
+everywhere this ADR, `03` §13.1 and `08` §10 say it. The first production deployment built `main` at
+`dc12d3f`.
+
+- **Preset: `vercel`.** The build log prints `Nitro preset: vercel` and `Building Nuxt Nitro server
+  (preset: vercel …)`. Zero-config detection works, so `nuxt.config.ts` still sets none.
+- **Node: `24.x`.** That is the project's default and the deployment's `nodeVersion`. `engines` is
+  `^22.19.0 || ^24.11.0 || >=26.0.0`, and the install printed no `EBADENGINE`. ⚠️ **The log prints no
+  patch number**, so `>=24.11` is inferred from Vercel running the current 24 line, not read. `node:sqlite`
+  is unflagged across all of 24.x, which is what #46 needs.
+- **Region: `sin1`.** The deployment's `regions` is `["sin1"]`, and a response from the function
+  carries `x-vercel-id: hnd1::sin1::…` (edge in Tokyo, function in Singapore). **The build itself ran
+  in `iad1`**, which is where Vercel builds, not where it runs; `regions` does not govern it.
+- **`noScripts` survives the preset.** `curl -s https://kioku-pink.vercel.app/auth/refused | grep -c
+  '<script'` printed **0**, and the body names no `.js` file. `/auth` (`ssr: true`, not `noScripts`)
+  carries its entry script, as it should.
+- **Signed out, every *place* and *mode* redirects to `/auth`.** `/`, `/sources`, `/sources/:id`,
+  `/stats`, `/vet`, `/review` and `/api/export` each answered `302` to `/auth`; `/api/review/session`
+  answered `401`.
+- **Cookies are `Secure`.** Starting a Google sign-in set `__Secure-better-auth.state` with `HttpOnly;
+  Secure; SameSite=Lax`, and the authorisation URL carried `redirect_uri=https://kioku-pink.vercel.app/api/auth/callback/google`.
+  Both derive from `BETTER_AUTH_URL` (`08` §5.3).
+- **Yuta signed in and graded from the deployed origin.** Once the production redirect URI was
+  registered, the function logs show `GET /api/auth/callback/google` `302`, `POST
+  /api/review/session` `200` and `POST /api/review/grade` `200`, and production's `review_log` went
+  from 6 rows to 10, every new one dated 2026-09-28. **That is #45's done-when, observed.**
+- **Production had every migration before the deploy.** `drizzle.__drizzle_migrations` held nine
+  rows whose hashes are the SHA-256 of `0000` to `0008` in `server/db/migrations/`. Nothing was
+  applied.
+- **The six values are in Vercel's Production environment only**, and `BETTER_AUTH_SECRET` is newly
+  generated. `DATABASE_URL`, the secret, `GOOGLE_CLIENT_SECRET` and `KIOKU_INVITED_EMAIL` are stored
+  as Vercel *sensitive* values, which cannot be read back.
+- **Deployment Protection is Vercel's default for a new project** (`all_except_custom_domains`). The
+  production address above answers the public. The team aliases and per-deployment URLs
+  (`kioku-*-yuta-asakuras-projects.vercel.app`) answer `302` to Vercel's login, so only
+  `kioku-pink.vercel.app` can sign in, which matches the one registered redirect URI. Nothing was
+  changed.
+
+### Observed from the deployed app (#46, 2026-09-29)
+
+Every input and screen was driven from `https://kioku-pink.vercel.app` in Yuta's signed-in Chrome,
+with the production worker running detached on the laptop at `main` `dc12d3f`. Yuta chose the spend:
+**one seed at 10 words and no `.apkg`**. Times are UTC.
+
+- **A seed drafted and minted from the deployed origin.** *daily · N2 · 10* was requested at
+  21:21:53. The worker claimed its job **0.18 s** after the row was written, logged `seed.drafted`
+  (asked 10, got 10) about 10 s after the request, and the draft was in the word-list form on the next
+  reload. It cost **$0.0070**. Submitting it made a `word_list` *source* at 21:22:58. Its `ingest` job
+  was claimed **0.19 s** later and drained about 23 s after that, for **$0.0120**. *Cards minted* on
+  `/stats` went from **2183 to 2190**: 7 of the 10 words are new *notes*. The other three (用心, 手間,
+  迷惑) already had *notes* from the N3 import of 2026-09-22. That seed doubles as #46's word list,
+  because a seed is submitted as a plain `word_list` *source* (ADR 0070).
+- **The wake-up is the notification, not a poll.** Both claims came under 0.2 s after the insert. The
+  worker's 5 s block timeout issues no query (`worker/loop.py`), and no job was deferred, so only a
+  `NOTIFY` could have woken it. The `NOTIFY` went out from a Vercel Function in `sin1` through the
+  pooled string and reached the laptop's direct `LISTEN` (ADR 0043 § Amended 2026-09-29).
+- **Every *place* renders signed in, with no script.** `/`, `/sources`, `/sources/:id` and `/stats`
+  each carry **0** `<script>` elements. `/vet` is a *mode*: it loads its queue from
+  `/api/vet/queue` (`200`) and showed *Nothing to vet*, with no console error. `Export everything`
+  (`GET /api/export`) answered `200` with 4.1 MB of JSON, including 2,190 *cards* and 2,545 *notes*,
+  in about 1 s.
+- ⚠️ **`/sources/:id/delete` answers `404`.** It was never built: the delete confirmation is still
+  `S11`'s (`00-status.md` § Carrying), so #46's line to "render it" had nothing to render.
+  ⚠️ **Built by #59 (2026-09-30):** the page and its `POST` exist (`10` §7.3).
+- ⚠️ **`/sources` and `/sources/:id` print the submitted time in UTC.** `submittedAtFormat`
+  (`app/composables/usePlace.ts`) sets no `timeZone`, so it uses the server's zone. That was JST on
+  the laptop and is UTC on Vercel: the source submitted at 06:22 JST reads *21:22*. ⚠️ **Fixed by
+  #60 (2026-09-30):** both screens now format in the reader's stored zone (`00-status.md` § Carrying).
+- ⚠️ ***Time to first review* still reads 6d.** None of the seven new *cards* has been reviewed, so
+  the figure did not move.
+- ⚠️ **`/tmp` and `unpackDeck`'s duration are still unobserved.** No `.apkg` was uploaded, by Yuta's
+  choice, so ADR 0068 § Amended 2026-09-20 still rests on the docs.
 
 ## Alternatives considered
 

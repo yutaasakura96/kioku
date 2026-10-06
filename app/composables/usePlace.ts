@@ -1,3 +1,5 @@
+import { FALLBACK_ZONE } from '#shared/time/local-day'
+
 /**
  * What a *place* reads, in one call.
  *
@@ -28,15 +30,9 @@ export async function useStartBlockCounts() {
 }
 
 /**
- * ⚠️ **One formatter, so two screens cannot render the same instant two ways.**
- * `09` §2 stamps every figure in the *shell* "as of this page load"; two
- * spellings of the same timestamp would make one of those stamps read as a
- * different page load.
+ * The reader's zone, for a screen that ships no JavaScript and so cannot ask
+ * the browser (ADR 0020). UTC when there is no *place* or no reported zone.
  */
-export const submittedAtFormat = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-})
+export async function useReaderZone() {
+  return (await usePlace()?.zone()) ?? FALLBACK_ZONE
+}

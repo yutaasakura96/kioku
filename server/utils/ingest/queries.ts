@@ -317,9 +317,10 @@ export interface SourceDetail {
  * One *source*, readable — `10` §7.2, and the reason `source.content` is
  * retained at all (ADR 0008).
  *
- * ⚠️ **This is the readable half only.** `S11`'s *occurrence* positions, the
- * *notes* that came from it and the delete confirmation are `10` §7.2 and §7.3
- * and are not built: #6's acceptance criteria put them out of this milestone.
+ * ⚠️ **This is the readable half only.** `S11`'s *occurrence* positions and the
+ * *notes* that came from it are `10` §7.2 and are not built: #6's acceptance
+ * criteria put them out of this milestone. The delete confirmation (§7.3, #59)
+ * reads `./delete.ts`.
  * What is here is what `09` §4.2's "offers to open the existing one" and
  * `10` §7.1's list link need in order to lead somewhere.
  */

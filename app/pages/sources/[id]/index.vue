@@ -1,11 +1,13 @@
 <script setup lang="ts">
-// One *source*, readable — `10` §7.2's **first half only**.
+import { formatSubmittedAt } from '#shared/time/submitted-at'
+
+// One *source*, readable — `10` §7.2's **first half**, and its delete link.
 //
-// ⚠️ **This is deliberately not `S11`.** `10` §7.2 gives this screen the
+// ⚠️ **This is deliberately not all of `S11`.** `10` §7.2 gives this screen the
 // *notes* that came from the *source*, their *occurrence* positions inside the
-// text, and a route to the delete confirmation (§7.3); #6's acceptance criteria
-// put all three out of this milestone. What is built is the part two of #6's
-// own criteria depend on: `09` §4.2's "offers to open the existing one" and
+// text, and a link to the delete confirmation (§7.3); #6's acceptance criteria
+// put all three out of its milestone, and #59 built the link with §7.3. What
+// #6 built is the part two of its own criteria depend on: `09` §4.2's "offers to open the existing one" and
 // `10` §7.1's list row both link here, and a link to a `404` is not an offer.
 //
 // So this renders what ADR 0008 retained the content *for* — the material, in
@@ -15,6 +17,8 @@ const route = useRoute()
 
 const counts = await useStartBlockCounts()
 const source = (await usePlace()?.sourceDetail(String(route.params.id))) ?? null
+
+const zone = await useReaderZone()
 
 if (!source)
   throw createError({ statusCode: 404, statusMessage: 'No such source', fatal: true })
@@ -34,7 +38,7 @@ if (!source)
       </h1>
 
       <p class="facts">
-        <span>{{ submittedAtFormat.format(source.submittedAt) }}</span>
+        <span>{{ formatSubmittedAt(source.submittedAt, zone) }}</span>
         <span class="dot" aria-hidden="true">·</span>
         <span>{{ source.status ?? 'not ingested' }}</span>
         <span class="dot" aria-hidden="true">·</span>
@@ -46,6 +50,12 @@ if (!source)
         its own. `10` §7.2 gives this the *Review* card's example treatment,
         which is the system's one setting for a run of Japanese prose. -->
       <p lang="ja" class="content">{{ source.content }}</p>
+
+      <!-- `10` §7.2: a link and not a control, because it deletes nothing —
+        it opens the page that does. -->
+      <p class="delete">
+        <NuxtLink :to="`/sources/${source.id}/delete`">Delete this source</NuxtLink>
+      </p>
     </article>
   </PlaceShell>
 </template>
@@ -103,5 +113,19 @@ h1 {
   line-height: 1.65;
   color: var(--k-ink-quiet);
   white-space: pre-wrap;
+}
+
+/* Accent link text at the foot — `10` §7.2, `05` §2. */
+.delete {
+  margin: var(--k-space-7) 0 0;
+  font-size: 15px;
+}
+
+.delete a {
+  color: var(--k-accent);
+}
+
+.delete a:hover {
+  color: var(--k-accent-hover);
 }
 </style>

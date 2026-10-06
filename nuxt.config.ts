@@ -50,9 +50,10 @@ export default defineNuxtConfig({
     '/': { noScripts: true },
     '/sources': { noScripts: true },
     // ⚠️ One *source*, readable — `09` §1's table. #6 builds the readable half
-    // only; the *occurrence* positions, the *notes* and `/sources/:id/delete`
-    // are `S11` and arrive with the ticket that owns them. The rule is here
-    // because the route is, and a route without one is a default (`10` §3).
+    // only; the *occurrence* positions and the *notes* are `S11` and arrive
+    // with the ticket that owns them. `/sources/:id/delete` arrived with #59
+    // under this same pattern. The rule is here because the route is, and a
+    // route without one is a default (`10` §3).
     '/sources/**': { noScripts: true },
     '/stats': { noScripts: true },
 

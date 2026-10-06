@@ -61,7 +61,7 @@ it.~~ ⚠️ **#38 was re-scoped and built 2026-09-24** (ADR 0073): the worker's
 stopped answering without saying so. **The evidence it was filed on was wrong — macOS sleep — and the
 ticket was right anyway**, because an idle `serve` issues no statements and so cannot notice a
 half-open socket. ⚠️ **One link is unmeasured and ADR 0073 §4 names it rather than rounding it up.**
-~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-09-28 the frontier is the first deployment** (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). N2 and N1 are Yuta's call at ~$0.002 a word.
+~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-09-28 the frontier is the first deployment** (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
 ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
@@ -130,7 +130,10 @@ npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # the app on localhost:3000, signed in: open the "Sign in" URL it prints (or load
                     # its Playwright storageState). Local PGlite + fixture secret only; the app
-                    # itself is unchanged (decision log, 2026-09-25)
+                    # itself is unchanged (decision log, 2026-09-25). THE path for UI work: no local
+                    # command reaches production except the worker and 03 §4.2's release step
+                    # (#48). ⚠️ drizzle-kit reads the root .env by itself, so `npm run db:migrate`
+                    # migrates whatever that file names
 cd worker && uv run pytest   # worker/tests/README.md carries how many need Docker (ADR 0038)
 cd worker && uv run --env-file .env python .   # the worker
 # ⚠️ --env-file is not optional: the worker has NO dotenv loader (it reads
@@ -289,6 +292,9 @@ history.
 GitHub Issues on [`yutaasakura96/kioku`](https://github.com/yutaasakura96/kioku), via the `gh` CLI.
 ⚠️ **The repo is public and so are the issues** — the `03` §13.1 values stay out of issue bodies for
 the same reason they stay out of the code. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+⚠️ **A closing keyword (`close`, `fix`, `resolve` and their forms) beside an issue number closes it, even
+negated** — PR #50's "does not close #45" closed #45 on merge. Write "part of #N" or "refs #N" unless
+the PR really closes it.
 
 ### Triage labels
 

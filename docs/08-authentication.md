@@ -200,8 +200,8 @@ change — it was already the right one — but the margin it was made with is g
 re-examine it if anyone proposes a repo constant is now much shorter: the file would be world
 readable the moment it was pushed.
 
-The environment variable also gets **per-environment values for free**, which matters because Neon
-runs a branch per environment and production has never shared a string with development.
+The environment variable also gets **per-environment values**, so production and local development
+can use separate readers (`03` §13.1).
 
 ⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the per-environment values are Vercel's
 Production environment and a local file, not two Neon branches.** Production's `KIOKU_INVITED_EMAIL`
@@ -574,11 +574,20 @@ of this section's blanks are filled.**
   pooled string, verbatim (ADR 0027).
 - **Registering the URI, creating the project and entering the values are Yuta's steps**, in
   [#45](https://github.com/yutaasakura96/kioku/issues/45). None of the values goes in an issue: the
-  repository is public.
+  repository is public. ⚠️ **Amended 2026-09-28:** an agent created the project and entered the
+  values through the logged-in `vercel` CLI, piping each from the laptop's `.env` without printing
+  it. Registering the redirect URI stayed Yuta's.
 - **The region and previews-off are set in `vercel.json`**, in the repository (ADR 0022 § Amended
   2026-09-28). ~~⚠️ #45 verifies the previews-off key against Vercel's docs before writing it.~~
   ⚠️ **Verified and written by #45 on 2026-09-28:** `git.deploymentEnabled` with `"**": false` and
   `"main": true`. ADR 0022 § The `vercel.json` keys has the doc and why the pattern is `**`.
+- ⚠️ **Filled 2026-09-28 by #45 (ADR 0022 § Observed on the first deployment).** `<project>` is
+  `kioku`, and because `kioku.vercel.app` was taken, **`<host>` is `kioku-pink.vercel.app`**:
+  `BETTER_AUTH_URL` is `https://kioku-pink.vercel.app` and the redirect URI registered beside the
+  local one is `https://kioku-pink.vercel.app/api/auth/callback/google`. On that origin the state
+  cookie is `__Secure-better-auth.state` with `Secure`, so §5.3's derivation from `BETTER_AUTH_URL`
+  holds. The deployment runs in `sin1`, on Node 24.x, from the `vercel` preset. Only this address
+  signs in: the team aliases and per-deployment URLs are behind Vercel's own login.
 
 **The local origin, `http://localhost:3000/api/auth/callback/google`, stays registered** (decided
 2026-09-28). UI work runs on `npm run dev:session` and does not need it, but a real Google sign-in

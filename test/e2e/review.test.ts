@@ -351,10 +351,18 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
     // ⚠️ **The durable record decides, and it is empty now** (property 4). A
     // reload replays whatever is still owed, so a store that still held these
     // two would grade the same *card* twice on the next visit.
-    await page.reload({ waitUntil: 'networkidle' })
-    await page.waitForTimeout(500)
+    //
+    // ⚠️ **Polled, not slept.** An entry settles out of the store only after its
+    // response returns, which is after the row the polls above read has
+    // landed; and the mount composes a run only after its own replay, so
+    // *Nothing due* is the sign that replay has finished.
+    const outbox = () => page.evaluate(() => localStorage.getItem('kioku:review:outbox'))
+    await expect.poll(outbox, { timeout: 10_000 }).toBe('[]')
 
-    expect(await page.evaluate(() => localStorage.getItem('kioku:review:outbox'))).toBe('[]')
+    await page.reload({ waitUntil: 'networkidle' })
+    await page.getByText('Nothing due.').waitFor()
+
+    expect(await outbox()).toBe('[]')
     expect(await grades()).toBe(before + 1)
     expect(await flags()).toBe(1)
 

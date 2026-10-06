@@ -1641,8 +1641,9 @@ all `needs-triage` until he confirms them.** ⚠️ **Confirmed later the same d
 Yuta answered the four things the first entry of the day left open, and confirmed #45–#48. **The
 release step's production string lives in 1Password** and is injected into the migrate command alone
 at run time, never written to a file. **The migration runs over Neon's direct string**, not the
-pooled one the app uses; ⚠️ that is not yet checked against Neon's docs, and #48 checks it before the
-procedure relies on it. **The local redirect URI, `http://localhost:3000/api/auth/callback/google`,
+pooled one the app uses; ~~⚠️ that is not yet checked against Neon's docs, and #48 checks it before the
+procedure relies on it~~ ⚠️ #48 checked it on 2026-09-29, and Neon's docs name Drizzle Kit among the
+tools that need the direct string (`03` §4.2). **The local redirect URI, `http://localhost:3000/api/auth/callback/google`,
 stays registered**, because a real Google sign-in against a local app still needs it. **The region
 and previews-off go in `vercel.json`**, reviewed like code; `regions` is documented, and ~~⚠️ #45
 verifies the previews-off key before writing it~~ ⚠️ #45 verified it the same day

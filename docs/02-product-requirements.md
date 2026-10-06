@@ -258,7 +258,7 @@ fixes it.
 | **Vet** | "Nothing to vet." Points at Ingest |
 | **Review** | Distinguishes three cases: nothing ever *accepted* (points at Vet); everything *accepted* but nothing due yet (says when the next *card* is due); *session* just finished (offers one more, does not start it) |
 | **Sources** | "Nothing ingested." Points at Ingest |
-| **Stats** | Under 20 vetted *notes*, raw counts with the ratios suppressed and a line saying why |
+| **Stats** | ~~Under 20 vetted *notes*, raw counts with the ratios suppressed and a line saying why~~ Each ratio is suppressed under its own evidence and shows that evidence as a raw pair (ADR 0058): retention under twenty qualifying *grades*, consistency until fourteen days, flag rate under twenty minted *cards* (ADR 0062). ⚠️ This said *under 20 vetted notes* until 2026-09-29 |
 
 ---
 
@@ -299,7 +299,9 @@ The ugliest case per feature, and its required behaviour.
 
 `docs/01-project-brief.md` §6 stands in full: offline mode and sync · native mobile apps · multiple
 readers, sharing, or a *deck* marketplace · audio or TTS · image occlusion · handwriting practice ·
-a capture extension · Anki import · public publishing · streaks and gamification.
+a capture extension · ~~Anki import~~ · public publishing · streaks and gamification. ⚠️ **Anki
+import is built** (#26, ADR 0068): an `.apkg` becomes a word list. This listed it as not in v1 until
+2026-09-29.
 
 Expanded here, with what each one now means:
 
@@ -307,8 +309,10 @@ Expanded here, with what each one now means:
   kanji-to-reading are additions later, not migrations, and sibling burying arrives with them.
 - **No *decks* and no query language.** One *subject*, one queue.
 - **No *card* browser.** See §3.
-- **No auto-acceptance.** *Vetting* is mandatory for every *note*. A threshold set now would assume
-  the *acceptance rate* the project exists to discover.
+- ~~**No auto-acceptance.** *Vetting* is mandatory for every *note*. A threshold set now would assume
+  the *acceptance rate* the project exists to discover.~~ ⚠️ **Reversed by ADR 0064, and this said
+  so only there until 2026-09-29:** a chosen word is `accepted` and minted when it arrives, and *Vet*
+  is the flag queue.
 - **No prerequisite graph.** Cut permanently in favour of *i+1* mining, which solves nearly the same
   problem from data already held.
 - **No ahead-of-schedule study or cramming.** That is a saved query, which is L2.

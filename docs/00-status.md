@@ -17,7 +17,7 @@ issues**: #1 the spec, #24 the Anki parent (closable now that #26 has landed) an
 `needs-triage` — ⚠️ **amended later the same day: #24 is closed** (both halves done, comment on the
 ticket), so the three open are **#1** the spec, **#25**, and **#26**, which is built and merged and
 whose last close-out criterion was paid 2026-09-20; it has lost `ready-for-agent` and is Yuta's to
-close — ⚠️ **amended 2026-09-21: Yuta closed #26**, so the two open are **#1** the spec and **#25**, now `ready-for-agent` (ADR 0070) (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
+close — ⚠️ **amended 2026-09-21: Yuta closed #26**, so the two open are **#1** the spec and **#25**, now `ready-for-agent` (ADR 0070) (⚠️ **this is stale and said so only further down until 2026-09-29**: #25 closed 2026-09-21 and #1 on 2026-09-24, and the tracker had no open issue from #40's close on 2026-09-25 until #45–#48 were filed on 2026-09-28) (⚠️ **this said *five* from 2026-09-18 until 2026-09-20 while naming three** — the
 parenthetical that recorded #21 closing was added and the number beside it was not; it said eight
 before that day, and it counted #26 from 2026-09-19 until #26 was built). **#17**, the worker's heartbeat window, was built and closed in
 `26182de` (ADR 0061), and **#18**, typed answers (ADR 0060), is built and closed. ⚠️ **#14 closed
@@ -109,15 +109,109 @@ second out: one sampled deck encodes its levels as subdecks and its tags say som
 tickets, [#45](https://github.com/yutaasakura96/kioku/issues/45)–[#48](https://github.com/yutaasakura96/kioku/issues/48)**,
 confirmed by Yuta the same day and `ready-for-agent` (§ Next, ADR 0022 § Amended 2026-09-28). ⚠️
 They were drafted `needs-triage` first. ⚠️ **The paragraph above that names #1 and #25 as open is
-stale.** The tracker had no open issue from #40's close on 2026-09-25 until these four were filed.
+stale**, and since 2026-09-29 it says so where it says it. The tracker had no open issue from #40's
+close on 2026-09-25 until these four were filed.
 
-**Updated:** 2026-09-28 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
+**Updated:** 2026-09-30 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-25, latest — the app ships its three faces**
+**2026-09-30, latest — [#59](https://github.com/yutaasakura96/kioku/issues/59): `S11`'s delete
+confirmation is built.** `/sources/:id/delete` renders `10` §7.3 (the count as the statement, `No
+cards will be suspended.` at zero), and `POST /api/source/:id/delete` sets `deleted_at`, suspends as
+`source_deleted` and answers `303` to `/sources/:id`. The page's count and the `POST`'s write share
+one predicate (`server/utils/ingest/delete.ts`). No ADR.
+- ⚠️ **Migration `0009` replaces `mint_cards`** so a *card* minted for a deleted *source*'s *note* is
+  born suspended (`04` §7.3 as amended). It is a `CREATE OR REPLACE FUNCTION`, additive for the
+  release procedure (§ Carrying), and **is not yet on Neon**.
+- ⚠️ **Amended 2026-10-01: migration `0010` suspends a new *card* only when both the *note*'s origin
+  and the run minting it are deleted.** `mint_cards` takes a defaulted `p_ingestion_id`; a live
+  *source* meeting a word a deleted one had no *card* for mints it studyable (`0009` left it suspended
+  for good), and a deleted *source*'s run meeting a live *source*'s *note* mints studyable too
+  (`delete.ts`'s rule). The worker passes its ingestion, *Vet* passes none and keeps `0009`'s origin
+  rule. It drops the three-argument function and creates the four-argument one, so an old caller
+  still resolves, but it is **not yet on Neon**. No ADR.
+  ⚠️ **Apply `0010` before starting a worker built from this change**: the worker always calls the
+  four-argument `mint_cards`, and against an older database every mint fails and takes its *chunk*'s
+  transaction with it.
+- `/sources/:id` carries the `Delete this source` link at its foot (`10` §7.2 as amended).
+
+**2026-09-30 — [#60](https://github.com/yutaasakura96/kioku/issues/60): Sources shows
+submission times in the reader's zone.** `/sources` and `/sources/:id` format `submitted_at` with
+`formatSubmittedAt` (`shared/time/submitted-at.ts`) in `readerZone`'s zone, the one `/stats` reads,
+and UTC only for a reader who never sent one. `submittedAtFormat` is gone. No ADR, no migration.
+
+**2026-09-29 — [#46](https://github.com/yutaasakura96/kioku/issues/46), without the
+`.apkg`: a seed and its word list minted *cards* on production from the deployed app, and every other
+screen renders there.** Yuta chose one seed at 10 words and no deck. So #46's `.apkg` criteria, the
+`/tmp` observation and `unpackDeck`'s duration, **are not met** (§ Carrying). The production worker
+was restarted detached on `main` `dc12d3f`. ADR 0022 § Observed from the deployed app has every
+reading, and ADR 0043 is amended. No code changed.
+- **Minted from `https://kioku-pink.vercel.app`:** *daily · N2 · 10* drafted, landed in the form and
+  was submitted as a `word_list` *source*. *Cards minted* went **2183 → 2190**: three of the ten words
+  already had *notes* from the N3 import. Spend **$0.0190** ($0.0070 seed, $0.0120 ingest).
+- **The wake-up is the `NOTIFY` from `sin1`:** both jobs were claimed **under 0.2 s** after their
+  rows were written, where a missed notification would have waited indefinitely (ADR 0028).
+- **Screens:** `/`, `/sources`, `/sources/:id` and `/stats` carry **0** scripts signed in. `/vet`
+  loads and shows *Nothing to vet*. `Export everything` answers `200` with 4.1 MB.
+- ⚠️ **Two findings, neither fixed here:** `/sources/:id/delete` is a `404` because `S11` never
+  built it, and `/sources` prints submitted times in **UTC** on Vercel, because `submittedAtFormat`
+  names no `timeZone` and the server's zone is no longer JST. ⚠️ **The second is fixed by #60
+  (2026-09-30), and the first by #59 the same day.**
+
+**2026-09-29 — [#48](https://github.com/yutaasakura96/kioku/issues/48): the release
+procedure is written down.** ⚠️ **This said *its local half is still Yuta's* until 2026-09-30, when both owner steps were done; see the entry below.** `03` §4.2 carries the procedure as
+six numbered steps, and § Carrying repeats them. Each step injects the **direct** production string
+from 1Password with `op run`. The procedure also says what to do when a migration is not additive:
+expand, then contract, in two releases. No code changed. `drizzle.config.ts`'s comment and the
+stale-doc list are corrected.
+- **Neon's docs, read:** migrations need the direct string. *Choosing your connection method* names
+  Drizzle Kit, and *Schema migration with Drizzle ORM* says a pooled string *"can lead to errors"*.
+  `03` §4.2 cites all three pages.
+- ⚠️ **Measured, and it reverses a § Carrying line: drizzle-kit reads the root `.env` on its own.**
+  Its 0.31.10 CLI bundles `dotenv/config`. On a local Postgres 18, with `DATABASE_URL` unset and only
+  a `.env`, both `drizzle-kit migrate` and `npm run db:migrate` applied all nine migrations, and an
+  exported variable won over the file. drizzle-kit has been 0.31.10 since 2026-09-09. So the `0006`
+  entry's *"does not read `.env` by itself"* was wrong when it was written. The header's
+  2026-09-19 paragraph, where `npm run db:migrate` applied `0004` and `0005`, already showed it.
+- ⚠️ **So the root `.env` is a live hazard, not only a rule unmet.** On 2026-09-29 it still names a
+  Neon `DATABASE_URL`, and while it does, a bare `npm run db:migrate` from the main checkout migrates
+  production. Removing it was **Yuta's** step, and so was the 1Password item. Neither can be done from
+  the repository. ⚠️ **Both are done as of 2026-09-30**: `DATABASE_URL` is out of the root `.env`
+  (`worker/.env` untouched), and the production direct string is in a 1Password item the owner
+  holds. It resolves, and the host is the direct endpoint, not `-pooler`. The reference stays out of
+  the repository (`03` §4.2).
+- **Re-read `0001` to `0008`:** each adds or loosens, and every rule one adds was already kept by the
+  code before it. `0007`'s swap of `job_kind` and its dropped `NOT NULL` are the closest to a change,
+  and neither broke old code.
+- ⚠️ **Unrun:** the procedure has not met production, and neither has `op run`. Production had every
+  migration at #45, so the first release with a new migration is the first run.
+
+**2026-09-28 — [#45](https://github.com/yutaasakura96/kioku/issues/45): the app is deployed,
+and a grade from it is on production.** Vercel project `kioku`, production branch `main`, at
+**`https://kioku-pink.vercel.app`** (`kioku.vercel.app` was taken). Yuta signed in there and graded,
+and production's `review_log` went from 6 rows to 10. ADR 0022 § Observed on the first deployment
+has every reading; `03` §13.1 and `08` §10 are amended. No code changed.
+- **Observed, not read:** Nitro preset `vercel` (zero-config, `nuxt.config.ts` still sets none),
+  Node `24.x`, functions in `sin1`, `/auth/refused` with **0** `<script` tags, every *place* and
+  *mode* `302` to `/auth` signed out, and a `__Secure-` cookie with `Secure` on the origin. A push to
+  `fm/kioku-vercel-setup` built no preview, so `vercel.json`'s `**` pattern works on a slashed branch.
+- ⚠️ **Production already had every migration.** `drizzle.__drizzle_migrations` held nine rows whose
+  hashes match `0000`–`0008`; nothing was applied. Neon has one branch, `main`.
+- ⚠️ **The six values are Production-only and four are Vercel *sensitive*** (the database string,
+  the auth secret, the Google client secret, the invited address): they cannot be read back, even
+  from the dashboard. Changing one means entering it again. `BETTER_AUTH_SECRET` is new and is not
+  the laptop's.
+- ⚠️ **Only `kioku-pink.vercel.app` signs in.** The team aliases and per-deployment URLs sit behind
+  Vercel's default Deployment Protection, which was left as it is.
+- ⚠️ **Still unobserved:** the Node patch number (the build log prints none), the session cookie's
+  own attributes (only the state cookie was read; both come from `BETTER_AUTH_URL`), and `/tmp` on
+  Vercel, which is #46's. **#48's local half is not done** ⚠️ (**it was done 2026-09-30**): the root `.env` still
+  pointed the app at production (`03` §13.1).
+
+**2026-09-25 — the app ships its three faces**
 ([ADR 0074](adr/0074-the-app-ships-its-own-faces.md)). Shippori Mincho, Newsreader and IBM Plex
 Mono are self-hosted from `@fontsource` 5.3.0, the weights `05` §4 draws and no others. That closes
 the decision log's 2026-09-11 "Still open" entry. Until now every screen rendered in Georgia and the
@@ -2147,29 +2241,37 @@ and `03` §4, §4.2 and §13.1 and `08` §4.1 and §10 are amended to match. **F
 `ready-for-agent`**; the human-only steps in each are still Yuta's (⚠️ they were `needs-triage` until
 he confirmed them):
 
-- [#45](https://github.com/yutaasakura96/kioku/issues/45): **sign in and grade one card from the
-  deployed URL.** Vercel project on `main`, `sin1`, previews off, the five variables, the production
+- ~~[#45](https://github.com/yutaasakura96/kioku/issues/45): **sign in and grade one card from the
+  deployed URL.**~~ ⚠️ **Done 2026-09-28** (§ Done): live at `https://kioku-pink.vercel.app`, and
+  #46 and #47 are unblocked.
+  **Was:** Vercel project on `main`, `sin1`, previews off, the five variables, the production
   redirect URI, and the `noScripts` check against the deployed origin. **Mostly Yuta's**: the
   Vercel account, the Google Cloud console and the values.
 - [#46](https://github.com/yutaasakura96/kioku/issues/46): **every input and every screen from the
-  deployed app.** A word list, a seed and an `.apkg` upload, with the laptop worker draining. It
-  observes `/tmp` and `unpackDeck`'s duration. Blocked by #45. It spends on Yuta's key, which is his
-  call.
+  deployed app.** ⚠️ **Run 2026-09-29 without the `.apkg`** (§ Done): the seed and its word list
+  minted on production and every screen rendered, but `/tmp` and `unpackDeck`'s duration still wait
+  for a deck uploaded from the deployed app. **Was:** a word list, a seed and an `.apkg` upload, with
+  the laptop worker draining. It spends on Yuta's key, which is his call.
 - [#47](https://github.com/yutaasakura96/kioku/issues/47): **typed *Review* on a real phone,
   including airplane mode.** Yuta's walkthrough, with one ticket per finding. Blocked by #45.
 - [#48](https://github.com/yutaasakura96/kioku/issues/48): **the release path.** Migrate by hand
   before merging to `main`, local development off production, and the stale-doc list from the
   planning. Its first half lands with #45.
+  ⚠️ **Written 2026-09-29** (§ Done): the procedure is in `03` §4.2 and § Carrying, Neon's docs are
+  cited, and the stale-doc list is paid. ⚠️ **Two steps were Yuta's, and both were done 2026-09-30**: taking the production
+  `DATABASE_URL` out of the root `.env`, and making the 1Password item that holds the direct string.
 
 ~~⚠️ **Two things the planning left open**, and #48 has to answer both before it is `ready-for-agent`:
 where the release step's production string lives once the root `.env` stops holding it, and
 whether `drizzle-kit migrate` is safe through the pooled endpoint (**unverified**).~~ ⚠️ **Answered
 2026-09-28** (decision log): the string lives in 1Password and is injected at run time, and the
 migration runs over Neon's direct string. The local redirect URI stays registered, and the region
-and previews-off go in `vercel.json`. ⚠️ **Still unverified:** Neon's docs on migrating over the
-direct string (#48 reads them), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
-written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), how many Neon branches exist today, and whether any Vercel project exists outside the
-repo. The planning read neither Neon nor Vercel.
+and previews-off go in `vercel.json`. ⚠️ **Still unverified:** ~~Neon's docs on migrating over the
+direct string (#48 reads them)~~ (⚠️ read by #48 on 2026-09-29: Neon names Drizzle Kit among the
+tools that need the direct string, `03` §4.2), ~~the `vercel.json` previews-off key (#45 reads it)~~ (⚠️ read and
+written by #45 on 2026-09-28: `git.deploymentEnabled`, ADR 0022 § The `vercel.json` keys), ~~how many Neon branches exist today, and whether any Vercel project exists outside the
+repo~~ (⚠️ read by #45 on 2026-09-28: **one** Neon branch, `main`, and no Vercel project for kioku
+until #45 created `kioku`). The planning read neither Neon nor Vercel.
 
 ⚠️ **Everything below this point was written before 2026-09-28, when the frontier was empty.**
 
@@ -2754,10 +2856,16 @@ handler started making network calls. Kept because each is still the shortest st
   is simply correct — which is the point of § Carrying's `.length`-versus-`len()` bullet: the app was
   made to match Python rather than the other way round, so the worker needs no special handling and
   must not add any.
-- ⚠️ **Chunk-level retry policy is not built.** `03` §11 says bounded retries then the chunk is
+- ~~⚠️ **Chunk-level retry policy is not built.** `03` §11 says bounded retries then the chunk is
   marked `failed` and the job stays resumable; #7 marks it `failed` on the first raise and moves on,
   which is the `attempts = 1` version of that. **`job.available_at` is the other half and nothing
-  sets it** — see § Carrying.
+  sets it** — see § Carrying.~~ ⚠️ **Stale until 2026-09-29.** `worker/provider.py` retries a
+  transient failure (408, 409, 429, 5xx, a lost connection) through the SDK's own `max_retries`, 2
+  after the first try, with backoff, and only then does `runs.py` mark the *chunk* `failed`. **What is
+  not retried is a refusal**: a `refusal` stop, a `max_tokens` cut or an answer that is not JSON
+  raises `ProviderRefused` and fails the *chunk* on the first try, leaving the run resumable. And
+  `jobs.py`'s sweep has set `available_at` forward since #8 (ADR 0046), with #37 collecting it
+  (ADR 0072).
 - ✔ **`03` §13.5's container half of PIN 6/6 is guarded** — `worker/tests/conftest.py`'s
   `_assert_postgres_18`, before the migrations run, so a Postgres 17 says so in one line instead of
   failing on the first `uuidv7()`.
@@ -2891,6 +2999,22 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **A migration reaches production by hand, before `develop` is merged into `main`** (#48,
+  2026-09-29). Merging to `main` deploys, so code that lands ahead of its schema breaks production
+  (`/` reads `seed` on every render). `03` §4.2 carries the commands and the reasons. Run from a clean
+  checkout of the `develop` commit being released, after `npm ci`, with the **direct** string's
+  1Password reference as `<ref>`:
+  1. Read `drizzle.__drizzle_migrations` on production, under `op run`.
+  2. Name the pending migrations: the journal entries with no row.
+  3. Check that each is additive. If one is not, split it into expand and contract (`03` §4.2).
+  4. Apply them: `DATABASE_URL='<ref>' op run -- ./node_modules/.bin/drizzle-kit migrate`.
+  5. Verify: read the table again, one row per journal entry with matching hashes.
+  6. Only then merge `develop` into `main`.
+
+  ⚠️ **No production string is written to a file for this**, and the root `.env` must not hold one:
+  drizzle-kit reads the root `.env` on its own, so a bare `npm run db:migrate` would migrate whatever
+  that file names. ⚠️ **As of 2026-09-30 the root `.env` no longer holds `DATABASE_URL`**; this said
+  *on 2026-09-29 it still names production, and removing it is Yuta's step* until then. The laptop's one production string belongs in `worker/.env`, for the worker.
 - ⚠️ **A running worker holds the code it imported at start, so restart it before a resume is used
   to test a fix** (2026-09-23). Python binds `worker/pipeline/*` at import; editing and committing
   changes nothing about the process already claiming jobs. The #36 fix landed at 15:47 with a worker
@@ -2936,9 +3060,12 @@ Nothing.
 
 - ~~⚠️ **Neon is at `0005` and the code expects `0006`** (2026-09-21, #28).~~ ⚠️ **Applied to Neon
   2026-09-21**, the same day: `note_meaning` and `meaning_synonym` both exist there. `snapshotOf`
-  joins them, so any database behind this code needs `0006` first. ⚠️ `npm run db:migrate` does not
-  read `.env` by itself and `.env` does not source in zsh (line 16); `node --env-file=.env
-  ./node_modules/.bin/drizzle-kit migrate` is what worked.
+  joins them, so any database behind this code needs `0006` first. ~~⚠️ `npm run db:migrate` does not
+  read `.env` by itself~~ and `.env` does not source in zsh (line 16); `node --env-file=.env
+  ./node_modules/.bin/drizzle-kit migrate` is what worked. ⚠️ **Measured wrong on 2026-09-29
+  (#48):** drizzle-kit 0.31.10 bundles `dotenv/config` and reads the root `.env` itself, and
+  `npm run db:migrate` applied all nine migrations from a `.env` alone. The release step no longer
+  uses either file (the first entry of this section).
 - ⚠️ **A synonym is not an answer, and `unsentAnswers` is where that is enforced** (#28). Read as
   one, a reload would mark its *card* flagged and skip it unanswered. Any new outbox kind that is not
   an answer owes the same line.
@@ -2977,7 +3104,11 @@ Nothing.
 - ⚠️ **The `.apkg` reader's one unmeasured assumption is that `os.tmpdir()` can be written to, and
   it is documented rather than observed.** Vercel's Runtimes page says `/tmp` is writable to 500 MB
   and Node only leaves `/tmp` for a `TMPDIR`/`TMP`/`TEMP` Vercel does not set (ADR 0068 § Amended
-  2026-09-20). **Nothing has ever deployed this app**, so the composition has never met reality.
+  2026-09-20). ~~**Nothing has ever deployed this app**, so the composition has never met reality.~~
+  ⚠️ **Struck 2026-09-28: #45 deployed it** to `https://kioku-pink.vercel.app`. The `/tmp` path is
+  still unobserved until #46 uploads a deck there. ⚠️ **#46 ran 2026-09-29 without one**, by Yuta's
+  choice (a 10-word seed was the only spend), so this is **still unobserved** and waits for the
+  first `.apkg` uploaded from the deployed app.
   ⚠️ **A first import that throws `EACCES`, `EROFS` or `ENOENT` out of `mkdtempSync` is that
   revisit condition arriving, not a bug in the reader** — and the fix named in the ADR is
   `DatabaseSync.deserialize()` with `engines` moved to `>=24.16.0`, **not** a retry, a different
@@ -3073,7 +3204,10 @@ Nothing.
   [#21](https://github.com/yutaasakura96/kioku/issues/21) lands the zone and **one line changes**.
   ⚠️ **Do not "fix" it by reading `Accept-Language` or by adding a `<script>` to `/stats`** — the
   first carries no zone and the second is the property ADR 0020 exists to hold.~~ **Paid 2026-09-18
-  by #21**: `/stats` reads `readerZone`, the zone the newest *session* stored. ⚠️ **What is still
+  by #21**: `/stats` reads `readerZone`, the zone the newest *session* stored. ⚠️ **Since #60
+  (2026-09-30) `/sources` and `/sources/:id` read the same zone**, through `useReaderZone()` and
+  `shared/time/submitted-at.ts`: a date formatted on a *place* names that zone, never the runtime's,
+  because Vercel renders in UTC. ⚠️ **What is still
   true: a reader who has never composed a run from a client that sent a zone is in UTC**, and so is
   every run composed before #21 — `zone` is null on all of them. The warning about `Accept-Language`
   and `<script>` stands.
@@ -3812,8 +3946,8 @@ Nothing.
   one row is an inner join) **and once it was not.**
 - ⚠️ **`/sources/:id` exists and is only the readable half.** #6's criteria put the detail route in
   `S11`, and two of its other criteria link there — a link to a `404` is not an offer. Title, fact
-  line, retained material. **The *notes*, the *occurrence* positions and `/sources/:id/delete` are
-  still `S11`'s**; `10` §7.2 is amended to say which half is which.
+  line, retained material. **The *notes* and the *occurrence* positions are still `S11`'s**
+  (`/sources/:id/delete` and the link to it are built, #59); `10` §7.2 is amended to say which half is which.
 
 - ⚠️ **TypeScript widens every string in an imported JSON module, so the declaration is derived and
   still untyped.** `typeof declaration.fields[number]['name']` reads exactly like it produces a union

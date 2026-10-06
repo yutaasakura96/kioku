@@ -25,7 +25,8 @@ nine sections, checked 2026-09-06 against primary sources.
 - **What the screens look like.** [`05-design-system.md`](05-design-system.md) and
   `10-screen-specifications.md`.
 - **Which model wins.** ADR 0018 made that a measurement, not a document.
-- **The answers to the three first-week experiments** (§18). Nothing below assumes them.
+- **The answers to the three first-week experiments** (§18). Nothing below assumes them. ⚠️ All
+  three are answered, and §18 says where; this read as open until 2026-09-29.
 
 ---
 
@@ -46,7 +47,7 @@ from the internet.
                                     ▼
                     ┌──────────────────────────────────────┐
                     │  Neon Postgres 18                     │
-                    │  branch per environment               │
+                    │  production database                  │
                     │  the job table is the truth (ADR 0028)│
                     └───────────────▲──────────────────────┘
                                     │ direct connection string
@@ -259,8 +260,7 @@ ARM line stays open for ADR 0022's destination.
 
 ## 4. The database tier
 
-**Neon Postgres 18, a branch per environment** (ADR 0022). Branching is copy-on-write and each
-branch gets its own compute, which also scales to zero.
+**Neon Postgres 18 holds production data** (ADR 0022). Local development uses PGlite (§13.1).
 
 ⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): production and development are not two Neon
 branches.** The existing database is production, and development is PGlite (§13.1). The app's
@@ -329,10 +329,70 @@ forgotten.** Two things about the step were settled on 2026-09-28 as well:
 - **The production string lives in 1Password and is injected into the migrate command alone at run
   time**, for example with `op run`. It is never written to a file (§13.1).
 - **The migration runs over Neon's direct string, not the pooled one.** `drizzle.config.ts` reads
-  `DATABASE_URL` and its comment documents the pooled string, which is the app's. The release step
-  gives that one command the direct string instead. ⚠️ **Not yet checked against Neon's docs.**
-  [#48](https://github.com/yutaasakura96/kioku/issues/48) confirms it before the procedure relies on
-  it, and corrects the comment.
+  `DATABASE_URL`, and the release step gives that one command the direct string, which is not the
+  app's. ~~⚠️ **Not yet checked against Neon's docs.**~~ ⚠️ **Checked 2026-09-29 by
+  [#48](https://github.com/yutaasakura96/kioku/issues/48).** Neon's
+  [Choosing your connection method](https://neon.com/docs/connect/choose-connection) lists *"Schema
+  migrations (Prisma Migrate, Drizzle Kit, django-admin migrate)"* among the operations that need a
+  direct connection. [Connection pooling](https://neon.com/docs/connect/connection-pooling)'s table
+  gives *Schema migrations → Direct*, because *"tools may not support transaction pooling"*. And
+  [Schema migration with Drizzle ORM](https://neon.com/docs/guides/drizzle-migrations) says *"using a
+  pooled connection string for migrations can lead to errors. For this reason, we recommend using a
+  direct (non-pooled) connection when performing migrations."* `drizzle.config.ts`'s comment said
+  the string was the pooled one, and it is corrected.
+
+**The release procedure** (#48). Run it from a clean checkout of the `develop` commit being released,
+after `npm ci` and before the release PR into `main` is merged. A clean checkout has no root `.env`.
+`<ref>` is the 1Password secret reference to the **direct** production string,
+`op://<vault>/<item>/<field>`, held by the owner. It is a pointer, not the value, but it still stays out of the
+repository and the tracker.
+
+1. **Read what production has.**
+   `DATABASE_URL='<ref>' op run -- sh -c 'psql "$DATABASE_URL" -c "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at"'`.
+   The `sh -c` matters: 1Password's docs say to expand the variable in a subshell, or the shell
+   passes the `op://` reference instead of the secret. Each row's `hash` is the SHA-256 of one file
+   in `server/db/migrations/` (`shasum -a 256 server/db/migrations/*.sql`), in journal order. That
+   matched row for row on a local Postgres 18 on 2026-09-29, and on production for #45.
+2. **Name what is pending.** A pending migration is a file in `server/db/migrations/meta/_journal.json`
+   with no row. None pending: skip to step 5.
+3. **Check that each pending migration is additive** (below). If one is not, stop here and follow the
+   paragraph below instead.
+4. **Apply them.** `DATABASE_URL='<ref>' op run -- ./node_modules/.bin/drizzle-kit migrate`.
+   `op run` resolves the reference and puts the value into that one process's environment, so it is
+   never written to a file ([`op run`](https://developer.1password.com/docs/cli/reference/commands/run)).
+   This replaces `node --env-file=.env ./node_modules/.bin/drizzle-kit migrate`, which is what was
+   run while the root `.env` held the string. ⚠️ **drizzle-kit reads the root `.env` on its own.**
+   Its 0.31.10 CLI bundles `dotenv/config`. Measured 2026-09-29 against a local Postgres 18: with
+   `DATABASE_URL` unset and only a `.env` naming the database, both `drizzle-kit migrate` and
+   `npm run db:migrate` applied all nine migrations. A variable already in the environment wins over
+   the file, so this command reaches only the injected string. It is also why the root `.env` must not
+   hold the production string (§13.1): a bare `npm run db:migrate` would then migrate production.
+5. **Verify.** Run step 1 again. Expect one row per journal entry, with the hashes matching, and read
+   the object the migration adds (a table, a column or a constraint) in the same way.
+6. **Only then merge `develop` into `main`.** Vercel deploys `main` on the merge.
+
+⚠️ **The procedure is written and has not been run yet.** Production had every migration when #45
+deployed, so the first release that carries a new migration is the first run of it. That includes
+the first `op run` against the 1Password item.
+
+**When a migration is not additive.** Migrating before merging is safe only while **the code still on
+`main` tolerates the new schema**, because between steps 4 and 6 production runs the old code against
+the new tables. ⚠️ **`0001` to `0008` were re-read 2026-09-29, and the planning's reading holds:
+none would have broken the code before it.** Each one adds, or loosens, and every rule one adds was
+one the older code already kept. `0001`'s trigger refuses changes to `review_log`, which nothing
+changed. `0002` and `0005` add `NOT NULL` columns that have defaults, with checks the defaults meet.
+`0003` adds a function. `0007` swaps `job_kind` for a wider check and drops `job.ingestion_id`'s
+`NOT NULL`, and its new `job_target` check was met by every existing row. Nothing drops or renames a
+column or table, and nothing adds a `NOT NULL` column without a default. A migration that does any of
+those is released in two parts:
+
+1. **Expand.** Make an additive migration, and code that works against both shapes. Release it with
+   the procedure above.
+2. **Contract.** Once `main` no longer reads the old shape, remove it in a later migration, in a
+   later release.
+
+A migration that cannot be split this way needs its own ADR before it is applied. That goes double
+for one that touches `review_log`, the one table that cannot be regenerated (`04` §7.5).
 
 ⚠️ Better Auth's `getMigrations` **does not work with the Drizzle adapter** (verification §2.3) —
 its schema is generated (`npx auth@latest generate --adapter … --dialect …`) and then lands in the
@@ -613,7 +673,8 @@ it would cost.
 
 **Generation sits behind a provider boundary with a declared output schema** (ADR 0018). The
 working default is `claude-sonnet-5`, with `claude-opus-5` run once as a ceiling probe, walked
-*down* toward `gpt-5.6-luna` until measured *acceptance rate* degrades. **Which model wins is a
+*down* toward `gpt-5.6-luna` until measured *flag rate* says the fills got worse (⚠️ this said
+*acceptance rate* until 2026-09-29; ADR 0062 retired it, ADR 0018 § Amendment). **Which model wins is a
 measurement, not a document** — and starting cheap would confound the instrument §5 exists to
 build.
 
@@ -885,7 +946,7 @@ Mandatory, per the phase's own exit criterion. `S1` is the requirement; this is 
 
 | Secret | Held by | Mechanism |
 | --- | --- | --- |
-| Pooled `DATABASE_URL` | Nuxt app | Vercel environment variables, per environment |
+| Pooled `DATABASE_URL` | Nuxt app | Vercel Production environment |
 | `BETTER_AUTH_SECRET`, Google client id and secret | Nuxt app | Same |
 | Invited email address | Nuxt app | Same — one value, per ADR 0017 |
 | **Direct `DATABASE_URL`** | Worker | A gitignored `.env` on the laptop |
@@ -896,8 +957,7 @@ process with an internet-facing surface has no ability to spend money, and the p
 spend money has no internet-facing surface. That is worth stating because it is easy to undo later
 by adding one convenience endpoint.
 
-Environment variables per environment, matching Neon's branch-per-environment: production never
-shares a string with development.
+Production and local development have separate environment values (ADR 0022).
 
 ⚠️ **Amended 2026-09-28 (ADR 0022 § Amended 2026-09-28): the rule holds, and it is not held by a
 second Neon branch.** Production is the **existing** Neon database. Its five app values go into
@@ -912,6 +972,22 @@ injected into the migrate command alone at run time (§4.2). ⚠️ **Until
 points the app at that same database**, so the rule is decided and not yet true on disk. #48's first
 half lands with the first deployment,
 [#45](https://github.com/yutaasakura96/kioku/issues/45).
+⚠️ **Still true on 2026-09-29, when #48 wrote the procedure down.** The root `.env` still names a
+Neon `DATABASE_URL`. Removing it is Yuta's step, because it is his file. ⚠️ **It matters more than it
+looked**: drizzle-kit reads the root `.env` on its own (§4.2, step 4), so while the file holds that
+string, a bare `npm run db:migrate` migrates production. Until he removes it, UI work runs on
+`npm run dev:session`, which does not read the file.
+⚠️ **Done 2026-09-30: the root `.env` no longer holds `DATABASE_URL`**, so the rule is now true on
+disk. The two paragraphs above said the file still named production until then; they are kept as
+the record. UI work still runs on `npm run dev:session`.
+
+⚠️ **Observed 2026-09-28 by #45 (ADR 0022 § Observed on the first deployment).** The Vercel project
+`kioku` holds six values (`DATABASE_URL` and `08` §10's five) in its **Production** environment and
+in no other. `BETTER_AUTH_SECRET` was newly generated for it and shares nothing with the laptop.
+`DATABASE_URL`, the auth secret, the Google client secret and the invited address are Vercel
+*sensitive* values, so not even the dashboard shows them again. The functions run in **`sin1`** on
+Node **24.x**, built with the **`vercel`** Nitro preset, and the address is
+`https://kioku-pink.vercel.app`.
 
 ### 13.2 How input is validated, and where
 
@@ -1199,7 +1275,12 @@ ADR 0022's premise is that the move to EC2 or Lightsail is **a Nitro preset chan
   and delete behaviour make it answerable against real queries rather than in the abstract.
   Everything in this document is written to work either way.
 
-**Three first-week experiments. Nothing above assumes an answer to any of them:**
+~~**Three first-week experiments. Nothing above assumes an answer to any of them:**~~ ⚠️ **All three
+are answered, and this said they were open until 2026-09-29.** The `noScripts` smoke test became a
+test on 2026-09-07 (`11` §6.1), and #45 observed it on the deployed origin on 2026-09-28 (ADR 0022
+§ Observed on the first deployment). The `psycopg.connect()` and idle-`LISTEN` experiments both ran
+on 2026-09-12 (verification §9.1, ADR 0043, ADR 0028; `00-status.md` § Next). The table is kept as
+what was asked:
 
 | Experiment | What it settles | If it goes badly |
 | --- | --- | --- |

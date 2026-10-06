@@ -10,9 +10,16 @@ export default defineConfig({
   dialect: 'postgresql',
   schema: './server/db/schema/index.ts',
   out: './server/db/migrations',
-  // ⚠️ The pooled string, used **verbatim as issued** — ADR 0027 is explicit: no
-  // `options=endpoint%3D…` rewriting, no hand-edited TLS parameters. The worker
-  // uses the direct one and is not a migration consumer (`03` §4.1).
+  // ⚠️ The **direct** string, never the pooled one: Neon's docs name Drizzle Kit
+  // among the tools that need a direct connection (`03` §4.2). ⚠️ This said
+  // *the pooled string* until 2026-09-29; the pooled one is the app's. Against
+  // production it comes from 1Password through `op run`, never from a file, and
+  // `03` §4.2 is the whole release procedure. Used **verbatim as issued** —
+  // ADR 0027 is explicit: no `options=endpoint%3D…` rewriting, no hand-edited
+  // TLS parameters.
+  //
+  // ⚠️ drizzle-kit loads the root `.env` on its own (its CLI bundles
+  // `dotenv/config`), and a variable already set wins over the file.
   dbCredentials: {
     url: process.env.DATABASE_URL ?? '',
   },
