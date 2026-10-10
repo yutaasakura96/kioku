@@ -1,6 +1,6 @@
 """`dictionary.py` — JMdict behind two questions (ADR 0075 §5, #68).
 
-No container and no network: `sample_dictionary` is a dozen hand-written entries
+No container and no network: `sample_dictionary` is sixteen hand-written entries
 in JMdict's shape, indexed the way the worker indexes the real file.
 """
 

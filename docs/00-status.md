@@ -173,7 +173,7 @@ data and no screen.
   draws only what the *note* carries, and *Vet*'s fix accepts a blank optional field.
 - ⚠️ **Not done here, on purpose:** no starter word has a *card* (#70 mints it), no screen was
   added, nothing ran against production, and no old row was written to.
-- **1266 TypeScript tests (was 1158 at the last count this file recorded), 445 worker tests (113
+- **1266 TypeScript tests (was 1158 at the last count this file recorded), 449 worker tests (113
   on the container), typecheck and build clean.** `01`, `02`, `03`, `04`, `10`, `CONTEXT.md`,
   `subjects/README.md` and ADRs 0001, 0003, 0005, 0063, 0064 and 0065 amended.
   `docs/prototype/` holds the reviewed prototype.
@@ -3106,7 +3106,9 @@ Nothing.
   screen is three predicates: `noteInCurrentSubject`, `cardInCurrentSubject` and
   `sessionInCurrentSubject`. **A new query without one shows the reader *cards* they were told were
   gone, and it will look correct in every test that seeds one *subject*.** Add the read to
-  `test/schema/start-fresh.test.ts`, which seeds two. Deliberately unscoped: the spend ledger, the
+  `test/schema/start-fresh.test.ts`, which seeds two. **The three writes that take a *session* id
+  from the client (`recordGrade`, `recordFlag`, `recordSynonym`) carry one too**, or a tab left
+  open replays its outbox into the old corpus. Deliberately unscoped: the spend ledger, the
   export, and a read by id.
 - ⚠️ **A *session* has no `subject_id`; its membership is its *subject*.** A `review_session` with
   no member *card* is in no *subject* and no read counts it, which a test that inserts a bare

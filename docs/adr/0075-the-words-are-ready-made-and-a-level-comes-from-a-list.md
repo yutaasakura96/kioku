@@ -66,8 +66,8 @@ every reader-facing read is scoped to the current id by three predicates in
   spent; `GET /api/export`, because `S12` is *everything*; and a read by id, so a *source* opened
   directly is still readable (`S11`).
 - **A *session* carries no `subject_id`** (`04` §7.6), so its membership says which corpus it was. A
-  run left open before the change is not resumed, and what it introduced does not spend today's
-  allowance.
+  run left open before the change is not resumed, an answer, flag or synonym sent to it by id is
+  refused, and what it introduced does not spend today's allowance.
 - **The worker refuses a run of another *subject*.** A run queued before the change would otherwise
   write under the old id with today's declaration, and no screen would show it.
 - **Deleting the old rows from production is the owner's step and is not done here.** Nothing
@@ -123,7 +123,9 @@ label for a shelf, and an imported Anki deck is still a *source*.
   word is in the corpus and in its category and cannot be studied.**
 - **Repeatable.** A second run of the same bundle writes nothing. A newer bundle adds its new words
   and brings a word nobody has started up to the current entry; **a word a reader has accepted keeps
-  its fields** (ADR 0052), and so does a *note* any field of which a model or a person wrote.
+  its fields** (ADR 0052), and so does a *note* any field of which a model or a person wrote. A list of accepted meanings
+  the dictionary wrote gains the new entry's phrases and loses none, so an answer that was accepted
+  stays accepted.
 - **`dev:session` loads it** into its local database, so the screens #69 to #72 build have words in
   them.
 - **Loading production is the owner's step.**

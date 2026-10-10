@@ -164,7 +164,7 @@ The underlying error was: {error}
 @pytest.fixture(scope="session")
 def sample_dictionary(tmp_path_factory):
     """`tests/fixtures/jmdict-sample.xml`, indexed the way the worker indexes
-    JMdict. A dozen entries, so no test downloads the real one."""
+    JMdict. Sixteen entries, so no test downloads the real one."""
     import gzip
     from pathlib import Path
 

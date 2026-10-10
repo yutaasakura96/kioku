@@ -13,7 +13,9 @@
  * ⚠️ **A read of *cards*, *grades*, flags, *sessions*, *sources* or runs that
  * does not pass through here shows the reader the corpus they left.** With one
  * *subject* in the database every test passes without it, which is why
- * `test/schema/start-fresh.test.ts` seeds both.
+ * `test/schema/start-fresh.test.ts` seeds both. The writes that take a
+ * *session* id from the client (*grade*, flag, synonym) carry one for the same
+ * reason: a tab left open would otherwise write into the old corpus.
  *
  * ⚠️ **Three things are deliberately not scoped.** The spend ledger on `/stats`
  * (the money was spent), the export (`S12` is *everything*), and a read by id —

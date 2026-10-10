@@ -526,9 +526,10 @@ that apply to that spelling, each added again with its bracketed part removed:
 `(note 019c…, {to meet,to encounter,to see}, null, null, 'JMdict 2026-10-09', …)`.
 
 ⚠️ **The first list no longer always stands.** The worker's two writers still use `ON CONFLICT DO
-NOTHING`. The starter loader restates a list **a dictionary wrote** when a newer bundle is loaded,
-because a refreshed entry can add a gloss the check should accept; **it never replaces a list a
-model wrote**, and it never touches a reader's own *synonyms* (§7.9), which are a different table.
+NOTHING`. The starter loader adds to a list **a dictionary wrote** when a newer bundle is loaded,
+because a refreshed entry can add a gloss the check should accept, **and removes nothing from
+it**: a phrase the check accepted yesterday is not refused today because the entry was reworded.
+**It never touches a list a model wrote**, and it never touches a reader's own *synonyms* (§7.9), which are a different table.
 
 ---
 

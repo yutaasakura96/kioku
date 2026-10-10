@@ -87,7 +87,7 @@ once it is thirty days old.
 
 A refresh adds new words and brings a word nobody has started up to the current entry. A word a
 reader has already started keeps the meaning they started it with (`scripts/starter/load.ts` says
-why); its list of accepted meanings is still updated.
+why); its list of accepted meanings gains the entry's new ones and loses none.
 
 ## Where the app says this
 

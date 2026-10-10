@@ -12,16 +12,17 @@
  *
  * ⚠️ **Repeatable.** A second run of the same bundle writes nothing. A run of
  * a newer bundle — the monthly JMdict refresh — adds the words it gained and
- * restates what this loader owns: the list's *level claim*, an
- * accepted-meanings list a dictionary wrote, and **the fields of a *note* that
- * is still only the dictionary's**.
+ * restates what this loader owns: the list's *level claim* and **the fields of
+ * a *note* that is still only the dictionary's**. An accepted-meanings list a
+ * dictionary wrote gains the entry's new phrases and keeps the ones it had, so
+ * an answer that was right before a refresh is right after it.
  *
  * ⚠️ **A *note* some reader has accepted keeps its fields** — `S6`'s freeze,
  * the rule `server/utils/note/fields.ts` enforces for the app (ADR 0052). A
  * refresh that rewrote a gloss under a review history would be measuring
  * recall of a card the reader never saw. So does a *note* any field of which a
  * model or a person wrote: the dictionary is not the author of that one. A
- * model's accepted-meanings list is never replaced either.
+ * model's accepted-meanings list is never touched either.
  *
  * ⚠️ **Raw SQL over one connection, with no Drizzle schema in reach.** It is
  * run by `node`, which will not resolve the schema's extensionless imports
