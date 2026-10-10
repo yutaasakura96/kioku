@@ -759,7 +759,7 @@ def write_one_note(
         note,
         to=Destination(
             declaration=load_declaration(),
-            subject_id="jlpt-vocab",
+            subject_id="jlpt-vocab-2",
             owner_id=OWNER,
             source_id=source_id,
             source_chunk_id=chunk_id,
@@ -786,7 +786,7 @@ def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
     """
     make_run(connection)
     connection.execute(
-        "INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab', %s, '{}'::jsonb);",
+        "INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab-2', %s, '{}'::jsonb);",
         (LIBRARY,),
     )
 
@@ -899,13 +899,13 @@ def test_a_card_minted_for_a_live_source_is_studyable_though_its_note_came_from_
     live_source = connection.execute(
         """
         INSERT INTO source (subject_id, title, content, content_hash, char_count)
-        VALUES ('jlpt-vocab', '二冊目', '図書館', 'hash-live', 3) RETURNING id;
+        VALUES ('jlpt-vocab-2', '二冊目', '図書館', 'hash-live', 3) RETURNING id;
         """
     ).fetchone()[0]
     live = connection.execute(
         """
         INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_by)
-        VALUES (%s, '二冊目', 'jlpt-vocab', 'queued', %s) RETURNING id;
+        VALUES (%s, '二冊目', 'jlpt-vocab-2', 'queued', %s) RETURNING id;
         """,
         (live_source, OWNER),
     ).fetchone()[0]
@@ -1181,7 +1181,7 @@ def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(conn
         ),
         to=Destination(
             declaration=declaration,
-            subject_id="jlpt-vocab",
+            subject_id="jlpt-vocab-2",
             owner_id=OWNER,
             source_id=source_id,
             source_chunk_id=chunk_id,

@@ -78,6 +78,13 @@
       "when": 1790860000000,
       "tag": "0010_mint_cards_live_source",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791592685210,
+      "tag": "0011_starter_set",
+      "breakpoints": true
     }
   ]
 }

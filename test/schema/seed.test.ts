@@ -35,7 +35,7 @@ beforeEach(async () => {
 })
 
 async function requested(requestedBy = OWNER) {
-  return recordSeed(db, { subjectId: 'jlpt-vocab', request: REQUEST, requestedBy })
+  return recordSeed(db, { subjectId: 'jlpt-vocab-2', request: REQUEST, requestedBy })
 }
 
 /** What the worker writes when the answer arrives — `worker/seeding.py`. */
@@ -110,7 +110,7 @@ describe('`job_target` — exactly one target, and the kind says which', () => {
   it('refuses a seed job that also points at an ingestion', async () => {
     const { seedId } = await requested()
     const source = await recordSource(db, {
-      subjectId: 'jlpt-vocab',
+      subjectId: 'jlpt-vocab-2',
       kind: 'word_list',
       title: 'list',
       content: '会議',
@@ -133,7 +133,7 @@ describe('`job_target` — exactly one target, and the kind says which', () => {
 describe('the seed table\'s own constraints — `04` §6.5', () => {
   it.each([0, 101])('refuses a count of %i', async (count) => {
     await expect(
-      client.query(`INSERT INTO seed (subject_id, domain, level, count) VALUES ('jlpt-vocab', 'tech', 'N3', $1);`, [count]),
+      client.query(`INSERT INTO seed (subject_id, domain, level, count) VALUES ('jlpt-vocab-2', 'tech', 'N3', $1);`, [count]),
     ).rejects.toThrow(/seed_count/)
   })
 
@@ -220,7 +220,7 @@ describe('discardSeed', () => {
 
 async function submit(seedId: string | undefined, submittedBy = OWNER) {
   return recordSource(db, {
-    subjectId: 'jlpt-vocab',
+    subjectId: 'jlpt-vocab-2',
     kind: 'word_list',
     title: 'tech · N3 · 25 words',
     content: '会議',

@@ -26,6 +26,7 @@ from subject import (
     REPO_ROOT,
     SOURCE_KINDS,
     SUBMITTABLE_SOURCE_KINDS,
+    authority_keys,
     domain_values,
     field_names,
     judgement_field_names,
@@ -33,6 +34,7 @@ from subject import (
     load_declaration,
     memory_bearing_field_names,
     pipeline_kinds,
+    render_identity_key,
     required_field_names,
     stage_keys,
 )
@@ -90,6 +92,7 @@ class TestCrossLanguageDeclaration:
             "template_keys": [template["key"] for template in declaration["templates"]],
             "levels": level_values(declaration),
             "domains": domain_values(declaration),
+            "authorities": authority_keys(declaration),
         } == {
             "subject_id": typescript_view["subject_id"],
             "identity_key": typescript_view["identity_key"],
@@ -101,7 +104,19 @@ class TestCrossLanguageDeclaration:
             "template_keys": typescript_view["template_keys"],
             "levels": typescript_view["levels"],
             "domains": typescript_view["domains"],
+            "authorities": typescript_view["authorities"],
         }
+
+    def test_the_two_render_an_identity_key_the_same_way(self, typescript_view):
+        """⚠️ Two writers of a *note* since ADR 0075: the worker, and the starter
+        set's loader in TypeScript. A key rendered differently by either would
+        make one word two *notes*, and nothing else would say so.
+        """
+        declaration = load_declaration()
+        decomposed = "か\u3099っこう"
+        assert typescript_view["identity_key_sample"] == render_identity_key(
+            declaration, {"term": "開く", "reading": "ひらく", "meaning": "x"}
+        ) + render_identity_key(declaration, {"term": decomposed, "reading": decomposed})
 
     def test_every_stage_key_is_a_legal_python_module_name(self):
         # `03` §10: `worker/pipeline/` is one module per stage, **named by the

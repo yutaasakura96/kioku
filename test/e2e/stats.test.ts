@@ -82,7 +82,7 @@ const epochs: string[] = []
 async function mint(key: string): Promise<{ noteId: string, cardId: string, epochId: string }> {
   const noteId = await one(`
     INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-    VALUES ('jlpt-vocab', '${key}', '{"term":"図書館"}'::jsonb, '${ingestionId}')
+    VALUES ('jlpt-vocab-2', '${key}', '{"term":"図書館"}'::jsonb, '${ingestionId}')
     RETURNING id;
   `)
 
@@ -110,7 +110,7 @@ async function mint(key: string): Promise<{ noteId: string, cardId: string, epoc
 beforeAll(async () => {
   const sourceId = await one(`
     INSERT INTO source (subject_id, kind, title, content, content_hash, char_count, submitted_at)
-    VALUES ('jlpt-vocab', 'word_list', '技術語彙', '図書館', 'hash', 3,
+    VALUES ('jlpt-vocab-2', 'word_list', '技術語彙', '図書館', 'hash', 3,
             now() - interval '25 days')
     RETURNING id;
   `)
@@ -119,7 +119,7 @@ beforeAll(async () => {
     INSERT INTO ingestion
       (source_id, source_title, subject_id, status, submitted_at, model_id, prompt_version,
        input_tokens, output_tokens, cost_micro_usd, worker_environment)
-    VALUES ('${sourceId}', '技術語彙', 'jlpt-vocab', 'complete',
+    VALUES ('${sourceId}', '技術語彙', 'jlpt-vocab-2', 'complete',
             now() - interval '25 days', 'claude-sonnet-5', 'v3', 4200, 900, 31400, 'laptop')
     RETURNING id;
   `)
@@ -302,7 +302,7 @@ describe('the start block — `10` §3.2, amended by #33', () => {
     for (let index = 0; index < 3; index++) {
       const noteId = await one(`
         INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-        VALUES ('jlpt-vocab', 'fresh-${index}', '{"term":"窓"}'::jsonb, '${ingestionId}')
+        VALUES ('jlpt-vocab-2', 'fresh-${index}', '{"term":"窓"}'::jsonb, '${ingestionId}')
         RETURNING id;
       `)
       await database.client.exec(`

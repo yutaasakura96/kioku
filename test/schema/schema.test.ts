@@ -303,7 +303,7 @@ describe('the CHECKs refuse what the handler also refuses', () => {
   it('refuses a character count above the cap', async () => {
     await expect(client.exec(`
       INSERT INTO source (subject_id, title, content, content_hash, char_count)
-      VALUES ('jlpt-vocab', 'too long', 'x', 'deadbeef', 100001);
+      VALUES ('jlpt-vocab-2', 'too long', 'x', 'deadbeef', 100001);
     `)).rejects.toThrow(/source_char_count_cap/)
   })
 
@@ -349,7 +349,7 @@ describe('content_hash detects, it does not prevent', () => {
   it('allows the same content_hash twice', async () => {
     const insert = `
       INSERT INTO source (subject_id, title, content, content_hash, char_count)
-      VALUES ('jlpt-vocab', '社説', '同じ本文', 'same-hash', 4);
+      VALUES ('jlpt-vocab-2', '社説', '同じ本文', 'same-hash', 4);
     `
     await client.exec(insert)
     await client.exec(insert)
@@ -368,18 +368,18 @@ describe('the note\'s identity is a constraint, not a convention', () => {
   it('refuses a second note with the same (subject_id, identity_key)', async () => {
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '開く␟ひらく', '{}'::jsonb);
+      VALUES ('jlpt-vocab-2', '開く␟ひらく', '{}'::jsonb);
     `)
 
     await expect(client.exec(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '開く␟ひらく', '{}'::jsonb);
+      VALUES ('jlpt-vocab-2', '開く␟ひらく', '{}'::jsonb);
     `)).rejects.toThrow(/note_subject_identity_key/)
 
     // The other reading of the same key is a different note.
     await expect(client.exec(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '開く␟あく', '{}'::jsonb);
+      VALUES ('jlpt-vocab-2', '開く␟あく', '{}'::jsonb);
     `)).resolves.toBeDefined()
   })
 
@@ -390,7 +390,7 @@ describe('the note\'s identity is a constraint, not a convention', () => {
   it('allows one claim per authority and exactly one model estimate', async () => {
     const note = await client.query<{ id: string }>(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb) RETURNING id;
+      VALUES ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb) RETURNING id;
     `)
     const noteId = note.rows[0]!.id
 
@@ -420,7 +420,7 @@ describe('the note\'s identity is a constraint, not a convention', () => {
   it('allows one domain claim per authority and exactly one model estimate', async () => {
     const note = await client.query<{ id: string }>(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', 'デプロイ␟でぷろい', '{}'::jsonb) RETURNING id;
+      VALUES ('jlpt-vocab-2', 'デプロイ␟でぷろい', '{}'::jsonb) RETURNING id;
     `)
     const noteId = note.rows[0]!.id
 

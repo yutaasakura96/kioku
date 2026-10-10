@@ -67,7 +67,7 @@ async function acceptedCard(
 ): Promise<string> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
@@ -728,12 +728,12 @@ describe('the flag (`S9`, `04` §7.8)', () => {
     )
     const source = await one<{ id: string }>(`
       INSERT INTO source (subject_id, title, content, content_hash, char_count)
-      VALUES ('jlpt-vocab', '朝日新聞 社説', '駅の近くに図書館があります。', 'a3f9', 14)
+      VALUES ('jlpt-vocab-2', '朝日新聞 社説', '駅の近くに図書館があります。', 'a3f9', 14)
       RETURNING id;
     `)
     const ingestion = await one<{ id: string }>(`
       INSERT INTO ingestion (source_id, source_title, subject_id, model_id, prompt_version)
-      VALUES ('${source.id}', '朝日新聞 社説', 'jlpt-vocab', 'the-run-model', 'v0')
+      VALUES ('${source.id}', '朝日新聞 社説', 'jlpt-vocab-2', 'the-run-model', 'v0')
       RETURNING id;
     `)
 

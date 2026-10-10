@@ -47,6 +47,7 @@ from pipeline.generate import (
     notes_from,
     request_for,
 )
+from pipeline.lookup import NO_DICTIONARY, Lookup, notes_for as dictionary_notes
 from pipeline.tokenise import DICTIONARY_VERSION
 from pipeline.write_notes import (
     Destination,
@@ -181,6 +182,8 @@ def make_chunk_processor(
     *,
     generate: Optional[Generate] = None,
     declaration: Optional[Declaration] = None,
+    dictionary: Lookup = NO_DICTIONARY,
+    worker_environment: str | None = None,
     keepalive_every: float = KEEPALIVE_EVERY_SECONDS,
     log: Callable[..., None] = events.log,
 ) -> ChunkProcessor:
@@ -195,6 +198,10 @@ def make_chunk_processor(
     chunk. The declaration is a file read (ADR 0003) and the context is a query;
     neither changes under a claimed job, and a resume gets a new processor with
     them read again.
+
+    ⚠️ **``dictionary`` is what `lookup` asks** (ADR 0075 §5). The worker passes
+    `dictionary.WorkerDictionary`; the default has nothing in it, which is the
+    pipeline with every word sent on to stage 6.
     """
     resolved = declaration if declaration is not None else load_declaration()
     #: ⚠️ **A mutable default on the closure, not a `nonlocal`.** The first chunk
@@ -209,6 +216,17 @@ def make_chunk_processor(
             cached["run"] = read_run_context(connection, job.ingestion_id, job_id=job.id)
         run = cached["run"]
 
+        # ⚠️ **A run of another *subject* is refused, not processed** (ADR 0075
+        # §1). The *subject* id is how the corpus started fresh, so a run queued
+        # before the change would write under the old id with today's
+        # declaration — *notes* no screen reads. A failed *chunk* says why.
+        if run.subject_id != resolved["subject_id"]:
+            raise LookupError(
+                f"ingestion {job.ingestion_id} belongs to the subject "
+                f"{run.subject_id!r} and this worker's declaration is "
+                f"{resolved['subject_id']!r} (ADR 0075)"
+            )
+
         text = chunk_text(run.content, chunk.char_start, chunk.char_end)
 
         result = run_stages(
@@ -219,11 +237,25 @@ def make_chunk_processor(
             corpus=DatabaseCorpus(
                 connection, subject_id=run.subject_id, owner_id=run.owner_id
             ),
+            dictionary=dictionary,
         )
 
         append_corpus_occurrences(
             connection, job.ingestion_id, run, chunk, result, declaration=resolved, log=log
         )
+
+        if result.found:
+            write_looked_up(
+                connection,
+                job.ingestion_id,
+                run,
+                chunk,
+                result,
+                declaration=resolved,
+                version=dictionary.version,
+                worker_environment=worker_environment,
+                log=log,
+            )
 
         # ⚠️ **Not called for an empty survivor set**, and that is ADR 0010 at
         # its most literal: a *chunk* whose every word the corpus already carries
@@ -352,6 +384,59 @@ def append_corpus_occurrences(
     # can.
     if run.owner_id is None and result.collisions:
         log("ingest.unowned", ingestion=str(ingestion_id), hits=len(result.collisions), minted=0)
+
+
+def write_looked_up(
+    connection: psycopg.Connection,
+    ingestion_id: str,
+    run: RunContext,
+    chunk: Chunk,
+    result: StageResult,
+    *,
+    declaration: Declaration,
+    version: str,
+    worker_environment: str | None = None,
+    log: Callable[..., None] = events.log,
+) -> None:
+    """ADR 0075 §5 — the *notes* the dictionary had, written through stage 7.
+
+    ⚠️ **The same seven writes a generated *note* gets**, less the two claims:
+    `write_notes` reads `GeneratedNote.looked_up` and attributes the meaning and
+    the part of speech to the dictionary by version. The reader gets the word
+    the same way — `accepted`, and minted.
+
+    ⚠️ **Nothing is spent and no model is named on the run.** A run the
+    dictionary answered whole has `model_id` null and no tokens, which is the
+    honest row; `worker_environment` is still stamped, because
+    *time-to-first-review* reads it (`03` §12).
+    """
+    notes = dictionary_notes(declaration, result.found, version=version)
+    written = write_notes(
+        connection,
+        notes,
+        to=Destination(
+            declaration=declaration,
+            subject_id=run.subject_id,
+            owner_id=run.owner_id,
+            source_id=run.source_id,
+            source_chunk_id=chunk.source_chunk_id,
+            ingestion_id=ingestion_id,
+            provenance=Provenance(
+                model_id=None,
+                prompt_version=None,
+                dictionary_version=DICTIONARY_VERSION,
+            ),
+        ),
+    )
+    if worker_environment is not None:
+        connection.execute(
+            "UPDATE ingestion SET worker_environment = %s WHERE id = %s;",
+            (worker_environment, ingestion_id),
+        )
+
+    log("ingest.looked_up", ingestion=str(ingestion_id), notes=len(written))
+    if run.owner_id is None:
+        log("ingest.unowned", ingestion=str(ingestion_id), notes=len(written), minted=0)
 
 
 def record_candidate_ledger(

@@ -46,7 +46,7 @@ beforeEach(async () => {
 
 function submission(overrides: Record<string, unknown> = {}) {
   return {
-    subjectId: 'jlpt-vocab',
+    subjectId: 'jlpt-vocab-2',
     kind: 'prose' as const,
     title: '朝日新聞 社説',
     content: '駅の近くに図書館があります。'.repeat(100),
@@ -130,7 +130,7 @@ describe('recentRuns', () => {
 
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-      VALUES ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb, '${second.ingestionId}');
+      VALUES ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb, '${second.ingestionId}');
     `)
 
     const runs = await recentRuns(db)
@@ -186,8 +186,8 @@ describe('allSources', () => {
 
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id) VALUES
-        ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb, '${first.ingestionId}'),
-        ('jlpt-vocab', '駅␟えき', '{}'::jsonb, '${second.ingestionId}');
+        ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb, '${first.ingestionId}'),
+        ('jlpt-vocab-2', '駅␟えき', '{}'::jsonb, '${second.ingestionId}');
     `)
 
     // Two *sources* here, because identical content creates a new one (PRD §5).
@@ -199,7 +199,7 @@ describe('allSources', () => {
     const written = await recordSource(db, submission())
     await client.exec(`
       INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_at)
-      VALUES ('${written.sourceId}', '朝日新聞 社説', 'jlpt-vocab', 'complete', now() + interval '1 minute');
+      VALUES ('${written.sourceId}', '朝日新聞 社説', 'jlpt-vocab-2', 'complete', now() + interval '1 minute');
     `)
 
     const [source] = await allSources(db)
@@ -364,7 +364,7 @@ describe('startBlockCounts', () => {
 async function seedVetting(state: string, identityKey = '図書館␟としょかん') {
   const note = await client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${identityKey}', '{}'::jsonb) RETURNING id;
+    VALUES ('jlpt-vocab-2', '${identityKey}', '{}'::jsonb) RETURNING id;
   `)
   const noteId = note.rows[0]!.id
 

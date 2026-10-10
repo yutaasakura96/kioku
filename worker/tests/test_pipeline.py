@@ -95,6 +95,7 @@ def test_a_stage_key_is_also_a_module_name() -> None:
         "extract_candidates",
         "deduplicate",
         "filter_known",
+        "lookup",
         "generate",
         "write_notes",
     ]
@@ -103,6 +104,7 @@ def test_a_stage_key_is_also_a_module_name() -> None:
         "normalise",
         "deduplicate",
         "filter_known",
+        "lookup",
         "generate",
         "write_notes",
     ]

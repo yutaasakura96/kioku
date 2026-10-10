@@ -1,5 +1,5 @@
 {
-  "subject_id": "jlpt-vocab",
+  "subject_id": "jlpt-vocab-2",
   "name": "JLPT vocabulary",
   "identity_key": ["term", "reading"],
   "fields": [
@@ -34,14 +34,14 @@
     {
       "name": "example_sentence",
       "kind": "judgement",
-      "required": true,
+      "required": false,
       "memory_bearing": false,
       "label": "EXAMPLE"
     },
     {
       "name": "example_gloss",
       "kind": "judgement",
-      "required": true,
+      "required": false,
       "memory_bearing": false,
       "label": "GLOSS"
     }
@@ -67,6 +67,7 @@
       "extract_candidates",
       "deduplicate",
       "filter_known",
+      "lookup",
       "generate",
       "write_notes"
     ],
@@ -75,6 +76,7 @@
       "normalise",
       "deduplicate",
       "filter_known",
+      "lookup",
       "generate",
       "write_notes"
     ],
@@ -84,10 +86,12 @@
       "normalise",
       "deduplicate",
       "filter_known",
+      "lookup",
       "generate",
       "write_notes"
     ]
   },
   "levels": ["N5", "N4", "N3", "N2", "N1"],
+  "authorities": ["tanos-jlpt"],
   "domains": ["tech", "business", "daily", "academic", "general"]
 }

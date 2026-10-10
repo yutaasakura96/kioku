@@ -101,7 +101,7 @@ def seed(connection: psycopg.Connection, count: int) -> list[str]:
         (note_id,) = connection.execute(
             """
             INSERT INTO note (subject_id, identity_key, fields)
-            VALUES ('jlpt-vocab', %s, %s::jsonb)
+            VALUES ('jlpt-vocab-2', %s, %s::jsonb)
             RETURNING id::text;
             """,
             (f"語{index}\x1fご", json.dumps(fields, ensure_ascii=False)),

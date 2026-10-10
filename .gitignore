@@ -41,3 +41,6 @@ __pycache__/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# The worker's JMdict download and its index (`worker/dictionary.py`). Never committed.
+worker/.cache/

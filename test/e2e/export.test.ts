@@ -72,7 +72,7 @@ async function count(sql: string): Promise<number> {
 async function note(key: string, ingestionId: string): Promise<string> {
   return one(`
     INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-    VALUES ('jlpt-vocab', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
+    VALUES ('jlpt-vocab-2', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
     RETURNING id;
   `)
 }
@@ -94,13 +94,13 @@ let supersededEpochId: string
 beforeAll(async () => {
   const sourceId = await one(`
     INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
-    VALUES ('jlpt-vocab', 'word_list', '私的な本', '${SOURCE_TEXT}', 'hash', 19)
+    VALUES ('jlpt-vocab-2', 'word_list', '私的な本', '${SOURCE_TEXT}', 'hash', 19)
     RETURNING id;
   `)
 
   const ingestionId = await one(`
     INSERT INTO ingestion (source_id, source_title, subject_id, status, worker_environment)
-    VALUES ('${sourceId}', '私的な本', 'jlpt-vocab', 'complete', 'laptop')
+    VALUES ('${sourceId}', '私的な本', 'jlpt-vocab-2', 'complete', 'laptop')
     RETURNING id;
   `)
 

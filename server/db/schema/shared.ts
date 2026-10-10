@@ -657,6 +657,12 @@ export const levelClaim = pgTable(
     // Rendering one note on *Vet*. The set is never collapsed, so it is always a
     // fetch of several.
     index('level_claim_note_idx').on(t.noteId),
+    // ADR 0075 §4: a JLPT category is *the words one authority puts at one
+    // level*, and this is that read. Partial, because a model's estimate is in
+    // no category.
+    index('level_claim_authority_level_idx')
+      .on(t.authorityKey, t.level)
+      .where(sql`${t.authorityKey} IS NOT NULL`),
   ],
 )
 
@@ -727,6 +733,12 @@ export const domainClaim = pgTable(
  *
  * Attributed like `level_claim` (ADR 0005): the model and the prompt that wrote
  * it, so a thin list can be traced to the prompt that produced it.
+ *
+ * ⚠️ **Or the dictionary that did, since ADR 0075.** A starter word's list, and
+ * an own word's when JMdict has it, is JMdict's glosses: `dictionary_version`
+ * names the file and both model columns are null. Exactly one of the two
+ * attributions is set, which is `level_claim_attribution`'s rule for the same
+ * reason.
  */
 export const noteMeaning = pgTable(
   'note_meaning',
@@ -736,13 +748,19 @@ export const noteMeaning = pgTable(
       // Check data about the *note* and nothing else — it goes where the note goes.
       .references(() => note.id, { onDelete: 'cascade' }),
     meanings: text('meanings').array().notNull(),
-    modelId: text('model_id').notNull(),
-    promptVersion: text('prompt_version').notNull(),
+    modelId: text('model_id'),
+    promptVersion: text('prompt_version'),
+    /** `JMdict 2026-10-09` — set when a dictionary wrote the list and no model did. */
+    dictionaryVersion: text('dictionary_version'),
     createdAt: tstz('created_at').notNull().defaultNow(),
   },
   t => [
     // An empty list is a list that accepts nothing, which is worse than no row:
     // no row falls back to `meaning`, an empty one would not.
     check('note_meaning_not_empty', sql`cardinality(${t.meanings}) > 0`),
+    check(
+      'note_meaning_attribution',
+      sql`(${t.dictionaryVersion} IS NULL) = (${t.modelId} IS NOT NULL) AND (${t.modelId} IS NULL) = (${t.promptVersion} IS NULL)`,
+    ),
   ],
 )

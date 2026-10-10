@@ -70,7 +70,7 @@ async function pending(
 ): Promise<string> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
@@ -96,7 +96,7 @@ async function flagged(
 ): Promise<{ noteId: string, cardId: string }> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 

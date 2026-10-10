@@ -62,7 +62,7 @@ def test_the_cleanup_empties_everything_a_worker_test_writes(connection):
     ingestion_id = connection.execute(
         """
         INSERT INTO ingestion (source_title, subject_id, status)
-        VALUES ('本', 'jlpt-vocab', 'queued') RETURNING id;
+        VALUES ('本', 'jlpt-vocab-2', 'queued') RETURNING id;
         """
     ).fetchone()[0]
     connection.execute(
@@ -72,7 +72,7 @@ def test_the_cleanup_empties_everything_a_worker_test_writes(connection):
     connection.execute(
         """
         INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-        VALUES ('jlpt-vocab', 'cleanup-ordinary', '{}'::jsonb, %s);
+        VALUES ('jlpt-vocab-2', 'cleanup-ordinary', '{}'::jsonb, %s);
         """,
         (ingestion_id,),
     )
@@ -98,13 +98,13 @@ def seed_a_graded_card(connection: psycopg.Connection) -> None:
     ingestion_id = connection.execute(
         """
         INSERT INTO ingestion (source_title, subject_id, status)
-        VALUES ('本', 'jlpt-vocab', 'complete') RETURNING id;
+        VALUES ('本', 'jlpt-vocab-2', 'complete') RETURNING id;
         """
     ).fetchone()[0]
     note_id = connection.execute(
         """
         INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-        VALUES ('jlpt-vocab', 'cleanup-probe', '{}'::jsonb, %s) RETURNING id;
+        VALUES ('jlpt-vocab-2', 'cleanup-probe', '{}'::jsonb, %s) RETURNING id;
         """,
         (ingestion_id,),
     ).fetchone()[0]

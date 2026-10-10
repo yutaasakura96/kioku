@@ -66,7 +66,7 @@ const FIELDS = {
 async function acceptedCard(key: string, fields: Record<string, string> = FIELDS): Promise<string> {
   const note = await database.client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
