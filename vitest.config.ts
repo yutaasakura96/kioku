@@ -48,6 +48,10 @@ export default defineConfig({
           // tier went from 48 s to 133 s with setup hooks timing out, and is
           // back to 50 s at three (measured 2026-10-10, #73).
           maxWorkers: 3,
+          // Vitest refuses two projects with different `maxWorkers` in one
+          // group, so this tier runs after the other three rather than beside
+          // them.
+          sequence: { groupOrder: 1 },
         },
       },
     ],

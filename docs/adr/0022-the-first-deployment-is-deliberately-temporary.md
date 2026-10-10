@@ -280,6 +280,62 @@ with the production worker running detached on the laptop at `main` `dc12d3f`. Y
 - ⚠️ **`/tmp` and `unpackDeck`'s duration are still unobserved.** No `.apkg` was uploaded, by Yuta's
   choice, so ADR 0068 § Amended 2026-09-20 still rests on the docs.
 
+## Amended 2026-10-10: the server is bundled, and the favicon is a file (#73)
+
+Yuta found the deployed app slow on the first load of a visit. It was measured the same day (#73's
+findings comment): warm, a signed-in page answers in 135–165 ms; after about five idle minutes the
+function and the database are both cold and the first document takes about 3 s. The function's cold
+start is ~2.2–2.3 s of that and Neon's resume ~0.75 s. He decided **free fixes first, then
+re-measure: no hosting change and no paid plan.** Two shipped and one was dropped.
+
+- **The server's dependencies are bundled into the function** (`nitro.noExternals: true` in
+  `nuxt.config.ts`). A CPU profile of a cold boot is module loading, and the cost is the number of
+  files, not the app's code. Measured locally on Node 24.11, process start to first response:
+
+  | Build | Files | Size | `/auth` | `/` signed in |
+  | --- | --- | --- | --- | --- |
+  | `node-server`, unbundled | 686 | 12 MB | 465–575 ms | 477–530 ms |
+  | `node-server`, bundled | 83 | 6.3 MB | 146–172 ms | 167–190 ms |
+  | `vercel`, unbundled | 713 | 12 MB | 424–469 ms | 445–461 ms |
+  | `vercel`, bundled | 83 | 6.0 MB | 144–196 ms | 162–169 ms |
+
+  Every body was the same size on all four, and an `.apkg` upload unpacked on the bundled build
+  (`node:sqlite` and `node:zlib` stay external; they are built in).
+  ⚠️ **`noExternals` is not in the nitropack 2.x documentation.** It is in the installed 2.13.4's
+  types and is what Nitro's own worker and Deno presets set, so it was proven on a production build
+  of both presets rather than read. ⚠️ **The Vercel number is unmeasured until this is deployed**;
+  the 3x is a laptop's.
+  It is a Nitro option, not a Vercel one, and the `node-server` rows are the move's preset, so § What
+  must not happen holds.
+- **Two optional packages that are not installed need a stand-in**, or the build stops with `Cannot
+  resolve "pg-native" … and externals are not allowed!`. Both are in `server/stubs/` and aliased in
+  `nuxt.config.ts`. ⚠️ **They differ on purpose.** `better-auth` imports `@opentelemetry/api` inside a
+  `.catch()`, so its stub throws like a missing package. `pg` requires `pg-native` lazily, the
+  bundler hoists that require to the top of the server, and a stub that throws there is a server
+  that does not start, so that one is an empty module. Nothing reads `pg.native`.
+- **`public/favicon.ico` exists.** Without it the framework answered every favicon request with a
+  78-byte placeholder, one function invocation per page load. Under the `vercel` preset the file
+  lands in the static output, ahead of the function. It is 記 in Shippori Mincho, ink on ground,
+  from `05`'s tokens. No `<link rel="icon">` was added (`08` §2.1).
+- ⚠️ **Dropped: waking the database while the function boots.** The sketch was a throwaway
+  `select 1` when the pool is created. The pool is already created at boot, because
+  `server/utils/auth.ts` builds its adapter at import; but an ES module graph is loaded whole before
+  any of it runs, so by then the boot is nearly over. On the bundled build the server's code starts
+  running 53 ms after the process does, the pool is created at 66 ms and the first session read is
+  issued at 80 ms: **a 14 ms window.** Behind a proxy that holds a first connection 750 ms, a fully
+  cold signed-in `/` took 930–976 ms without the statement and 925–970 ms with it. And it has a
+  cost: a signed-out request makes no query today, so an anonymous visit cannot wake Neon, and with
+  the statement every function cold start would. Yuta dropped it on that measurement.
+  A real overlap needs an entry that opens the connection and only then imports the server, which
+  rewrites a preset's entry and is ADR 0040's *do not depend on the host's shape*. Not done.
+- ⚠️ **Every e2e file builds the app, and a bundled build peaks at 2.8 GB where it was 2.0 GB.** Nine
+  at once took the tier from 48 s to 133 s with setup hooks timing out on a 16 GB laptop, so
+  `vitest.config.ts` caps that tier at three workers (50 s). Vitest will not run projects with
+  different caps side by side, so the e2e tier now runs after the other three.
+
+**Still owed:** the cold-start measurements repeated on the deployed site once this reaches `main`,
+and then Yuta's decision on paying for always-on or moving, which this does not make.
+
 ## Alternatives considered
 
 **Render at $20/month flat** — app, worker and Postgres all managed, background workers a

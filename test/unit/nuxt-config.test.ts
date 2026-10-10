@@ -35,12 +35,14 @@ const MODES = ['/vet', '/review']
 
 let config: Awaited<ReturnType<typeof loadNuxtConfig>>
 let routeRules: Record<string, Record<string, unknown>>
+let nitro: { noExternals?: boolean, alias?: Record<string, string> }
 
 beforeAll(async () => {
   config = await loadNuxtConfig({
     cwd: fileURLToPath(new URL('../..', import.meta.url)),
   })
   routeRules = ((config as { routeRules?: unknown }).routeRules ?? {}) as typeof routeRules
+  nitro = ((config as { nitro?: unknown }).nitro ?? {}) as typeof nitro
 })
 
 describe('route rules', () => {
@@ -109,13 +111,13 @@ describe('the server bundle', () => {
   // first load costs, and nothing but a stopwatch on the deployed site notices
   // it missing.
   it('bundles the server\'s dependencies', () => {
-    expect(config.nitro?.noExternals).toBe(true)
+    expect(nitro.noExternals).toBe(true)
   })
 
   it('stands in for the two optional packages that are not installed', () => {
     // Without these the build stops: `Cannot resolve "pg-native" … and
     // externals are not allowed!`
-    const alias = (config.nitro?.alias ?? {}) as Record<string, string>
+    const alias = nitro.alias ?? {}
 
     for (const name of ['pg-native', '@opentelemetry/api']) {
       expect(alias, `${name} has no alias`).toHaveProperty([name])

@@ -118,7 +118,21 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-30, latest — [#59](https://github.com/yutaasakura96/kioku/issues/59): `S11`'s delete
+**2026-10-10, latest — [#73](https://github.com/yutaasakura96/kioku/issues/73): the server is
+bundled and the favicon is a file.** Yuta found the first load of a visit slow; it measured as two
+cold starts in series, the function (~2.2 s) and Neon (~0.75 s). He chose free fixes first.
+[ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md) has the
+numbers. No new ADR.
+- **`nitro.noExternals: true`**: 686 server files become 83, and a local cold boot to first response
+  goes from ~500 ms to ~150 ms on both the `node-server` and `vercel` presets. Signed-in pages and an
+  `.apkg` upload were checked on the bundled build.
+- **`public/favicon.ico`**, so the function stops answering favicon requests.
+- ⚠️ **Waking the database during boot was dropped**: it measured a 14 ms overlap and would let an
+  anonymous visit wake Neon.
+- ⚠️ **Not yet measured on Vercel.** The re-measurement on the deployed site is owed after this
+  reaches `main`, and the decision on paying or moving is Yuta's after that.
+
+**2026-09-30 — [#59](https://github.com/yutaasakura96/kioku/issues/59): `S11`'s delete
 confirmation is built.** `/sources/:id/delete` renders `10` §7.3 (the count as the statement, `No
 cards will be suspended.` at zero), and `POST /api/source/:id/delete` sets `deleted_at`, suspends as
 `source_deleted` and answers `303` to `/sources/:id`. The page's count and the `POST`'s write share
@@ -2999,6 +3013,16 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **The server is bundled, so an optional import inside a dependency can stop the build** (#73,
+  2026-10-10). `nitro.noExternals` refuses anything it cannot resolve: `Cannot resolve "…" and
+  externals are not allowed!`. The answer is a stub in `server/stubs/` and an alias in
+  `nuxt.config.ts`, as for `pg-native` and `@opentelemetry/api`. ⚠️ **Check how the dependency
+  imports it before choosing the stub.** A dynamic `import()` with a `.catch()` wants a stub that
+  throws; a lazy `require()` is hoisted to the top of the server by the bundler, and a stub that
+  throws there is a server that does not start. A dependency bump is where this arrives.
+- ⚠️ **The e2e tier runs three files at a time, and that is memory, not caution** (#73). Each file
+  builds the app at ~2.8 GB; `vitest.config.ts` has the measurement. Raising `maxWorkers` brings back
+  setup hooks that time out at 120 s, one random file at a time.
 - ⚠️ **A migration reaches production by hand, before `develop` is merged into `main`** (#48,
   2026-09-29). Merging to `main` deploys, so code that lands ahead of its schema breaks production
   (`/` reads `seed` on every render). `03` §4.2 carries the commands and the reasons. Run from a clean
