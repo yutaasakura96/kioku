@@ -128,7 +128,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1266 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-10, after #68)
+npm run test        # 1269 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-10, after #68)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # the app on localhost:3000, signed in: open the "Sign in" URL it prints (or load

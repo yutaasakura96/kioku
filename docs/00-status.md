@@ -173,7 +173,7 @@ data and no screen.
   draws only what the *note* carries, and *Vet*'s fix accepts a blank optional field.
 - ⚠️ **Not done here, on purpose:** no starter word has a *card* (#70 mints it), no screen was
   added, nothing ran against production, and no old row was written to.
-- **1266 TypeScript tests (was 1158 at the last count this file recorded), 449 worker tests (113
+- **1269 TypeScript tests (was 1210 after #73), 449 worker tests (113
   on the container), typecheck and build clean.** `01`, `02`, `03`, `04`, `10`, `CONTEXT.md`,
   `subjects/README.md` and ADRs 0001, 0003, 0005, 0063, 0064 and 0065 amended.
   `docs/prototype/` holds the reviewed prototype.
