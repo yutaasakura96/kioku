@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { loadNuxtConfig } from '@nuxt/kit'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -99,5 +100,26 @@ describe('the app-wide noScripts feature flag', () => {
 
     // The deprecated spelling (verification §8).
     expect((config.experimental as Record<string, unknown> | undefined)?.noScripts).toBeFalsy()
+  })
+})
+
+describe('the server bundle', () => {
+  // #73, ADR 0022 § Amended 2026-10-10. The function's cold start is module
+  // loading — 684 files unbundled, 83 bundled — so the flag is what a cold
+  // first load costs, and nothing but a stopwatch on the deployed site notices
+  // it missing.
+  it('bundles the server\'s dependencies', () => {
+    expect(config.nitro?.noExternals).toBe(true)
+  })
+
+  it('stands in for the two optional packages that are not installed', () => {
+    // Without these the build stops: `Cannot resolve "pg-native" … and
+    // externals are not allowed!`
+    const alias = (config.nitro?.alias ?? {}) as Record<string, string>
+
+    for (const name of ['pg-native', '@opentelemetry/api']) {
+      expect(alias, `${name} has no alias`).toHaveProperty([name])
+      expect(existsSync(alias[name]!), `${name} is aliased to a file that is not there`).toBe(true)
+    }
   })
 })

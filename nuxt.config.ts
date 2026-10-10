@@ -1,3 +1,7 @@
+import { fileURLToPath } from 'node:url'
+
+const stub = (name: string) => fileURLToPath(new URL(`./server/stubs/${name}.mjs`, import.meta.url))
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-09',
@@ -77,4 +81,12 @@ export default defineNuxtConfig({
   // 'production' | 'all' | boolean, and applies to everything — *Vet* and
   // *Review* need JavaScript and stripping it globally breaks both (`03` §2.1).
   // The per-route rule above is the whole mechanism.
+
+  nitro: {
+    noExternals: true,
+    alias: {
+      'pg-native': stub('pg-native'),
+      '@opentelemetry/api': stub('not-installed'),
+    },
+  },
 })

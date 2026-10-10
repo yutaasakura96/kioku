@@ -42,6 +42,12 @@ export default defineConfig({
           // `setup()` builds and boots the app; its own default is 120000.
           testTimeout: 120000,
           hookTimeout: 240000,
+          // ⚠️ Every file builds the app, and a build that bundles the server's
+          // dependencies (`nuxt.config.ts`, `nitro.noExternals`) peaks at 2.8 GB
+          // where it was 2.0 GB. One per core is 25 GB on a 16 GB laptop: the
+          // tier went from 48 s to 133 s with setup hooks timing out, and is
+          // back to 50 s at three (measured 2026-10-10, #73).
+          maxWorkers: 3,
         },
       },
     ],
