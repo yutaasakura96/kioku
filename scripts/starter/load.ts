@@ -10,11 +10,18 @@
  * the *card* that puts it in front of a reader is minted when that reader
  * starts it, which is the lesson's job and not this file's.
  *
- * ⚠️ **Repeatable, and the first value stands.** A *note* that already exists
- * is left as it is (ADR 0006: a collision never alters the *note*'s fields),
- * whoever wrote it. A second run adds what the bundle gained and changes two
- * things only, both of which this loader owns: the list's *level claim*, and an
- * accepted-meanings list a dictionary wrote. A model's list is never replaced.
+ * ⚠️ **Repeatable.** A second run of the same bundle writes nothing. A run of
+ * a newer bundle — the monthly JMdict refresh — adds the words it gained and
+ * restates what this loader owns: the list's *level claim*, an
+ * accepted-meanings list a dictionary wrote, and **the fields of a *note* that
+ * is still only the dictionary's**.
+ *
+ * ⚠️ **A *note* some reader has accepted keeps its fields** — `S6`'s freeze,
+ * the rule `server/utils/note/fields.ts` enforces for the app (ADR 0052). A
+ * refresh that rewrote a gloss under a review history would be measuring
+ * recall of a card the reader never saw. So does a *note* any field of which a
+ * model or a person wrote: the dictionary is not the author of that one. A
+ * model's accepted-meanings list is never replaced either.
  *
  * ⚠️ **Raw SQL over one connection, with no Drizzle schema in reach.** It is
  * run by `node`, which will not resolve the schema's extensionless imports
@@ -33,7 +40,9 @@ export const STARTER_BUNDLE_PATH = fileURLToPath(
   new URL('../../subjects/starter/jlpt-vocab.json', import.meta.url),
 )
 
-export interface StarterWord {
+// A `type`, not an `interface`: `renderIdentityKey` takes a record, and only an
+// alias is assignable to an index signature.
+export type StarterWord = {
   term: string
   reading: string
   level: string
@@ -66,6 +75,8 @@ export interface StarterLoad {
   created: number
   /** Words whose *note* was already there, from an earlier run or an *ingestion*. */
   existing: number
+  /** Existing *notes* whose fields this run brought up to the bundle's. */
+  refreshed: number
   byLevel: Record<string, number>
 }
 
@@ -118,7 +129,7 @@ export async function loadStarterSet(
 ): Promise<StarterLoad> {
   const subjectId = declaration.subject_id
   const dictionary = bundle.sources.jmdict.version
-  const load: StarterLoad = { words: bundle.words.length, created: 0, existing: 0, byLevel: {} }
+  const load: StarterLoad = { words: bundle.words.length, created: 0, existing: 0, refreshed: 0, byLevel: {} }
 
   for (let start = 0; start < bundle.words.length; start += BATCH) {
     const words = bundle.words.slice(start, start + BATCH)
@@ -146,6 +157,30 @@ export async function loadStarterSet(
       ) as { rows: { id: string, identity_key: string }[] }
       const idOf = new Map(found.rows.map(row => [row.identity_key, row.id]))
       const ids = keys.map(key => idOf.get(key)!)
+
+      // The refresh. Unaccepted, and every field a dictionary's: see the head
+      // of the file. Only the two fields the dictionary supplies can differ —
+      // the other two are the *identity key*.
+      const refreshed = await db.query(
+        `UPDATE note n SET fields = w.fields::jsonb
+         FROM unnest($1::uuid[], $2::text[]) AS w(note_id, fields)
+         WHERE n.id = w.note_id
+           AND n.fields <> w.fields::jsonb
+           AND NOT EXISTS (
+             SELECT 1 FROM note_vetting v WHERE v.note_id = n.id AND v.state = 'accepted')
+           AND NOT EXISTS (
+             SELECT 1 FROM note_field_provenance p WHERE p.note_id = n.id AND p.kind <> 'lookup')
+         RETURNING n.id`,
+        [ids, fields],
+      ) as { rows: { id: string }[] }
+
+      if (refreshed.rows.length > 0) {
+        await db.query(
+          `UPDATE note_field_provenance SET dictionary_version = $2
+           WHERE note_id = ANY($1::uuid[]) AND field_name = ANY($3::text[])`,
+          [refreshed.rows.map(row => row.id), dictionary, ['part_of_speech', 'meaning']],
+        )
+      }
 
       // ⚠️ `ON CONFLICT DO NOTHING`: a *note* an *ingestion* made keeps that
       // run's attribution (`worker/pipeline/write_notes.py`).
@@ -180,6 +215,7 @@ export async function loadStarterSet(
 
       load.created += created.rows.length
       load.existing += words.length - created.rows.length
+      load.refreshed += refreshed.rows.length
     }
     catch (error) {
       await db.query('ROLLBACK')

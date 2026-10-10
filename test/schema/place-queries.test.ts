@@ -342,8 +342,18 @@ describe('startBlockCounts', () => {
   it('subtracts what today\'s runs already introduced', async () => {
     for (let n = 0; n < 12; n += 1)
       await seedNewCard(`語${n}␟ご`)
+    // ⚠️ A run with a *card* in it, since #68: a *session* carries no
+    // `subject_id`, so its membership is what says it was this corpus's
+    // (`server/utils/subject.ts`). The *card* is a due one, so the twelve new
+    // ones are all still waiting.
+    const member = await seedDueCard({ due: `now() + interval '1 day'` })
     await client.exec(`
-      INSERT INTO review_session (owner_id, size, new_count, zone) VALUES ('${OWNER}', 7, 7, 'UTC');
+      WITH run AS (
+        INSERT INTO review_session (owner_id, size, new_count, zone)
+        VALUES ('${OWNER}', 7, 7, 'UTC') RETURNING id
+      )
+      INSERT INTO review_session_card (review_session_id, ordinal, card_id, owner_id)
+      SELECT id, 0, '${member.cardId}', '${OWNER}' FROM run;
     `)
 
     expect((await startBlockCounts(db, OWNER)).newToday).toBe(3)

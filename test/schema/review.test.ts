@@ -252,10 +252,13 @@ async function claimed(cardId: string, { domain, level }: { domain?: string, lev
       VALUES ('${noteId}', '${domain}', 'claude-sonnet-5', 'v3');
     `)
   }
+  // ⚠️ The list's claim, since #68: the level filter reads the declared
+  // *authority* and a model's estimate matches no level (ADR 0075 §2;
+  // `test/schema/starter.test.ts` has that case).
   if (level) {
     await client.exec(`
-      INSERT INTO level_claim (note_id, level, model_id, prompt_version)
-      VALUES ('${noteId}', '${level}', 'claude-sonnet-5', 'v3');
+      INSERT INTO level_claim (note_id, authority_key, level)
+      VALUES ('${noteId}', 'tanos-jlpt', '${level}');
     `)
   }
 }

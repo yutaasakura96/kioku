@@ -26,6 +26,7 @@ import type { BrakeReading } from '../../../shared/review/brake'
 import { isFinished } from '../../../shared/review/snapshot'
 import { resolveZone } from '../../../shared/time/local-day'
 import type { IngestDatabase } from '../ingest/record'
+import { sessionInCurrentSubject } from '../subject'
 import type { SessionFilter } from '../../../shared/review/filter'
 import { NO_FILTER } from '../../../shared/review/filter'
 import type { ReviewSnapshot } from './queries'
@@ -107,6 +108,9 @@ export async function liveSession(db: IngestDatabase, ownerId: string): Promise<
       and(
         eq(schema.reviewSession.ownerId, ownerId),
         isNull(schema.reviewSession.completedAt),
+        // ADR 0075 §1: a run left open in the corpus the reader left is not
+        // the run to resume.
+        sessionInCurrentSubject(db),
       ),
     )
     .orderBy(desc(schema.reviewSession.startedAt))

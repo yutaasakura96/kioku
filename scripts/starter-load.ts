@@ -40,7 +40,7 @@ try {
 
   for (const level of levelValues(jlptVocab))
     console.log(`  ${level}  ${load.byLevel[level] ?? 0}`)
-  console.log(`  ${load.created} notes created, ${load.existing} already there.`)
+  console.log(`  ${load.created} notes created, ${load.existing} already there, ${load.refreshed} of those refreshed.`)
 }
 finally {
   await client.end()

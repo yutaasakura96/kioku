@@ -59,6 +59,21 @@ describe('the card\'s two faces (`10` §5.4, ADR 0002)', () => {
       expect(view.text()).toContain(value)
   })
 
+  // ADR 0075 §7, #68: a word from the dictionary has no example sentence. The
+  // back draws what the *note* carries and leaves no empty paragraph for the
+  // rest, which would still take its margins.
+  it('draws a note with no example without leaving a gap for one', async () => {
+    const { example_sentence: _, example_gloss: __, ...fromDictionary } = FIELDS
+    const view = await mountSuspended(ReviewCard, {
+      props: { fields: fromDictionary, declaration: jlptVocab, templateKey: 'recognition', face: 'back' },
+    })
+
+    expect(view.find('.value.meaning').text()).toBe('library')
+    expect(view.find('.value.example').exists()).toBe(false)
+    expect(view.find('.value.gloss').exists()).toBe(false)
+    expect(view.findAll('p').every(paragraph => paragraph.text() !== '')).toBe(true)
+  })
+
   // `05` §4: Mincho carries every Japanese glyph and Newsreader every English
   // one, and a screen never mixes a family into a role that is not its own. The
   // `:lang(ja)` hook in `tokens.css` is what does it, so the attribute is the
@@ -258,17 +273,26 @@ describe('the reading step before its check', () => {
 
 // #30: EDRDG's licence §3 asks for the acknowledgement on the app's site, with
 // links. The *shell* carries it, so every *place* does and no *mode* does.
-describe('the KANJIDIC2 acknowledgement', () => {
-  it('sits under a place with the project, licence and CC BY-SA links', async () => {
+// ⚠️ #68 added the starter set's two sources in front of it (ADR 0075 §8):
+// JMdict under the same licence, and the JLPT lists, whose CC BY terms ask for
+// Jonathan Waller's site to be credited.
+describe('the acknowledgements under a place', () => {
+  it('credits JMdict, the JLPT lists and KANJIDIC2, each with its links', async () => {
     const view = await mountSuspended(PlaceShell, { props: { origin: '/stats', flagged: 0, due: 0, newToday: 0 } })
     const footer = view.find('footer')
 
+    expect(footer.text()).toContain('JMdict')
+    expect(footer.text()).toContain('Jonathan Waller')
     expect(footer.text()).toContain('KANJIDIC2')
     expect(footer.text()).toContain('EDRDG')
     expect(footer.findAll('a').map(link => link.attributes('href'))).toEqual([
-      'https://www.edrdg.org/wiki/index.php/KANJIDIC_Project',
+      'https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project',
       'https://www.edrdg.org/edrdg/licence.html',
       'https://creativecommons.org/licenses/by-sa/4.0/',
+      'https://www.tanos.co.uk/jlpt/',
+      'https://www.tanos.co.uk/jlpt/sharing/',
+      'https://github.com/stephenmk/yomitan-jlpt-vocab',
+      'https://www.edrdg.org/wiki/index.php/KANJIDIC_Project',
     ])
   })
 })

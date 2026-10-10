@@ -95,10 +95,11 @@ function provenanceNote(name: string): string | null {
  * The *level* on display, and the honesty bit beside it.
  *
  * ADR 0005 keeps the whole set and never collapses it; precedence decides which
- * one is *shown*, and `server/utils/vet/queries.ts` orders a named *authority*
- * ahead of the model's estimate. ⚠️ **In v1 there is only ever the estimate** —
- * nothing looks a *level* up, because ADR 0005 records that the JLPT has
- * published no official list since 2010.
+ * one is *shown*, and `server/utils/vet/queries.ts` hands them over in the
+ * declaration's order. ⚠️ **Since #68 a *level* is a list's or it is absent**
+ * (ADR 0075 §2): the queue reads declared *authorities* only, so a word the
+ * list does not carry shows no level rather than a model's estimate. This said
+ * *in v1 there is only ever the estimate* until then.
  */
 /**
  * ⚠️ **The *domain* is the same kind of thing and is drawn the same way**

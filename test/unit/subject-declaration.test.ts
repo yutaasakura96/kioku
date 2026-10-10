@@ -3,6 +3,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   DECLARATION_PATH,
+  IDENTITY_KEY_SEPARATOR,
+  authorityKeys,
   checkDeclaration,
   domainValues,
   fieldNames,
@@ -11,6 +13,7 @@ import {
   levelValues,
   memoryBearingFieldNames,
   pipelineKinds,
+  renderIdentityKey,
   stageKeys,
 } from '../../shared/subject/declaration'
 
@@ -48,6 +51,7 @@ describe('the JLPT vocabulary declaration', () => {
       'extract_candidates',
       'deduplicate',
       'filter_known',
+      'lookup',
       'generate',
       'write_notes',
     ])
@@ -56,6 +60,7 @@ describe('the JLPT vocabulary declaration', () => {
       'normalise',
       'deduplicate',
       'filter_known',
+      'lookup',
       'generate',
       'write_notes',
     ])
@@ -75,11 +80,36 @@ describe('the JLPT vocabulary declaration', () => {
       'normalise',
       'deduplicate',
       'filter_known',
+      'lookup',
       'generate',
       'write_notes',
     ])
     expect(stageKeys(jlptVocab, 'anki').slice(2)).toEqual(stageKeys(jlptVocab, 'word_list').slice(1))
   })
+  // ADR 0075 §2: a word's *level* is the first declared authority's, and the
+  // list is the declaration's (ADR 0005).
+  it('declares the authorities a level is read from, in precedence order', () => {
+    expect(authorityKeys(jlptVocab)).toEqual(['tanos-jlpt'])
+  })
+
+  // ADR 0075 §1: the *subject* id is how the corpus started fresh. The file
+  // keeps its name; the id moved, and every reader-facing read is scoped to it.
+  it('carries the subject id every read is scoped to', () => {
+    expect(jlptVocab.subject_id).toBe('jlpt-vocab-2')
+  })
+
+  // ADR 0006 and `04` §5.3: NFC, the declared order, U+001F between. The
+  // starter loader renders it here and the worker renders it in Python, and
+  // `worker/tests/test_subject_drift.py` holds the two to one answer.
+  it('renders an identity key the way the worker does', () => {
+    expect(renderIdentityKey(jlptVocab, { term: '開く', reading: 'ひらく' })).toBe('開く\u001Fひらく')
+    // か + U+3099 is が decomposed; the key is composed.
+    expect(renderIdentityKey(jlptVocab, { term: 'か\u3099っこう', reading: 'か\u3099っこう' }))
+      .toBe('がっこう\u001Fがっこう')
+    expect(IDENTITY_KEY_SEPARATOR).toBe('\u001F')
+    expect(() => renderIdentityKey(jlptVocab, { term: '開く' })).toThrow(/reading/)
+  })
+
   // ADR 0065 §2: closed sets, because a model asked for a free-text domain
   // answers `tech`, `technology` and `IT` for three words that belong together.
   it('declares the levels in order and the domains, general among them', () => {
@@ -153,6 +183,7 @@ describe('checkDeclaration', () => {
     pipelines: { word_list: ['one'], prose: ['one', 'two'], anki: ['zero', 'one'] },
     levels: ['low', 'high'],
     domains: ['work', 'other'],
+    authorities: ['a-list'],
   }
 
   const withDeclaration = (patch: Record<string, unknown>) => ({ ...valid, ...patch })
@@ -176,6 +207,7 @@ describe('checkDeclaration', () => {
     ['pipelines', { pipelines: ['prose'] }],
     ['levels', { levels: 'N5' }],
     ['domains', { domains: ['tech', 3] }],
+    ['authorities', { authorities: 'tanos-jlpt' }],
   ])('refuses a malformed %s section without throwing', (section, patch) => {
     expect(checkDeclaration(withDeclaration(patch))).toEqual({
       ok: false,
@@ -284,11 +316,12 @@ describe('checkDeclaration', () => {
   // answer, and a value listed twice is a filter with two checkboxes for one
   // thing.
   it('refuses an empty level or domain set, and a value listed twice', () => {
-    expect(checkDeclaration(withDeclaration({ levels: [], domains: [] }))).toEqual({
+    expect(checkDeclaration(withDeclaration({ levels: [], domains: [], authorities: [] }))).toEqual({
       ok: false,
       errors: [
         { field: 'levels', code: 'no_values' },
         { field: 'domains', code: 'no_values' },
+        { field: 'authorities', code: 'no_values' },
       ],
     })
 

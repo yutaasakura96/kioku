@@ -46,9 +46,12 @@ const prompt = computed(() => template.value?.prompt ?? [])
  * ひらい rather than ひらく. Fixing that changes the identity of existing
  * *notes*, which is why it is its own ticket and not a patch here.
  */
-const answer = computed(() => template.value?.answer ?? [])
-
 const value = (name: string) => props.fields[name] ?? ''
+
+// ⚠️ **A field the *note* does not carry is not drawn** (ADR 0075 §7, #68). A
+// word from the dictionary has no example sentence, and an empty paragraph
+// would still take its margins.
+const answer = computed(() => (template.value?.answer ?? []).filter(name => value(name) !== ''))
 
 /** Which of `05` §4's entries a field is rendered at. */
 function roleOf(name: string): string {
