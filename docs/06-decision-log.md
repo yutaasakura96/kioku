@@ -1652,12 +1652,8 @@ because none of the four goes against ADR 0022.
 → [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 
 ### [2026-10-10] Free fixes for the slow first load: the server is bundled, the database warm-up is dropped
-The first load of a visit measured ~3 s, a ~2.2 s function cold start and then Neon's ~0.75 s resume
-(#73). Yuta chose **free fixes first, then re-measure, with no hosting change and no paid plan**.
-`nitro.noExternals` bundles the server's dependencies (686 files to 83, a local cold boot from ~500 ms
-to ~150 ms) and `public/favicon.ico` takes favicon requests off the function. **Waking the database
-during boot was measured and dropped**: the overlap is 14 ms, and it would let an anonymous visit wake
-Neon. The Vercel figure waits for the deploy, and paying or moving is his call after it.
+Bundle server dependencies and serve a static favicon (#73); drop database warm-up after measuring
+its small overlap and anonymous-visit cost. Re-measure after deployment before any hosting decision.
 → [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 
 ## Adding an entry

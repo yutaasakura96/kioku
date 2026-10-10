@@ -106,10 +106,8 @@ describe('the app-wide noScripts feature flag', () => {
 })
 
 describe('the server bundle', () => {
-  // #73, ADR 0022 § Amended 2026-10-10. The function's cold start is module
-  // loading — 684 files unbundled, 83 bundled — so the flag is what a cold
-  // first load costs, and nothing but a stopwatch on the deployed site notices
-  // it missing.
+  // Guard the bundle setting that reduces cold boot (#73, ADR 0022 § Amended
+  // 2026-10-10).
   it('bundles the server\'s dependencies', () => {
     expect(nitro.noExternals).toBe(true)
   })

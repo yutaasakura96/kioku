@@ -82,18 +82,9 @@ export default defineNuxtConfig({
   // *Review* need JavaScript and stripping it globally breaks both (`03` §2.1).
   // The per-route rule above is the whole mechanism.
 
-  // The server's dependencies are bundled into it — #73, ADR 0022 § Amended
-  // 2026-10-10. A cold start is module loading, and the cost is the number of
-  // files: 686 unbundled, 83 bundled, ~500 ms to a first response against
-  // ~150 ms on a laptop. `test/unit/nuxt-config.test.ts` is the guard.
-  //
-  // ⚠️ `noExternals` is in nitropack 2.13.4's types and not in its
-  // documentation. It was proven on a production build of the `node-server` and
-  // `vercel` presets rather than read.
-  //
-  // ⚠️ With it, anything the bundler cannot resolve stops the build. The two
-  // aliases are optional packages that are not installed, and the stubs differ
-  // on purpose (`server/stubs/`, `00-status.md` § Carrying).
+  // Bundle server dependencies to shorten cold boot (#73, ADR 0022 § Amended
+  // 2026-10-10). Optional imports must resolve during the build; the aliases
+  // preserve the different import paths' boot behavior (`server/stubs/`).
   nitro: {
     noExternals: true,
     alias: {

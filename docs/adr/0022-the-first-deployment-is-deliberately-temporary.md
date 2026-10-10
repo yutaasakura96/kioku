@@ -286,7 +286,7 @@ Yuta found the deployed app slow on the first load of a visit. It was measured t
 findings comment): warm, a signed-in page answers in 135–165 ms; after about five idle minutes the
 function and the database are both cold and the first document takes about 3 s. The function's cold
 start is ~2.2–2.3 s of that and Neon's resume ~0.75 s. He decided **free fixes first, then
-re-measure: no hosting change and no paid plan.** Two shipped and one was dropped.
+re-measure: no hosting change and no paid plan.** Two fixes were built and one was dropped.
 
 - **The server's dependencies are bundled into the function** (`nitro.noExternals: true` in
   `nuxt.config.ts`). A CPU profile of a cold boot is module loading, and the cost is the number of
@@ -314,7 +314,7 @@ re-measure: no hosting change and no paid plan.** Two shipped and one was droppe
   bundler hoists that require to the top of the server, and a stub that throws there is a server
   that does not start, so that one is an empty module. Nothing reads `pg.native`.
 - **`public/favicon.ico` exists.** Without it the framework answered every favicon request with a
-  78-byte placeholder, one function invocation per page load. Under the `vercel` preset the file
+  78-byte placeholder, invoking the function for each such request. Under the `vercel` preset the file
   lands in the static output, ahead of the function. It is 記 in Shippori Mincho, ink on ground,
   from `05`'s tokens. No `<link rel="icon">` was added (`08` §2.1).
 - ⚠️ **Dropped: waking the database while the function boots.** The sketch was a throwaway
