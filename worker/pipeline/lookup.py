@@ -62,7 +62,7 @@ class _NoDictionary:
 #: What a caller that has no dictionary passes: every word is missing and goes
 #: on to stage 6, which is the pipeline as it was before this stage existed.
 #: ⚠️ **The worker never runs on it** — `worker/__main__.py` hands the chunk
-#: processor `dictionary.WorkerDictionary`, and a test pins that.
+#: processor `dictionary.WorkerDictionary`.
 NO_DICTIONARY: Lookup = _NoDictionary()
 
 
@@ -87,7 +87,9 @@ def lookup(groups: Iterable[Group], *, dictionary: Lookup) -> LookedUp:
     for group in groups:
         candidate = group.candidate
         word = dictionary.find(candidate.term, candidate.reading) if candidate.reading else None
-        if word is None:
+        # ⚠️ An entry with nothing to show is the same as no entry: the *note*
+        # needs both fields (`03` §6), and the model can still be asked.
+        if word is None or not word.meaning.strip() or not word.part_of_speech.strip():
             missing.append(group)
         else:
             found.append(Found(group=group, word=word))

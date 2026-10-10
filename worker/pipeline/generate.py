@@ -662,4 +662,10 @@ def _assemble(
             "a generated note does not satisfy the declaration: "
             + ", ".join(f"{error.field}:{error.code}" for error in result.errors)
         )
-    return {name: fields[name] for name in (field["name"] for field in declaration["fields"])}
+    # ⚠️ An optional field the model left out stays out (ADR 0075 §7): the
+    # declaration's order, and only what arrived.
+    return {
+        name: fields[name]
+        for name in (field["name"] for field in declaration["fields"])
+        if name in fields
+    }

@@ -162,6 +162,22 @@ The underlying error was: {error}
 
 
 @pytest.fixture(scope="session")
+def sample_dictionary(tmp_path_factory):
+    """`tests/fixtures/jmdict-sample.xml`, indexed the way the worker indexes
+    JMdict. A dozen entries, so no test downloads the real one."""
+    import gzip
+    from pathlib import Path
+
+    from dictionary import open_dictionary
+
+    source = tmp_path_factory.mktemp("jmdict") / "JMdict_e.gz"
+    sample = Path(__file__).parent / "fixtures" / "jmdict-sample.xml"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write(sample.read_text(encoding="utf-8"))
+    return open_dictionary(source)
+
+
+@pytest.fixture(scope="session")
 def postgres_dsn() -> str:
     """A running Postgres 18, migrated, for the session."""
     try:

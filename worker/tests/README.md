@@ -4,7 +4,14 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for one hundred and four of the three hundred and seventy-nine tests here.**
+⚠️ **Docker is required for one hundred and thirteen of the four hundred and forty-four tests here.**
+⚠️ **Re-counted 2026-10-10 with #68 (ADR 0075):** it said one hundred and four of three hundred and
+seventy-nine, and the suite was **one hundred and five of three hundred and eighty-one** before #68
+touched it — something since #38 added two without a re-count. #68 added sixty-three: thirty-three
+in `test_dictionary.py` and nine in `test_starter.py`, which need nothing because JMdict is a
+dozen hand-written entries in `fixtures/jmdict-sample.xml`; nineteen in `test_lookup.py`, eight of
+them on the container because what they assert is the rows a dictionary *note* is; and two beside
+the declaration's own tests. Counted by which tests ask for `postgres_dsn`.
 ⚠️ **Re-counted 2026-09-24 with #38 (ADR 0073):** it said one hundred and two of three hundred and
 seventy-four. #38 added five — three in `test_db.py`, which need nothing because the keepalive
 parameters can be spied on before a connection exists, and two in the new `test_half_open.py`, which
