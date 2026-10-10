@@ -449,4 +449,51 @@ describe('the note\'s identity is a constraint, not a convention', () => {
       VALUES ('${noteId}', 'daily');
     `)).rejects.toThrow(/domain_claim_attribution/)
   })
+
+  // `04` §5.8 as amended by #68 (ADR 0075 §5) — a list of accepted meanings was
+  // written by a dictionary or by a model, and the row says which. Without the
+  // check a row can name both, and "who wrote this" has two answers; or name
+  // neither, and has none.
+  it('attributes a list of accepted meanings to a dictionary or to a model, never both', async () => {
+    const note = (identity: string) => client.query<{ id: string }>(`
+      INSERT INTO note (subject_id, identity_key, fields)
+      VALUES ('jlpt-vocab-2', '${identity}', '{}'::jsonb) RETURNING id;
+    `).then(result => result.rows[0]!.id)
+
+    await client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, dictionary_version)
+      VALUES ('${await note('会う␟あう')}', '{meet}', 'JMdict 2026-10-09');
+    `)
+    await client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+      VALUES ('${await note('見る␟みる')}', '{see}', 'claude-sonnet-5', 'v5');
+    `)
+
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, dictionary_version, model_id, prompt_version)
+      VALUES ('${await note('聞く␟きく')}', '{hear}', 'JMdict 2026-10-09', 'claude-sonnet-5', 'v5');
+    `)).rejects.toThrow(/note_meaning_attribution/)
+
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings)
+      VALUES ('${await note('話す␟はなす')}', '{speak}');
+    `)).rejects.toThrow(/note_meaning_attribution/)
+
+    // A model with no prompt version is half an attribution.
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, model_id)
+      VALUES ('${await note('読む␟よむ')}', '{read}', 'claude-sonnet-5');
+    `)).rejects.toThrow(/note_meaning_attribution/)
+  })
+
+  // `04` §11 — the category read: the words one *authority* puts at one
+  // *level*. Partial, because a model's estimate is in no category.
+  it('indexes level claims by authority and level, named claims only', async () => {
+    const index = await client.query<{ indexdef: string }>(`
+      SELECT indexdef FROM pg_indexes WHERE indexname = 'level_claim_authority_level_idx';
+    `)
+
+    expect(index.rows).toHaveLength(1)
+    expect(index.rows[0]!.indexdef).toMatch(/\(authority_key, level\) WHERE \(authority_key IS NOT NULL\)/)
+  })
 })
