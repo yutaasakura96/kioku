@@ -12,16 +12,27 @@ cross-language test.
 [#3](https://github.com/yutaasakura96/kioku/issues/3). Adding a second is a code
 change plus tests, not a row and not a UI flow (ADR 0003).
 
+⚠️ **Its `subject_id` is `jlpt-vocab-2` since 2026-10-10, and the file kept its
+name** ([ADR 0075](../docs/adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)
+§1). The corpus started again under a new id; the old one's rows are still in the
+database and no screen reads them. Read the id from the file and never write it
+as a literal.
+
+**`starter/` holds the starter set**: `jlpt-vocab.json`, 8,273 JLPT words built
+by `npm run starter:build` and loaded by `npm run starter:load`, and
+`NOTICE.md`, which is the licence and attribution record for its three sources.
+
 ## What a declaration names
 
 | Key | Owns |
 | --- | --- |
 | `identity_key` | ADR 0006's tuple — for JLPT vocabulary, dictionary-form term plus reading. `04` §5.3 renders it NFC-normalised and `U+001F`-joined **in the order listed here** |
-| `fields` | The *note*'s field list, in the order *Vet* reads them. Each carries `kind` (ADR 0004's honesty bit: `lookup` or `judgement`), `required`, and `memory_bearing` |
+| `fields` | The *note*'s field list, in the order *Vet* reads them. Each carries `kind` (ADR 0004's honesty bit: `lookup` or `judgement`), `required`, and `memory_bearing`. ⚠️ **Since #68 the two example fields are `required: false`**: a word written from the dictionary has no sentence (ADR 0075 §7) |
 | `templates` | The *card templates*. v1 ships **recognition only** — term to reading and meaning (`PRD` §6) — and `card.template_key` is a text key into this list |
 | `pipelines` | **One ordered list of *pipeline stages* per *source kind*** — `prose`, `word_list` and `anki` (`03` §5.1, [ADR 0063](../docs/adr/0063-the-input-is-a-chosen-word-list.md)). ⚠️ **These are also the module names under `worker/pipeline/`** (`03` §10), which is why a stage key has to be a legal Python identifier. ⚠️ **A kind with no pipeline here is refused by name** rather than silently running whichever is first. ~~`anki` is in `04` §5.1's `CHECK` and deliberately absent from this list until [#24](https://github.com/yutaasakura96/kioku/issues/24)~~ ⚠️ `anki` has its pipeline since #26 (ADR 0068); this said it was absent until 2026-09-29 |
 | `levels` | ⚠️ **Added 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22).** The closed, ordered set a *level claim* may carry — `N5` to `N1` ([ADR 0065](../docs/adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md)). The prompt names them, the writer refuses any other, and *Review*'s filter offers them |
 | `domains` | The same, for a *domain claim* — `tech`, `business`, `daily`, `academic`, `general`. `general` exists so the model always has a legal answer |
+| `authorities` | ⚠️ **Added 2026-10-10 with [#68](https://github.com/yutaasakura96/kioku/issues/68).** The *authorities* whose *level claims* are read, **in order of precedence, first wins** (ADR 0005, ADR 0075 §2). One today: `tanos-jlpt`, Jonathan Waller's JLPT lists, which the starter set carries. A claim under a key not listed here is stored and not read, and so is a model's estimate |
 
 ⚠️ **Keys are `snake_case` throughout, including the note field names.** Both
 sides read this file, `04`'s columns are `snake_case`, the field names appear
@@ -54,13 +65,10 @@ several — and both are checked by `checkDeclaration` for exactly that reason.
 foreign key would put a second copy of the declaration in the database and
 re-create the drift ADR 0003 exists to design out.
 
-## Owed, and not by this ticket
+## Owed, and paid
 
-**ADR 0005's authority list and its precedence order.** `04` §5.6 makes
-`level_claim.authority_key` "a key into the subject declaration's authority
-list", and `04` §13 says the list *and its precedence order* are declared per
-subject. Neither is here: #3's scope is the field list, the *identity key*, the
-*templates* and the stages, and which publications count as *authorities* for
-JLPT levels is a data decision ADR 0005 left open rather than something to
-invent. It arrives with the ticket that first renders a *level* — the keys are
-additive, so nothing here has to move when it does.
+~~**ADR 0005's authority list and its precedence order.**~~ ⚠️ **Paid 2026-10-10
+by [#68](https://github.com/yutaasakura96/kioku/issues/68)**: `authorities`,
+above. This section said the list was absent because which publications count
+as *authorities* for JLPT levels was a data decision ADR 0005 left open, and
+that it would arrive additively. It did: nothing else in the file moved for it.

@@ -3,12 +3,64 @@
 **Date:** 2026-09-06
 **Status:** Phase 1 complete. This document specifies v1 from the reader's side.
 
+⚠️ **Amended 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md), [#67](https://github.com/yutaasakura96/kioku/issues/67)): the
+direction changed, and §0 is what the app is for now.** The twelve stories below are the app as
+built and each still holds for the path it describes; what they no longer are is the whole product.
+
 This is what the system does, from the outside. It contains no technical decisions —
 `docs/01-project-brief.md` §4.12 is still shut and opens in Phase 4.
 
 Vocabulary is [`CONTEXT.md`](../CONTEXT.md), which is the authority on every italicised term below.
 Decisions are the ADRs, indexed in [`06-decision-log.md`](06-decision-log.md). Where a requirement
 here follows from one, it cites it rather than re-arguing it.
+
+---
+
+## 0. The direction since 2026-10-10
+
+**Kioku is a ready-to-study flashcard quiz.** The reader opens it, chooses what to study and is
+quizzed on words that are already there. Decided by Yuta on #67 from a reviewed prototype
+([`docs/prototype/`](prototype/)), which is the reference for the screens.
+
+**What the reader studies, and where it comes from** (#68, built):
+
+- **A starter set of JLPT vocabulary, N5 to N1**, there before the reader does anything. The word,
+  its reading, its meanings and its part of speech come from JMdict; its *level* comes from a named
+  JLPT list. **Acceptance:** the set loads from a repeatable script, every word carries its list's
+  *level* and is in a *category*, and each source is acknowledged in the app with its licence.
+- **A word's *level* is the list's and never a model's guess.** A word no list places has no level.
+- **Existing *cards* and review history start fresh.** The reader sees none of the earlier corpus.
+  **Acceptance:** nothing is deleted to do it, and the export still returns all of it.
+- **An imported Anki deck and the reader's own words are secondary**, each in its own *category*
+  under *My decks*. A meaning for an own word comes from the dictionary, and a model is asked only
+  for a word the dictionary lacks.
+- **A kana-only word asks for its meaning and not its reading**, as before (ADR 0069 §4).
+
+**The twelve answers the prototype review settled**, each owed by the ticket beside it. They are
+requirements, and none is built by #68:
+
+| # | What is decided | Ticket |
+| --- | --- | --- |
+| 1 | Keep today's look; the structure was the problem | #74 |
+| 2 | The quiz asks the meaning, then the reading, back to back | #70 |
+| 3 | A wrong answer is asked again in the same session until it is right | #70 |
+| 4 | A near miss in a meaning is accepted automatically; there is no manual override | #70 |
+| 5 | The scheduler stays (FSRS); a word shows as *Learning*, *Familiar* or *Known* | #70, #71 |
+| 6 | *Your level* is the level you have proved, with progress to the next | #72 |
+| 7 | After the placement test, words below your level are marked known and spot-checked | #72 |
+| 8 | The placement test is multiple choice, about three minutes | #72 |
+| 9 | One active *category*, changed from Home | #69 |
+| 10 | Five words a lesson and ten a day, adjustable in settings | #70 |
+| 11 | Own words and imported decks are their own *categories*, looked up in the dictionary first | #68 (the lookup), #69 |
+| 12 | The dashboard is about right as prototyped | #71 |
+
+⚠️ **Three of these go against a story below, and the story is the one that gives way when its
+ticket is built**: answer 2 reverses the order ADR 0060 set (reading first), answer 3 changes what
+a wrong answer does in a *session* (`S7`), and answer 4 removes the synonym a reader adds by hand
+(ADR 0069 §2). Until #70 they are as built.
+
+⚠️ **Not settled:** where *Vet*, *Sources* and *Stats* live once there is a Home. The prototype has
+no place for them and #67 lists it as to be discussed.
 
 ---
 
@@ -92,6 +144,10 @@ precisely because one of them is wrong.
 the model chose or wrote are foregrounded. A *level* backed by a named *authority* and a *level* that
 is a model estimate are visually distinguishable by one bit of difference, with the *authority*
 available on inspection. (ADR 0004, ADR 0005)
+
+⚠️ **Narrowed 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §2).** The strip shows a *level* only when a declared *authority*
+claims one, so the model's estimate is no longer drawn at all and there is nothing left to tell it
+apart from. The distinction this asks for is kept in the data (`04` §5.6) and not on the screen.
 
 ### S5 — Say no once and mean it `MUST`
 
@@ -244,6 +300,11 @@ Five, and nothing else.
 
 Deliberately absent: a home screen, a settings screen, and a *card* browser. The browser is cut
 because a browser without a query language is a list, and the query language is L2.
+
+⚠️ **Overturned 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)).** The missing home screen is what the owner's review named
+first. Welcome and Home (#71), the *category* screen (#69), lessons (#70), a word list and the
+placement test (#72) are coming, and answer 10 in §0 asks for a settings screen. **The five above
+are still the five that exist** until those tickets land.
 
 ---
 

@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kioku prototype · new direction</title>
+<style>
+/*__FONTS__*/
+
+/* ---- Kioku's own tokens, from app/assets/css/tokens.css ---- */
+:root {
+  --k-ground: #f7f3ec; --k-raised: #fffdf9; --k-ink-ground: #1d1a16; --k-key-face: #efe8de;
+  --k-ink: #1d1a16; --k-ink-quiet: #4c463d; --k-ink-value: #60584d; --k-ink-secondary: #776d5f;
+  --k-accent: #b23a26; --k-accent-hover: #8e2c1c; --k-on-ink: #f7f3ec; --k-on-ink-quiet: #cdbfa9;
+  --k-rule: #e2d9cd; --k-rule-raised: #ece3d7; --k-tick-empty: #e6ddd2; --k-border-control: #ddd3c6;
+  --k-border-dashed: #ccc1b1;
+  --k-face-ja: 'Shippori Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', serif;
+  --k-face-en: 'Newsreader', Georgia, serif;
+  --k-face-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --k-radius-card: 3px; --k-radius-control: 5px;
+  --k-shadow-card: 0 1px 0 #e8ded1, 0 18px 44px rgb(70 52 30 / 7%);
+  /* Two additions the new direction needs: a right and a wrong. */
+  --k-right: #2f6b3f; --k-right-tint: #e4eedf; --k-wrong: #b23a26; --k-wrong-tint: #f7e2dc;
+  /* Stage ramp, darkest = best known. */
+  --k-st-known: #1d1a16; --k-st-familiar: #776d5f; --k-st-learning: #c2b29b; --k-st-none: #e6ddd2;
+  --gut: 44px;
+}
+
+* { box-sizing: border-box; }
+html { background: #e9e6e1; }
+body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: #22262c; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+/* ================= Prototype chrome (not part of the app) ================= */
+.pt { background: #22262c; color: #e9edf2; padding: 12px 16px 10px; position: sticky; top: 0; z-index: 30; }
+.pt-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; max-width: 1240px; margin: 0 auto; }
+.pt-title { font-weight: 650; font-size: 14px; letter-spacing: .01em; }
+.pt-title span { font-weight: 400; color: #aab3bf; }
+.pt-spacer { flex: 1 1 auto; }
+.pt-seg { display: inline-flex; border: 1px solid #4a525d; border-radius: 7px; overflow: hidden; }
+.pt-seg button { background: transparent; border: 0; color: #cfd6de; padding: 5px 11px; font-size: 13px; }
+.pt-seg button[aria-pressed="true"] { background: #e9edf2; color: #22262c; }
+.pt-btn { background: transparent; border: 1px solid #4a525d; color: #cfd6de; padding: 5px 11px; border-radius: 7px; font-size: 13px; }
+.pt-btn:hover, .pt-seg button:hover { border-color: #8f9aa8; }
+.pt-btn.hot { background: #f2c14e; border-color: #f2c14e; color: #22262c; font-weight: 600; }
+.pt-chips { display: flex; gap: 6px; overflow-x: auto; max-width: 1240px; margin: 9px auto 0; padding-bottom: 2px; scrollbar-width: thin; }
+.pt-chip { flex: 0 0 auto; background: #2f353d; border: 1px solid transparent; color: #cfd6de; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; white-space: nowrap; }
+.pt-chip[aria-current="true"] { background: #e9edf2; color: #22262c; font-weight: 600; }
+.pt-chip i { font-style: normal; color: #8f9aa8; margin-right: 5px; font-variant-numeric: tabular-nums; }
+.pt-chip[aria-current="true"] i { color: #5b6470; }
+.pt-note { max-width: 1240px; margin: 8px auto 0; font-size: 12.5px; color: #aab3bf; min-height: 18px; }
+.pt-note b { color: #f2c14e; font-weight: 600; }
+
+.stage { padding: 22px 16px 34px; display: flex; justify-content: center; }
+.frame { width: 100%; max-width: 1240px; background: var(--k-ground); border: 1px solid #cfc9c0; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 40px rgb(0 0 0 / 8%); }
+.frame[data-view="phone"] { width: 390px; max-width: 100%; height: 780px; overflow-y: auto; border-radius: 34px; border: 9px solid #22262c; }
+
+/* ================= The app ================= */
+.app { container-type: inline-size; container-name: app; font-family: var(--k-face-en); color: var(--k-ink); font-size: 16px; line-height: 1.5; -webkit-font-smoothing: antialiased; min-height: 720px; display: flex; flex-direction: column; background: var(--k-ground); }
+.frame[data-view="phone"] .app { min-height: 100%; }
+.app :lang(ja) { font-family: var(--k-face-ja); }
+.app :focus-visible { outline: 2px solid var(--k-accent); outline-offset: 2px; }
+:where(.app) :is(h1, h2, h3, p) { margin: 0; }
+.mono { font-family: var(--k-face-mono); }
+.eyebrow { font-family: var(--k-face-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--k-ink-secondary); }
+.eyebrow.accent { color: var(--k-accent); }
+.quiet { color: var(--k-ink-secondary); }
+
+.bar { height: 56px; display: flex; align-items: center; gap: 28px; padding: 0 var(--gut); border-bottom: 1px solid var(--k-rule); flex: 0 0 auto; }
+.brand { background: none; border: 0; padding: 0; font-size: 19px; display: flex; align-items: baseline; gap: 8px; }
+.brand [lang] { font-size: 20px; font-weight: 600; color: var(--k-accent); }
+.nav { display: flex; gap: 6px; }
+.nav button, .bar .morebtn { background: none; border: 0; padding: 8px 10px; font-size: 16px; color: var(--k-ink-secondary); border-radius: var(--k-radius-control); }
+.nav button[aria-current="page"], .bar .morebtn[aria-current="page"] { color: var(--k-ink); box-shadow: inset 0 -2px 0 var(--k-accent); border-radius: 0; }
+.nav button:hover, .bar .morebtn:hover { color: var(--k-ink); }
+.bar .grow { flex: 1; }
+.tabs { display: none; }
+.page { padding: 34px var(--gut) 56px; flex: 1 1 auto; }
+.wrap { max-width: 1020px; margin: 0 auto; }
+.wrap.narrow { max-width: 760px; }
+.wrap.told { max-width: 620px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; background: var(--k-ink-ground); color: var(--k-on-ink); border: 1px solid var(--k-ink-ground); border-radius: var(--k-radius-control); padding: 12px 22px; font-size: 17px; line-height: 1.2; text-align: center; }
+.btn:hover { background: #000; }
+.btn.ghost { background: var(--k-raised); color: var(--k-ink); border-color: var(--k-border-control); }
+.btn.ghost:hover { background: var(--k-key-face); }
+.btn.onink { background: var(--k-ground); color: var(--k-ink); border-color: var(--k-ground); }
+.btn.onink:hover { background: #fff; }
+.btn.small { padding: 8px 14px; font-size: 15px; }
+.btn.block { width: 100%; }
+.link { background: none; border: 0; padding: 0; color: var(--k-accent); text-decoration: underline; text-underline-offset: 3px; font-size: inherit; }
+.link:hover { color: var(--k-accent-hover); }
+.tag { display: inline-block; font-family: var(--k-face-mono); font-size: 11px; letter-spacing: .06em; padding: 2px 7px; border: 1px solid var(--k-border-control); border-radius: 999px; color: var(--k-ink-value); background: var(--k-raised); white-space: nowrap; }
+.tag.solid { background: var(--k-ink-ground); border-color: var(--k-ink-ground); color: var(--k-on-ink); }
+.tag.accent { border-color: var(--k-accent); color: var(--k-accent); }
+.card { background: var(--k-raised); border: 1px solid var(--k-rule-raised); border-radius: var(--k-radius-card); }
+.card.lift { box-shadow: var(--k-shadow-card); }
+.statement { font-weight: 300; font-size: 44px; line-height: 1.15; letter-spacing: -.01em; }
+.rule { border: 0; border-top: 1px solid var(--k-rule); margin: 0; }
+
+/* ---- Welcome ---- */
+.welcome { padding-top: 18px; }
+.welcome h1 { font-weight: 300; font-size: 52px; line-height: 1.1; letter-spacing: -.015em; max-width: 15em; margin-top: 14px; }
+.welcome .lede { font-size: 20px; color: var(--k-ink-quiet); max-width: 34em; margin-top: 18px; }
+.how { list-style: none; padding: 0; margin: 34px 0 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.how li { padding: 20px 20px 22px; display: flex; flex-direction: column; gap: 6px; }
+.how .n { font-family: var(--k-face-mono); font-size: 12px; color: var(--k-accent); letter-spacing: .1em; }
+.how h3 { font-weight: 400; font-size: 22px; }
+.how p { color: var(--k-ink-secondary); font-size: 15.5px; }
+.how .demo { margin-top: 12px; min-height: 76px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.how .demo .big { font-size: 44px; line-height: 1; }
+.how .fakein { border: 1px solid var(--k-border-control); border-radius: var(--k-radius-control); padding: 7px 12px; font-size: 16px; background: #fff; min-width: 0; }
+.how .fakein.ok { background: var(--k-right-tint); border-color: var(--k-right); color: var(--k-right); }
+.timeline { display: flex; align-items: center; gap: 0; width: 100%; font-family: var(--k-face-mono); font-size: 11px; color: var(--k-ink-secondary); }
+.timeline span { flex: 1 1 0; min-width: 0; text-align: center; position: relative; padding-top: 16px; white-space: nowrap; }
+.timeline span::before { content: ''; position: absolute; top: 3px; left: 50%; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; background: var(--k-ink); }
+.timeline span::after { content: ''; position: absolute; top: 7px; left: 0; right: 0; height: 1px; background: var(--k-border-dashed); z-index: 0; }
+.cta { margin-top: 36px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.know { margin-top: 18px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--k-ink-secondary); }
+.know button { background: var(--k-raised); border: 1px solid var(--k-border-control); border-radius: 999px; padding: 5px 14px; font-family: var(--k-face-mono); font-size: 13px; }
+.know button:hover { background: var(--k-key-face); }
+.fine { margin-top: 30px; font-size: 14px; color: var(--k-ink-secondary); font-style: italic; max-width: 44em; }
+
+/* ---- Home ---- */
+.today { display: flex; flex-direction: column; gap: 6px; }
+.today .statement { max-width: 18em; }
+.today .sub { color: var(--k-ink-secondary); font-size: 17px; }
+.heroes { margin-top: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.hero { padding: 24px 26px 26px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hero.ink { background: var(--k-ink-ground); border-color: var(--k-ink-ground); color: var(--k-on-ink); }
+.hero.ink .eyebrow, .hero.ink .hint { color: var(--k-on-ink-quiet); }
+.hero .big { display: flex; align-items: baseline; gap: 12px; margin-top: 6px; }
+.hero .num { font-weight: 300; font-size: 72px; line-height: 1; letter-spacing: -.02em; }
+.hero .unit { font-size: 19px; }
+.hero .hint { color: var(--k-ink-secondary); font-size: 15.5px; min-height: 3em; }
+.hero .btn { margin-top: 14px; align-self: flex-start; }
+.studying { margin-top: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 15.5px; color: var(--k-ink-secondary); }
+.grid2 { margin-top: 40px; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 40px; align-items: start; }
+.sec > .eyebrow { display: block; margin-bottom: 12px; }
+.sec + .sec { margin-top: 36px; }
+.levelcard { padding: 22px 24px 20px; }
+.levelnow { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.levelnow .lv { font-weight: 300; font-size: 68px; line-height: 1; letter-spacing: -.02em; }
+.levelnow .to { font-size: 18px; color: var(--k-ink-quiet); }
+.ladder { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 18px; }
+.ladder div { text-align: center; font-family: var(--k-face-mono); font-size: 12px; color: var(--k-ink-secondary); }
+.ladder div::before { content: ''; display: block; height: 8px; border-radius: 3px; background: var(--k-tick-empty); margin-bottom: 6px; }
+.ladder div.done::before { background: var(--k-ink); }
+.ladder div.now::before { background: linear-gradient(90deg, var(--k-accent) var(--pct, 50%), var(--k-tick-empty) var(--pct, 50%)); }
+.ladder div.now { color: var(--k-accent); }
+.ladder div.done { color: var(--k-ink); }
+.levelcard .why { margin-top: 14px; font-size: 15.5px; color: var(--k-ink-quiet); }
+.levelcard details { margin-top: 10px; font-size: 14.5px; color: var(--k-ink-secondary); }
+.levelcard summary { cursor: pointer; color: var(--k-accent); text-decoration: underline; text-underline-offset: 3px; width: fit-content; }
+.levelcard details p { margin-top: 8px; }
+.prow { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--k-rule); width: 100%; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; }
+.prow:first-of-type { border-top: 1px solid var(--k-rule); }
+button.prow:hover { background: rgb(255 253 249 / 70%); }
+.prow .lvl { font-family: var(--k-face-mono); font-size: 14px; }
+.prow .cnt { font-family: var(--k-face-mono); font-size: 12.5px; color: var(--k-ink-secondary); white-space: nowrap; }
+.sbar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--k-st-none); min-width: 0; }
+.sbar i { display: block; height: 100%; }
+.sbar .k { background: var(--k-st-known); } .sbar .f { background: var(--k-st-familiar); } .sbar .l { background: var(--k-st-learning); }
+.sbar .p { background: repeating-linear-gradient(135deg, var(--k-st-familiar) 0 3px, var(--k-st-learning) 3px 6px); }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; color: var(--k-ink-secondary); }
+.legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; background: var(--c); }
+.wrow { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--k-rule); }
+.wrow:first-of-type { border-top: 1px solid var(--k-rule); }
+.wrow .t { font-size: 23px; line-height: 1.2; white-space: nowrap; }
+.wrow .m { min-width: 0; color: var(--k-ink-quiet); font-size: 15.5px; }
+.wrow .m small { display: block; color: var(--k-ink-secondary); font-size: 13.5px; font-family: var(--k-face-ja); }
+.wrow .x { font-family: var(--k-face-mono); font-size: 12px; color: var(--k-ink-secondary); white-space: nowrap; }
+.wrow .x.bad { color: var(--k-accent); }
+.figs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fig { padding: 12px 14px; }
+.fig .v { font-weight: 300; font-size: 32px; line-height: 1.1; }
+.fig .k { font-family: var(--k-face-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--k-ink-secondary); }
+.fig.now { border-color: var(--k-accent); }
+.days { display: flex; gap: 5px; margin-top: 4px; }
+.days i { flex: 1 1 0; height: 22px; border-radius: 3px; background: var(--k-tick-empty); max-width: 26px; }
+.days i.on { background: var(--k-ink); } .days i.today { background: var(--k-accent); }
+.tucked { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--k-rule); display: flex; gap: 8px 22px; flex-wrap: wrap; font-size: 15px; color: var(--k-ink-secondary); }
+
+/* ---- Categories / Words / More / Add ---- */
+.pagehead { display: flex; flex-direction: column; gap: 6px; margin-bottom: 26px; }
+.pagehead h1 { font-weight: 300; font-size: 40px; line-height: 1.15; letter-spacing: -.01em; }
+.pagehead p { color: var(--k-ink-secondary); font-size: 17px; max-width: 40em; }
+.cat { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 16px 20px; margin-bottom: 10px; }
+.cat.on { border-color: var(--k-ink); box-shadow: var(--k-shadow-card); }
+.cat .code { font-weight: 300; font-size: 36px; line-height: 1; }
+.cat .info { min-width: 0; }
+.cat .info b { font-weight: 500; font-size: 18px; }
+.cat .info .meta { font-family: var(--k-face-mono); font-size: 12px; color: var(--k-ink-secondary); margin: 2px 0 8px; }
+.soon { display: flex; gap: 8px; flex-wrap: wrap; }
+.soon span { border: 1px dashed var(--k-border-dashed); border-radius: 999px; padding: 6px 14px; color: var(--k-ink-secondary); font-size: 15px; }
+.dashed { border: 1px dashed var(--k-border-dashed); border-radius: var(--k-radius-card); padding: 16px 20px; display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap; color: var(--k-ink-secondary); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.chips button { background: var(--k-raised); border: 1px solid var(--k-border-control); border-radius: 999px; padding: 5px 14px; font-size: 14.5px; color: var(--k-ink-value); }
+.chips button[aria-pressed="true"] { background: var(--k-ink-ground); border-color: var(--k-ink-ground); color: var(--k-on-ink); }
+.chips.lv button { font-family: var(--k-face-mono); font-size: 13px; }
+.st { font-family: var(--k-face-mono); font-size: 11.5px; white-space: nowrap; color: var(--k-ink-secondary); }
+.st::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; background: var(--c, var(--k-st-none)); }
+.menu { display: flex; flex-direction: column; }
+.menu button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--k-rule); padding: 16px 2px; }
+.menu button:first-child { border-top: 1px solid var(--k-rule); }
+.menu button:hover { background: rgb(255 253 249 / 70%); }
+.menu b { font-weight: 400; font-size: 19px; display: block; }
+.menu small { color: var(--k-ink-secondary); font-size: 14.5px; }
+.menu .arr { font-family: var(--k-face-mono); color: var(--k-ink-secondary); }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.panel { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.panel h2 { font-weight: 400; font-size: 23px; }
+.panel p { color: var(--k-ink-secondary); font-size: 15.5px; }
+.panel textarea { width: 100%; min-height: 150px; border: 1px solid var(--k-border-control); border-radius: var(--k-radius-control); padding: 12px 14px; background: #fff; font-family: var(--k-face-ja); font-size: 18px; line-height: 1.6; resize: vertical; }
+.drop { border: 1px dashed var(--k-border-dashed); border-radius: var(--k-radius-control); padding: 22px 16px; text-align: center; color: var(--k-ink-secondary); display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.drop input { max-width: 100%; font-size: 14px; }
+.okbox { background: var(--k-right-tint); border: 1px solid var(--k-right); color: #1f4a2b; border-radius: var(--k-radius-control); padding: 12px 14px; font-size: 15.5px; }
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 14px; font-size: 15px; }
+.kv dt { font-family: var(--k-face-mono); font-size: 12px; color: var(--k-ink-secondary); padding-top: 3px; }
+.kv dd { margin: 0; }
+
+/* ---- Focus modes: placement, lesson, quiz, summary ---- */
+.mode { flex: 1 1 auto; display: flex; flex-direction: column; }
+.modebar { height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 var(--gut); border-bottom: 1px solid var(--k-rule); }
+.modebar .name { font-family: var(--k-face-mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--k-accent); white-space: nowrap; }
+.modebar .track { flex: 1 1 auto; height: 6px; border-radius: 3px; background: var(--k-tick-empty); overflow: hidden; min-width: 30px; }
+.modebar .track i { display: block; height: 100%; background: var(--k-ink); transition: width .25s; }
+.modebar .count { font-family: var(--k-face-mono); font-size: 12.5px; color: var(--k-ink-secondary); white-space: nowrap; }
+.modebar .exit { background: none; border: 1px solid var(--k-border-control); border-radius: var(--k-radius-control); padding: 5px 11px; font-size: 14px; color: var(--k-ink-value); white-space: nowrap; }
+.modebar .exit:hover { background: var(--k-key-face); }
+.modebody { flex: 1 1 auto; padding: 34px var(--gut) 48px; display: flex; flex-direction: column; align-items: center; }
+.modebody > * { width: 100%; max-width: 760px; }
+
+.lesson { padding: 44px 48px 36px; text-align: center; }
+.lesson .term { font-size: 96px; line-height: 1.1; letter-spacing: .04em; }
+.lesson .reading { font-size: 26px; color: var(--k-ink-secondary); margin-top: 10px; }
+.lesson hr { border: 0; border-top: 1px solid var(--k-rule-raised); margin: 28px 0 24px; }
+.lesson .meaning { font-weight: 300; font-size: 36px; line-height: 1.2; letter-spacing: -.01em; }
+.lesson .tags { margin-top: 12px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.lesson .ex { margin-top: 26px; }
+.lesson .ex p:first-child { font-size: 22px; line-height: 1.6; color: var(--k-ink-quiet); }
+.lesson .ex p:last-child { font-style: italic; color: var(--k-ink-secondary); font-size: 16px; }
+.dots { display: flex; gap: 8px; justify-content: center; margin: 0 0 20px; }
+.dots i { width: 28px; height: 5px; border-radius: 3px; background: var(--k-tick-empty); }
+.dots i.done { background: var(--k-ink); } .dots i.now { background: var(--k-accent); }
+.rowbtns { display: flex; gap: 12px; margin-top: 20px; }
+.rowbtns .btn { flex: 1 1 0; }
+.rowbtns .btn.ghost { flex: 0 0 auto; }
+
+.quizcard { overflow: hidden; }
+.quizterm { padding: 46px 20px 40px; text-align: center; font-size: 104px; line-height: 1.05; letter-spacing: .04em; }
+.ask { padding: 11px 16px; text-align: center; font-size: 16px; display: flex; gap: 10px; justify-content: center; align-items: baseline; flex-wrap: wrap; }
+.ask b { font-family: var(--k-face-mono); font-weight: 500; font-size: 13px; letter-spacing: .16em; text-transform: uppercase; }
+.ask.meaning { background: var(--k-key-face); color: var(--k-ink); border-top: 1px solid var(--k-rule-raised); border-bottom: 1px solid var(--k-rule-raised); }
+.ask.reading { background: var(--k-ink-ground); color: var(--k-on-ink); border-top: 1px solid var(--k-ink-ground); border-bottom: 1px solid var(--k-ink-ground); }
+.ask.reading span { color: var(--k-on-ink-quiet); }
+.ask.meaning span { color: var(--k-ink-secondary); }
+.answer { padding: 22px 24px 24px; }
+.answer form { display: flex; gap: 10px; }
+.answer input { flex: 1 1 auto; min-width: 0; text-align: center; font-size: 26px; padding: 12px 14px; border: 1px solid var(--k-border-control); border-radius: var(--k-radius-control); background: #fff; font-family: var(--k-face-en); }
+.answer input[lang="ja"] { font-family: var(--k-face-ja); }
+.answer input::placeholder { color: #b5aa9a; font-size: 19px; }
+.answer.ok input { background: var(--k-right-tint); border-color: var(--k-right); color: #1f4a2b; }
+.answer.no input { background: var(--k-wrong-tint); border-color: var(--k-wrong); color: #7d2415; }
+.answer .btn { flex: 0 0 auto; }
+.fb { margin-top: 14px; display: flex; gap: 6px 14px; align-items: baseline; flex-wrap: wrap; font-size: 17px; min-height: 28px; }
+.fb .verdict { font-family: var(--k-face-mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; }
+.fb.ok .verdict { color: var(--k-right); } .fb.no .verdict { color: var(--k-wrong); }
+.fb .ans { font-size: 21px; }
+.fb.hint { color: var(--k-ink-secondary); font-size: 15px; font-style: italic; }
+.more-info { margin-top: 12px; font-size: 15px; color: var(--k-ink-secondary); }
+.more-info summary { cursor: pointer; color: var(--k-accent); text-decoration: underline; text-underline-offset: 3px; width: fit-content; }
+.more-info .kv { margin-top: 10px; color: var(--k-ink); }
+.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .shake { animation: none; } .modebar .track i { transition: none; } }
+.quizfoot { margin-top: 16px; text-align: center; font-size: 14px; color: var(--k-ink-secondary); font-style: italic; }
+
+.choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 20px 24px 8px; }
+.choices button { background: var(--k-raised); border: 1px solid var(--k-border-control); border-radius: var(--k-radius-control); padding: 14px 12px; font-size: 18px; }
+.choices button:hover { background: var(--k-key-face); }
+.dunno { padding: 4px 24px 22px; }
+.dunno button { width: 100%; background: none; border: 1px dashed var(--k-border-dashed); border-radius: var(--k-radius-control); padding: 11px; color: var(--k-ink-secondary); font-size: 16px; }
+.dunno button:hover { background: var(--k-key-face); }
+.intro { padding: 36px 40px 34px; display: flex; flex-direction: column; gap: 14px; }
+.intro h1 { font-weight: 300; font-size: 40px; line-height: 1.15; letter-spacing: -.01em; }
+.intro p { font-size: 18px; color: var(--k-ink-quiet); }
+.intro ul { margin: 0; padding-left: 20px; color: var(--k-ink-quiet); font-size: 17px; }
+.intro .cta { margin-top: 10px; }
+.resrow { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--k-rule-raised); font-family: var(--k-face-mono); font-size: 13px; }
+.resrow .pip { display: flex; gap: 5px; }
+.resrow .pip i { width: 34px; height: 8px; border-radius: 3px; background: var(--k-tick-empty); }
+.resrow .pip i.y { background: var(--k-ink); }
+.resrow.pass .r { color: var(--k-right); } .resrow .r { color: var(--k-ink-secondary); }
+
+.tally { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 22px 0 6px; }
+.tally div { padding: 14px 16px; }
+.tally .v { font-weight: 300; font-size: 38px; line-height: 1; }
+.tally .k { font-family: var(--k-face-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--k-ink-secondary); margin-top: 6px; }
+.sumlist { margin-top: 26px; }
+.sumlist .eyebrow { display: block; margin-bottom: 10px; }
+.next { margin-top: 30px; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.next p { color: var(--k-ink-quiet); font-size: 17px; }
+.next .cta { margin-top: 2px; }
+
+/* ---- Phone width: the app frame, not the window, decides ---- */
+@container app (width < 720px) {
+  .bar { padding: 0 20px; gap: 12px; }
+  .bar .nav, .bar .morebtn { display: none; }
+  .page { padding: 24px 20px 40px; }
+  .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: sticky; bottom: 0; background: var(--k-raised); border-top: 1px solid var(--k-rule); flex: 0 0 auto; z-index: 5; }
+  .tabs button { background: none; border: 0; padding: 13px 4px 14px; font-size: 14.5px; color: var(--k-ink-secondary); }
+  .tabs button[aria-current="page"] { color: var(--k-ink); box-shadow: inset 0 2px 0 var(--k-accent); }
+  .statement { font-size: 30px; }
+  .welcome { padding-top: 4px; }
+  .welcome h1 { font-size: 36px; }
+  .welcome .lede { font-size: 18px; }
+  .how { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 24px; }
+  .how li { padding: 16px 16px 18px; }
+  .how .demo { min-height: 0; }
+  .cta .btn { width: 100%; }
+  .heroes { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 18px; }
+  .hero { padding: 18px 20px 20px; }
+  .hero .num { font-size: 56px; }
+  .hero .hint { min-height: 0; }
+  .hero .btn { align-self: stretch; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); gap: 34px; margin-top: 32px; }
+  .levelnow .lv { font-size: 56px; }
+  .figs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pagehead h1 { font-size: 30px; }
+  .cat { grid-template-columns: 52px minmax(0, 1fr); padding: 14px 16px; gap: 12px; }
+  .cat .code { font-size: 28px; }
+  .cat .act { grid-column: 1 / -1; }
+  .cat .act .btn, .cat .act .tag { width: 100%; text-align: center; }
+  .two { grid-template-columns: minmax(0, 1fr); }
+  .panel { padding: 18px 18px 20px; }
+  .wrow { grid-template-columns: minmax(0, 1fr) auto; }
+  .wrow .t { grid-column: 1 / -1; }
+  .modebar { padding: 0 16px; gap: 10px; }
+  .modebody { padding: 18px 16px 28px; }
+  .lesson { padding: 28px 18px 26px; }
+  .lesson .term { font-size: 68px; }
+  .lesson .meaning { font-size: 28px; }
+  .lesson .ex p:first-child { font-size: 19px; }
+  .quizterm { font-size: 72px; padding: 30px 12px 26px; }
+  .answer { padding: 16px 14px 18px; }
+  .answer input { font-size: 22px; padding: 11px 8px; }
+  .answer .btn { padding: 12px 16px; }
+  .choices { grid-template-columns: minmax(0, 1fr); padding: 16px 14px 8px; }
+  .dunno { padding: 4px 14px 18px; }
+  .intro { padding: 24px 20px 24px; }
+  .intro h1 { font-size: 30px; }
+  .tally .v { font-size: 30px; }
+  .tally div { padding: 12px 12px; }
+  .rowbtns { flex-wrap: wrap; }
+}
+
+/* ================= Open questions (board, not app) ================= */
+.oq { max-width: 1240px; margin: 0 auto; padding: 8px 16px 60px; }
+.oq h2 { font-size: 24px; margin: 0 0 6px; }
+.oq > p { margin: 0 0 20px; color: #4d5661; max-width: 60em; line-height: 1.5; }
+.oq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: 14px; }
+.q { background: #fff; border: 1px solid #d5d0c8; border-radius: 10px; padding: 16px 18px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.q h3 { margin: 0; font-size: 16px; line-height: 1.3; }
+.q h3 i { font-style: normal; color: #7a8491; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.q .ctx { margin: 0; font-size: 14px; color: #4d5661; line-height: 1.45; }
+.q label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 9px; padding: 8px 10px; border: 1px solid #e3dfd8; border-radius: 8px; font-size: 14.5px; line-height: 1.35; cursor: pointer; }
+.q label:has(input:checked) { border-color: #22262c; background: #f6f4f0; }
+.q label input { margin-top: 3px; }
+.q label small { grid-column: 2; color: #5b6470; font-size: 13px; }
+.q .rec { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: #1f6a3a; background: #e2f1e6; border-radius: 4px; padding: 1px 6px; vertical-align: 1px; }
+.q input[type="text"] { border: 1px solid #d5d0c8; border-radius: 8px; padding: 8px 10px; font-size: 14px; width: 100%; }
+.q .send { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.q .send button { background: #22262c; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 14px; }
+.q .send span { font-size: 13px; color: #1f6a3a; }
+.oq-all { margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.oq-all button { background: #fff; border: 1px solid #b9b3a9; border-radius: 8px; padding: 8px 14px; font-size: 14px; }
+.oq-all span { font-size: 13px; color: #4d5661; }
+</style>
+</head>
+<body>
+
+<header class="pt" id="pt">
+  <div class="pt-row">
+    <div class="pt-title">Kioku prototype <span>· click through it like the real app · sample data</span></div>
+    <div class="pt-spacer"></div>
+    <button class="pt-btn hot" id="pt-fill" hidden>Type the right answer for me</button>
+    <div class="pt-seg" role="group" aria-label="Preview width">
+      <button data-view="desktop" aria-pressed="true">Desktop</button>
+      <button data-view="phone" aria-pressed="false">Phone</button>
+    </div>
+    <button class="pt-btn" id="pt-reset">Start over</button>
+  </div>
+  <div class="pt-chips" id="pt-chips" role="group" aria-label="Jump to a screen"></div>
+  <div class="pt-note" id="pt-note"></div>
+</header>
+
+<main class="stage">
+  <div class="frame" id="frame" data-view="desktop"><div class="app" id="app"></div></div>
+</main>
+
+<section class="oq" id="oq">
+  <h2>Open questions the prototype raised</h2>
+  <p>Each has a recommendation, and the prototype already behaves the recommended way. Pick an answer, add a note if you want, and queue it. Skip any you have no view on and the recommendation stands.</p>
+  <div class="oq-grid" id="oq-grid"></div>
+  <div class="oq-all"><button type="button" id="oq-copy">Copy all selected answers as text</button><span id="oq-copy-state">For use outside the review board.</span></div>
+</section>
+
+<script>
+/*__WANAKANA__*/
+</script>
+<script>
+'use strict';
+
+/* ---------------- Sample data ---------------- */
+const W = {
+  keiken:   { t: '経験', r: 'けいけん', m: ['experience'], pos: 'noun, する verb', lv: 'N4', ex: '海外で働いた経験があります。', en: 'I have experience working abroad.' },
+  junbi:    { t: '準備', r: 'じゅんび', m: ['preparation', 'preparations', 'prepare', 'getting ready'], pos: 'noun, する verb', lv: 'N4', ex: '旅行の準備はもうできましたか。', en: 'Have you finished getting ready for the trip?' },
+  todokeru: { t: '届ける', r: 'とどける', m: ['to deliver', 'deliver', 'send'], pos: 'verb', lv: 'N4', ex: '荷物を家まで届けてもらった。', en: 'I had the package delivered to my house.' },
+  fukuzatsu:{ t: '複雑', r: 'ふくざつ', m: ['complicated', 'complex'], pos: 'な adjective', lv: 'N4', ex: 'この問題は少し複雑です。', en: 'This problem is a little complicated.' },
+  zannen:   { t: '残念', r: 'ざんねん', m: ['unfortunate', 'too bad', 'regrettable', 'disappointing', 'a shame', 'shame'], pos: 'な adjective', lv: 'N4', ex: '試合に負けて残念だ。', en: 'It is a shame we lost the match.' },
+  tenki:    { t: '天気', r: 'てんき', m: ['weather'], pos: 'noun', lv: 'N5', ex: '今日は天気がいいですね。', en: 'The weather is nice today.' },
+  byouin:   { t: '病院', r: 'びょういん', m: ['hospital'], pos: 'noun', lv: 'N5', ex: '明日、病院に行きます。', en: 'I am going to the hospital tomorrow.' },
+  yakusoku: { t: '約束', r: 'やくそく', m: ['promise', 'appointment'], pos: 'noun, する verb', lv: 'N4', ex: '友達と会う約束をした。', en: 'I promised to meet a friend.' },
+  hikkosu:  { t: '引っ越す', r: 'ひっこす', m: ['to move house', 'to move', 'move', 'move house', 'relocate'], pos: 'verb', lv: 'N4', ex: '来月、大阪に引っ越します。', en: 'I am moving to Osaka next month.' },
+  mezurashii:{ t: '珍しい', r: 'めずらしい', m: ['rare', 'unusual'], pos: 'い adjective', lv: 'N4', ex: '東京で雪は珍しい。', en: 'Snow is rare in Tokyo.' },
+  isogu:    { t: '急ぐ', r: 'いそぐ', m: ['to hurry', 'hurry', 'rush'], pos: 'verb', lv: 'N4', ex: '時間がないので急ぎましょう。', en: 'We have no time, so let us hurry.' },
+  tsugou:   { t: '都合', r: 'つごう', m: ['convenience', 'circumstances'], pos: 'noun', lv: 'N4', ex: '明日は都合が悪いです。', en: 'Tomorrow does not suit me.' },
+  machigaeru:{ t: '間違える', r: 'まちがえる', m: ['to make a mistake', 'make a mistake', 'mistake', 'get wrong'], pos: 'verb', lv: 'N4', ex: '道を間違えてしまった。', en: 'I took the wrong road.' },
+};
+const LESSON = ['keiken', 'junbi', 'todokeru', 'fukuzatsu', 'zannen'];
+const REVIEWS = ['tenki', 'yakusoku', 'hikkosu', 'byouin', 'mezurashii', 'isogu'];
+const WEAK = ['mezurashii', 'tsugou', 'machigaeru', 'hikkosu'];
+const WEAKNOTE = { mezurashii: 'missed 4 of 6', tsugou: 'missed 3 of 5', machigaeru: 'missed 3 of 6', hikkosu: 'missed 2 of 4' };
+const LEVELS = ['N5', 'N4', 'N3', 'N2', 'N1'];
+const LVINFO = {
+  N5: { name: 'Beginner', total: 684 }, N4: { name: 'Elementary', total: 632 }, N3: { name: 'Intermediate', total: 1830 },
+  N2: { name: 'Upper intermediate', total: 1810 }, N1: { name: 'Advanced', total: 3440 },
+};
+const PLACEMENT = [
+  { lv: 'N5', t: '水', a: 'water', o: ['fire', 'water', 'tree', 'money'] },
+  { lv: 'N5', t: '高い', a: 'expensive; tall', o: ['cheap', 'new', 'small', 'expensive; tall'] },
+  { lv: 'N4', t: '経済', a: 'economy', o: ['economy', 'politics', 'history', 'science'] },
+  { lv: 'N4', t: '集める', a: 'to collect', o: ['to throw away', 'to decide', 'to collect', 'to borrow'] },
+  { lv: 'N3', t: '我慢', a: 'patience', o: ['pride', 'patience', 'effort', 'trust'] },
+  { lv: 'N3', t: '効果', a: 'effect', o: ['cause', 'purpose', 'method', 'effect'] },
+  { lv: 'N2', t: '矛盾', a: 'contradiction', o: ['contradiction', 'agreement', 'coincidence', 'misunderstanding'] },
+  { lv: 'N2', t: '維持', a: 'maintenance', o: ['destruction', 'expansion', 'maintenance', 'reduction'] },
+  { lv: 'N1', t: '曖昧', a: 'vague', o: ['precise', 'vague', 'cheerful', 'stubborn'] },
+  { lv: 'N1', t: '把握', a: 'grasp, understanding', o: ['refusal', 'postponement', 'exaggeration', 'grasp, understanding'] },
+];
+const WORDLIST = [
+  ['keiken', 'new'], ['junbi', 'new'], ['todokeru', 'new'], ['fukuzatsu', 'new'], ['zannen', 'new'],
+  ['mezurashii', 'weak'], ['tsugou', 'weak'], ['machigaeru', 'weak'], ['hikkosu', 'weak'],
+  ['yakusoku', 'familiar'], ['isogu', 'learning'], ['tenki', 'known'], ['byouin', 'known'],
+];
+const STAGE = {
+  new: ['Not started', 'var(--k-st-none)'], learning: ['Learning', 'var(--k-st-learning)'], weak: ['Weak', 'var(--k-accent)'],
+  familiar: ['Familiar', 'var(--k-st-familiar)'], known: ['Known', 'var(--k-st-known)'],
+};
+
+/* ---------------- State ---------------- */
+function fresh() {
+  return {
+    screen: 'welcome', scenario: 'day1',
+    day1: { level: null, cat: 'N5', due: 0, lessons: 5, lessonsDone: false, placed: false },
+    week3: { level: 'N5', cat: 'N4', due: 6, lessons: 5, lessonsDone: false, reviewsDone: false },
+    place: { step: 'intro', i: 0, answers: [] },
+    lessonI: 0, quiz: null, summary: null,
+    wordsLv: 'N4', wordsFilter: 'all', add: { words: false, deck: null },
+  };
+}
+let S = fresh();
+const app = document.getElementById('app');
+const frame = document.getElementById('frame');
+const D = () => S[S.scenario];
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nextLv = (lv) => (lv === null ? 'N5' : LEVELS[Math.min(LEVELS.indexOf(lv) + 1, 4)]);
+const fmt = (n) => n.toLocaleString('en-US');
+
+function go(screen, patch) {
+  if (patch) Object.assign(S, patch);
+  S.screen = screen;
+  render();
+  frame.scrollTop = 0;
+  if (frame.dataset.view !== 'phone') {
+    const top = frame.getBoundingClientRect().top + window.scrollY - document.getElementById('pt').offsetHeight - 10;
+    if (window.scrollY > top) window.scrollTo({ top, behavior: 'instant' });
+  }
+}
+
+/* ---------------- Shell ---------------- */
+const NAV = [['home', 'Home'], ['categories', 'Categories'], ['words', 'Words'], ['more', 'More']];
+function shell(body, cls) {
+  const cur = S.screen === 'add' ? 'more' : S.screen;
+  const item = ([id, label]) => `<button data-go="${id}" ${cur === id ? 'aria-current="page"' : ''}>${label}</button>`;
+  return `
+    <header class="bar">
+      <button class="brand" data-go="home" aria-label="Kioku home"><span lang="ja">記憶</span>Kioku</button>
+      <nav class="nav" aria-label="Main">${NAV.slice(0, 3).map(item).join('')}</nav>
+      <span class="grow"></span>
+      <button class="morebtn" data-go="more" ${cur === 'more' ? 'aria-current="page"' : ''}>More</button>
+    </header>
+    <div class="page"><div class="wrap ${cls || ''}">${body}</div></div>
+    <nav class="tabs" aria-label="Main">${NAV.map(item).join('')}</nav>`;
+}
+
+/* ---------------- Welcome ---------------- */
+function vWelcome() {
+  return `<div class="page"><div class="wrap welcome">
+    <p class="eyebrow accent"><span lang="ja">記憶</span> · Kioku</p>
+    <h1>Learn the Japanese words you need for the JLPT.</h1>
+    <p class="lede">Kioku teaches you a few new words a day, then quizzes you: you type what each word means and how it is read. It brings every word back just before you would forget it, and shows your JLPT level as you go.</p>
+    <ol class="how">
+      <li class="card"><span class="n">1 · LEARN</span><h3>Five new words at a time</h3><p>The words are already here, N5 to N1. Nothing to set up.</p>
+        <div class="demo"><span class="big" lang="ja">経験</span><span><span lang="ja" class="quiet">けいけん</span><br>experience</span></div></li>
+      <li class="card"><span class="n">2 · TYPE</span><h3>Type the meaning, then the reading</h3><p>No multiple choice. You either know it or you find out.</p>
+        <div class="demo"><span class="fakein ok">experience</span><span class="fakein ok" lang="ja">けいけん</span></div></li>
+      <li class="card"><span class="n">3 · REMEMBER</span><h3>Words come back on a schedule</h3><p>Sooner if you missed one, later each time you get it right.</p>
+        <div class="demo"><div class="timeline"><span>today</span><span>3 days</span><span>1 week</span><span>1 month</span></div></div></li>
+    </ol>
+    <div class="cta">
+      <button class="btn" data-go="placement">Find my level · 3 minute test</button>
+      <button class="btn ghost" data-act="start-at" data-lv="N5">I am new to Japanese · start at N5</button>
+    </div>
+    <div class="know"><span>Already know your level? Start at</span>${LEVELS.map((l) => `<button data-act="start-at" data-lv="${l}">${l}</button>`).join('')}</div>
+    <p class="fine">Words and meanings come from JMdict, the open Japanese dictionary, with JLPT levels from community lists. You can also import an Anki deck or add your own words later.</p>
+  </div></div>`;
+}
+
+/* ---------------- Placement ---------------- */
+function placementResult() {
+  const by = {};
+  LEVELS.forEach((l) => (by[l] = 0));
+  S.place.answers.forEach((ok, i) => { if (ok) by[PLACEMENT[i].lv]++; });
+  let level = null;
+  for (const l of LEVELS) { if (by[l] === 2) level = l; else break; }
+  return { by, level };
+}
+function vPlacement() {
+  const p = S.place;
+  const bar = (count, pct) => `<div class="modebar"><span class="name">Placement test</span><div class="track"><i style="width:${pct}%"></i></div><span class="count">${count}</span><button class="exit" data-go="welcome">Leave</button></div>`;
+  if (p.step === 'intro') {
+    return `<div class="mode">${bar('', 0)}<div class="modebody"><div class="card lift intro">
+      <p class="eyebrow">About 3 minutes</p>
+      <h1>Let us find where you should start.</h1>
+      <p>You will see about 25 words, from easy to hard. Pick what each one means.</p>
+      <ul><li>If you do not know a word, say so. Guessing makes the estimate worse.</li><li>The test stops early once it has found your level.</li><li>You can retake it any time from More.</li></ul>
+      <div class="cta"><button class="btn" data-act="place-start">Start the test</button><button class="btn ghost" data-go="welcome">Not now</button></div>
+    </div></div></div>`;
+  }
+  if (p.step === 'q') {
+    const q = PLACEMENT[p.i];
+    return `<div class="mode">${bar(`${p.i + 1} of ${PLACEMENT.length}`, (p.i / PLACEMENT.length) * 100)}<div class="modebody"><div class="card lift quizcard">
+      <div class="quizterm" lang="ja">${q.t}</div>
+      <div class="ask meaning"><b>Meaning</b><span>What does this word mean?</span></div>
+      <div class="choices">${q.o.map((o) => `<button data-act="place-pick" data-v="${esc(o)}">${esc(o)}</button>`).join('')}</div>
+      <div class="dunno"><button data-act="place-pick" data-v="">I do not know this one</button></div>
+    </div></div></div>`;
+  }
+  const r = placementResult();
+  const start = nextLv(r.level);
+  const headline = r.level ? `You are at about ${r.level} level.` : 'You are just getting started.';
+  const body = r.level === 'N1'
+    ? 'You knew the hardest words we showed you. Lessons start at N1, and easier levels are marked as known.'
+    : r.level ? `Your lessons start at ${start}. ${LEVELS.slice(0, LEVELS.indexOf(r.level) + 1).join(' and ')} words are marked as known, and a few will show up in reviews to make sure.` : 'Your lessons start at N5, with the most common words first.';
+  return `<div class="mode">${bar('Done', 100)}<div class="modebody"><div class="card lift intro">
+    <p class="eyebrow accent">Your result</p>
+    <h1>${headline}</h1>
+    <p>${body}</p>
+    <div>${LEVELS.map((l) => `<div class="resrow ${r.by[l] === 2 ? 'pass' : ''}"><span>${l}</span><span class="pip"><i class="${r.by[l] > 0 ? 'y' : ''}"></i><i class="${r.by[l] > 1 ? 'y' : ''}"></i></span><span class="r">${r.by[l]} of 2 ${r.by[l] === 2 ? '· known' : ''}</span></div>`).join('')}</div>
+    <p class="quiet" style="font-size:15px">This is a starting point. The estimate keeps updating from your answers in lessons and reviews.</p>
+    <div class="cta"><button class="btn" data-act="place-accept">Start at ${start}</button><button class="btn ghost" data-go="categories" data-scn="day1">Pick a different level</button></div>
+  </div></div></div>`;
+}
+
+/* ---------------- Home ---------------- */
+function levelCard() {
+  const d = D();
+  const lv = d.level; const to = nextLv(lv);
+  const pct = S.scenario === 'week3' ? 68 : 0;
+  const ladder = LEVELS.map((l) => {
+    const i = LEVELS.indexOf(l); const li = lv === null ? -1 : LEVELS.indexOf(lv);
+    const cls = i <= li ? 'done' : i === li + 1 ? 'now' : '';
+    return `<div class="${cls}" ${cls === 'now' ? `style="--pct:${Math.max(pct, 6)}%"` : ''}>${l}</div>`;
+  }).join('');
+  const why = S.scenario === 'week3'
+    ? `You get N5 words right 94% of the time and N4 words 68% of the time. Reach 80% on N4 to move up.`
+    : d.placed ? `From your placement test. It will sharpen as you answer lessons and reviews.` : `No estimate yet. Take the placement test, or just start studying and it will appear after about 50 answers.`;
+  return `<div class="card levelcard">
+    <div class="levelnow"><span class="lv">${lv || '–'}</span><span class="to">${lv === 'N1' ? 'top level' : `working toward <b style="font-weight:500">${to}</b>`}</span></div>
+    <div class="ladder">${ladder}</div>
+    <p class="why">${why}</p>
+    ${!d.placed && S.scenario === 'day1' ? `<p style="margin-top:10px"><button class="link" data-go="placement">Take the 3 minute placement test</button></p>` : ''}
+    <details><summary>How is this worked out?</summary><p>From your first-try answers over the last 30 days. A level counts as yours once you get at least 80% right across 50 or more of its words. The placement test gives the first estimate.</p><p>It measures vocabulary only. The real JLPT also tests grammar, reading and listening.</p></details>
+  </div>`;
+}
+function progressRows() {
+  const d = D();
+  const li = d.level === null ? -1 : LEVELS.indexOf(d.level);
+  const data = S.scenario === 'week3'
+    ? { N5: [402, 148, 62], N4: [12, 58, 78], N3: [0, 0, 0], N2: [0, 0, 0], N1: [0, 0, 0] }
+    : null;
+  return LEVELS.map((l, i) => {
+    const total = LVINFO[l].total;
+    let segs = ''; let label = `0 of ${fmt(total)}`;
+    if (data) {
+      const [k, f, lr] = data[l];
+      segs = `<i class="k" style="width:${(k / total) * 100}%"></i><i class="f" style="width:${(f / total) * 100}%"></i><i class="l" style="width:${(lr / total) * 100}%"></i>`;
+      label = `${fmt(k + f + lr)} of ${fmt(total)}`;
+    } else if (d.placed && i <= li) {
+      segs = `<i class="p" style="width:100%"></i>`; label = `placed out`;
+    }
+    return `<button class="prow" data-act="words-lv" data-lv="${l}" aria-label="See ${l} words"><span class="lvl">${l}</span><span class="sbar">${segs}</span><span class="cnt">${label}</span></button>`;
+  }).join('');
+}
+function wordRow(id, right, bad) {
+  const w = W[id];
+  return `<div class="wrow"><span class="t" lang="ja">${w.t}</span><span class="m">${esc(w.m[0])}<small lang="ja">${w.r}</small></span><span class="x ${bad ? 'bad' : ''}">${right}</span></div>`;
+}
+function vHome() {
+  const d = D(); const w3 = S.scenario === 'week3';
+  const due = d.due; const les = d.lessonsDone ? 0 : d.lessons;
+  let statement; let sub;
+  if (due && les) { statement = `${due} words to review, then ${les} new ones.`; sub = 'About 8 minutes. Reviews first, so nothing slips.'; }
+  else if (due) { statement = `${due} words to review.`; sub = 'About 4 minutes.'; }
+  else if (les && !w3 && !d.lessonsDone) { statement = 'Start with your first five words.'; sub = `A short lesson, then a quiz on the same words. About 5 minutes.`; }
+  else if (les) { statement = `Reviews are done. ${les} new words are ready.`; sub = 'About 5 minutes.'; }
+  else { statement = 'All done for now.'; sub = w3 ? 'Next reviews in 4 hours. New words come back tomorrow.' : 'Your first review is in 4 hours. Kioku will have it waiting here.'; }
+
+  const reviewsHero = `<div class="card hero ${due ? 'ink' : ''}">
+      <span class="eyebrow">Reviews</span>
+      <div class="big"><span class="num">${due}</span><span class="unit">${due === 1 ? 'word due' : 'words due'}</span></div>
+      <p class="hint">${due ? 'Words you have learned that are due again. Type the meaning and the reading.' : w3 || d.lessonsDone ? 'Nothing due. Next reviews in 4 hours.' : 'Nothing to review yet. Words appear here after your first lesson.'}</p>
+      ${due ? `<button class="btn onink" data-act="quiz" data-mode="review">Start reviews</button>` : ''}
+    </div>`;
+  const lessonsHero = `<div class="card hero ${!due && les ? 'ink' : ''}">
+      <span class="eyebrow">Lessons</span>
+      <div class="big"><span class="num">${les}</span><span class="unit">${les ? 'new words ready' : 'new words left today'}</span></div>
+      <p class="hint">${les ? `Five new ${d.cat} words, then a quiz on them. Up to 10 new words a day.` : 'You have had today’s new words. More tomorrow, so reviews stay manageable.'}</p>
+      ${les ? `<button class="btn ${!due ? 'onink' : 'ghost'}" data-act="lesson">Start lesson</button>` : ''}
+    </div>`;
+
+  const weak = w3 ? `<section class="sec"><span class="eyebrow">Weak words · you keep missing these</span>
+      ${WEAK.map((id) => wordRow(id, WEAKNOTE[id], true)).join('')}
+      <div style="margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;align-items:center"><button class="btn ghost small" data-act="quiz" data-mode="weak">Practise these 4</button><button class="link" data-act="words-filter" data-f="weak">See all weak words</button></div>
+    </section>` : '';
+  const upcoming = w3 ? `<section class="sec"><span class="eyebrow">Coming up</span>
+      <div class="figs"><div class="card fig ${due ? 'now' : ''}"><div class="v">${due}</div><div class="k">now</div></div><div class="card fig"><div class="v">9</div><div class="k">in 4 hours</div></div><div class="card fig"><div class="v">21</div><div class="k">tomorrow</div></div><div class="card fig"><div class="v">64</div><div class="k">this week</div></div></div>
+    </section>
+    <section class="sec"><span class="eyebrow">Last 14 days · studied on 12</span>
+      <div class="days">${[1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 2].map((v) => `<i class="${v === 2 ? 'today' : v ? 'on' : ''}"></i>`).join('')}</div>
+    </section>` : '';
+
+  return shell(`
+    <div class="today"><span class="eyebrow accent">Today</span><h1 class="statement">${statement}</h1><p class="sub">${sub}</p></div>
+    <div class="heroes">${reviewsHero}${lessonsHero}</div>
+    <div class="studying"><span>New words come from</span><span class="tag solid">JLPT ${d.cat}</span><button class="link" data-go="categories">Change category</button></div>
+    <div class="grid2">
+      <div>
+        <section class="sec"><span class="eyebrow">Your JLPT vocabulary level · estimate</span>${levelCard()}</section>
+        ${upcoming}
+      </div>
+      <div>
+        <section class="sec"><span class="eyebrow">Progress by level</span>${progressRows()}
+          <div class="legend"><span style="--c:var(--k-st-known)">Known</span><span style="--c:var(--k-st-familiar)">Familiar</span><span style="--c:var(--k-st-learning)">Learning</span><span style="--c:var(--k-st-none)">Not started</span></div>
+        </section>
+        ${weak}
+      </div>
+    </div>
+    <div class="tucked"><span>Want words that are not here?</span><button class="link" data-go="add">Add my own words</button><button class="link" data-go="add">Import an Anki deck</button></div>
+  `);
+}
+
+/* ---------------- Categories ---------------- */
+function vCategories() {
+  const d = D(); const w3 = S.scenario === 'week3';
+  const prog = { N5: [402, 148, 62], N4: [12, 58, 78] };
+  const row = (l) => {
+    const total = LVINFO[l].total; const p = w3 && prog[l];
+    const on = d.cat === l;
+    const segs = p ? `<i class="k" style="width:${(p[0] / total) * 100}%"></i><i class="f" style="width:${(p[1] / total) * 100}%"></i><i class="l" style="width:${(p[2] / total) * 100}%"></i>` : '';
+    const learned = p ? p[0] + p[1] + p[2] : 0;
+    return `<div class="card cat ${on ? 'on' : ''}"><span class="code">${l}</span>
+      <div class="info"><b>${LVINFO[l].name}</b><div class="meta">${fmt(total)} words · ${fmt(learned)} learned</div><div class="sbar">${segs}</div></div>
+      <div class="act">${on ? `<span class="tag accent">New words come from here</span>` : `<button class="btn ghost small" data-act="set-cat" data-lv="${l}">Study ${l}</button>`}</div></div>`;
+  };
+  return shell(`
+    <div class="pagehead"><span class="eyebrow">Categories</span><h1>Choose what to study.</h1><p>Your new words come from one category at a time. Reviews always cover everything you have learned, whichever category it came from.</p></div>
+    <section class="sec"><span class="eyebrow">JLPT levels</span>${LEVELS.map(row).join('')}</section>
+    <section class="sec"><span class="eyebrow">Topics · coming later</span><div class="soon"><span>Tech and IT</span><span>Business</span><span>Travel</span><span>Food</span><span>Daily life</span></div></section>
+    <section class="sec"><span class="eyebrow">My decks</span>
+      ${S.add.deck ? `<div class="card cat"><span class="code" style="font-size:22px">Anki</span><div class="info"><b>${esc(S.add.deck)}</b><div class="meta">2,000 words · 0 learned · imported</div><div class="sbar"></div></div><div class="act"><button class="btn ghost small" data-act="set-cat" data-lv="${esc(S.add.deck)}">Study this</button></div></div>` : ''}
+      ${S.add.words ? `<div class="card cat"><span class="code" style="font-size:22px">Mine</span><div class="info"><b>My words</b><div class="meta">3 words · 0 learned</div><div class="sbar"></div></div><div class="act"><button class="btn ghost small" data-act="set-cat" data-lv="My words">Study this</button></div></div>` : ''}
+      <div class="dashed"><span>Nothing here fits?</span><button class="link" data-go="add">Import an Anki deck</button><button class="link" data-go="add">Add my own words</button></div>
+    </section>
+  `, 'narrow');
+}
+
+/* ---------------- Words ---------------- */
+function vWords() {
+  const filters = [['all', 'All'], ['weak', 'Weak'], ['learning', 'Learning'], ['familiar', 'Familiar'], ['known', 'Known'], ['new', 'Not started']];
+  const w3 = S.scenario === 'week3';
+  const rows = WORDLIST.filter(([id, st]) => W[id].lv === S.wordsLv || S.wordsFilter === 'weak')
+    .map(([id, st]) => [id, w3 ? st : 'new'])
+    .filter(([id, st]) => S.wordsFilter === 'all' || st === S.wordsFilter)
+    .map(([id, st]) => { const w = W[id]; return `<div class="wrow"><span class="t" lang="ja">${w.t}</span><span class="m">${esc(w.m[0])}<small lang="ja">${w.r}</small></span><span class="st" style="--c:${STAGE[st][1]}">${STAGE[st][0]}</span></div>`; });
+  return shell(`
+    <div class="pagehead"><span class="eyebrow">Words</span><h1>Every word, and where you stand on it.</h1></div>
+    <div class="chips lv">${LEVELS.map((l) => `<button data-act="words-lv" data-lv="${l}" aria-pressed="${S.wordsLv === l}">${l}</button>`).join('')}</div>
+    <div class="chips">${filters.map(([f, n]) => `<button data-act="words-filter" data-f="${f}" aria-pressed="${S.wordsFilter === f}">${n}</button>`).join('')}</div>
+    ${rows.length ? rows.join('') : `<p class="quiet" style="padding:22px 0;border-top:1px solid var(--k-rule)">No sample words here. The real list holds all ${fmt(LVINFO[S.wordsLv].total)} ${S.wordsLv} words.</p>`}
+    ${rows.length ? `<p class="quiet" style="margin-top:14px;font-size:14px;font-style:italic">A sample. The real list holds all ${fmt(LVINFO[S.wordsLv].total)} ${S.wordsLv} words, with search.</p>` : ''}
+  `, 'narrow');
+}
+
+/* ---------------- More / Add ---------------- */
+function vMore() {
+  const it = (act, title, sub) => `<button ${act}><span><b>${title}</b><small>${sub}</small></span><span class="arr">→</span></button>`;
+  return shell(`
+    <div class="pagehead"><span class="eyebrow">More</span><h1>Extras and settings.</h1></div>
+    <div class="menu">
+      ${it('data-go="add"', 'Add my own words', 'Paste a word list or any Japanese text. Kioku finds the words.')}
+      ${it('data-go="add"', 'Import an Anki deck', 'Bring in any .apkg deck and study it here.')}
+      ${it('data-go="placement"', 'Retake the placement test', 'About 3 minutes. Updates your level and where lessons start.')}
+      ${it('data-act="noop"', 'Study settings', 'New words per day, lesson size. (Not in this prototype.)')}
+      ${it('data-act="noop"', 'Export my data', 'Everything you have learned, as a file. (Not in this prototype.)')}
+      ${it('data-act="noop"', 'Sign out', '')}
+    </div>
+  `, 'told');
+}
+function vAdd() {
+  return shell(`
+    <div class="pagehead"><span class="eyebrow">More</span><h1>Bring your own words.</h1><p>Optional. The JLPT words are already here. Use this for a textbook chapter, a work glossary, or a deck you already like.</p></div>
+    <div class="two">
+      <form class="card panel" data-form="add-words">
+        <h2>Add my own words</h2>
+        <p>Paste a list of words, or any Japanese text. Kioku picks out the words and looks up each reading, meaning and JLPT level.</p>
+        <textarea lang="ja" aria-label="Words or text" placeholder="例：&#10;締め切り&#10;打ち合わせ&#10;見積もり"></textarea>
+        ${S.add.words ? `<div class="okbox">3 words added to <b>My words</b>. Choose it in Categories to start learning them.</div><button type="button" class="btn ghost" data-go="categories">Go to Categories</button>` : `<button class="btn" type="submit">Add words</button>`}
+      </form>
+      <div class="card panel">
+        <h2>Import an Anki deck</h2>
+        <p>Choose an .apkg file. Kioku reads the word, reading and meaning from each card. Your Anki review history is not imported.</p>
+        ${S.add.deck ? `<div class="okbox"><b>${esc(S.add.deck)}</b> imported: 2,000 words. It is now in Categories under My decks.</div><button type="button" class="btn ghost" data-go="categories">Go to Categories</button>` : `<div class="drop"><input type="file" accept=".apkg" aria-label="Anki deck file" data-change="deck-file"><span>or</span><button type="button" class="btn ghost small" data-act="deck-sample">Try with a sample deck</button></div>`}
+      </div>
+    </div>
+  `);
+}
+
+/* ---------------- Lesson ---------------- */
+function vLesson() {
+  const i = S.lessonI; const w = W[LESSON[i]]; const last = i === LESSON.length - 1;
+  return `<div class="mode">
+    <div class="modebar"><span class="name">Lesson</span><div class="track"><i style="width:${((i + 1) / LESSON.length) * 100}%"></i></div><span class="count">word ${i + 1} of ${LESSON.length}</span><button class="exit" data-go="home">Leave</button></div>
+    <div class="modebody">
+      <div class="dots">${LESSON.map((_, j) => `<i class="${j < i ? 'done' : j === i ? 'now' : ''}"></i>`).join('')}</div>
+      <div class="card lift lesson">
+        <div class="term" lang="ja">${w.t}</div>
+        <div class="reading" lang="ja">${w.r}</div>
+        <hr>
+        <div class="meaning">${esc(w.m[0])}</div>
+        <div class="tags"><span class="tag">${w.pos}</span><span class="tag">JLPT ${w.lv}</span></div>
+        <div class="ex"><p lang="ja">${w.ex}</p><p>${esc(w.en)}</p></div>
+      </div>
+      <div class="rowbtns">
+        ${i > 0 ? `<button class="btn ghost" data-act="lesson-prev">Back</button>` : ''}
+        ${last ? `<button class="btn" data-act="quiz" data-mode="lesson">Quiz me on these 5</button>` : `<button class="btn" data-act="lesson-next">Next word</button>`}
+      </div>
+      <p class="quizfoot">${last ? 'Get a word right in the quiz and it enters your reviews.' : 'Take a moment with each word. The quiz comes after all five.'}</p>
+    </div></div>`;
+}
+
+/* ---------------- Quiz ---------------- */
+function startQuiz(mode) {
+  const ids = mode === 'lesson' ? LESSON : mode === 'weak' ? WEAK : REVIEWS;
+  S.quiz = {
+    mode, ids, pos: 0, fb: null, done: 0,
+    queue: ids.flatMap((id) => [{ id, part: 'meaning' }, { id, part: 'reading' }]),
+    stats: Object.fromEntries(ids.map((id) => [id, { meaning: 0, reading: 0, ok: {} }])),
+  };
+  go('quiz');
+}
+const norm = (s) => s.toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^to /, '');
+function lev(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+function checkMeaning(typed, w) {
+  const t = norm(typed);
+  for (const m of w.m) { if (norm(m) === t) return { ok: true }; }
+  for (const m of w.m) { const n = norm(m); if (n.length >= 5 && lev(n, t) <= (n.length >= 9 ? 2 : 1)) return { ok: true, close: true }; }
+  return { ok: false };
+}
+function also(w, typed) {
+  const seen = new Set([norm(typed)]);
+  return w.m.filter((m) => { const n = norm(m); if (seen.has(n)) return false; seen.add(n); return true; }).slice(0, 2);
+}
+function vQuiz() {
+  const q = S.quiz; const cur = q.queue[q.pos]; const w = W[cur.id]; const fb = q.fb;
+  const label = { review: 'Reviews', lesson: 'Lesson quiz', weak: 'Weak words' }[q.mode];
+  const isR = cur.part === 'reading';
+  const ask = isR ? `<div class="ask reading"><b>Reading</b><span>How is it read? Type in romaji, it turns into kana.</span></div>`
+                  : `<div class="ask meaning"><b>Meaning</b><span>What does it mean? Answer in English.</span></div>`;
+  let fbHtml = `<div class="fb hint">Press Enter or tap Check.</div>`;
+  if (fb) {
+    const right = isR ? `<span class="ans" lang="ja">${w.r}</span>` : `<span class="ans">${esc(w.m.slice(0, 2).join(', '))}</span>`;
+    fbHtml = fb.ok
+      ? `<div class="fb ok"><span class="verdict">Correct</span>${fb.close ? `<span>Close enough. The answer is ${right}</span>` : !isR && also(w, fb.typed).length ? `<span class="quiet">Also: ${esc(also(w, fb.typed).join(', '))}</span>` : ''}</div>`
+      : `<div class="fb no"><span class="verdict">Not quite</span><span>The answer is ${right}</span></div>`;
+    fbHtml += `<details class="more-info"><summary>Show the whole word</summary><dl class="kv"><dt>WORD</dt><dd lang="ja">${w.t}</dd><dt>READING</dt><dd lang="ja">${w.r}</dd><dt>MEANING</dt><dd>${esc(w.m.slice(0, 3).join(', '))}</dd><dt>EXAMPLE</dt><dd><span lang="ja">${w.ex}</span><br><i class="quiet">${esc(w.en)}</i></dd></dl></details>`;
+  }
+  return `<div class="mode">
+    <div class="modebar"><span class="name">${label}</span><div class="track"><i style="width:${(q.done / q.ids.length) * 100}%"></i></div><span class="count">${q.done} of ${q.ids.length} words</span><button class="exit" data-act="quiz-exit">Finish early</button></div>
+    <div class="modebody">
+      <div class="card lift quizcard">
+        <div class="quizterm" lang="ja">${w.t}</div>
+        ${ask}
+        <div class="answer ${fb ? (fb.ok ? 'ok' : 'no') : ''}">
+          <form data-form="answer" autocomplete="off">
+            <input id="ans" ${isR ? 'lang="ja"' : ''} type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${isR ? 'Reading' : 'Meaning'}" placeholder="${isR ? 'reading' : 'meaning'}" value="${fb ? esc(fb.typed) : ''}" ${fb ? 'readonly' : ''}>
+            <button class="btn" type="submit">${fb ? 'Next' : 'Check'}</button>
+          </form>
+          ${fbHtml}
+        </div>
+      </div>
+      <p class="quizfoot">${fb && !fb.ok ? 'This one comes back before the session ends.' : q.mode === 'lesson' ? 'Meaning first, then reading, for each new word.' : 'Meaning first, then reading. A missed word comes back before the session ends.'}</p>
+    </div></div>`;
+}
+function submitAnswer(input) {
+  const q = S.quiz; const cur = q.queue[q.pos]; const w = W[cur.id];
+  if (q.fb) { // advance
+    const wasOk = q.fb.ok; q.fb = null;
+    if (!wasOk) q.queue.push({ id: cur.id, part: cur.part });
+    q.pos++;
+    if (q.pos >= q.queue.length) return finishQuiz();
+    return render();
+  }
+  let typed = input.value.trim();
+  const bump = () => { input.classList.remove('shake'); void input.offsetWidth; input.classList.add('shake'); };
+  const hint = (m) => { const el = app.querySelector('.fb'); if (el) { el.className = 'fb no'; el.textContent = m; } };
+  if (!typed) return bump();
+  let res;
+  if (cur.part === 'reading') {
+    typed = window.wanakana.toHiragana(typed, { IMEMode: false });
+    if (!window.wanakana.isKana(typed)) { bump(); hint('Type the reading in kana. Romaji such as "keiken" converts as you type.'); return; }
+    res = { ok: typed === w.r };
+  } else {
+    if (/[぀-ヿ一-鿿]/.test(typed)) { bump(); hint('Type the meaning in English.'); return; }
+    res = checkMeaning(typed, w);
+  }
+  const st = q.stats[cur.id];
+  if (res.ok) { st.ok[cur.part] = true; if (st.ok.meaning && st.ok.reading) q.done++; } else { st[cur.part]++; }
+  q.fb = { ok: res.ok, close: res.close, typed };
+  render();
+}
+function finishQuiz(early) {
+  const q = S.quiz;
+  const seen = q.ids.filter((id) => q.stats[id].ok.meaning || q.stats[id].ok.reading || q.stats[id].meaning || q.stats[id].reading);
+  const ids = early ? seen : q.ids;
+  S.summary = { mode: q.mode, early: !!early, right: ids.filter((id) => !q.stats[id].meaning && !q.stats[id].reading), missed: ids.filter((id) => q.stats[id].meaning || q.stats[id].reading), left: q.ids.length - ids.length };
+  applyOutcome(q.mode, early);
+  S.quiz = null;
+  go('summary');
+}
+function applyOutcome(mode, early) {
+  const d = D();
+  if (mode === 'review') { d.due = early ? Math.max(0, d.due - (S.summary.right.length + S.summary.missed.length)) : 0; d.reviewsDone = !early; }
+  if (mode === 'lesson' && !early) { d.lessonsDone = true; }
+}
+
+/* ---------------- Summary ---------------- */
+function vSummary() {
+  const s = S.summary; const d = D();
+  const total = s.right.length + s.missed.length;
+  const pct = total ? Math.round((s.right.length / total) * 100) : 0;
+  const title = s.mode === 'lesson' ? `${total} new words learned.` : s.mode === 'weak' ? 'Weak words practised.' : s.early ? 'Session finished early.' : 'Reviews done.';
+  const move = (id, ok) => (s.mode === 'lesson' ? 'now Learning' : ok ? (W[id].lv === 'N5' ? 'stays Known · back in 3 weeks' : 'up to Familiar · back in 5 days') : 'down to Learning · back tomorrow');
+  const les = d.lessonsDone ? 0 : d.lessons;
+  let next;
+  if (s.mode === 'lesson') next = `<p>These ${total} words are in your reviews now. The first review is in 4 hours, and the gaps grow each time you get a word right.</p><div class="cta"><button class="btn" data-go="home">Back to Home</button></div>`;
+  else if (d.due) next = `<p>${d.due} reviews are still waiting.</p><div class="cta"><button class="btn" data-act="quiz" data-mode="review">Carry on with reviews</button><button class="btn ghost" data-go="home">Back to Home</button></div>`;
+  else if (les) next = `<p>Next reviews in 4 hours. You also have ${les} new words ready.</p><div class="cta"><button class="btn" data-act="lesson">Start lesson · ${les} new words</button><button class="btn ghost" data-go="home">Back to Home</button></div>`;
+  else next = `<p>Nothing else due. Next reviews in 4 hours.</p><div class="cta"><button class="btn" data-go="home">Back to Home</button></div>`;
+  return `<div class="mode">
+    <div class="modebar"><span class="name">Summary</span><div class="track"><i style="width:100%"></i></div><span class="count">${total} words</span><button class="exit" data-go="home">Home</button></div>
+    <div class="modebody"><div>
+      <span class="eyebrow accent">${s.mode === 'lesson' ? 'Lesson complete' : 'Session complete'}</span>
+      <h1 class="statement" style="margin-top:6px">${title}</h1>
+      <div class="tally"><div class="card"><div class="v">${total}</div><div class="k">words</div></div><div class="card"><div class="v">${pct}%</div><div class="k">right first try</div></div><div class="card"><div class="v">${s.missed.length}</div><div class="k">missed</div></div></div>
+      ${s.mode === 'review' && S.scenario === 'week3' && !s.early ? `<p class="quiet" style="font-size:15.5px;margin-top:10px">Your N4 accuracy is now ${pct >= 80 ? '69%' : '67%'}. 80% moves you up to N4.</p>` : ''}
+      ${s.missed.length ? `<div class="sumlist"><span class="eyebrow accent">Missed · ${s.missed.length}</span>${s.missed.map((id) => wordRow(id, move(id, false), true)).join('')}</div>` : ''}
+      ${s.right.length ? `<div class="sumlist"><span class="eyebrow">Right first try · ${s.right.length}</span>${s.right.map((id) => wordRow(id, move(id, true))).join('')}</div>` : ''}
+      <div class="card next"><span class="eyebrow">What next</span>${next}</div>
+    </div></div></div>`;
+}
+
+/* ---------------- Render + prototype chrome ---------------- */
+const VIEWS = { welcome: vWelcome, placement: vPlacement, home: vHome, categories: vCategories, words: vWords, more: vMore, add: vAdd, lesson: vLesson, quiz: vQuiz, summary: vSummary };
+const CHIPS = [
+  ['welcome', 'Welcome'], ['placement', 'Placement test'], ['home:day1', 'Home · day 1'], ['home:week3', 'Home · three weeks in'],
+  ['categories', 'Choose a category'], ['lesson', 'Lesson'], ['quiz', 'Quiz'], ['summary', 'Session summary'], ['words', 'Words'], ['add', 'Add my own words / Import Anki'],
+];
+function chipKey() { return S.screen === 'home' ? `home:${S.scenario}` : S.screen === 'more' ? 'add' : S.screen; }
+let noteMsg = '';
+function note(m) { noteMsg = m; drawNote(); }
+function drawNote() {
+  const el = document.getElementById('pt-note');
+  const base = {
+    welcome: 'First visit. The app says what it is before it asks for anything.',
+    placement: 'Shortened to 10 words here. The real test is about 25 and stops early.',
+    'home:day1': 'Day 1, straight after the welcome. <b>To see the dashboard with progress, jump to "Home · three weeks in".</b>',
+    'home:week3': 'Three weeks in. This is the screen you would see every day.',
+    categories: 'JLPT levels first. Topics are shown as coming later.',
+    lesson: 'Five new words, one at a time, then a quiz on the same five. Sample lessons always use the same five N4 words.',
+    quiz: 'Type each answer, or use the yellow button to have the prototype type it. Try a wrong answer and a near miss ("experiance").',
+    summary: 'What you got right and missed, when each word comes back, and what to do next.',
+    words: 'Every word and where you stand on it. Filters work on the sample rows.',
+    add: 'Tucked under More, and linked quietly from Home and Categories.',
+  }[chipKey()] || '';
+  el.innerHTML = noteMsg ? `<b>${esc(noteMsg)}</b>` : base;
+}
+function drawChrome() {
+  const key = chipKey();
+  document.getElementById('pt-chips').innerHTML = CHIPS.map(([k, label], i) => `<button class="pt-chip" data-jump="${k}" aria-current="${k === key}"><i>${i + 1}</i>${label}</button>`).join('');
+  document.getElementById('pt-fill').hidden = !(S.screen === 'quiz' && S.quiz && !S.quiz.fb);
+  const cur = document.querySelector('.pt-chip[aria-current="true"]');
+  if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function render() {
+  noteMsg = '';
+  app.innerHTML = VIEWS[S.screen]();
+  drawChrome(); drawNote();
+  const ans = document.getElementById('ans');
+  if (ans) {
+    const cur = S.quiz.queue[S.quiz.pos];
+    if (cur.part === 'reading' && !S.quiz.fb) window.wanakana.bind(ans, { IMEMode: 'toHiragana' });
+    if (S.quiz.fb) { const b = app.querySelector('form[data-form="answer"] button'); if (b) b.focus({ preventScroll: true }); } else ans.focus({ preventScroll: true });
+  }
+}
+function jump(k) {
+  const [screen, scn] = k.split(':');
+  if (scn) S.scenario = scn;
+  if (screen === 'placement') S.place = { step: 'intro', i: 0, answers: [] };
+  if (screen === 'lesson') S.lessonI = 0;
+  if (screen === 'quiz') return startQuiz(S.scenario === 'week3' ? 'review' : 'lesson');
+  if (screen === 'summary' && !S.summary) S.summary = { mode: 'review', early: false, right: ['tenki', 'yakusoku', 'byouin', 'isogu'], missed: ['hikkosu', 'mezurashii'], left: 0 };
+  if (screen === 'home' && scn === 'day1' && S.day1.level === null && !S.day1.placed) S.day1.cat = 'N5';
+  go(screen);
+}
+
+document.addEventListener('click', (e) => {
+  const j = e.target.closest('[data-jump]'); if (j) return jump(j.dataset.jump);
+  const v = e.target.closest('.pt-seg [data-view]');
+  if (v) { frame.dataset.view = v.dataset.view; document.querySelectorAll('.pt-seg [data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b === v))); return; }
+  if (e.target.closest('#pt-reset')) { S = fresh(); return go('welcome'); }
+  if (e.target.closest('#pt-fill')) {
+    const ans = document.getElementById('ans'); if (!ans || !S.quiz) return;
+    const cur = S.quiz.queue[S.quiz.pos]; ans.value = cur.part === 'reading' ? W[cur.id].r : W[cur.id].m[0]; ans.focus(); return;
+  }
+  const g = e.target.closest('[data-go]');
+  if (g && app.contains(g)) {
+    if (g.dataset.scn) S.scenario = g.dataset.scn;
+    if (g.dataset.go === 'placement') S.place = { step: 'intro', i: 0, answers: [] };
+    return go(g.dataset.go);
+  }
+  const a = e.target.closest('[data-act]'); if (!a || !app.contains(a)) return;
+  const act = a.dataset.act; const d = D();
+  if (act === 'start-at') { S.scenario = 'day1'; S.day1.cat = a.dataset.lv; S.day1.level = a.dataset.lv === 'N5' ? null : LEVELS[LEVELS.indexOf(a.dataset.lv) - 1]; S.day1.placed = a.dataset.lv !== 'N5'; return go('home'); }
+  if (act === 'place-start') { S.place = { step: 'q', i: 0, answers: [] }; return render(); }
+  if (act === 'place-pick') {
+    const p = S.place; p.answers.push(a.dataset.v === PLACEMENT[p.i].a); p.i++;
+    if (p.i >= PLACEMENT.length) p.step = 'result';
+    return render();
+  }
+  if (act === 'place-accept') { const r = placementResult(); S.scenario = 'day1'; S.day1.level = r.level; S.day1.cat = nextLv(r.level); S.day1.placed = true; return go('home'); }
+  if (act === 'quiz') return startQuiz(a.dataset.mode);
+  if (act === 'lesson') { S.lessonI = 0; return go('lesson'); }
+  if (act === 'lesson-next') { S.lessonI++; return go('lesson'); }
+  if (act === 'lesson-prev') { S.lessonI--; return go('lesson'); }
+  if (act === 'quiz-exit') return finishQuiz(true);
+  if (act === 'set-cat') { d.cat = a.dataset.lv; return go('home'); }
+  if (act === 'words-lv') { S.wordsLv = a.dataset.lv; if (S.screen !== 'words') S.wordsFilter = 'all'; return go('words'); }
+  if (act === 'words-filter') { S.wordsFilter = a.dataset.f; return go('words'); }
+  if (act === 'deck-sample') { S.add.deck = 'Core 2000 (sample deck)'; return render(); }
+  if (act === 'noop') return note('Not part of this prototype.');
+});
+document.addEventListener('submit', (e) => {
+  const f = e.target.closest('form[data-form]'); if (!f) return;
+  e.preventDefault();
+  if (f.dataset.form === 'answer') return submitAnswer(f.querySelector('input'));
+  if (f.dataset.form === 'add-words') { S.add.words = true; return render(); }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.matches('[data-change="deck-file"]') && e.target.files && e.target.files[0]) { S.add.deck = e.target.files[0].name.replace(/\.apkg$/i, ''); render(); }
+});
+
+/* ---------------- Open questions ---------------- */
+const QUESTIONS = /*__QUESTIONS__*/[];
+(function drawQuestions() {
+  document.getElementById('oq-grid').innerHTML = QUESTIONS.map((q, i) => `
+    <form class="q" data-lavish-question="${q.id}" data-q="${q.id}">
+      <h3><i>Q${i + 1}</i>${esc(q.title)}</h3>
+      <p class="ctx">${esc(q.ctx)}</p>
+      ${q.options.map((o, j) => `<label><input type="radio" name="a" value="${esc(o.label)}"><span>${esc(o.label)}${j === 0 ? '<span class="rec">Recommended</span>' : ''}</span>${o.why ? `<small>${esc(o.why)}</small>` : ''}</label>`).join('')}
+      <input type="text" name="note" aria-label="Note for ${esc(q.title)}" placeholder="Something else, or a note (optional)">
+      <div class="send"><button type="submit">Queue this answer</button><span></span></div>
+    </form>`).join('');
+})();
+function answerOf(form) {
+  const fd = new FormData(form); const a = fd.get('a'); const n = (fd.get('note') || '').trim();
+  if (!a && !n) return null;
+  const q = QUESTIONS.find((x) => x.id === form.dataset.q);
+  return { q, a: a || '(no option picked)', n };
+}
+document.getElementById('oq-grid').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const form = e.target; const r = answerOf(form); const state = form.querySelector('.send span');
+  if (!r) { state.textContent = 'Pick an option or write a note first.'; return; }
+  const text = `${r.q.title} -> ${r.a}${r.n ? ` | note: ${r.n}` : ''}`;
+  if (window.lavish && window.lavish.queuePrompt) {
+    window.lavish.queuePrompt(`Open question ${r.q.id}: ${text}`, { tag: 'answer', text, element: form, queueKey: `oq-${r.q.id}`, data: { question: r.q.id, answer: r.a, note: r.n } });
+    state.textContent = 'Queued. Press Send to Agent when you are done.';
+  } else {
+    state.textContent = 'Selected. Use "Copy all selected answers" below.';
+  }
+});
+document.getElementById('oq-copy').addEventListener('click', async () => {
+  const lines = [...document.querySelectorAll('#oq-grid form')].map(answerOf).filter(Boolean).map((r) => `${r.q.id}: ${r.a}${r.n ? ` | note: ${r.n}` : ''}`);
+  const state = document.getElementById('oq-copy-state');
+  if (!lines.length) { state.textContent = 'Nothing selected yet.'; return; }
+  try { await navigator.clipboard.writeText(lines.join('\n')); state.textContent = `Copied ${lines.length} answers.`; } catch { state.textContent = lines.join(' / '); }
+});
+
+if (window.innerWidth < 900) { frame.removeAttribute('data-view'); document.querySelector('.pt-seg').hidden = true; }
+render();
+</script>
+</body>
+</html>

@@ -39,3 +39,11 @@ which numbers come out of it: retention, consistency and flag rate, per
 *Twice* is new, and it is [ADR 0066](0066-the-review-load-has-a-brake.md)'s doing: one pass through
 two days proves the scheduler moved a *card*, and a second pass a week later is the only thing that
 proves the load did not pile up.
+
+## Amendment — 2026-10-10, the loop changed shape again
+
+[ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) restates it a second
+time, and further than the first: **open the app → choose a category → learn its words → be quizzed
+on them, day after day.** Nobody uploads anything to begin. The deck is ready-made, from open data,
+and uploading a list survives as *Add my own words*. Still end to end and still instrumented; the
+screens that make the new loop walkable are #69 to #72.
