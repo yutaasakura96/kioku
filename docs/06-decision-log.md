@@ -1651,6 +1651,11 @@ verifies the previews-off key before writing it~~ ⚠️ #45 verified it the sam
 because none of the four goes against ADR 0022.
 → [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 
+### [2026-10-10] Free fixes for the slow first load: the server is bundled, the database warm-up is dropped
+Bundle server dependencies and serve a static favicon (#73); drop database warm-up after measuring
+its small overlap and anonymous-visit cost. Re-measure after deployment before any hosting decision.
+→ [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

@@ -118,7 +118,13 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-09-30, latest — [#59](https://github.com/yutaasakura96/kioku/issues/59): `S11`'s delete
+**2026-10-10, latest — [#73](https://github.com/yutaasakura96/kioku/issues/73): the server is
+bundled and the favicon is static.** Database warm-up was dropped after measurement. The deployed
+cold start still needs re-measurement after release; any hosting or paid-plan decision remains
+Yuta's. [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+owns the findings and rationale. No new ADR.
+
+**2026-09-30 — [#59](https://github.com/yutaasakura96/kioku/issues/59): `S11`'s delete
 confirmation is built.** `/sources/:id/delete` renders `10` §7.3 (the count as the statement, `No
 cards will be suspended.` at zero), and `POST /api/source/:id/delete` sets `deleted_at`, suspends as
 `source_deleted` and answers `303` to `/sources/:id`. The page's count and the `POST`'s write share
@@ -2999,6 +3005,12 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **Bundled server dependencies can expose unresolved optional imports after a dependency bump.**
+  Preserve each stub's import behavior; see [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+  and `server/stubs/` (#73).
+- ⚠️ **Keep the e2e worker cap while each file builds the app.** The memory measurement and rationale
+  are in [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+  (#73).
 - ⚠️ **A migration reaches production by hand, before `develop` is merged into `main`** (#48,
   2026-09-29). Merging to `main` deploys, so code that lands ahead of its schema breaks production
   (`/` reads `seed` on every render). `03` §4.2 carries the commands and the reasons. Run from a clean

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { $fetch, fetch, setup } from '@nuxt/test-utils/e2e'
 import { describe, expect, it } from 'vitest'
@@ -166,5 +167,19 @@ describe('/auth — the door', () => {
     expect(rules).toHaveLength(1)
     expect(rules[0]!.index).toBeGreaterThan(mark)
     expect(control).toBeGreaterThan(rules[0]!.index!)
+  })
+})
+
+describe('/favicon.ico — a file, not a request the server answers', () => {
+  it('is the icon in public/, signed out', async () => {
+    // #73. With no `public/favicon.ico` the framework answers every favicon
+    // request itself with a 78-byte placeholder, which on the deployed app is
+    // one function invocation per page load. A file in `public/` is served as
+    // static output, ahead of the function and of the session gate.
+    const icon = readFileSync(fileURLToPath(new URL('../../public/favicon.ico', import.meta.url)))
+    const response = await fetch('/favicon.ico', { redirect: 'manual' })
+
+    expect(response.status).toBe(200)
+    expect(Buffer.from(await response.arrayBuffer()).equals(icon)).toBe(true)
   })
 })
