@@ -591,9 +591,9 @@ document size.
 >
 > - **It runs after stage 5 for ADR 0010's reason**: everything that shrinks the work comes before
 >   anything that spends, and this is the last thing that shrinks it.
-> - **A miss is any of three things**: no entry, several entries of which not exactly one is common
->   when a reading was supplied, or an
->   entry with a blank meaning or part of speech. A miss goes to the model, which is what it is for.
+> - **A miss is a spelling and reading JMdict lacks, or an entry with a blank meaning or part of
+>   speech.** Entries sharing a form are ranked by priority on the matching spelling and reading,
+>   then by entry number, so a tie does not send a dictionary word to the model.
 > - **A dictionary *note* carries no example sentence and makes no claim.** The two example fields
 >   are optional since ADR 0075 §7. `level_claim` and `domain_claim` are not written: a word's
 >   *level* is a declared *authority*'s or it has none (ADR 0075 §2).

@@ -89,4 +89,24 @@
 <r_ele><reb>えき</reb></r_ele>
 <sense><pos>&n;</pos><gloss>staging post on a highway</gloss></sense>
 </entry>
+<entry>
+<ent_seq>2000010</ent_seq>
+<k_ele><keb>綴り</keb></k_ele>
+<k_ele><keb>別綴り</keb><ke_pri>ichi1</ke_pri><ke_pri>news1</ke_pri></k_ele>
+<r_ele><reb>つづり</reb></r_ele>
+<sense><pos>&n;</pos><gloss>older spelling</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000011</ent_seq>
+<k_ele><keb>綴り</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>つづり</reb></r_ele>
+<sense><pos>&n;</pos><gloss>spelling</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000012</ent_seq>
+<k_ele><keb>重複</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>ちょうふく</reb><re_pri>ichi1</re_pri></r_ele>
+<r_ele><reb>じゅうふく</reb><re_pri>ichi1</re_pri><re_pri>news1</re_pri></r_ele>
+<sense><pos>&n;</pos><gloss>duplication</gloss></sense>
+</entry>
 </JMdict>

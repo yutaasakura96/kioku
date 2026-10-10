@@ -105,9 +105,9 @@ class Sense:
 class Entry:
     sequence: int
     kanji: tuple[str, ...]
+    kanji_priorities: tuple[tuple[str, tuple[str, ...]], ...]
     readings: tuple[Reading, ...]
     senses: tuple[Sense, ...]
-    common: bool
 
     def has_reading(self, term: str, reading: str) -> bool:
         """Whether ``reading`` is one this entry gives ``term``.
@@ -139,6 +139,17 @@ class Entry:
             )
         )
 
+    def priorities_for(self, term: str, reading: str) -> tuple[str, ...]:
+        spelling = next((priority for form, priority in self.kanji_priorities if form == term), ())
+        folded = to_hiragana(reading)
+        pronunciation = next(
+            (candidate.priorities for candidate in self.readings
+             if to_hiragana(candidate.text) == folded
+             and (not candidate.restricted_to or term in candidate.restricted_to)),
+            (),
+        )
+        return spelling + pronunciation
+
 
 @dataclass(frozen=True)
 class Word:
@@ -159,16 +170,16 @@ def parse_entry(block: str) -> Entry:
     kanji: list[str] = []
     readings: list[Reading] = []
     senses: list[Sense] = []
-    priorities: set[str] = set()
+    kanji_priorities: list[tuple[str, tuple[str, ...]]] = []
     carried: tuple[str, ...] = ()
 
     for element in re.findall(r"<k_ele>(.*?)</k_ele>", block, re.S):
-        kanji.extend(_all("keb", element))
-        priorities.update(_all("ke_pri", element))
+        form = _all("keb", element)[0]
+        kanji.append(form)
+        kanji_priorities.append((form, tuple(_all("ke_pri", element))))
 
     for element in re.findall(r"<r_ele>(.*?)</r_ele>", block, re.S):
         found = tuple(_all("re_pri", element))
-        priorities.update(found)
         readings.append(
             Reading(
                 text=_all("reb", element)[0],
@@ -200,9 +211,9 @@ def parse_entry(block: str) -> Entry:
     return Entry(
         sequence=int(_all("ent_seq", block)[0]),
         kanji=tuple(kanji),
+        kanji_priorities=tuple(kanji_priorities),
         readings=tuple(readings),
         senses=tuple(senses),
-        common=bool(priorities & COMMON_PRIORITIES),
     )
 
 
@@ -346,27 +357,11 @@ class Dictionary:
         if entry is None:
             return None
         if not reading:
-            candidates = [
-                candidate for candidate in entry.readings
-                if (not candidate.restricted_to or term in candidate.restricted_to)
-                and entry.senses_for(term, candidate.text)
-            ]
-            reading = min(candidates, key=lambda candidate: (
-                is_kana(term) and to_hiragana(candidate.text) != to_hiragana(term),
-                not bool(set(candidate.priorities) & COMMON_PRIORITIES),
-                candidate.text,
-            )).text
+            reading = _preferred_reading(entry, term).text
         return word_of(entry, term, reading)
 
     def lookup(self, term: str, reading: str) -> Entry | None:
-        """The one entry for this term read this way, or `None`.
-
-        ⚠️ **`None` when the dictionary cannot say which**, not only when it has
-        nothing. かける is a dozen entries; a list that says かける and nothing
-        else has not said which, and the dictionary guessing would put a gloss on
-        the card that nobody chose. A common entry wins over uncommon ones, and a
-        tie is a miss.
-        """
+        """The highest-priority entry for this spelling and optional reading."""
         if not term:
             return None
 
@@ -375,11 +370,16 @@ class Dictionary:
             candidates = [
                 entry for entry in candidates
                 if (term in entry.kanji or is_kana(term))
-                and any(entry.senses_for(term, candidate.text)
-                        for candidate in entry.readings
-                        if not candidate.restricted_to or term in candidate.restricted_to)
+                and _preferred_reading(entry, term) is not None
             ]
-            return min(candidates, key=lambda entry: (not entry.common, entry.sequence), default=None)
+            return min(
+                candidates,
+                key=lambda entry: (
+                    _priority_rank(entry.priorities_for(term, _preferred_reading(entry, term).text)),
+                    entry.sequence,
+                ),
+                default=None,
+            )
 
         if is_kana(term):
             # A word written in kana: an entry with no kanji form, or one whose
@@ -390,7 +390,6 @@ class Dictionary:
                 entry
                 for entry in self.entries_for(term)
                 if any(to_hiragana(r.text) == to_hiragana(term) for r in entry.readings)
-                and (not entry.kanji or _usually_kana(entry))
             ]
         else:
             candidates = [
@@ -399,15 +398,41 @@ class Dictionary:
                 if term in entry.kanji and entry.has_reading(term, reading)
             ]
 
-        candidates = [entry for entry in candidates if entry.senses_for(term, reading)]
-        if len(candidates) > 1:
-            candidates = [entry for entry in candidates if entry.common]
-        return candidates[0] if len(candidates) == 1 else None
+        candidates = [entry for entry in candidates if _has_content(entry, term, reading)]
+        return min(
+            candidates,
+            key=lambda entry: (_priority_rank(entry.priorities_for(term, reading)), entry.sequence),
+            default=None,
+        )
 
 
-def _usually_kana(entry: Entry) -> bool:
-    """JMdict's `uk` on the leading sense: *word usually written using kana alone*."""
-    return bool(entry.senses) and "uk" in entry.senses[0].misc
+def _priority_rank(priorities: Iterable[str]) -> tuple[bool, int, int, int]:
+    markers = set(priorities)
+    common = markers & COMMON_PRIORITIES
+    frequency = min((int(tag[2:]) for tag in markers if re.fullmatch(r"nf\d{2}", tag)), default=99)
+    return not bool(common), frequency, -len(common), -len(markers)
+
+
+def _preferred_reading(entry: Entry, term: str) -> Reading | None:
+    candidates = [
+        candidate for candidate in entry.readings
+        if (not candidate.restricted_to or term in candidate.restricted_to)
+        and _has_content(entry, term, candidate.text)
+    ]
+    return min(
+        candidates,
+        key=lambda candidate: (
+            is_kana(term) and to_hiragana(candidate.text) != to_hiragana(term),
+            _priority_rank(candidate.priorities),
+            candidate.text,
+        ),
+        default=None,
+    )
+
+
+def _has_content(entry: Entry, term: str, reading: str) -> bool:
+    word = word_of(entry, term, reading)
+    return word is not None and bool(word.meaning.strip() and word.part_of_speech.strip())
 
 
 def build_index(source: Path, target: Path) -> None:

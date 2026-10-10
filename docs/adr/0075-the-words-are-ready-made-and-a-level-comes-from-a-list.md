@@ -147,15 +147,19 @@ have.
 
 A new pipeline stage, **`lookup`**, sits after `filter_known` and before `generate` in all three
 pipelines. A word the corpus does not hold is looked for in JMdict. Found, its *note* is written from
-the dictionary at no cost; only what the dictionary lacks, or cannot tell apart, goes to the model.
+the dictionary at no cost; only what the dictionary lacks goes to the model.
 
 - **A word on a JLPT list never gets that far.** The starter set is in the corpus, so the word is a
   collision: the reader is handed the *note* that is already there, with its list level.
 - **A dictionary *note* makes no claim** about *level* or *domain*. Its *level* is the list's or it
   has none.
-- **Ambiguity is a miss.** かける is a dozen entries. A common entry wins over uncommon ones and a
-tie goes to the model when a reading is supplied. Without a reading, JMdict's common priority
-and then entry number choose deterministically; its reading is written on the note.
+- **Entries that share a form are ranked from JMdict's priority tags on that spelling and reading,
+  then by the lowest entry number.** This also resolves a tie between common entries such as かける.
+  When the reader supplied no reading, the chosen entry's highest-priority applicable reading is
+  written on the note. Priority tags on unrelated forms do not affect either choice
+  ([JMdict DTD](https://www.edrdg.org/jmdict/jmdict_dtd_h.html)).
+- **A dictionary entry with a blank meaning or part of speech lacks usable content.** It goes to
+  generation; an entry with usable content does not.
 - **The worker downloads JMdict** to `worker/.cache/`, which is ignored, indexes it in SQLite and
   fetches it again once it is thirty days old. It is never committed. A fetch that fails with no
   copy on disk fails the *chunk*, resumably, and says why.

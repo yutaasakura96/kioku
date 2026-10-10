@@ -106,9 +106,9 @@ def test_a_word_usually_written_in_kana_is_found_in_kana(sample_dictionary):
     assert sample_dictionary.find("林檎", "りんご").meaning == "apple"
 
 
-def test_a_kana_word_that_could_be_two_entries_is_a_miss(sample_dictionary):
-    """かける is 掛ける and 駆ける, both common. The dictionary does not pick."""
-    assert sample_dictionary.find("かける", "かける") is None
+def test_two_common_entries_choose_the_lower_sequence(sample_dictionary):
+    assert sample_dictionary.find("かける", "かける").sequence == 1207610
+    assert sample_dictionary.find("かける", "").sequence == 1207610
 
 
 def test_a_common_entry_wins_over_an_uncommon_one(sample_dictionary):
@@ -132,6 +132,12 @@ def test_no_reading_chooses_a_common_entry_deterministically(sample_dictionary):
     word = sample_dictionary.find("駅", "")
     assert (word.sequence, word.reading) == (1179470, "えき")
     assert sample_dictionary.find("間", "").sequence == 1215240
+
+
+def test_only_the_matching_spelling_and_reading_contribute_priority(sample_dictionary):
+    assert sample_dictionary.find("綴り", "").sequence == 2000011
+    assert sample_dictionary.find("綴り", "つづり").sequence == 2000011
+    assert sample_dictionary.find("重複", "").reading == "じゅうふく"
 
 
 def test_no_sense_for_this_spelling_is_no_word(sample_dictionary):

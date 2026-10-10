@@ -92,6 +92,15 @@ def test_a_word_with_no_reading_is_looked_up() -> None:
     assert note.looked_up["reading"] == VERSION
 
 
+def test_two_common_dictionary_entries_do_not_reach_generation(sample_dictionary) -> None:
+    asked = group("かける", "かける")
+
+    result = lookup([asked], dictionary=sample_dictionary)
+
+    assert result.missing == ()
+    assert result.found[0].word.sequence == 1207610
+
+
 @pytest.mark.parametrize(
     "word",
     [
