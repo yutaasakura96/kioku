@@ -174,6 +174,11 @@ def test_a_named_file_that_is_missing_is_an_error(tmp_path):
         load_dictionary(environ={dictionary.PATH_ENV: str(tmp_path / "absent.gz")})
 
 
+def test_the_dictionary_is_fetched_over_tls():
+    """What it fetches ends up on a *card*, so nobody on the path may rewrite it."""
+    assert dictionary.SOURCE_URL.startswith("https://")
+
+
 def test_a_missing_dictionary_is_fetched_once(tmp_path, monkeypatch):
     monkeypatch.setattr(dictionary, "CACHE_DIR", tmp_path / "cache")
     fetched: list[str] = []

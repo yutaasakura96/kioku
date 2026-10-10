@@ -40,9 +40,12 @@ from typing import Callable, Iterable, Iterator
 import events
 from pipeline.extract_candidates import is_kana, to_hiragana
 
-#: EDRDG's English-only JMdict, rebuilt daily. The same host
-#: `scripts/kanjidic.ts` reads KANJIDIC2 from.
-SOURCE_URL = "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz"
+#: EDRDG's English-only JMdict, rebuilt daily.
+#:
+#: ⚠️ **Over TLS, from `www`.** `ftp.edrdg.org` serves the same file but only in
+#: the clear (its certificate does not name it), and what this fetches ends up
+#: on a *card*.
+SOURCE_URL = "https://www.edrdg.org/pub/Nihongo/JMdict_e.gz"
 
 #: Where the download and its index live. Gitignored.
 CACHE_DIR = Path(__file__).resolve().parent / ".cache"

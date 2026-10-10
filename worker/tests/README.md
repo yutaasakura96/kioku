@@ -4,7 +4,7 @@
 real Postgres 18 container** — the pipeline end to end and the three concurrency
 behaviours.
 
-⚠️ **Docker is required for one hundred and thirteen of the four hundred and forty-four tests here.**
+⚠️ **Docker is required for one hundred and thirteen of the four hundred and forty-five tests here.**
 ⚠️ **Re-counted 2026-10-10 with #68 (ADR 0075):** it said one hundred and four of three hundred and
 seventy-nine, and the suite was **one hundred and five of three hundred and eighty-one** before #68
 touched it — something since #38 added two without a re-count. #68 added sixty-three: thirty-three

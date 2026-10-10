@@ -14,7 +14,7 @@ in conformance with the Group's [licence](https://www.edrdg.org/edrdg/licence.ht
 - Copyright: James William Breen and The Electronic Dictionary Research and Development Group.
 - Licence: [Creative Commons Attribution-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-sa/4.0/)
   (CC BY-SA 4.0).
-- Source file: <http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz>; the version the bundle was built
+- Source file: <https://www.edrdg.org/pub/Nihongo/JMdict_e.gz>; the version the bundle was built
   from is `sources.jmdict.created` in `jlpt-vocab.json`, and each word carries its JMdict entry
   number as `jmdict`.
 
