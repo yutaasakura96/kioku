@@ -24,6 +24,7 @@ import { and, count, eq } from 'drizzle-orm'
 import * as schema from '../../db/schema'
 import type { IngestDatabase } from '../ingest/record'
 import type { SynonymBody } from '../../../shared/review/request'
+import { noteInCurrentSubject } from '../subject'
 
 export type SynonymOutcome = 'ok' | 'not_in_session'
 
@@ -41,6 +42,7 @@ export async function recordSynonym(
         eq(schema.reviewSessionCard.reviewSessionId, request.sessionId),
         eq(schema.reviewSessionCard.cardId, request.cardId),
         eq(schema.reviewSessionCard.ownerId, ownerId),
+        noteInCurrentSubject(db, schema.card.noteId),
       ),
     )
     .limit(1)

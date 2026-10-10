@@ -171,7 +171,7 @@ export async function readerZone(db: IngestDatabase, ownerId: string): Promise<s
   const [row] = await db
     .select({ zone: schema.reviewSession.zone })
     .from(schema.reviewSession)
-    .where(and(eq(schema.reviewSession.ownerId, ownerId), isNotNull(schema.reviewSession.zone)))
+    .where(and(eq(schema.reviewSession.ownerId, ownerId), isNotNull(schema.reviewSession.zone), sessionInCurrentSubject(db)))
     .orderBy(desc(schema.reviewSession.startedAt))
     .limit(1)
 
@@ -265,7 +265,7 @@ export async function snapshotOf(
       snapshotTakenAt: schema.reviewSession.snapshotTakenAt,
     })
     .from(schema.reviewSession)
-    .where(and(eq(schema.reviewSession.id, sessionId), eq(schema.reviewSession.ownerId, ownerId)))
+    .where(and(eq(schema.reviewSession.id, sessionId), eq(schema.reviewSession.ownerId, ownerId), sessionInCurrentSubject(db)))
     .limit(1)
 
   if (!session)

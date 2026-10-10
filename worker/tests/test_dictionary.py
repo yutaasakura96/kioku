@@ -119,8 +119,19 @@ def test_a_common_entry_wins_over_an_uncommon_one(sample_dictionary):
 
 def test_a_word_the_dictionary_does_not_have_is_a_miss(sample_dictionary):
     assert sample_dictionary.find("魑魅魍魎", "ちみもうりょう") is None
-    assert sample_dictionary.find("図書館", "") is None
+    assert sample_dictionary.find("魑魅魍魎", "") is None
     assert sample_dictionary.entry(1) is None
+
+
+def test_no_reading_uses_the_dictionary_entry(sample_dictionary):
+    word = sample_dictionary.find("図書館", "")
+    assert (word.sequence, word.reading, word.meaning) == (1370290, "としょかん", "library")
+
+
+def test_no_reading_chooses_a_common_entry_deterministically(sample_dictionary):
+    word = sample_dictionary.find("駅", "")
+    assert (word.sequence, word.reading) == (1179470, "えき")
+    assert sample_dictionary.find("間", "").sequence == 1215240
 
 
 def test_no_sense_for_this_spelling_is_no_word(sample_dictionary):

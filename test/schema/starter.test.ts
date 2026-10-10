@@ -237,7 +237,7 @@ describe('refreshing from a newer bundle', () => {
       { field_name: 'term', dictionary_version: bundle.sources.jmdict.version },
     ])
     expect((await one<{ meanings: string[] }>('SELECT meanings FROM note_meaning WHERE note_id = $1', [id])).meanings)
-      .toEqual(['to meet up'])
+      .toEqual(['to meet', 'to encounter', 'to see', 'to have an accident', 'to have a bad experience', 'to meet up'])
 
     await restore()
   })
@@ -257,7 +257,7 @@ describe('refreshing from a newer bundle', () => {
     expect(load.refreshed).toBe(0)
     expect(await one(`SELECT fields->>'meaning' AS meaning FROM note WHERE id = $1`, [id])).toEqual(before)
     expect((await one<{ meanings: string[] }>('SELECT meanings FROM note_meaning WHERE note_id = $1', [id])).meanings)
-      .toEqual(['to meet up'])
+      .toEqual(['to meet', 'to encounter', 'to see', 'to have an accident', 'to have a bad experience', 'to meet up'])
 
     await client.exec('DELETE FROM note_vetting;')
     await restore()

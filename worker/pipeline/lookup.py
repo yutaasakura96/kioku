@@ -15,10 +15,8 @@ already there.
 ⚠️ **Pure, like stages 2 to 5.** What it asks is behind :class:`Lookup`, so the
 tests hand it a dict and the worker hands it `dictionary.Dictionary`.
 
-⚠️ **A word with no reading is not looked up.** `normalise` leaves the reading
-empty when SudachiPy could not read the line (ADR 0063), and a term alone does
-not name one entry: 開く is あく and ひらく. It goes to the model, which is asked
-for the reading too.
+An empty reading asks JMdict by term; its priority decides among entries and
+readings before the model is considered.
 """
 
 from __future__ import annotations
@@ -86,7 +84,7 @@ def lookup(groups: Iterable[Group], *, dictionary: Lookup) -> LookedUp:
 
     for group in groups:
         candidate = group.candidate
-        word = dictionary.find(candidate.term, candidate.reading) if candidate.reading else None
+        word = dictionary.find(candidate.term, candidate.reading)
         # ⚠️ An entry with nothing to show is the same as no entry: the *note*
         # needs both fields (`03` §6), and the model can still be asked.
         if word is None or not word.meaning.strip() or not word.part_of_speech.strip():
@@ -111,7 +109,7 @@ def notes_for(
         candidate = item.group.candidate
         fields = {
             "term": candidate.term,
-            "reading": candidate.reading,
+            "reading": candidate.reading or item.word.reading,
             "part_of_speech": item.word.part_of_speech,
             "meaning": item.word.meaning,
         }
@@ -127,7 +125,7 @@ def notes_for(
                 fields=fields,
                 identity_key=render_identity_key(declaration, fields),
                 meanings=item.word.meanings,
-                looked_up={name: version for name in DICTIONARY_FIELDS},
+                looked_up={name: version for name in (*DICTIONARY_FIELDS, *(() if candidate.reading else ("reading",)))},
             )
         )
     return notes

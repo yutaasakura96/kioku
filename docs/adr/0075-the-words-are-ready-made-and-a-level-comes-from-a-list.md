@@ -154,7 +154,8 @@ the dictionary at no cost; only what the dictionary lacks, or cannot tell apart,
 - **A dictionary *note* makes no claim** about *level* or *domain*. Its *level* is the list's or it
   has none.
 - **Ambiguity is a miss.** かける is a dozen entries. A common entry wins over uncommon ones and a
-  tie goes to the model, which has the reader's material to decide with.
+tie goes to the model when a reading is supplied. Without a reading, JMdict's common priority
+and then entry number choose deterministically; its reading is written on the note.
 - **The worker downloads JMdict** to `worker/.cache/`, which is ignored, indexes it in SQLite and
   fetches it again once it is thirty days old. It is never committed. A fetch that fails with no
   copy on disk fails the *chunk*, resumably, and says why.

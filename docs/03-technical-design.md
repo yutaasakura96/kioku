@@ -580,8 +580,9 @@ document size.
 > [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md). There is a stage between 5 and 6, *Look up*, in all three pipelines**
 > (`lookup`, `worker/pipeline/lookup.py`): `… → filter_known → lookup → generate → write_notes`.
 >
-> A word stage 5 let through is looked for in JMdict by its term **and** its reading. Found, its
-> *note* is written from the dictionary: `term` and `reading` are the tokeniser's as before,
+> A word stage 5 let through is looked for in JMdict by its term and, when present, its reading. Found, its
+> *note* is written from the dictionary: `term` is the tokeniser's, and `reading` is the tokeniser's
+> or JMdict's when the candidate had none;
 > `part_of_speech` and `meaning` are the entry's, all four with `lookup` *provenance* (the last two
 > under the JMdict version), its *accepted meanings* are the entry's glosses with
 > `dictionary_version` set (`04` §5.8), and it is `accepted` and minted for the requester exactly as
@@ -590,8 +591,8 @@ document size.
 >
 > - **It runs after stage 5 for ADR 0010's reason**: everything that shrinks the work comes before
 >   anything that spends, and this is the last thing that shrinks it.
-> - **A miss is any of four things**: no entry, a word with no reading (開く is あく and ひらく, and
->   a term alone does not say which), several entries of which not exactly one is common, or an
+> - **A miss is any of three things**: no entry, several entries of which not exactly one is common
+>   when a reading was supplied, or an
 >   entry with a blank meaning or part of speech. A miss goes to the model, which is what it is for.
 > - **A dictionary *note* carries no example sentence and makes no claim.** The two example fields
 >   are optional since ADR 0075 §7. `level_claim` and `domain_claim` are not written: a word's

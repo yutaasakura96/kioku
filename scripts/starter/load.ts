@@ -206,7 +206,12 @@ export async function loadStarterSet(
          SELECT w.note_id, ARRAY(SELECT jsonb_array_elements_text(w.meanings::jsonb)), $3
          FROM unnest($1::uuid[], $2::text[]) AS w(note_id, meanings)
          ON CONFLICT (note_id) DO UPDATE
-           SET meanings = EXCLUDED.meanings, dictionary_version = EXCLUDED.dictionary_version
+           SET meanings = ARRAY(
+             SELECT meaning FROM unnest(note_meaning.meanings || EXCLUDED.meanings)
+               WITH ORDINALITY AS item(meaning, position)
+             GROUP BY meaning ORDER BY min(position)
+           ),
+               dictionary_version = EXCLUDED.dictionary_version
            WHERE note_meaning.dictionary_version IS NOT NULL`,
         [ids, words.map(word => JSON.stringify(word.meanings)), dictionary],
       )

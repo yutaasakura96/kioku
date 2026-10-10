@@ -151,6 +151,7 @@ class Word:
     #: Every gloss the check accepts (`note_meaning`, ADR 0069 §3).
     meanings: tuple[str, ...]
     part_of_speech: str
+    reading: str = ""
 
 
 def parse_entry(block: str) -> Entry:
@@ -238,6 +239,7 @@ def word_of(entry: Entry, term: str, reading: str) -> Word | None:
         meaning="; ".join(lead.glosses[:DISPLAYED_GLOSSES]),
         meanings=tuple(accepted[:ACCEPTED_MEANINGS]),
         part_of_speech=part_of_speech_label(lead.parts_of_speech),
+        reading=reading,
     )
 
 
@@ -341,7 +343,20 @@ class Dictionary:
     def find(self, term: str, reading: str) -> Word | None:
         """`pipeline.lookup.Lookup`: the fields of the one entry for this word."""
         entry = self.lookup(term, reading)
-        return None if entry is None else word_of(entry, term, reading)
+        if entry is None:
+            return None
+        if not reading:
+            candidates = [
+                candidate for candidate in entry.readings
+                if (not candidate.restricted_to or term in candidate.restricted_to)
+                and entry.senses_for(term, candidate.text)
+            ]
+            reading = min(candidates, key=lambda candidate: (
+                is_kana(term) and to_hiragana(candidate.text) != to_hiragana(term),
+                not bool(set(candidate.priorities) & COMMON_PRIORITIES),
+                candidate.text,
+            )).text
+        return word_of(entry, term, reading)
 
     def lookup(self, term: str, reading: str) -> Entry | None:
         """The one entry for this term read this way, or `None`.
@@ -352,8 +367,19 @@ class Dictionary:
         the card that nobody chose. A common entry wins over uncommon ones, and a
         tie is a miss.
         """
-        if not term or not reading:
+        if not term:
             return None
+
+        if not reading:
+            candidates = self.entries_for(term)
+            candidates = [
+                entry for entry in candidates
+                if (term in entry.kanji or is_kana(term))
+                and any(entry.senses_for(term, candidate.text)
+                        for candidate in entry.readings
+                        if not candidate.restricted_to or term in candidate.restricted_to)
+            ]
+            return min(candidates, key=lambda entry: (not entry.common, entry.sequence), default=None)
 
         if is_kana(term):
             # A word written in kana: an entry with no kanji form, or one whose

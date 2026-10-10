@@ -77,16 +77,19 @@ def test_what_the_dictionary_has_is_found_and_the_rest_goes_on() -> None:
     assert result.missing == (missing,)
 
 
-def test_a_word_with_no_reading_is_not_looked_up() -> None:
-    """ADR 0063 leaves the reading empty when SudachiPy could not read the line,
-    and a term alone does not name one entry."""
+def test_a_word_with_no_reading_is_looked_up() -> None:
     unread = group("図書館", "")
-    dictionary = Answers(図書館=LIBRARY_WORD)
+    word = Word(sequence=1, meaning="library", meanings=("library",), part_of_speech="noun", reading="としょかん")
+    dictionary = Answers(図書館=word)
 
     result = lookup([unread], dictionary=dictionary)
 
-    assert result.missing == (unread,)
-    assert dictionary.asked == []
+    assert result.found == (Found(group=unread, word=word),)
+    assert result.missing == ()
+    assert dictionary.asked == [("図書館", "")]
+    (note,) = notes_for(DECLARATION, result.found, version=VERSION)
+    assert note.fields["reading"] == "としょかん"
+    assert note.looked_up["reading"] == VERSION
 
 
 @pytest.mark.parametrize(
