@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Iterator
 
 import events
-from pipeline.extract_candidates import is_kana, to_hiragana
+from pipeline.extract_candidates import in_script_of, is_kana, to_hiragana
 
 #: EDRDG's English-only JMdict, rebuilt daily.
 #:
@@ -145,7 +145,8 @@ class Entry:
         pronunciation = next(
             (candidate.priorities for candidate in self.readings
              if to_hiragana(candidate.text) == folded
-             and (not candidate.restricted_to or term in candidate.restricted_to)),
+             and (not candidate.restricted_to or term in candidate.restricted_to
+                  or term not in self.kanji)),
             (),
         )
         return spelling + pronunciation
@@ -357,7 +358,7 @@ class Dictionary:
         if entry is None:
             return None
         if not reading:
-            reading = _preferred_reading(entry, term).text
+            reading = in_script_of(term, _preferred_reading(entry, term).text)
         return word_of(entry, term, reading)
 
     def lookup(self, term: str, reading: str) -> Entry | None:
@@ -416,13 +417,14 @@ def _priority_rank(priorities: Iterable[str]) -> tuple[bool, int, int, int]:
 def _preferred_reading(entry: Entry, term: str) -> Reading | None:
     candidates = [
         candidate for candidate in entry.readings
-        if (not candidate.restricted_to or term in candidate.restricted_to)
+        if (not is_kana(term) or to_hiragana(candidate.text) == to_hiragana(term))
+        and (not candidate.restricted_to or term in candidate.restricted_to
+             or term not in entry.kanji)
         and _has_content(entry, term, candidate.text)
     ]
     return min(
         candidates,
         key=lambda candidate: (
-            is_kana(term) and to_hiragana(candidate.text) != to_hiragana(term),
             _priority_rank(candidate.priorities),
             candidate.text,
         ),

@@ -157,8 +157,9 @@ the dictionary at no cost; only what the dictionary lacks goes to the model.
   has none.
 - **Entries that share a form are ranked from JMdict's priority tags on that spelling and reading,
   then by the lowest entry number.** This also resolves a tie between common entries such as かける.
-  When the reader supplied no reading, the chosen entry's highest-priority applicable reading is
-  written on the note. Priority tags on unrelated forms do not affect either choice
+  When the reader supplied no reading, a kana term keeps its own reading; otherwise the chosen
+  entry's highest-priority applicable reading is used. The reading follows ADR 0045's script rule
+  before it becomes the note's key. Priority tags on unrelated forms do not affect either choice
   ([JMdict DTD](https://www.edrdg.org/jmdict/jmdict_dtd_h.html)).
 - **A dictionary entry with a blank meaning or part of speech lacks usable content.** It goes to
   generation; an entry with usable content does not.

@@ -44,8 +44,7 @@ class Lookup(Protocol):
     version: str
 
     def find(self, term: str, reading: str) -> "Word | None":
-        """The one entry for this term read this way, or `None` when the
-        dictionary has none or cannot say which."""
+        """The highest-priority usable entry for this term and optional reading."""
 
 
 class _NoDictionary:

@@ -32,6 +32,32 @@ def gzipped(directory: Path, text: str | None = None) -> Path:
     return path
 
 
+@pytest.fixture
+def script_dictionary(tmp_path):
+    source = gzipped(tmp_path, """<!-- JMdict created: 2026-10-09 -->
+<JMdict>
+<entry>
+<ent_seq>2000020</ent_seq>
+<k_ele><keb>甲</keb></k_ele>
+<r_ele><reb>こう</reb><re_restr>甲</re_restr></r_ele>
+<r_ele><reb>おつ</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&n;</pos><gloss>first</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000021</ent_seq>
+<k_ele><keb>頁</keb></k_ele>
+<r_ele><reb>ページ</reb></r_ele>
+<sense><pos>&n;</pos><gloss>page</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000022</ent_seq>
+<r_ele><reb>エモい</reb></r_ele>
+<sense><pos>&adj-i;</pos><gloss>emotional</gloss></sense>
+</entry>
+</JMdict>""")
+    return dictionary.open_dictionary(source)
+
+
 @pytest.fixture(autouse=True)
 def nothing_loaded(monkeypatch):
     """`load_dictionary` holds what it loaded for the life of the process."""
@@ -126,6 +152,19 @@ def test_a_word_the_dictionary_does_not_have_is_a_miss(sample_dictionary):
 def test_no_reading_uses_the_dictionary_entry(sample_dictionary):
     word = sample_dictionary.find("図書館", "")
     assert (word.sequence, word.reading, word.meaning) == (1370290, "としょかん", "library")
+
+
+def test_kana_term_keeps_its_own_restricted_reading(script_dictionary):
+    assert script_dictionary.find("こう", "").reading == "こう"
+    assert script_dictionary.find("こう", "こう").sequence == 2000020
+
+
+@pytest.mark.parametrize(
+    ("term", "reading"),
+    [("頁", "ぺーじ"), ("エモい", "えもい")],
+)
+def test_term_only_reading_uses_the_terms_script(script_dictionary, term, reading):
+    assert script_dictionary.find(term, "").reading == reading
 
 
 def test_no_reading_chooses_a_common_entry_deterministically(sample_dictionary):

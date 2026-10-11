@@ -582,7 +582,7 @@ document size.
 >
 > A word stage 5 let through is looked for in JMdict by its term and, when present, its reading. Found, its
 > *note* is written from the dictionary: `term` is the tokeniser's, and `reading` is the tokeniser's
-> or JMdict's when the candidate had none;
+> or JMdict's when the candidate had none, in ADR 0045's script for the term;
 > `part_of_speech` and `meaning` are the entry's, all four with `lookup` *provenance* (the last two
 > under the JMdict version), its *accepted meanings* are the entry's glosses with
 > `dictionary_version` set (`04` §5.8), and it is `accepted` and minted for the requester exactly as

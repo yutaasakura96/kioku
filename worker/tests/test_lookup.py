@@ -89,6 +89,7 @@ def test_a_word_with_no_reading_is_looked_up() -> None:
     assert dictionary.asked == [("図書館", "")]
     (note,) = notes_for(DECLARATION, result.found, version=VERSION)
     assert note.fields["reading"] == "としょかん"
+    assert note.identity_key == "図書館" + chr(31) + "としょかん"
     assert note.looked_up["reading"] == VERSION
 
 
