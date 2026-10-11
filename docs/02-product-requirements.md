@@ -33,7 +33,8 @@ quizzed on words that are already there. Decided by Yuta on #67 from a reviewed 
   **Acceptance:** nothing is deleted to do it, and the export still returns all of it.
 - **An imported Anki deck and the reader's own words are secondary**, each in its own *category*
   under *My decks*. A meaning for an own word comes from the dictionary, and a model is asked only
-  for a word the dictionary lacks.
+  when the dictionary lacks the word or its entry has no usable meaning or part of speech
+  (ADR 0075 §5).
 - **A kana-only word asks for its meaning and not its reading**, as before (ADR 0069 §4).
 
 **The twelve answers the prototype review settled**, each owed by the ticket beside it. They are

@@ -3106,10 +3106,9 @@ Nothing.
   screen is three predicates: `noteInCurrentSubject`, `cardInCurrentSubject` and
   `sessionInCurrentSubject`. **A new query without one shows the reader *cards* they were told were
   gone, and it will look correct in every test that seeds one *subject*.** Add the read to
-  `test/schema/start-fresh.test.ts`, which seeds two. **The three writes that take a *session* id
-  from the client (`recordGrade`, `recordFlag`, `recordSynonym`) carry one too**, or a tab left
-  open replays its outbox into the old corpus. Deliberately unscoped: the spend ledger, the
-  export, and a read by id.
+  `test/schema/start-fresh.test.ts`, which seeds two. Client-supplied IDs must also be scoped before
+  a write: Review answers, Vet run reuse and undo, and source deletion. ADR 0075 §1 owns the
+  exceptions for the spend ledger, export and source reads by id.
 - ⚠️ **A *session* has no `subject_id`; its membership is its *subject*.** A `review_session` with
   no member *card* is in no *subject* and no read counts it, which a test that inserts a bare
   *session* row will discover.

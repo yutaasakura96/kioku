@@ -68,6 +68,9 @@ every reader-facing read is scoped to the current id by three predicates in
 - **A *session* carries no `subject_id`** (`04` §7.6), so its membership says which corpus it was. A
   run left open before the change is not resumed, an answer, flag or synonym sent to it by id is
   refused, and what it introduced does not spend today's allowance.
+- **A *Vet* run belongs to one *subject*.** An open run from the old corpus is not tallied or reused,
+  and its decisions cannot be undone through the current queue. An old *source* remains readable by
+  id, but its delete confirmation and delete `POST` are unavailable under the new subject.
 - **The worker refuses a run of another *subject*.** A run queued before the change would otherwise
   write under the old id with today's declaration, and no screen would show it.
 - **Deleting the old rows from production is the owner's step and is not done here.** Nothing

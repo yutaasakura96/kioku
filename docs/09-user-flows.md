@@ -540,6 +540,9 @@ because `S11` requires them to stay readable.
 positions in that content (`04` §5.5). This is the "where did this card come from" half of the story,
 and it is the reason `source.content` is retained at all (ADR 0008).
 
+An old-subject *source* remains readable by id, but its delete confirmation and delete `POST` are
+unavailable after the fresh start (ADR 0075 §1).
+
 **The delete, which is two steps because there is no client to hold a dialog:**
 
 1. A link to `/sources/:id/delete`. A page, not a modal.

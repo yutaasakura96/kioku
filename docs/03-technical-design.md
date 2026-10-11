@@ -510,26 +510,11 @@ document size.
 >
 > ⚠️ **The deck's *meaning* does not travel and its level tags are only hints.** Measured on four
 > real decks: term, reading and level hints fit inside `S2`'s cap and the meaning does not
-> (ADR 0068 §3 and its 2026-09-20 amendment). The model's `level_claim` stays the only *level* claim
-> on an imported *note*, and no `authority_key` names a deck.
+> (ADR 0068 §3 and its 2026-09-20 amendment). For the current level rule, see ADR 0075 §2.
 >
-> ⚠️ **A line SudachiPy cannot resolve is kept, not dropped.** It reaches stage 6 with an empty
-> reading and `is_oov` set; the model writes the reading, and `04` §5.4 records it as `generated`
-> rather than `lookup` — ADR 0004's sentence is that trust is a property of where a value came from.
-> Three things fail to resolve: a word the dictionary has never seen, a line ADR 0044's allowlist
-> would not call vocabulary (a numeral among them, because `normalized_form` rewrites 六 to `6` and
-> `04` §5.3 says numerals never reach the key), and a line holding two content words. Each is kept
-> whole rather than half-answered.
->
-> ⚠️ **An unresolved line is the one thing stage 5 cannot filter, so it is the one
-> thing a re-ingestion pays for twice.** Stage 5 ran against the key with the
-> empty reading; the *note* is written under the key the model's reading renders,
-> so a word the corpus already holds under its real key is not matched until stage
-> 7's `ON CONFLICT DO NOTHING` finds it and appends the *occurrences* to the
-> existing *note*. Nothing is duplicated and one generation is paid for.
-> ⚠️ **Keying the row on the empty reading would fix the cost and break `04`
-> §5.3**, which renders the key from the fields the *note* carries — a row
-> disagreeing with its own `fields` is a row no later run could ever match.
+> ⚠️ **A line SudachiPy cannot resolve is kept whole with an empty reading and `is_oov`.**
+> The later lookup stage checks JMdict by term before generation; ADR 0075 §5 owns the current
+> dictionary and model boundary.
 >
 > ⚠️ **The stage list is dispatched, not written out in Python.** `worker/pipeline/__init__.py` folds
 > the declaration's list; a stage key nothing runs is a **startup failure** (`worker/__main__.py`),
