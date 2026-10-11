@@ -146,7 +146,7 @@ def make_seed(connection: psycopg.Connection, *, count: int = 5, requested_by: s
     seed_id = connection.execute(
         """
         INSERT INTO seed (subject_id, domain, level, count, requested_by)
-        VALUES ('jlpt-vocab', 'tech', 'N3', %s, %s) RETURNING id;
+        VALUES ('jlpt-vocab-2', 'tech', 'N3', %s, %s) RETURNING id;
         """,
         (count, requested_by),
     ).fetchone()[0]
@@ -170,7 +170,7 @@ def known_note(
     note_id = connection.execute(
         """
         INSERT INTO note (subject_id, identity_key, fields)
-        VALUES ('jlpt-vocab', %s, jsonb_build_object('term', %s::text)) RETURNING id;
+        VALUES ('jlpt-vocab-2', %s, jsonb_build_object('term', %s::text)) RETURNING id;
         """,
         (f"{term}\x1f{term}", term),
     ).fetchone()[0]
@@ -256,7 +256,7 @@ def test_the_exclusion_list_is_the_requesters_terms_for_that_domain_and_level(co
     # cache at no generation cost (ADR 0063).
     known_note(connection, "報告", card_for=None)
 
-    assert known_terms(connection, REQUEST, subject_id="jlpt-vocab", owner_id=OWNER) == ["会議"]
+    assert known_terms(connection, REQUEST, subject_id="jlpt-vocab-2", owner_id=OWNER) == ["会議"]
 
 
 def test_known_terms_are_sent_counted_and_kept_off_the_draft(connection) -> None:

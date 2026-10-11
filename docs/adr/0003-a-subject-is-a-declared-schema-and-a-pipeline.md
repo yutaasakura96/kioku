@@ -33,3 +33,13 @@ correct — a card never seen should not inherit a schedule. Versioning note typ
 for one user, and §4.11 already records the model and prompt version per note, which answers the
 question actually asked of history ("what generated this?"). The never-rename rule is what protects
 six months of review history, and it costs nothing to adopt now.
+
+## Amended 2026-10-10: optional fields, and a list of authorities
+
+[ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) adds two things to the
+declaration. **A field may be `required: false`** — the two example fields are, because a word from
+the dictionary has no sentence — and both validators accept a *note* that lacks an optional field
+while still refusing one that lacks a required field. **`authorities` is an ordered list of
+*authority* keys**, highest precedence first, which is where ADR 0005's "precedence is declared per
+subject" finally lives. The `subject_id` also moved to `jlpt-vocab-2` while the file kept its name
+(ADR 0075 §1), so the id and the file name no longer match and nothing should assume they do.

@@ -394,6 +394,23 @@ those is released in two parts:
 A migration that cannot be split this way needs its own ADR before it is applied. That goes double
 for one that touches `review_log`, the one table that cannot be regenerated (`04` §7.5).
 
+⚠️ **Amended 2026-10-10 with #68 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §4): a release can also carry data, and the starter set is
+the first.** `0011` is additive by the test above: it adds one nullable column, drops two
+`NOT NULL`s, adds a check every existing row meets (each has a model and no dictionary) and adds an
+index. The code that reads `note_meaning` after it expects the new column, so the migration goes
+first, as always. **Then the starter set is loaded, before the merge**, by the same person from the
+same checkout:
+
+```
+DATABASE_URL='<ref>' op run -- npm run starter:load
+```
+
+It reads no `.env`, names the host and database it is about to write to and never the string, writes
+shared rows only in batches that each commit or roll back whole, and prints the per-level counts. A
+second run writes nothing, so one that stopped half-way is finished by running it again. `<ref>` is
+the reference the migration used. ⚠️ **It is the owner's step and has not been run against
+production.**
+
 ⚠️ Better Auth's `getMigrations` **does not work with the Drizzle adapter** (verification §2.3) —
 its schema is generated (`npx auth@latest generate --adapter … --dialect …`) and then lands in the
 Drizzle migration flow like everything else. Whether *personal* entities take their owner foreign
@@ -493,26 +510,11 @@ document size.
 >
 > ⚠️ **The deck's *meaning* does not travel and its level tags are only hints.** Measured on four
 > real decks: term, reading and level hints fit inside `S2`'s cap and the meaning does not
-> (ADR 0068 §3 and its 2026-09-20 amendment). The model's `level_claim` stays the only *level* claim
-> on an imported *note*, and no `authority_key` names a deck.
+> (ADR 0068 §3 and its 2026-09-20 amendment). For the current level rule, see ADR 0075 §2.
 >
-> ⚠️ **A line SudachiPy cannot resolve is kept, not dropped.** It reaches stage 6 with an empty
-> reading and `is_oov` set; the model writes the reading, and `04` §5.4 records it as `generated`
-> rather than `lookup` — ADR 0004's sentence is that trust is a property of where a value came from.
-> Three things fail to resolve: a word the dictionary has never seen, a line ADR 0044's allowlist
-> would not call vocabulary (a numeral among them, because `normalized_form` rewrites 六 to `6` and
-> `04` §5.3 says numerals never reach the key), and a line holding two content words. Each is kept
-> whole rather than half-answered.
->
-> ⚠️ **An unresolved line is the one thing stage 5 cannot filter, so it is the one
-> thing a re-ingestion pays for twice.** Stage 5 ran against the key with the
-> empty reading; the *note* is written under the key the model's reading renders,
-> so a word the corpus already holds under its real key is not matched until stage
-> 7's `ON CONFLICT DO NOTHING` finds it and appends the *occurrences* to the
-> existing *note*. Nothing is duplicated and one generation is paid for.
-> ⚠️ **Keying the row on the empty reading would fix the cost and break `04`
-> §5.3**, which renders the key from the fields the *note* carries — a row
-> disagreeing with its own `fields` is a row no later run could ever match.
+> ⚠️ **A line SudachiPy cannot resolve is kept whole with an empty reading and `is_oov`.**
+> The later lookup stage checks JMdict by term before generation; ADR 0075 §5 owns the current
+> dictionary and model boundary.
 >
 > ⚠️ **The stage list is dispatched, not written out in Python.** `worker/pipeline/__init__.py` folds
 > the declaration's list; a stage key nothing runs is a **startup failure** (`worker/__main__.py`),
@@ -558,6 +560,46 @@ document size.
 >
 > ⚠️ **The 474 *pending notes* and the 39 accepted before this carry no claim**, and backfilling them
 > is out of #22's scope. A filtered *session* leaves them out; an unfiltered one does not.
+
+> ⚠️ **Amended 2026-10-10 with [#68](https://github.com/yutaasakura96/kioku/issues/68) —
+> [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md). There is a stage between 5 and 6, *Look up*, in all three pipelines**
+> (`lookup`, `worker/pipeline/lookup.py`): `… → filter_known → lookup → generate → write_notes`.
+>
+> A word stage 5 let through is looked for in JMdict by its term and, when present, its reading. Found, its
+> *note* is written from the dictionary: `term` is the tokeniser's, and `reading` is the tokeniser's
+> or JMdict's when the candidate had none, in ADR 0045's script for the term;
+> `part_of_speech` and `meaning` are the entry's, all four with `lookup` *provenance* (the last two
+> under the JMdict version), its *accepted meanings* are the entry's glosses with
+> `dictionary_version` set (`04` §5.8), and it is `accepted` and minted for the requester exactly as
+> stage 7 does it. **No request is made for it and nothing is spent.** Only what is left reaches
+> stage 6, so a *chunk* the dictionary answers whole makes no request at all.
+>
+> - **It runs after stage 5 for ADR 0010's reason**: everything that shrinks the work comes before
+>   anything that spends, and this is the last thing that shrinks it.
+> - **A miss is a spelling and reading JMdict lacks, or an entry with a blank meaning or part of
+>   speech.** Entries sharing a form are ranked by priority on the matching spelling and reading,
+>   then by entry number, so a tie does not send a dictionary word to the model.
+> - **A dictionary *note* carries no example sentence and makes no claim.** The two example fields
+>   are optional since ADR 0075 §7. `level_claim` and `domain_claim` are not written: a word's
+>   *level* is a declared *authority*'s or it has none (ADR 0075 §2).
+> - **A word on a JLPT list never gets here.** The starter set is in the corpus, so stage 4 finds
+>   it and the collision path mints the requester a *card* on the *note* that is already there.
+> - **The run logs `ingest.looked_up` per *chunk*** with how many *notes* the dictionary wrote.
+>
+> ⚠️ **The worker holds its own copy of JMdict** (`worker/dictionary.py`): downloaded over TLS from
+> `www.edrdg.org` to `worker/.cache/`, which is ignored, indexed into SQLite beside it, and fetched
+> again when a process loads it and finds it thirty days old. `KIOKU_JMDICT_PATH` names a file
+> instead. With no copy and no network the stage raises, the *chunk* fails resumably (§5.4), and the
+> message says which. It is loaded on first use and not at startup, so a worker that only ever meets
+> words the corpus holds never downloads it.
+>
+> ⚠️ **The worker refuses a run whose `ingestion.subject_id` is not the declaration's** (ADR 0075
+> §1). A run queued under `jlpt-vocab` would otherwise be written with today's declaration under an
+> id no screen reads.
+>
+> ⚠️ **Stage 6 still asks for a *level* and stage 7 still writes it**, for a word the dictionary
+> lacks. Nothing reads it as a level any more. `PROMPT_VERSION` did not move, because the prompt did
+> not change.
 
 ### 5.2 Two findings that shape stage 2, and neither is optional
 
@@ -855,6 +897,14 @@ kioku/
 > one (§5.1). `pipeline/__init__.py` folds whichever list the *source*'s `kind` selects, and
 > `check_pipelines` refuses a stage nothing runs **at startup** rather than at dispatch.
 
+> ⚠️ **Amended 2026-10-10 with #68:** `pipeline/` holds a ninth module, `lookup.py`, and the
+> declaration names three stage lists. Beside it the worker gained `dictionary.py`, the JMdict
+> reader and its cache, and `starter.py`, which is not part of the worker's loop at all: it is the
+> build script for `subjects/starter/jlpt-vocab.json` and lives there because it needs SudachiPy
+> and the dictionary reader. `subjects/starter/` holds the built set and its `NOTICE.md`;
+> `scripts/starter/load.ts` loads it; `docs/prototype/` holds the reviewed prototype of the new
+> direction, which is reference and not product code.
+
 `subjects/` sits at the root rather than under either side, because it belongs to neither (§6).
 `worker/` carries its own dependency manifest and its own lockfile — the two ecosystems do not
 share one, and pretending otherwise is how a two-toolchain repo starts lying about what is
@@ -1013,6 +1063,12 @@ HTTPS end to end. Vercel terminates TLS for the app. The worker reaches Neon ove
 issued connection string unmodified — `psycopg[binary]` bundles libpq 18.6, which sets `sslsni=1`
 by default (§4.1). **Nothing in this design exposes a local port to the internet**, because the
 worker has no inbound surface at all (§1).
+
+⚠️ **Amended 2026-10-10 with #68:** the worker's one other outbound request is the JMdict download,
+and it is HTTPS from `www.edrdg.org`. `ftp.edrdg.org` serves the same file in the clear only (its
+certificate does not name that host, checked 2026-10-10), and what the worker fetches ends up on a
+*card*. ⚠️ `scripts/kanjidic.ts` still reads KANJIDIC2 over `http://`; it is a script a person runs
+and whose output is reviewed as a diff before it is committed, and it is not changed here.
 
 ### 13.4 Sensitive data
 
@@ -1195,6 +1251,7 @@ one of the things the move to EC2 or Lightsail is buying.
 | **Vercel** | The five screens | The app is down; the worker keeps draining claimed work into a database that is still up. Nothing is lost |
 | **Model provider** | Stage 6 only | Ingestion stalls; bounded retries, then the chunk is marked failed and the *source* stays resumable (§11). Nothing already generated is discarded. ADR 0018's boundary means switching providers is configuration |
 | **Google OIDC** | Sign-in only | Existing 7-day sessions keep working; new sign-ins fail. There is no password fallback, and adding one would be a second way in to a system whose thesis is that there is one |
+| **EDRDG's file server** (`www.edrdg.org`) | The worker's copy of JMdict, and a rebuild of the starter set | Nothing, while the worker has a copy on disk: an old one is used and the refetch is tried again by the next process. With no copy, a *chunk* that needs the dictionary fails resumably. The app never contacts it; the starter set is a committed file |
 | **The laptop** | Ingestion | *Pending* work stays pending, *vetting* and *review* are unaffected. This is a documented state of v1, not an outage — and ADR 0022's revisit condition is the first time it stops being acceptable |
 
 ---

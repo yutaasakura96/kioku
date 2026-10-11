@@ -66,7 +66,7 @@ const FIELDS = {
 async function acceptedCard(key: string, fields: Record<string, string> = FIELDS): Promise<string> {
   const note = await database.client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
@@ -370,10 +370,14 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
   })
 })
 
-// ADR 0069 §4. ⚠️ **Last in the file on purpose**: every earlier *card* is graded
-// or flagged by now, so this composes a run of exactly the one kana *card*.
+// ADR 0069 §4. Suspend earlier cards so this case also works when selected on
+// its own: the file's outer setup creates a kanji card for the other cases.
 describe('a kana-only term', () => {
   beforeAll(async () => {
+    await database.client.query(
+      'UPDATE card SET suspended_at = now() WHERE owner_id = $1 AND suspended_at IS NULL;',
+      [reader.userId],
+    )
     await acceptedCard('こんな␟こんな', {
       ...FIELDS,
       term: 'こんな',

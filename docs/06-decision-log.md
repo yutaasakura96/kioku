@@ -1656,6 +1656,26 @@ Bundle server dependencies and serve a static favicon (#73); drop database warm-
 its small overlap and anonymous-visit cost. Re-measure after deployment before any hosting decision.
 → [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 
+### [2026-10-10] The app is a ready-made flashcard quiz, a level comes from a list, and the corpus starts again
+Yuta reviewed the deployed app, found it was not the app he had meant, and decided the change on
+[#67](https://github.com/yutaasakura96/kioku/issues/67) with a reviewed prototype
+(`docs/prototype/`) and twelve answers: **open it, choose what to study, and be quizzed on words
+that are already there.** **The words come from a starter JLPT set built from open data** — JMdict
+for the word, reading, meanings and part of speech, Jonathan Waller's JLPT lists for the level —
+**8,273 words, N5 to N1**, with each source's licence checked and recorded before it was bundled
+(`subjects/starter/NOTICE.md`). **A *level* is the list's claim** (`authorities: ["tanos-jlpt"]`),
+and a model's estimate is no longer read as one. **A *category* is derived**, not stored: a JLPT
+level, an imported deck, or *My words*. **The corpus starts again under the *subject* id
+`jlpt-vocab-2` and nothing is deleted**; every reader-facing read is scoped to the current id, and
+the old rows stay exportable. **A word the reader brings is looked up in the dictionary before any
+model is asked.** The deciding reason is the owner's: the meanings and levels should come from a
+known source, and the deck should not be the reader's to build. Supersedes ADR 0065 §3's
+model-estimated *level* and the 2026-09-05 "no home screen" entry, and amends ADRs 0001, 0003, 0005,
+0063 and 0064 in place; `01`, `02`, `03`, `04`, `10` and `CONTEXT.md` are amended in the same
+commit. ⚠️ **#68 builds the data and no screen**: a starter word has no *card* until #70's lesson
+mints one, and the screens are #69 to #72.
+→ [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

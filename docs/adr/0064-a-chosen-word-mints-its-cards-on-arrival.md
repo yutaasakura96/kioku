@@ -118,3 +118,13 @@ earn their place; only the person clicking through them has gone.
   column rather than a promoted audit line.
 - An imported Anki deck lands with fields worth trusting less than the model's, which would make
   *vetting* an import-time step for one *source kind* rather than a retired one.
+
+## Amended 2026-10-10: a starter word is not minted on arrival
+
+§1 holds for a word a reader brought: it is theirs, it is `accepted`, and its *card* exists when the
+worker writes it — and that now includes a word the `lookup` stage wrote from the dictionary.
+**It does not hold for the starter set**
+([ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §4). Those *notes* are
+loaded by a script on nobody's behalf, with no `note_vetting` row and no *card*, and the *card* is
+minted when a reader starts the word in a lesson (#70). A reader whose own list names a starter
+word is handed that *note* by the collision path, as before.

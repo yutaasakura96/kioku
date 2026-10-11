@@ -51,6 +51,7 @@ import { and, count, desc, eq, gte, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import type { IngestDatabase } from '../ingest/record'
+import { CURRENT_SUBJECT_ID, cardInCurrentSubject, noteInCurrentSubject } from '../subject'
 import { WINDOW_DAYS } from '../../../shared/metrics/stats'
 import { seedTitle } from '../../../shared/ingest/seed'
 import type { StatsContext, StatsRows } from '../../../shared/metrics/stats'
@@ -98,7 +99,8 @@ export interface StatsData {
 }
 
 /**
- * The figures' inputs, in seven sequential reads.
+ * The figures' inputs, in seven sequential reads — ⚠️ **each of them the
+ * current *subject*'s** (ADR 0075 §1, `server/utils/subject.ts`).
  *
  * ⚠️ Nothing here is cached: `09` §2 stamps every figure "as of this page load",
  * and a *place* ships no JavaScript so it cannot poll. The request *is* the
@@ -176,6 +178,7 @@ async function retentionCounts(db: IngestDatabase, ownerId: string, since: Date)
         eq(schema.reviewLog.ownerId, ownerId),
         eq(schema.reviewLog.state, REVIEW_STATE),
         gte(schema.reviewLog.reviewedAt, since),
+        cardInCurrentSubject(db, schema.reviewLog.cardId),
       ),
     )
 
@@ -213,7 +216,13 @@ async function gradeMinuteSamples(db: IngestDatabase, ownerId: string, since: Da
       minute: sql<string | Date>`date_trunc('minute', ${schema.reviewLog.reviewedAt})`,
     })
     .from(schema.reviewLog)
-    .where(and(eq(schema.reviewLog.ownerId, ownerId), gte(schema.reviewLog.reviewedAt, since)))
+    .where(
+      and(
+        eq(schema.reviewLog.ownerId, ownerId),
+        gte(schema.reviewLog.reviewedAt, since),
+        cardInCurrentSubject(db, schema.reviewLog.cardId),
+      ),
+    )
 
   return rows.map(row => new Date(row.minute))
 }
@@ -229,7 +238,7 @@ async function firstGrade(db: IngestDatabase, ownerId: string): Promise<Date | n
   const [first] = await db
     .select({ at: sql<string | Date | null>`min(${schema.reviewLog.reviewedAt})` })
     .from(schema.reviewLog)
-    .where(eq(schema.reviewLog.ownerId, ownerId))
+    .where(and(eq(schema.reviewLog.ownerId, ownerId), cardInCurrentSubject(db, schema.reviewLog.cardId)))
 
   return first?.at ? new Date(first.at) : null
 }
@@ -258,7 +267,7 @@ async function flaggedCardCount(db: IngestDatabase, ownerId: string): Promise<nu
   const [flagged] = await db
     .select({ n: sql<number>`count(distinct ${schema.cardFlag.cardId})::int` })
     .from(schema.cardFlag)
-    .where(eq(schema.cardFlag.ownerId, ownerId))
+    .where(and(eq(schema.cardFlag.ownerId, ownerId), cardInCurrentSubject(db, schema.cardFlag.cardId)))
 
   return flagged?.n ?? 0
 }
@@ -275,7 +284,7 @@ async function cardCount(db: IngestDatabase, ownerId: string): Promise<number> {
   const [cards] = await db
     .select({ n: count() })
     .from(schema.card)
-    .where(eq(schema.card.ownerId, ownerId))
+    .where(and(eq(schema.card.ownerId, ownerId), noteInCurrentSubject(db, schema.card.noteId)))
 
   return cards?.n ?? 0
 }
@@ -326,6 +335,7 @@ async function firstReviewPerSource(
       schema.reviewLog,
       and(eq(schema.reviewLog.cardId, schema.card.id), eq(schema.reviewLog.ownerId, ownerId)),
     )
+    .where(eq(schema.source.subjectId, CURRENT_SUBJECT_ID))
     .groupBy(schema.source.id, schema.source.submittedAt)
 
   return rows.map(row => ({
@@ -342,13 +352,20 @@ async function firstReviewPerSource(
  * keeps it readable for the same reason.
  */
 async function sourceCount(db: IngestDatabase): Promise<number> {
-  const [sources] = await db.select({ n: count() }).from(schema.source)
+  const [sources] = await db
+    .select({ n: count() })
+    .from(schema.source)
+    .where(eq(schema.source.subjectId, CURRENT_SUBJECT_ID))
   return sources?.n ?? 0
 }
 
 /**
  * `10` §8.3's ledger — tokens and cost per *ingestion*, per *seed* request and
  * per backfill run, newest first.
+ *
+ * ⚠️ **The one read on this screen that is not scoped to the current
+ * *subject*** (ADR 0075 §1). The figures above it start fresh; what was spent
+ * on the corpus the reader left was still spent, and `S10` reports spend.
  *
  * ⚠️ **It reads `ingestion`, `seed` and `backfill` and joins nothing.** `04` §9 makes
  * `ingestion.source_id` `SET NULL` and snapshots `source_title` at submit

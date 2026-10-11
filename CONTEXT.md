@@ -67,7 +67,17 @@ _Avoid_: related card, variant, duplicate
 **Subject**:
 A body of material studied together, declared once as a schema plus, per *source kind*, the ordered
 pipeline stages its ingestion needs (ADR 0063). JLPT vocabulary is the first, and there is one.
-_Avoid_: topic, category, course. ⚠️ *Domain* left this list on 2026-09-16 and is its own term below.
+_Avoid_: topic, course. ⚠️ *Domain* left this list on 2026-09-16 and *category* on 2026-10-10; each
+is its own term below. ⚠️ **The declaration's `subject_id` is `jlpt-vocab-2` since 2026-10-10**
+(ADR 0075 §1): the corpus started again under a new id, the file kept its name, and every
+reader-facing read is scoped to the current id.
+
+**Category** — ⚠️ **added 2026-10-10 (ADR 0075)**:
+A set of words the reader chooses to study, derived and never stored: a JLPT *level*
+(`jlpt:N5` … `jlpt:N1`), one imported Anki deck (`deck:<source id>`), or *My words* (`my-words`),
+which is everything from the reader's own lists and pasted text. A word can be in several. Two
+groups, *JLPT levels* and *My decks*.
+_Avoid_: deck, shelf, collection, tag, subject
 
 **Domain**:
 A subject-declared label on a term saying what kind of language it is — `tech`, `business`, `daily`,
@@ -100,7 +110,8 @@ _Avoid_: suggestion, recommendation, candidate list (*candidate* is taken)
 
 **Provenance**:
 The record, per field, of where a value came from — looked up, judged or generated — together with
-the model and prompt version responsible. Trust is a property of provenance.
+the model and prompt version responsible. Trust is a property of provenance. A value looked up
+carries the dictionary's version instead, SudachiDict's or JMdict's (ADR 0075 §5).
 _Avoid_: confidence, score, reliability, trust level
 
 **Judgement field**:
@@ -123,7 +134,9 @@ that had become theatre. There is no vetting step to catch out.
 
 **Authority**:
 A named external body of opinion a level claim cites — a community word list, a published exam guide.
-Distinct from a source, which is ingested material.
+Distinct from a source, which is ingested material. The *subject* declares the ones it reads, in
+order of precedence (`authorities`); the first is `tanos-jlpt`, Jonathan Waller's JLPT lists
+(ADR 0075 §2).
 _Avoid_: source, reference, list, provider
 
 **Level claim**:
@@ -133,7 +146,9 @@ _Avoid_: rating, classification
 **Level**:
 A subject-defined ordered difficulty band derived from a term's level claims. Filters what is
 studied; never orders it. The bands are the subject's closed `levels` set — `N5` to `N1` for JLPT
-vocabulary — and a claim outside it is refused rather than stored (ADR 0065).
+vocabulary — and a claim outside it is refused rather than stored (ADR 0065). ⚠️ **Since 2026-10-10
+a word's level is the claim of the first declared *authority* that places it, and a model's estimate
+is not one** (ADR 0075 §2): a word no list places has no level.
 _Avoid_: difficulty, grade, rank, tier
 
 **Identity key**:
@@ -191,7 +206,9 @@ _Avoid_: study, test, quiz, practice
 
 **Deck**:
 A saved query over the card pool. Owns nothing; nothing is ever moved into or out of one.
-_Avoid_: collection, folder, category, group
+_Avoid_: collection, folder, group. ⚠️ *Category* left this list on 2026-10-10 and is its own term
+above: a query over *notes*, where a *deck* is one over *cards*. An imported Anki deck is a *source*,
+and *My decks* is a label on a shelf.
 
 **Candidate**:
 A note proposed by re-generation, diffed against the existing note rather than replacing it.

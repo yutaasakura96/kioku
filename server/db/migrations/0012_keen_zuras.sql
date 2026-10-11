@@ -1,0 +1,1 @@
+ALTER TABLE "vetting_session" ADD COLUMN "subject_id" text;

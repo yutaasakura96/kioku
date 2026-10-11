@@ -21,6 +21,10 @@ called from `worker/__main__.py`), not a skip at dispatch. `03` §10's rule is t
 the declaration names the modules; the way that rule fails quietly is a key nobody
 implemented, discovered on the chunk that needed it, hours into a run.
 
+⚠️ **`lookup` arrived with #68** (ADR 0075 §5), between `filter_known` and
+`generate`: a word the corpus does not hold is looked for in JMdict before any
+model is asked, and what the dictionary had never reaches stage 6.
+
 ⚠️ **Stages 2 to 5 are the pure ones, and only those.** `11` §8 names them as the
 seam — pure functions over tokens → candidates — and the corpus arrives as two
 plain collections that the caller looked up. `03` §5.1 never claimed more: stage
@@ -28,7 +32,7 @@ plain collections that the caller looked up. `03` §5.1 never claimed more: stag
 still pure — it builds a request and reads an answer, and `worker/provider.py` is
 what turns one into the other), and **stage 7 writes**.
 
-:func:`run_stages` runs 2 to 5 and returns *survivors* rather than notes, which
+:func:`run_stages` runs 2 to 5 and `lookup`, and returns *survivors* rather than notes, which
 is where ADR 0010's edge is: everything that shrinks the work happens before
 anything that spends. `worker/ingest.py` is what carries a survivor across it.
 """
@@ -44,6 +48,7 @@ from .chunk import chunk_text
 from .deduplicate import Group, deduplicate
 from .extract_candidates import Candidate, extract_candidates
 from .filter_known import filter_known
+from .lookup import Found, Lookup, lookup
 from .normalise import normalise
 from .tokenise import DICTIONARY_VERSION, Token, tokenise
 
@@ -96,6 +101,7 @@ class StageResult:
     """What one *chunk* is worth, before anything has been spent on it."""
 
     #: What reaches stage 6 — #9's input, and the only thing that costs money.
+    #: ⚠️ Since #68 that is what the dictionary **lacks**: `found` holds the rest.
     survivors: tuple[Group, ...]
     #: Groups whose ADR 0006 key the corpus already carries. Every sighting in
     #: them is an *occurrence* to append (`04` §5.5) and none of them is a *note*
@@ -111,6 +117,9 @@ class StageResult:
     rejected: int
     #: `03` §5.3's corrected cache key names it, and `04` §6.1 has the column.
     dictionary_version: str
+    #: ADR 0075 §5 — what `lookup` found. Stage 7 writes these from the
+    #: dictionary and no model is asked about them.
+    found: tuple[Found, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -144,10 +153,13 @@ class StageState:
     #: within the source and both `tokenise` and `normalise` count from zero.
     char_start: int
     corpus: Corpus
+    #: What `lookup` asks (ADR 0075 §5). Injected, like the corpus.
+    dictionary: Lookup
     tokens: tuple[Token, ...] = ()
     candidates: tuple[Candidate, ...] = ()
     groups: tuple[Group, ...] = ()
     survivors: tuple[Group, ...] = ()
+    found: tuple[Found, ...] = ()
     collisions: tuple[Group, ...] = ()
     extracted: int = 0
     deduplicated: int = 0
@@ -228,6 +240,12 @@ def _run_filter_known(state: StageState) -> StageState:
     )
 
 
+def _run_lookup(state: StageState) -> StageState:
+    """ADR 0075 §5 — the dictionary answers first, and stage 6 gets the rest."""
+    result = lookup(state.survivors, dictionary=state.dictionary)
+    return replace(state, survivors=result.missing, found=result.found)
+
+
 #: The stages this package runs, by the declaration's key for them.
 #:
 #: ⚠️ **`03` §10's rule made executable.** The key is the module name *and* the
@@ -239,6 +257,7 @@ STAGE_RUNNERS: Mapping[str, StageRunner] = {
     "normalise": _run_normalise,
     "deduplicate": _run_deduplicate,
     "filter_known": _run_filter_known,
+    "lookup": _run_lookup,
 }
 
 #: Declared stages that are somebody else's to run, named so that a pipeline
@@ -306,6 +325,7 @@ def run_stages(
     kind: str,
     char_start: int,
     corpus: Corpus,
+    dictionary: Lookup,
 ) -> StageResult:
     """The *chunk*'s pipeline, as the declaration orders it for this *kind*.
 
@@ -339,6 +359,7 @@ def run_stages(
         kind=kind,
         char_start=char_start,
         corpus=corpus,
+        dictionary=dictionary,
     )
 
     for key in stage_keys(declaration, kind):
@@ -357,4 +378,5 @@ def run_stages(
         already_known=state.already_known,
         rejected=state.rejected,
         dictionary_version=DICTIONARY_VERSION,
+        found=state.found,
     )

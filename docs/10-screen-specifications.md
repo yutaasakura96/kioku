@@ -215,6 +215,21 @@ linked. EDRDG's licence §3 asks for it on the app's site (`docs/kanjidic-resear
 `PlaceShell.vue` and so on the three *places* only; a *mode* has no chrome (ADR 0013), and the one
 screen that uses the data shows none of it.
 
+⚠️ **Amended 2026-10-10 (#68, [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)
+§8): the acknowledgement is two lines, and the starter set's is the first.** Same face, size and
+colour, each line its own paragraph:
+
+- `Words and meanings from JMdict, the open Japanese dictionary, © EDRDG, used under its licence (CC
+  BY-SA 4.0). JLPT levels from Jonathan Waller's JLPT Resources (CC BY), by way of yomitan-jlpt-vocab
+  (CC BY-SA 4.0).` Six links, in reading order: the JMdict project, EDRDG's licence, CC BY-SA 4.0,
+  Waller's JLPT pages, his licence page, and the repository the lists were read from.
+- `Kanji readings from KANJIDIC2, © EDRDG, under the same licence.` One link, the KANJIDIC project;
+  the licence links are the line above's.
+
+The reviewed prototype puts the first sentence on the Welcome screen, which #71 builds. **Until
+then it is here, and wherever it goes it stays on the site with its links**: EDRDG's licence asks
+for that and Waller's asks that his site be credited. `subjects/starter/NOTICE.md` is the record.
+
 ### 3.3 The three interaction states a *place* has
 
 Per [ADR 0035](adr/0035-five-interaction-states-is-not-a-set-and-three-screens-have-three.md).

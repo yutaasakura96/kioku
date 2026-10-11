@@ -52,6 +52,7 @@ import { introducedToday, newOnOffer } from '../../../shared/review/brake'
 import { DAILY_NEW_CARDS } from '../../../shared/review/compose'
 import type { RunStatus } from '../../../shared/ingest/run-detail'
 import type { IngestDatabase } from './record'
+import { CURRENT_SUBJECT_ID, noteInCurrentSubject } from '../subject'
 
 /**
  * How many runs Ingest lists.
@@ -152,6 +153,9 @@ export async function recentRuns(db: IngestDatabase, limit = RUNS_ON_INGEST): Pr
         .limit(1)})`,
     })
     .from(schema.ingestion)
+    // ADR 0075 §1: the runs of the corpus the reader left stay on the ledger
+    // (`/stats`) and off this list.
+    .where(eq(schema.ingestion.subjectId, CURRENT_SUBJECT_ID))
     .orderBy(desc(schema.ingestion.submittedAt))
     .limit(limit)
 
@@ -213,6 +217,9 @@ export async function allSources(db: IngestDatabase): Promise<SourceRow[]> {
         .where(eq(runs.sourceId, schema.source.id))})::int`,
     })
     .from(schema.source)
+    // ADR 0075 §1. ⚠️ `sourceDetail` is not scoped: a *source* opened by id —
+    // from the ledger, say — is still readable (`S11`).
+    .where(eq(schema.source.subjectId, CURRENT_SUBJECT_ID))
     .orderBy(desc(schema.source.submittedAt))
 
   return rows.map(row => ({ ...row, status: (row.status as RunStatus | null) ?? null }))
@@ -260,6 +267,7 @@ export async function startBlockCounts(
         isNull(schema.schedulingEpoch.supersededAt),
         isNull(schema.card.suspendedAt),
         lte(schema.schedulingEpoch.due, sql`now()`),
+        noteInCurrentSubject(db, schema.card.noteId),
       ),
     )
 

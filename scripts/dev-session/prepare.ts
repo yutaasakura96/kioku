@@ -21,6 +21,7 @@ import type { TestDatabase } from '../../test/e2e/database.ts'
 import { TEST_ENVIRONMENT } from '../../test/e2e/environment.ts'
 import { SESSION_SECONDS, signIn } from '../../test/e2e/session.ts'
 import type { SignedInReader } from '../../test/e2e/session.ts'
+import { loadStarterSet, readStarterBundle } from '../starter/load.ts'
 import { refusal } from './guard.ts'
 import type { DevSessionTarget } from './guard.ts'
 
@@ -77,6 +78,10 @@ export async function prepareDevSession(options: DevSessionOptions): Promise<Dev
   const database = await startTestDatabase({ dataDir: join(options.stateDir, 'pgdata') })
 
   const reader = await signIn(database.client, DEV_READER_ID)
+
+  // ADR 0075: the words are already there, here as in production. Repeatable,
+  // so a kept `pgdata` is loaded once and checked after.
+  await loadStarterSet(database.client, readStarterBundle())
 
   const appEnv: Record<string, string> = {
     ...TEST_ENVIRONMENT,

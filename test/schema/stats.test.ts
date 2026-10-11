@@ -78,7 +78,7 @@ async function ingested(
 ): Promise<{ sourceId: string, ingestionId: string }> {
   const source = await one<{ id: string }>(`
     INSERT INTO source (subject_id, title, content, content_hash, char_count, submitted_at)
-    VALUES ('jlpt-vocab', '${title}', '駅の近くに図書館があります。', 'hash-${title}', 14,
+    VALUES ('jlpt-vocab-2', '${title}', '駅の近くに図書館があります。', 'hash-${title}', 14,
             now() - interval '${minutesAgo} minutes')
     RETURNING id;
   `)
@@ -87,7 +87,7 @@ async function ingested(
     INSERT INTO ingestion
       (source_id, source_title, subject_id, status, submitted_at, model_id, prompt_version,
        input_tokens, output_tokens, cost_micro_usd, worker_environment)
-    VALUES ('${source.id}', '${title}', 'jlpt-vocab', 'complete',
+    VALUES ('${source.id}', '${title}', 'jlpt-vocab-2', 'complete',
             now() - interval '${minutesAgo} minutes', 'claude-sonnet-5', 'v3',
             ${tokens ? 4200 : 'null'}, ${tokens ? 900 : 'null'},
             ${cost ? 31_450 : 'null'}, '${environment}')
@@ -110,7 +110,7 @@ async function vetted(
 ): Promise<string> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-    VALUES ('jlpt-vocab', '${key}', '{"term":"図書館"}'::jsonb,
+    VALUES ('jlpt-vocab-2', '${key}', '{"term":"図書館"}'::jsonb,
             ${ingestionId ? `'${ingestionId}'` : 'null'})
     RETURNING id;
   `)
@@ -534,7 +534,7 @@ describe('the ledger — seed rows, ADR 0070 §2', () => {
       `INSERT INTO seed (subject_id, domain, level, count, requested_by, requested_at, completed_at,
          model_id, prompt_version, input_tokens, output_tokens, cost_micro_usd,
          price_table_effective_date, discarded_at)
-       VALUES ('jlpt-vocab', 'tech', 'N3', 25, '${OWNER}', now() - make_interval(mins => $1),
+       VALUES ('jlpt-vocab-2', 'tech', 'N3', 25, '${OWNER}', now() - make_interval(mins => $1),
          CASE WHEN $2 THEN now() END,
          CASE WHEN $2 THEN 'claude-sonnet-5' END, CASE WHEN $2 THEN 'seed-v1' END,
          CASE WHEN $2 THEN 1200 END, CASE WHEN $2 THEN 300 END, CASE WHEN $2 THEN 5400 END,

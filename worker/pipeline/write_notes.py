@@ -87,8 +87,10 @@ PROVENANCE_GENERATED = "generated"
 class Provenance:
     """ADR 0004's honesty bit, as the values `04` §5.4 stores it with."""
 
-    model_id: str
-    prompt_version: str
+    #: ⚠️ `None` for a *chunk*'s dictionary *notes* (ADR 0075 §5): no model
+    #: wrote any field of them, and no row they write names one.
+    model_id: str | None
+    prompt_version: str | None
     dictionary_version: str
 
 
@@ -170,20 +172,29 @@ def _write_note(
     _insert_provenance(
         connection,
         note_id=note_id,
-        declaration=to.declaration,
-        is_oov=note.group.candidate.is_oov,
-        generated_lookups=note.generated_lookups,
-        provenance=to.provenance,
-    )
-    refused = write_claims(
-        connection,
-        note_id=note_id,
         note=note,
         declaration=to.declaration,
         provenance=to.provenance,
     )
+    # ⚠️ **A *note* the dictionary wrote makes no claim** (ADR 0075 §2). Its
+    # *level* is the list's or it has none, and no model was asked about it.
+    refused = (
+        ()
+        if note.looked_up
+        else write_claims(
+            connection,
+            note_id=note_id,
+            note=note,
+            declaration=to.declaration,
+            provenance=to.provenance,
+        )
+    )
     write_meanings(
-        connection, note_id=note_id, meanings=note.meanings, provenance=to.provenance
+        connection,
+        note_id=note_id,
+        meanings=note.meanings,
+        provenance=to.provenance,
+        dictionary_version=note.looked_up.get("meaning"),
     )
     accept_and_mint(
         connection,
@@ -257,6 +268,7 @@ def write_meanings(
     note_id: str,
     meanings: Sequence[str],
     provenance: Provenance,
+    dictionary_version: str | None = None,
 ) -> bool:
     """ADR 0069 §3 — the *note*'s accepted meanings, beside it and never in it.
 
@@ -266,16 +278,28 @@ def write_meanings(
     held, or the backfill reaching one `generate` already covered, rewrites
     nothing. An empty list writes nothing (the table refuses one), and the
     answer says whether a row went in.
+
+    ⚠️ **``dictionary_version`` names a dictionary's list instead of a model's**
+    (ADR 0075 §5), and the row carries one attribution or the other, never both:
+    `note_meaning_attribution` is the check.
     """
     if not meanings:
         return False
+    from_model = dictionary_version is None
     written = connection.execute(
         """
-        INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO note_meaning
+          (note_id, meanings, model_id, prompt_version, dictionary_version)
+        VALUES (%s, %s, %s, %s, %s)
         ON CONFLICT DO NOTHING;
         """,
-        (note_id, list(meanings), provenance.model_id, provenance.prompt_version),
+        (
+            note_id,
+            list(meanings),
+            provenance.model_id if from_model else None,
+            provenance.prompt_version if from_model else None,
+            dictionary_version,
+        ),
     )
     return written.rowcount == 1
 
@@ -372,9 +396,8 @@ def _insert_provenance(
     connection: psycopg.Connection,
     *,
     note_id: str,
+    note: GeneratedNote,
     declaration: Declaration,
-    is_oov: bool,
-    generated_lookups: frozenset[str],
     provenance: Provenance,
 ) -> None:
     """ADR 0004, per field — *trust is a property of where a value came from.*
@@ -398,10 +421,32 @@ def _insert_provenance(
     `04` §12's eighth query silently loses six fields. The conflict clause is
     what makes the ungated version safe — an existing row always wins, so a
     *note* another run made keeps that run's attribution.
+
+    ⚠️ **A field the *note* does not carry gets no row** (ADR 0075 §7). A
+    dictionary entry has no example sentence, and a row for one would attribute
+    a value that is not there.
+
+    ⚠️ **A field a second dictionary supplied is a `lookup` under that
+    dictionary's version** (ADR 0075 §5) — JMdict's meaning beside SudachiDict's
+    reading, each named. `is_oov` is the tokeniser's signal and stays off it.
     """
     judged = set(judgement_field_names(declaration))
+    is_oov = note.group.candidate.is_oov
+    generated_lookups = note.generated_lookups
     for field in declaration["fields"]:
         name = field["name"]
+        if name not in note.fields:
+            continue
+        if name in note.looked_up:
+            connection.execute(
+                """
+                INSERT INTO note_field_provenance (note_id, field_name, kind, dictionary_version)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (note_id, field_name) DO NOTHING;
+                """,
+                (note_id, name, PROVENANCE_LOOKUP, note.looked_up[name]),
+            )
+            continue
         # ⚠️ **`generated_lookups` is the second way a field gets here as
         # `generated`, and ADR 0063 is why.** A *lookup* field is one a
         # dictionary supplied; a `reading` for a word SudachiPy has never seen

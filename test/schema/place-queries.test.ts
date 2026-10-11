@@ -46,7 +46,7 @@ beforeEach(async () => {
 
 function submission(overrides: Record<string, unknown> = {}) {
   return {
-    subjectId: 'jlpt-vocab',
+    subjectId: 'jlpt-vocab-2',
     kind: 'prose' as const,
     title: '朝日新聞 社説',
     content: '駅の近くに図書館があります。'.repeat(100),
@@ -130,7 +130,7 @@ describe('recentRuns', () => {
 
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-      VALUES ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb, '${second.ingestionId}');
+      VALUES ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb, '${second.ingestionId}');
     `)
 
     const runs = await recentRuns(db)
@@ -186,8 +186,8 @@ describe('allSources', () => {
 
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id) VALUES
-        ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb, '${first.ingestionId}'),
-        ('jlpt-vocab', '駅␟えき', '{}'::jsonb, '${second.ingestionId}');
+        ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb, '${first.ingestionId}'),
+        ('jlpt-vocab-2', '駅␟えき', '{}'::jsonb, '${second.ingestionId}');
     `)
 
     // Two *sources* here, because identical content creates a new one (PRD §5).
@@ -199,7 +199,7 @@ describe('allSources', () => {
     const written = await recordSource(db, submission())
     await client.exec(`
       INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_at)
-      VALUES ('${written.sourceId}', '朝日新聞 社説', 'jlpt-vocab', 'complete', now() + interval '1 minute');
+      VALUES ('${written.sourceId}', '朝日新聞 社説', 'jlpt-vocab-2', 'complete', now() + interval '1 minute');
     `)
 
     const [source] = await allSources(db)
@@ -342,8 +342,18 @@ describe('startBlockCounts', () => {
   it('subtracts what today\'s runs already introduced', async () => {
     for (let n = 0; n < 12; n += 1)
       await seedNewCard(`語${n}␟ご`)
+    // ⚠️ A run with a *card* in it, since #68: a *session* carries no
+    // `subject_id`, so its membership is what says it was this corpus's
+    // (`server/utils/subject.ts`). The *card* is a due one, so the twelve new
+    // ones are all still waiting.
+    const member = await seedDueCard({ due: `now() + interval '1 day'` })
     await client.exec(`
-      INSERT INTO review_session (owner_id, size, new_count, zone) VALUES ('${OWNER}', 7, 7, 'UTC');
+      WITH run AS (
+        INSERT INTO review_session (owner_id, size, new_count, zone)
+        VALUES ('${OWNER}', 7, 7, 'UTC') RETURNING id
+      )
+      INSERT INTO review_session_card (review_session_id, ordinal, card_id, owner_id)
+      SELECT id, 0, '${member.cardId}', '${OWNER}' FROM run;
     `)
 
     expect((await startBlockCounts(db, OWNER)).newToday).toBe(3)
@@ -364,7 +374,7 @@ describe('startBlockCounts', () => {
 async function seedVetting(state: string, identityKey = '図書館␟としょかん') {
   const note = await client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${identityKey}', '{}'::jsonb) RETURNING id;
+    VALUES ('jlpt-vocab-2', '${identityKey}', '{}'::jsonb) RETURNING id;
   `)
   const noteId = note.rows[0]!.id
 

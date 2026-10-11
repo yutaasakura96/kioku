@@ -206,6 +206,12 @@ def domain_values(declaration: Declaration) -> list[str]:
     return list(declaration["domains"])
 
 
+def authority_keys(declaration: Declaration) -> list[str]:
+    """The *authorities* a *level claim* may cite, highest precedence first —
+    ADR 0005, ADR 0075 §3. A model's estimate is not among them."""
+    return list(declaration["authorities"])
+
+
 def pipeline_kinds(declaration: Declaration) -> list[str]:
     """The *source kinds* this declaration can ingest, in declaration order."""
     return list(declaration["pipelines"])
@@ -314,6 +320,7 @@ def check_declaration(value: Any) -> ValidationResult:
     pipelines = value.get("pipelines")
     levels = value.get("levels")
     domains = value.get("domains")
+    authorities = value.get("authorities")
 
     if not _is_record_list(fields):
         return _malformed("fields")
@@ -329,6 +336,8 @@ def check_declaration(value: Any) -> ValidationResult:
         return _malformed("levels")
     if not _is_string_list(domains):
         return _malformed("domains")
+    if not _is_string_list(authorities):
+        return _malformed("authorities")
 
     errors: list[ValidationError] = []
     required: dict[str, bool] = {}
@@ -415,7 +424,12 @@ def check_declaration(value: Any) -> ValidationResult:
 
     # ⚠️ **ADR 0065 §2's closed sets.** An empty one leaves the model no legal
     # answer; a value listed twice is two filter controls for one thing.
-    for section, values in (("levels", levels), ("domains", domains)):
+    # `authorities` is checked the same way since ADR 0075.
+    for section, values in (
+        ("levels", levels),
+        ("domains", domains),
+        ("authorities", authorities),
+    ):
         if not values:
             errors.append(ValidationError(section, "no_values"))
             continue

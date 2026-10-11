@@ -43,6 +43,7 @@ import * as schema from '../../db/schema'
 import { completeSession } from './session'
 import { isFinished } from '../../../shared/review/snapshot'
 import { snapshotOf } from './queries'
+import { noteInCurrentSubject } from '../subject'
 import type { IngestDatabase } from '../ingest/record'
 import type { ReviewSnapshot } from './queries'
 
@@ -70,6 +71,7 @@ export async function recordFlag(
           eq(schema.reviewSessionCard.reviewSessionId, request.sessionId),
           eq(schema.reviewSessionCard.cardId, request.cardId),
           eq(schema.reviewSessionCard.ownerId, ownerId),
+          noteInCurrentSubject(tx, schema.card.noteId),
         ),
       )
       .limit(1)

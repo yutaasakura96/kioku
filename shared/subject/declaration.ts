@@ -180,6 +180,48 @@ export function domainValues(declaration: SubjectDeclaration): string[] {
   return [...declaration.domains]
 }
 
+/**
+ * The *authorities* a *level claim* may cite, highest precedence first —
+ * ADR 0005, ADR 0075 §3.
+ *
+ * ⚠️ **A word's *level* is the claim of the first authority here that makes
+ * one, and a model's estimate is not on the list.** `level_claim.authority_key`
+ * is null for an estimate (`04` §5.6), so nothing that reads a *level* through
+ * this list can be handed one.
+ */
+export function authorityKeys(declaration: SubjectDeclaration): string[] {
+  return [...declaration.authorities]
+}
+
+/** ADR 0006's key is rendered by joining its fields with U+001F — `04` §5.3. */
+export const IDENTITY_KEY_SEPARATOR = String.fromCharCode(31)
+
+/**
+ * `04` §5.3's rendering rule: NFC, joined by U+001F, in declared order.
+ *
+ * ⚠️ **`worker/subject.py`'s `render_identity_key`, and the two must agree.**
+ * The worker was the only writer of a *note* until the starter set (ADR 0075);
+ * `scripts/starter-load.ts` is the second, and a key rendered differently here
+ * would make a starter word and the same word from an imported deck two
+ * *notes*. `worker/tests/test_subject_drift.py` compares them.
+ *
+ * ⚠️ **A missing field throws.** Half a key is not a key.
+ */
+export function renderIdentityKey(
+  declaration: SubjectDeclaration,
+  fields: Record<string, unknown>,
+): string {
+  return declaration.identity_key
+    .map((name) => {
+      const value = fields[name]
+      if (typeof value !== 'string')
+        throw new TypeError(`'${name}' is part of the identity key and is not a string`)
+
+      return value.normalize('NFC')
+    })
+    .join(IDENTITY_KEY_SEPARATOR)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -205,7 +247,7 @@ export function checkDeclaration(value: unknown): ValidationResult {
   if (!isRecord(value))
     return { ok: false, errors: [{ field: null, code: 'not_an_object' }] }
 
-  const { fields, identity_key: identityKey, templates, pipelines, levels, domains } = value
+  const { fields, identity_key: identityKey, templates, pipelines, levels, domains, authorities } = value
 
   if (!Array.isArray(fields) || !fields.every(isRecord))
     return malformed('fields')
@@ -223,6 +265,8 @@ export function checkDeclaration(value: unknown): ValidationResult {
     return malformed('levels')
   if (!isStringList(domains))
     return malformed('domains')
+  if (!isStringList(authorities))
+    return malformed('authorities')
 
   const errors: ValidationError[] = []
   const required = new Map<string, boolean>()
@@ -324,8 +368,9 @@ export function checkDeclaration(value: unknown): ValidationResult {
 
   // ⚠️ **ADR 0065 §2's closed sets.** An empty one leaves the model no legal
   // answer and every claim refused; a value listed twice is two checkboxes on
-  // *Review* for one thing.
-  for (const [section, values] of [['levels', levels], ['domains', domains]] as const) {
+  // *Review* for one thing. `authorities` is checked the same way since ADR 0075:
+  // with none, no word has a *level*, and one listed twice has two precedences.
+  for (const [section, values] of [['levels', levels], ['domains', domains], ['authorities', authorities]] as const) {
     if (values.length === 0) {
       errors.push({ field: section, code: 'no_values' })
       continue

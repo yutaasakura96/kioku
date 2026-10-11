@@ -236,6 +236,15 @@ These are behavioural rather than structural, and they sit in this tier because 
 ⚠️ **`Z`'s un-mint tests stay, against a *pending* *note***. `decide()` still answers one, and that path
 is the only one on which `Z` deletes a *card*.
 
+⚠️ **Amended 2026-10-10 with [#68](https://github.com/yutaasakura96/kioku/issues/68) — [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md).**
+Three files at this tier, and the first is the one that guards a decision nothing else can see:
+
+| Test | Asserts | From |
+| --- | --- | --- |
+| ⚠️ **Start fresh** (`start-fresh.test.ts`) | A whole history seeded under the old *subject* id (*source*, run, *notes*, *cards*, a graded *session*, a flag, claims) is returned by **no** screen read: *Review*'s due, new and live-*session* reads, *Vet*'s queue and run tally, *Ingest*'s and *Sources*' lists, `/stats`' five numbers. **Nor written to**: a *grade*, a flag and a synonym sent to the old *session* by id are refused; an old *Vet* run is neither reused nor undone, and old-source delete confirmation and `POST` are refused. **And is still returned** by the export, the spend ledger and a *source* opened by id. **The other fixtures seed one *subject*, so a read that forgets the predicate passes there**; removing the three predicates in `server/utils/subject.ts` was tried and fails here | ADR 0075 §1 |
+| The starter set (`starter.test.ts`) | The committed bundle, loaded whole: the five per-level counts, one `tanos-jlpt` claim and one dictionary-attributed `note_meaning` per *note*, **no *card***, a second load writes nothing, a kana-only word asks no reading, a refresh updates an unstarted word and leaves a started or model-written one alone, and adds to a dictionary's accepted meanings without removing one, a bundle naming an undeclared *authority* or level is refused. And the *categories*: five JLPT rows with counts even at zero, a deck per live `anki` *source*, *My words* only when it holds something | ADR 0075 §3, §4 |
+| `0011`'s check and index (`schema.test.ts`) | A list of accepted meanings is attributed to a dictionary or to a model, never both and never neither; `level_claim (authority_key, level)` exists and is partial | `04` §5.8, §11 |
+
 ---
 
 ## 6. The three things that were open, closed
@@ -739,6 +748,13 @@ Named so each is a decision rather than a gap.
   allowlist's shape, `sameSite: "lax"`, `cookieCache` off — not the library's correctness.
 - **Hard deletion.** It has no route (`09` §4.11) and no screen. A test would be testing a migration
   written by a person, and the guard is `04` §9.1 being read.
+- ⚠️ **The open data itself** (added 2026-10-10, #68). Nothing asserts that JMdict's meaning for a
+  word is right or that a list's level is. What is tested is the build from a fixture
+  (`worker/tests/test_starter.py`, `test_dictionary.py`), the load, and that each value carries
+  where it came from. Whether the words are good to study from is read from the flag rate once #70
+  lets one be studied ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)).
+- ⚠️ **The download.** `test_dictionary.py` asserts the address is HTTPS and injects the fetch;
+  no test contacts EDRDG, and `KIOKU_JMDICT_PATH` points every other test at a fixture.
 
 ---
 

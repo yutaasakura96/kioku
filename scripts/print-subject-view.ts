@@ -18,6 +18,7 @@
  * That is in `shared/subject/declaration.ts`, and it is why.
  */
 import {
+  authorityKeys,
   DECLARATION_PATH,
   domainValues,
   fieldNames,
@@ -26,6 +27,7 @@ import {
   levelValues,
   memoryBearingFieldNames,
   pipelineKinds,
+  renderIdentityKey,
   requiredFieldNames,
   stageKeys,
 } from '../shared/subject/declaration.ts'
@@ -60,6 +62,10 @@ const view = {
   // *session* filter both enforce — one on each side of the repository.
   levels: levelValues(jlptVocab),
   domains: domainValues(jlptVocab),
+  authorities: authorityKeys(jlptVocab),
+  // か\u3099 is が decomposed: the key has to come back composed (`04` §5.3).
+  identity_key_sample: renderIdentityKey(jlptVocab, { term: '開く', reading: 'ひらく', meaning: 'x' })
+    + renderIdentityKey(jlptVocab, { term: 'か\u3099っこう', reading: 'か\u3099っこう' }),
 }
 
 process.stdout.write(`${JSON.stringify(view)}\n`)

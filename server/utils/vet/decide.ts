@@ -261,7 +261,9 @@ async function applyEdit(
   fields: Record<string, string>,
   edits: Record<string, string>,
 ): Promise<string[] | null> {
-  const changed = Object.entries(edits).filter(([name, value]) => fields[name] !== value)
+  // ⚠️ `?? ''`: a field the *note* never carried and an edit that leaves it
+  // blank are the same nothing (ADR 0075 §7), not a change to attribute.
+  const changed = Object.entries(edits).filter(([name, value]) => (fields[name] ?? '') !== value)
 
   if (changed.length === 0)
     return []

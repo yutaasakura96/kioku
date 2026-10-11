@@ -73,7 +73,7 @@ beforeAll(async () => {
 
   const inserted = await database.client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '図書館␟としょかん', '${JSON.stringify(FIELDS)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '図書館␟としょかん', '${JSON.stringify(FIELDS)}'::jsonb)
     RETURNING id;
   `)
   noteId = inserted.rows[0]!.id

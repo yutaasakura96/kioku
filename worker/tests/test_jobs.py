@@ -30,7 +30,7 @@ def queue_job(connection: psycopg.Connection, title: str = "朝日新聞 社説"
     source_id = connection.execute(
         """
         INSERT INTO source (subject_id, title, content, content_hash, char_count)
-        VALUES ('jlpt-vocab', %s, '本文', %s, 2) RETURNING id;
+        VALUES ('jlpt-vocab-2', %s, '本文', %s, 2) RETURNING id;
         """,
         (title, f"hash-{title}"),
     ).fetchone()[0]
@@ -44,7 +44,7 @@ def queue_job(connection: psycopg.Connection, title: str = "朝日新聞 社説"
     ingestion_id = connection.execute(
         """
         INSERT INTO ingestion (source_id, source_title, subject_id, status)
-        VALUES (%s, %s, 'jlpt-vocab', 'queued') RETURNING id;
+        VALUES (%s, %s, 'jlpt-vocab-2', 'queued') RETURNING id;
         """,
         (source_id, title),
     ).fetchone()[0]

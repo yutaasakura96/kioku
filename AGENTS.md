@@ -4,13 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is right now
 
-**Kioku** (記憶 — memory) builds spaced-repetition flashcard decks automatically from bulk source
-material and is also the app the decks are studied in. First subject is JLPT vocabulary; CS / web
-dev / networking / cloud terminology follow.
+**Kioku** (記憶 — memory) is a ready-to-study spaced-repetition flashcard quiz: the words are
+already there, from open data, and the reader chooses what to study. First subject is JLPT
+vocabulary. ⚠️ **This said it *builds decks automatically from bulk source material* until
+2026-10-10**, when Yuta changed the direction on
+[#67](https://github.com/yutaasakura96/kioku/issues/67) (ADR 0075); building *cards* from your own
+words or an Anki deck is now the secondary path, and most of the history below describes it.
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-five more ADRs** with it — **74** as of 2026-09-25 (ADR 0074 self-hosts the three faces
+code since 2026-09-09 and **thirty-six more ADRs** with it — **75** as of 2026-10-10 (ADR 0075, the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until then. ADR 0074 self-hosts the three faces
 from `@fontsource` and closes the last "Still open" entry in the decision log; ⚠️ this said *73*
 until then. ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
@@ -39,7 +42,7 @@ row on the spend ledger.
 `review_session.new_count`, none while fifty are due, and a backlog ordered by retrievability.
 **Every generated word carries a model-estimated *level* and *domain*** (`level_claim`,
 `domain_claim`, from the *subject*'s closed `levels` and `domains` sets), and *Review*'s end screen and
-empty states carry a filter that narrows the **new** half of the next *session* only (ADR 0065). A *source* declares
+empty states carry a filter that narrows the **new** half of the next *session* only (ADR 0065). ⚠️ **Since #68 (2026-10-10) the model's *level* is written and not read**: a word's *level* is the claim of a declared *authority*, `tanos-jlpt`, which the starter set carries (ADR 0075 §2), and a word the dictionary has is written by the `lookup` stage with no model and no claim. A *source* declares
 its `kind`, the declaration names one pipeline per kind, and *Ingest* offers a word list first. **A
 chosen word is `accepted` and minted when the worker writes it**, owned by `job.requested_by`,
 through the `mint_cards` database function (ADR 0067). **_Vet_ is the flag queue** with keep, fix and
@@ -61,7 +64,7 @@ it.~~ ⚠️ **#38 was re-scoped and built 2026-09-24** (ADR 0073): the worker's
 stopped answering without saying so. **The evidence it was filed on was wrong — macOS sleep — and the
 ticket was right anyway**, because an idle `serve` issues no statements and so cannot notice a
 half-open socket. ⚠️ **One link is unmeasured and ADR 0073 §4 names it rather than rounding it up.**
-~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-09-28 the frontier is the first deployment** (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
+~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-10-10 the frontier is the direction change, #69–#74, and #68 is built** (`docs/00-status.md` § Next: **the corpus started again under `subject_id` `jlpt-vocab-2`, every screen read goes through `server/utils/subject.ts`, and none of it is on production yet**). ⚠️ This said *since 2026-09-28 the frontier is the first deployment* until then (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
 ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
@@ -125,7 +128,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1210 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-10, after #73)
+npm run test        # 1269 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-10, after #68)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # the app on localhost:3000, signed in: open the "Sign in" URL it prints (or load

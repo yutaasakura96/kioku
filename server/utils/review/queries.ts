@@ -26,9 +26,11 @@ import type { ComposedSession } from '../../../shared/review/brake'
 import { retrievability } from '../../../shared/review/scheduler'
 import { resolveZone } from '../../../shared/time/local-day'
 import type { SessionFilter } from '../../../shared/review/filter'
+import { levelAuthority } from '../../../shared/category/category'
 import { NO_FILTER } from '../../../shared/review/filter'
 import type { Grade } from '../../../shared/review/scheduler'
 import type { IngestDatabase } from '../ingest/record'
+import { noteInCurrentSubject, sessionInCurrentSubject } from '../subject'
 import { kanjiReadingsOf } from './kanji'
 // ⚠️ **The snapshot's shape lives in `shared/`, not here.** It is what crosses
 // the wire, and `shared/review/snapshot.ts` carries the one rule about how a
@@ -76,7 +78,7 @@ export async function dueCards(
     })
     .from(epoch)
     .innerJoin(schema.card, eq(schema.card.id, epoch.cardId))
-    .where(dueWhere(ownerId, now))
+    .where(dueWhere(db, ownerId, now))
     .orderBy(asc(epoch.due), asc(schema.card.id))
     .limit(DUE_READ_CEILING)
 
@@ -102,17 +104,20 @@ export async function dueCount(
     .select({ count: count() })
     .from(schema.schedulingEpoch)
     .innerJoin(schema.card, eq(schema.card.id, schema.schedulingEpoch.cardId))
-    .where(dueWhere(ownerId, now))
+    .where(dueWhere(db, ownerId, now))
 
   return row?.count ?? 0
 }
 
-function dueWhere(ownerId: string, now: Date) {
+// ⚠️ **The current *subject* only** (ADR 0075 §1): a *card* of the corpus the
+// reader left is still due in the database and is not owed on any screen.
+function dueWhere(db: IngestDatabase, ownerId: string, now: Date) {
   return and(
     eq(schema.schedulingEpoch.ownerId, ownerId),
     isNull(schema.schedulingEpoch.supersededAt),
     lte(schema.schedulingEpoch.due, now),
     isNull(schema.card.suspendedAt),
+    noteInCurrentSubject(db, schema.card.noteId),
   )
 }
 
@@ -140,11 +145,17 @@ export async function recentlyComposed(
         eq(schema.reviewSession.ownerId, ownerId),
         gt(schema.reviewSession.newCount, 0),
         gte(schema.reviewSession.startedAt, new Date(now.getTime() - RECENT_WINDOW_MS)),
+        // ADR 0075 §1: what the corpus the reader left introduced today does
+        // not spend this one's allowance.
+        sessionInCurrentSubject(db),
       ),
     )
 }
 
 const RECENT_WINDOW_MS = 48 * 60 * 60 * 1000
+
+/** The *authority* a *level* is read from — the declaration's first (ADR 0075 §2). */
+const LEVEL_AUTHORITY = levelAuthority()
 
 /**
  * The zone the reader's client last reported (ADR 0066 §4, as amended by #21),
@@ -160,7 +171,7 @@ export async function readerZone(db: IngestDatabase, ownerId: string): Promise<s
   const [row] = await db
     .select({ zone: schema.reviewSession.zone })
     .from(schema.reviewSession)
-    .where(and(eq(schema.reviewSession.ownerId, ownerId), isNotNull(schema.reviewSession.zone)))
+    .where(and(eq(schema.reviewSession.ownerId, ownerId), isNotNull(schema.reviewSession.zone), sessionInCurrentSubject(db)))
     .orderBy(desc(schema.reviewSession.startedAt))
     .limit(1)
 
@@ -181,10 +192,15 @@ export async function readerZone(db: IngestDatabase, ownerId: string): Promise<s
  * `LIMIT` on it: filtering twenty unfiltered rows afterwards would answer *no
  * `tech` cards* to a reader with a hundred of them behind the first twenty.
  *
- * ⚠️ **A claim in the set, any claim.** ADR 0005 keeps the set of claims and
- * never collapses it, and v1 has no authority precedence to pick one by — so a
- * *note* is in the filter if any of its claims is. Today every *note* carries at
- * most one, the model's, and a *note* with none matches no filter.
+ * ⚠️ **The *level* is the list's, and a model's estimate is not one** (ADR 0075
+ * §2, #68). The declaration's `authorities` is the precedence ADR 0005 left
+ * open, and the level filter reads the first declared authority's claim and no
+ * other: a *note* that authority does not place matches no level. ⚠️ **This
+ * said *a claim in the set, any claim* until #68**, when every claim was a
+ * model's. The *domain* filter still reads any claim — nothing with a name on
+ * it says a *domain* yet.
+ *
+ * ⚠️ **The current *subject* only** (ADR 0075 §1).
  */
 export async function newCards(
   db: IngestDatabase,
@@ -203,6 +219,7 @@ export async function newCards(
       and(
         eq(schema.card.ownerId, ownerId),
         isNull(schema.card.suspendedAt),
+        noteInCurrentSubject(db, schema.card.noteId),
         notExists(
           db.select({ one: sql`1` }).from(epoch).where(eq(epoch.cardId, schema.card.id)),
         ),
@@ -217,7 +234,11 @@ export async function newCards(
           ? undefined
           : exists(
               db.select({ one: sql`1` }).from(level).where(
-                and(eq(level.noteId, schema.card.noteId), inArray(level.level, filter.levels)),
+                and(
+                  eq(level.noteId, schema.card.noteId),
+                  eq(level.authorityKey, LEVEL_AUTHORITY),
+                  inArray(level.level, filter.levels),
+                ),
               ),
             ),
       ),
@@ -244,7 +265,7 @@ export async function snapshotOf(
       snapshotTakenAt: schema.reviewSession.snapshotTakenAt,
     })
     .from(schema.reviewSession)
-    .where(and(eq(schema.reviewSession.id, sessionId), eq(schema.reviewSession.ownerId, ownerId)))
+    .where(and(eq(schema.reviewSession.id, sessionId), eq(schema.reviewSession.ownerId, ownerId), sessionInCurrentSubject(db)))
     .limit(1)
 
   if (!session)
@@ -347,7 +368,13 @@ export async function nothingToStudy(
   const [any] = await db
     .select({ cardId: schema.card.id })
     .from(schema.card)
-    .where(and(eq(schema.card.ownerId, ownerId), isNull(schema.card.suspendedAt)))
+    .where(
+      and(
+        eq(schema.card.ownerId, ownerId),
+        isNull(schema.card.suspendedAt),
+        noteInCurrentSubject(db, schema.card.noteId),
+      ),
+    )
     .limit(1)
 
   if (!any)
@@ -362,6 +389,7 @@ export async function nothingToStudy(
         eq(schema.schedulingEpoch.ownerId, ownerId),
         isNull(schema.schedulingEpoch.supersededAt),
         isNull(schema.card.suspendedAt),
+        noteInCurrentSubject(db, schema.card.noteId),
       ),
     )
     .orderBy(asc(schema.schedulingEpoch.due))

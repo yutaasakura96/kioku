@@ -1,9 +1,14 @@
 # Project status
 
 **Project:** Kioku (記憶) — builds spaced-repetition decks automatically from bulk source material,
-and is the app they're studied in. First subject: JLPT vocabulary.
+and is the app they're studied in. First subject: JLPT vocabulary. ⚠️ **Since 2026-10-10 that
+sentence is history** ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md),
+[#67](https://github.com/yutaasakura96/kioku/issues/67)): Kioku is a ready-to-study flashcard quiz
+whose words are already there, from open data, and building a deck from your own material is a
+tucked-away option.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**74 ADRs** — ⚠️ **ADR 0074, the app ships its own faces, added 2026-09-25** (this said *70* from
+**75 ADRs** — ⚠️ **ADR 0075, the words are ready-made and a level comes from a list, added
+2026-10-10** with #68 (this said *74* until then). ⚠️ **ADR 0074, the app ships its own faces, added 2026-09-25** (this said *70* from
 2026-09-21 until then, three ADRs behind the directory). ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
 contributes only the words in it that name a level, on the re-measurement that ADR asked #26 for).
 ⚠️ **This said *67* until 2026-09-20, while ADR 0068 had been on disk and in the decision log since
@@ -112,13 +117,68 @@ They were drafted `needs-triage` first. ⚠️ **The paragraph above that names 
 stale**, and since 2026-09-29 it says so where it says it. The tracker had no open issue from #40's
 close on 2026-09-25 until these four were filed.
 
-**Updated:** 2026-09-30 (⚠️ this said 2026-09-22 while § Done ran to 2026-09-25)
+⚠️ **2026-10-10: the direction changed, and the frontier is
+[#69](https://github.com/yutaasakura96/kioku/issues/69)–[#74](https://github.com/yutaasakura96/kioku/issues/74)**
+(§ Next). Yuta reviewed the deployed app, decided on
+[#67](https://github.com/yutaasakura96/kioku/issues/67) that it should be a ready-to-study flashcard
+quiz, and reviewed a prototype of it the same day (`docs/prototype/`).
+[#68](https://github.com/yutaasakura96/kioku/issues/68), the data under it, is built (§ Done):
+**a starter set of 8,273 JLPT words from JMdict and Jonathan Waller's lists, a *level* that comes
+from the list, derived *categories*, a dictionary lookup in front of the model, and a corpus that
+starts again under `jlpt-vocab-2` with nothing deleted.** ⚠️ **None of it is on production**: the
+migration, the load and the release are Yuta's (§ Next). ⚠️ **And nothing above this paragraph was
+rewritten for it** — where an earlier paragraph says what the app is for, ADR 0075 is the newer word.
+
+**Updated:** 2026-10-10 (⚠️ this said 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-10, latest — [#73](https://github.com/yutaasakura96/kioku/issues/73): the server is
+**2026-10-10, latest — [#68](https://github.com/yutaasakura96/kioku/issues/68): the starter set, and
+a *level* from a list.** The first build step of #67's direction change
+([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)). It builds the
+data and no screen.
+- **The starter set.** `npm run starter:build` (`worker/starter.py`) writes
+  `subjects/starter/jlpt-vocab.json` from JMdict and the five JLPT lists; `npm run starter:load`
+  (`scripts/starter/load.ts`) loads it. **8,273 words: N5 684, N4 640, N3 1,730, N2 1,811,
+  N1 3,408**, from JMdict as of 2026-10-09 and the lists at `b062d4e`. Twenty list rows are left out
+  and the bundle says why (fourteen name no JMdict entry, four are listed again at a harder level,
+  two have a spelling and reading JMdict lacks). 1,013 of the words are kana-only and so ask no
+  reading (ADR 0069 §4, unchanged).
+- **Licences, checked before bundling** (`subjects/starter/NOTICE.md`): JMdict is CC BY-SA 4.0
+  (EDRDG), the lists are Jonathan Waller's under CC BY, and they were read from
+  `stephenmk/yomitan-jlpt-vocab`, CC BY-SA 4.0. ⚠️ **`www.tanos.co.uk` did not resolve that day**,
+  so Waller's terms were read from the Internet Archive's 2025-11-14 capture of his licence page.
+- **A *level* is the list's.** The declaration gains `authorities: ["tanos-jlpt"]`; the *session*
+  filter, the *Vet* strip and the JLPT *categories* read declared *authorities* only. A model's
+  estimate is still written for a word the dictionary lacks, and nothing reads it as a level.
+- ***Categories*, derived** (`shared/category/category.ts`, `server/utils/category/queries.ts`):
+  `jlpt:<level>`, `deck:<source id>`, `my-words`. No screen reads them yet; #69 does.
+- **Start fresh, without deleting.** `subject_id` is `jlpt-vocab-2`, and every reader-facing read
+  goes through `server/utils/subject.ts`. `test/schema/start-fresh.test.ts` seeds a whole history
+  under the old id and asserts that no screen read returns it, and that the export, the ledger and
+  a *source* opened by id still do. Removing the three predicates fails it.
+- **The dictionary before the model.** A `lookup` stage after `filter_known` in all three
+  pipelines: a word JMdict has is written from it with `lookup` *provenance* and no model request.
+  The worker caches JMdict in `worker/.cache/` (ignored) and fetches it again after thirty days.
+- **Migration `0011`**, additive: `note_meaning.dictionary_version`, `model_id` and
+  `prompt_version` nullable with a check that a list is attributed to one or the other, and a
+  partial index on `level_claim` for the category counts. **Not on Neon.**
+- **The acknowledgement** is in the *shell*'s footer, in front of the KANJIDIC2 line, with a link
+  to each source and licence (ADR 0075 §8). Read in a browser on `dev:session` at desktop and phone
+  widths, with a kana-only starter word (テレビ: the meaning alone) and a kanji one (会う: the
+  reading, then the meaning) walked through *Review* by minting a *card* by hand.
+- **The example fields are optional** (ADR 0075 §7): a dictionary word has no sentence, the *card*
+  draws only what the *note* carries, and *Vet*'s fix accepts a blank optional field.
+- ⚠️ **Not done here, on purpose:** no starter word has a *card* (#70 mints it), no screen was
+  added, nothing ran against production, and no old row was written to.
+- **1269 TypeScript tests (was 1210 after #73), 449 worker tests (113
+  on the container), typecheck and build clean.** `01`, `02`, `03`, `04`, `10`, `CONTEXT.md`,
+  `subjects/README.md` and ADRs 0001, 0003, 0005, 0063, 0064 and 0065 amended.
+  `docs/prototype/` holds the reviewed prototype.
+
+**2026-10-10 — [#73](https://github.com/yutaasakura96/kioku/issues/73): the server is
 bundled and the favicon is static.** Database warm-up was dropped after measurement. The deployed
 cold start still needs re-measurement after release; any hosting or paid-plan decision remains
 Yuta's. [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
@@ -2239,6 +2299,42 @@ Seven findings worth knowing without opening it:
 
 ## Next
 
+⚠️ **2026-10-10: the frontier is the direction change, [#67](https://github.com/yutaasakura96/kioku/issues/67).**
+#68 is built (§ Done) and the rest are filed:
+
+- [#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
+  Reads `categories()` and `noteInCategory()`, which #68 left unread. The reader's one active
+  category is its to store.
+- [#70](https://github.com/yutaasakura96/kioku/issues/70): **the quiz with lessons.** ⚠️ **It owes
+  the mint**: a starter word has no *card* until a lesson starts it (ADR 0075 §4), so until #70 the
+  8,273 words can be counted and not studied. ⚠️ **And it has to settle the example sentence**: the
+  prototype's lesson shows one and the starter set has none (ADR 0075 §7).
+- [#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.** The
+  prototype puts the sources' acknowledgement on Welcome; it is in the *shell*'s footer until then
+  (ADR 0075 §8), and wherever it moves it must stay on the site with its links.
+- [#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
+  test.** [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
+  [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
+
+⚠️ **Owed by Yuta before any of #68 reaches the deployed app**, in this order, by the release
+procedure in § Carrying. None of it was done or simulated by the build:
+
+1. **Apply the pending migrations to production**, `0011` among them. It is additive.
+2. **Load the starter set into production**: `npm run starter:load`, with the production string
+   injected the way the migration's is. It writes shared rows only, is repeatable, and prints the
+   per-level counts to check against the table in ADR 0075 §4.
+3. **Restart the laptop worker on the released code** before any new run. A worker on the old code
+   writes under the old *subject* id, and one on the new code refuses a run queued under the old.
+4. **Merge `develop` into `main`.** ⚠️ **From that deploy the reader sees an empty app**: the old
+   *cards* are out of every read, and the starter words have no *cards* until #70. **Releasing #68
+   by itself is a worse app than today's**, so the release probably waits for #69 and #70; that
+   timing is Yuta's.
+5. **Deleting the old corpus from production is optional and his alone.** Nothing needs it, and
+   `review_log` cannot be deleted from without lifting its trigger.
+
+⚠️ **Everything below this point was written before 2026-10-10.** #46's `.apkg` upload and #47's
+phone walkthrough are still open, and both now describe an app whose screens are about to change.
+
 ⚠️ **2026-09-28: the frontier holds the first deployment, confirmed by Yuta the same day.** ⚠️ It
 was drafted and waiting for him to confirm it earlier that day. He chose ADR 0022's deployment, and *Review* on the phone, as the next work, over a second
 *subject*, a production template and decks. He took every recommendation on the planning board. The
@@ -3005,6 +3101,40 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **Every read a screen makes goes through `server/utils/subject.ts`** (ADR 0075 §1, #68). The
+  old corpus is still in the database under `jlpt-vocab`, and the only thing keeping it off the
+  screen is three predicates: `noteInCurrentSubject`, `cardInCurrentSubject` and
+  `sessionInCurrentSubject`. **A new query without one shows the reader *cards* they were told were
+  gone, and it will look correct in every test that seeds one *subject*.** Add the read to
+  `test/schema/start-fresh.test.ts`, which seeds two. Client-supplied IDs must also be scoped before
+  a write: Review answers, Vet run reuse and undo, and source deletion. ADR 0075 §1 owns the
+  exceptions for the spend ledger, export and source reads by id.
+- ⚠️ **A *session* has no `subject_id`; its membership is its *subject*.** A `review_session` with
+  no member *card* is in no *subject* and no read counts it, which a test that inserts a bare
+  *session* row will discover.
+- ⚠️ **A starter word has no *card*, and no example sentence** (ADR 0075 §4, §7). The loader writes
+  shared rows only; #70's lesson mints. Do not "fix" an empty *Review* by minting 8,273 *cards*: the
+  brake is ten a day. And the two example fields are optional in the declaration while the model's
+  output schema still names both as properties, so **a model that answers one with an empty string
+  now passes where it was refused before #68**. Nothing measures how often that happens.
+- ⚠️ **The model's *level* estimate is still written and nothing reads it** (ADR 0075 §2). It is in
+  the prompt, and taking it out changes `PROMPT_VERSION` and every cache key. `worker/seeding.py`'s
+  exclusion query is the one place any claim still counts, on purpose: it asks what the model would
+  plausibly propose, not what a word's level is.
+- ⚠️ **The starter set has a licence clock, like KANJIDIC2's below** (EDRDG licence §4). Monthly:
+  `npm run starter:build`, read the diff of `subjects/starter/jlpt-vocab.json`, run the tests,
+  commit, and `npm run starter:load` where it is deployed (production is Yuta's). **Refresh log:**
+  JMdict created 2026-10-09, built 2026-10-10 (#68). **Next due by 2026-11-10.** A refresh never
+  rewrites a word a reader has started (`scripts/starter/load.ts` says why).
+- ⚠️ **The worker's JMdict is a second copy with its own clock.** `worker/.cache/` is fetched when
+  the worker first needs it and again once it is thirty days old, **but only when a process loads
+  it**: a worker left running keeps the file it opened. Restarting the worker is what refreshes it.
+  `KIOKU_JMDICT_PATH` points it at a file instead, which is what the tests do.
+- ⚠️ **`TRUNCATE ingestion CASCADE` reaches `note`** through `note.origin_ingestion_id`. A schema
+  test that clears runs that way between cases also clears the starter set it loaded once.
+- ⚠️ **`subject_id` and the declaration's file name no longer match** (`jlpt-vocab-2` in
+  `subjects/jlpt-vocab.json`). The id is read from the file everywhere; a literal `'jlpt-vocab'` in
+  new code or a new fixture names the old corpus.
 - ⚠️ **Bundled server dependencies can expose unresolved optional imports after a dependency bump.**
   Preserve each stub's import behavior; see [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
   and `server/stubs/` (#73).

@@ -4,6 +4,14 @@
 **Date:** 2026-09-03
 **Owner:** Yuta Asakura (sole user, sole developer)
 
+⚠️ **Amended 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md), [#67](https://github.com/yutaasakura96/kioku/issues/67)).** The
+problem this brief opens on, and §5's thesis, are no longer what the app is built around. Yuta
+reviewed the deployed app and decided it should be **a ready-to-study flashcard quiz**: open it,
+choose what to study, and be quizzed on words that are already there. The words come from open data
+and the reader builds nothing. Turning your own material into *cards*, which is everything below,
+survives as *Add my own words* and *Import an Anki deck*. §5 and §6 carry the particulars; the rest
+is left as written, because it is the record of what was being answered.
+
 記憶 (kioku) — *memory, recollection.*
 
 ---
@@ -309,6 +317,15 @@ If that number is low, the pipeline is failing regardless of how good the app fe
 but the cards turn out to be wrong, the review step is theatre. Both failures are detectable, and
 both are invisible without the number.
 
+⚠️ **Amended 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)).** The thesis was that generated *cards* are good enough and
+faster than writing them. Three weeks of the built app answered a different question: **the reader
+did not want to build a deck at all.** The thesis now is that **a deck nobody had to make, from a
+dictionary and a level list with names on them, is what gets studied**, and the riskiest assumption
+is that open data is good enough to study from without a person or a model in front of it. It is
+read from the numbers ADR 0062 already keeps, retention and consistency, and from the flag rate on
+starter words once #70 lets one be studied. *Acceptance rate* was retired on 2026-09-16 and stays
+retired.
+
 A second one worth having: **time-to-first-review** — minutes from pasting a document to answering
 the first card from it. If that is more than about ten minutes, it is not a replacement for
 hand-authoring, it is a different chore.
@@ -325,6 +342,11 @@ extension for capture · importing existing Anki collections · public deck publ
 gamification, and social features.
 
 Some of these are good ideas. None of them is the thing that makes this project worth building.
+
+⚠️ **Two entries have since come in.** *Importing existing Anki collections* was built on 2026-09-20
+(ADR 0068) and is one of the two secondary ways in under [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md). And the direction of 2026-10-10
+shows the reader's days studied and a level estimated from results (#71, #72), which is progress
+shown to one person and is not the *streaks, gamification, and social features* this list refuses.
 
 ---
 

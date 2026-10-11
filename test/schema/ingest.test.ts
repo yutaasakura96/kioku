@@ -82,7 +82,7 @@ describe('the four rows, in one transaction', () => {
     expect(ingestion).toMatchObject({
       status: 'queued',
       source_title: '朝日新聞 社説',
-      subject_id: 'jlpt-vocab',
+      subject_id: 'jlpt-vocab-2',
       submitted_by: ownerId,
     })
 
@@ -215,7 +215,7 @@ describe('source.kind — ADR 0063', () => {
     // retroactively claim they were lists.
     await client.exec(`
       INSERT INTO source (subject_id, title, content, content_hash, char_count)
-      VALUES ('jlpt-vocab', '古い', '駅', 'abc', 1);
+      VALUES ('jlpt-vocab-2', '古い', '駅', 'abc', 1);
     `)
     expect(await row<{ kind: string }>('SELECT kind FROM source;')).toEqual({ kind: 'prose' })
   })
@@ -316,7 +316,7 @@ describe('a source short enough to be one chunk', () => {
 
 function submission() {
   return {
-    subjectId: 'jlpt-vocab',
+    subjectId: 'jlpt-vocab-2',
     // ⚠️ **Prose, because this file's fixture is two pages of it.** ADR 0063
     // makes `word_list` *Ingest*'s default and leaves `04` §5.1's column default
     // at `prose`; the fixture says which it means rather than leaning on either.

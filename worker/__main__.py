@@ -43,6 +43,7 @@ import threading
 import psycopg
 
 import db
+from dictionary import WorkerDictionary
 from events import log
 import provider as provider_module
 from ingest import make_chunk_processor, make_generator, resolve_worker_environment
@@ -90,6 +91,9 @@ def main() -> int:
     # client ADR 0018's boundary is made of, and a client per claimed job would
     # throw away every connection the previous run warmed.
     generate = make_generator(provider, worker_environment=environment)
+    # ⚠️ ADR 0075 §5: the dictionary answers before the model is asked. Loaded
+    # by the first word that needs it, not here (`dictionary.WorkerDictionary`).
+    dictionary = WorkerDictionary()
 
     def handle(connection: psycopg.Connection, job: ClaimedJob) -> None:
         # ⚠️ **#25's branch, and the only place a job's kind is read** (ADR 0070).
@@ -106,7 +110,12 @@ def main() -> int:
         run_ingestion(
             connection,
             job,
-            process_chunk=make_chunk_processor(job, generate=generate),
+            process_chunk=make_chunk_processor(
+                job,
+                generate=generate,
+                dictionary=dictionary,
+                worker_environment=environment,
+            ),
         )
 
     def drain(connection: psycopg.Connection) -> float | None:

@@ -31,6 +31,7 @@
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
+import { CURRENT_SUBJECT_ID, noteInCurrentSubject } from '../subject'
 import type { IngestDatabase } from './record'
 
 export interface SourceDeletion {
@@ -51,6 +52,7 @@ function affected(db: IngestDatabase, sourceId: string) {
 
   return and(
     inArray(schema.card.noteId, originated),
+    noteInCurrentSubject(db, schema.card.noteId),
     sql`${schema.card.suspendedReason} IS DISTINCT FROM 'source_deleted'`,
   )
 }
@@ -67,7 +69,7 @@ export async function sourceDeletion(
       deletedAt: schema.source.deletedAt,
     })
     .from(schema.source)
-    .where(eq(schema.source.id, id))
+    .where(and(eq(schema.source.id, id), eq(schema.source.subjectId, CURRENT_SUBJECT_ID)))
     .limit(1)
 
   if (!found)
@@ -94,7 +96,7 @@ export async function deleteSource(db: IngestDatabase, id: string): Promise<numb
     const [source] = await tx
       .update(schema.source)
       .set({ deletedAt: sql`coalesce(${schema.source.deletedAt}, now())` })
-      .where(eq(schema.source.id, id))
+      .where(and(eq(schema.source.id, id), eq(schema.source.subjectId, CURRENT_SUBJECT_ID)))
       .returning({ id: schema.source.id })
 
     if (!source)
