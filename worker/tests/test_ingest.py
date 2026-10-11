@@ -46,13 +46,13 @@ class Recorder:
         self.terms.extend(group.candidate.term for group in groups)
 
 
-def run(connection: psycopg.Connection, *, generate=None, log=None) -> int:
+def run(connection: psycopg.Connection, dictionary, *, generate=None, log=None) -> int:
     extra = {} if log is None else {"log": log}
     return drain(
         connection,
         owner="w",
         handle=lambda conn, job: run_ingestion(
-            conn, job, process_chunk=make_chunk_processor(job, generate=generate, **extra)
+            conn, job, process_chunk=make_chunk_processor(job, generate=generate, dictionary=dictionary, **extra)
         ),
     )
 
@@ -60,7 +60,7 @@ def run(connection: psycopg.Connection, *, generate=None, log=None) -> int:
 # ---------------------------------------------------------------------------
 
 
-def test_a_claimed_job_runs_every_chunk_to_the_edge_of_generation(connection):
+def test_a_claimed_job_runs_every_chunk_to_the_edge_of_generation(connection, empty_dictionary):
     """`03` §5.1's stages 1 to 5 over a real *source*, and `04` §6.1's ledger.
 
     Both chunks complete, so `settle_run` answers `complete` rather than
@@ -69,7 +69,7 @@ def test_a_claimed_job_runs_every_chunk_to_the_edge_of_generation(connection):
     ingestion_id = make_run(connection)
     generate = Recorder()
 
-    assert run(connection, generate=generate) == 1
+    assert run(connection, empty_dictionary, generate=generate) == 1
 
     status, dictionary_version, extracted, deduplicated, known, rejected = ledger(
         connection, ingestion_id
@@ -92,7 +92,7 @@ def test_a_claimed_job_runs_every_chunk_to_the_edge_of_generation(connection):
     assert generate.terms == ["駅", "近く", "図書館", "有る", "図書館", "時", "開く"]
 
 
-def test_nothing_is_generated_for_a_word_the_corpus_already_has(connection):
+def test_nothing_is_generated_for_a_word_the_corpus_already_has(connection, empty_dictionary):
     """ADR 0010, through the database this time. The *note* exists, so the run
     pays nothing for it — and `04` §5.3's `UNIQUE (subject_id, identity_key)`
     would have refused the row anyway.
@@ -101,7 +101,7 @@ def test_nothing_is_generated_for_a_word_the_corpus_already_has(connection):
     seed_note(connection, LIBRARY)
     generate = Recorder()
 
-    run(connection, generate=generate)
+    run(connection, empty_dictionary, generate=generate)
 
     assert "図書館" not in generate.terms
     # Once per *chunk* it appeared in: the counters are sightings, accumulated
@@ -109,7 +109,7 @@ def test_nothing_is_generated_for_a_word_the_corpus_already_has(connection):
     assert ledger(connection, ingestion_id)[4] == 2
 
 
-def test_a_collision_appends_an_occurrence_at_every_position_it_appeared(connection):
+def test_a_collision_appends_an_occurrence_at_every_position_it_appeared(connection, empty_dictionary):
     """ADR 0006, and `04` §5.5's columns.
 
     図書館 is in both *chunks* — at character 5 of the *source* and again at 14 —
@@ -120,7 +120,7 @@ def test_a_collision_appends_an_occurrence_at_every_position_it_appeared(connect
     make_run(connection)
     note_id = seed_note(connection, LIBRARY)
 
-    run(connection)
+    run(connection, empty_dictionary)
 
     rows = connection.execute(
         """
@@ -132,7 +132,7 @@ def test_a_collision_appends_an_occurrence_at_every_position_it_appeared(connect
     assert rows == [(5, 8, "図書館", True, True), (14, 17, "図書館", True, True)]
 
 
-def test_a_word_the_corpus_already_has_is_still_minted_for_this_reader(connection):
+def test_a_word_the_corpus_already_has_is_still_minted_for_this_reader(connection, empty_dictionary):
     """ADR 0064 on the cache-hit path: **a chosen word is accepted when it is
     written, and the corpus already holding it is not a reason to skip the
     reader.** ADR 0063 makes the 474 *pending notes* a cache for exactly this
@@ -142,7 +142,7 @@ def test_a_word_the_corpus_already_has_is_still_minted_for_this_reader(connectio
     make_run(connection)
     note_id = seed_note(connection, LIBRARY)
 
-    run(connection)
+    run(connection, empty_dictionary)
 
     assert connection.execute(
         "SELECT state FROM note_vetting WHERE note_id = %s AND owner_id = %s;",
@@ -153,7 +153,7 @@ def test_a_word_the_corpus_already_has_is_still_minted_for_this_reader(connectio
     ).fetchall() == [(OWNER,)]
 
 
-def test_a_run_nobody_owns_says_so_on_the_hit_path_too(connection):
+def test_a_run_nobody_owns_says_so_on_the_hit_path_too(connection, empty_dictionary):
     """ADR 0064 §2's *and says so*, where the generator never runs: a *chunk*
     whose every word the corpus already held mints nothing and would otherwise
     log nothing."""
@@ -161,13 +161,13 @@ def test_a_run_nobody_owns_says_so_on_the_hit_path_too(connection):
     seed_note(connection, LIBRARY)
     said: list[tuple[str, dict]] = []
 
-    run(connection, log=lambda event, **fields: said.append((event, fields)))
+    run(connection, empty_dictionary, log=lambda event, **fields: said.append((event, fields)))
 
     assert connection.execute("SELECT count(*) FROM card;").fetchone() == (0,)
     assert said and all(event == "ingest.unowned" and fields["minted"] == 0 for event, fields in said)
 
 
-def test_a_word_this_reader_rejected_is_not_minted_by_a_later_run(connection):
+def test_a_word_this_reader_rejected_is_not_minted_by_a_later_run(connection, empty_dictionary):
     """`S5` through the hit path. Stage 5 drops the candidate before generation,
     and the *occurrence* is still appended (it is shared data), but a rejection
     is a claim about the reader and it must not become a *card*.
@@ -175,7 +175,7 @@ def test_a_word_this_reader_rejected_is_not_minted_by_a_later_run(connection):
     make_run(connection)
     note_id = seed_note(connection, LIBRARY, rejected_by=OWNER)
 
-    run(connection)
+    run(connection, empty_dictionary)
 
     assert connection.execute(
         "SELECT state FROM note_vetting WHERE note_id = %s;", (note_id,)
@@ -183,14 +183,14 @@ def test_a_word_this_reader_rejected_is_not_minted_by_a_later_run(connection):
     assert connection.execute("SELECT count(*) FROM card;").fetchone() == (0,)
 
 
-def test_re_running_a_source_appends_no_occurrence_it_already_has(connection):
+def test_re_running_a_source_appends_no_occurrence_it_already_has(connection, empty_dictionary):
     """`04` §5.5's `UNIQUE (note_id, source_id, char_start)` — *re-running a
     source appends nothing it already has*. This is what makes re-ingestion
     idempotent in the one place idempotence is cheap.
     """
     ingestion_id = make_run(connection)
     note_id = seed_note(connection, LIBRARY)
-    run(connection)
+    run(connection, empty_dictionary)
 
     # A resume of the same *ingestion*: every chunk back on the queue.
     connection.execute(
@@ -201,7 +201,7 @@ def test_re_running_a_source_appends_no_occurrence_it_already_has(connection):
         "INSERT INTO job (kind, ingestion_id, state) VALUES ('resume', %s, 'queued');",
         (ingestion_id,),
     )
-    run(connection)
+    run(connection, empty_dictionary)
 
     count = connection.execute(
         "SELECT count(*) FROM occurrence WHERE note_id = %s;", (note_id,)
@@ -209,7 +209,7 @@ def test_re_running_a_source_appends_no_occurrence_it_already_has(connection):
     assert count == 2
 
 
-def test_nothing_is_generated_for_a_word_this_reader_has_rejected(connection):
+def test_nothing_is_generated_for_a_word_this_reader_has_rejected(connection, empty_dictionary):
     """`S5` and `04` §7.2 — *saying no once means it*, and the rejection is
     permanent (ADR 0006). `11` §7's stage-order test, against the real query.
     """
@@ -217,7 +217,7 @@ def test_nothing_is_generated_for_a_word_this_reader_has_rejected(connection):
     seed_note(connection, LIBRARY, rejected_by=OWNER)
     generate = Recorder()
 
-    run(connection, generate=generate)
+    run(connection, empty_dictionary, generate=generate)
 
     assert "図書館" not in generate.terms
     _, _, _, _, known, rejected = ledger(connection, ingestion_id)
@@ -227,7 +227,7 @@ def test_nothing_is_generated_for_a_word_this_reader_has_rejected(connection):
     assert (known, rejected) == (0, 2)
 
 
-def test_another_reader_s_rejection_does_not_filter_this_run(connection):
+def test_another_reader_s_rejection_does_not_filter_this_run(connection, empty_dictionary):
     """⚠️ `04` §7.2: *`note_vetting` is **personal** because ADR 0012 says a
     rejection is a claim about the reader.* A missing `owner_id` filter here
     would be the same defect § Carrying already records against `recentRuns`,
@@ -237,13 +237,13 @@ def test_another_reader_s_rejection_does_not_filter_this_run(connection):
     ingestion_id = make_run(connection)
     seed_note(connection, LIBRARY, rejected_by="usr_someone_else")
 
-    run(connection)
+    run(connection, empty_dictionary)
 
     _, _, _, _, known, rejected = ledger(connection, ingestion_id)
     assert (known, rejected) == (2, 0)
 
 
-def test_a_run_with_no_generator_still_completes_and_spends_nothing(connection):
+def test_a_run_with_no_generator_still_completes_and_spends_nothing(connection, empty_dictionary):
     """The state #8 leaves behind: stages 1 to 5 run, the ledger is written, and
     stage 6 does not exist yet (#9). ⚠️ `04` §6.1 calls a run that produced no
     new *notes* a success — `03` §11 says the same in as many words — so this
@@ -251,13 +251,13 @@ def test_a_run_with_no_generator_still_completes_and_spends_nothing(connection):
     """
     ingestion_id = make_run(connection)
 
-    run(connection)
+    run(connection, empty_dictionary)
 
     assert ledger(connection, ingestion_id)[0] == "complete"
     assert connection.execute("SELECT count(*) FROM note;").fetchone()[0] == 0
 
 
-def test_a_chunk_that_cannot_be_read_fails_alone_and_leaves_the_run_resumable(connection):
+def test_a_chunk_that_cannot_be_read_fails_alone_and_leaves_the_run_resumable(connection, empty_dictionary):
     """`03` §5.4 and `04` §6.1: a chunk that cannot be processed is `failed` and
     the *ingestion* is `incomplete` — **the resumable state, not an error**.
 
@@ -278,7 +278,7 @@ def test_a_chunk_that_cannot_be_read_fails_alone_and_leaves_the_run_resumable(co
         (ingestion_id,),
     )
 
-    run(connection)
+    run(connection, empty_dictionary)
 
     assert ledger(connection, ingestion_id)[0] == "incomplete"
     rows = connection.execute(

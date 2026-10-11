@@ -17,7 +17,7 @@ from pipeline import run_stages
 from pipeline.deduplicate import Group
 from pipeline.extract_candidates import Candidate
 from pipeline.generate import GenerationRefused
-from pipeline.lookup import NO_DICTIONARY, Found, lookup, notes_for
+from pipeline.lookup import Found, lookup, notes_for
 from pipeline.tokenise import DICTIONARY_VERSION
 from runs import run_ingestion
 from seed import LIBRARY, OWNER, make_run, spend
@@ -114,12 +114,6 @@ def test_an_entry_with_nothing_to_show_is_still_missing(word) -> None:
     asked = group("図書館", "としょかん")
 
     assert lookup([asked], dictionary=Answers(図書館=word)).missing == (asked,)
-
-
-def test_with_no_dictionary_every_word_goes_on() -> None:
-    asked = group("図書館", "としょかん")
-
-    assert lookup([asked], dictionary=NO_DICTIONARY).missing == (asked,)
 
 
 def test_a_dictionary_note_carries_the_tokenisers_word_and_the_dictionarys_meaning() -> None:

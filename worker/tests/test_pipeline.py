@@ -48,7 +48,7 @@ class FakeCorpus:
         return {key for key in self.declined if key in identity_keys}
 
 
-def stages(*, known_keys=None, rejected_keys=frozenset(), char_start=0, kind="prose",
+def stages(dictionary, *, known_keys=None, rejected_keys=frozenset(), char_start=0, kind="prose",
            text=SENTENCE):
     return run_stages(
         DECLARATION,
@@ -56,6 +56,7 @@ def stages(*, known_keys=None, rejected_keys=frozenset(), char_start=0, kind="pr
         kind=kind,
         char_start=char_start,
         corpus=FakeCorpus(notes=known_keys or {}, declined=rejected_keys),
+        dictionary=dictionary,
     )
 
 
@@ -139,7 +140,7 @@ def test_a_stage_nobody_runs_stops_the_worker_by_name() -> None:
     assert "word_list" in str(raised.value)
 
 
-def test_a_source_of_an_undeclared_kind_is_refused_by_name() -> None:
+def test_a_source_of_an_undeclared_kind_is_refused_by_name(empty_dictionary) -> None:
     """A row carrying a kind the declaration does not know must say so rather
     than run whatever pipeline happens to be first.
 
@@ -149,12 +150,12 @@ def test_a_source_of_an_undeclared_kind_is_refused_by_name() -> None:
     not pre-decide it; #24's research and ADR 0068 closed both.
     """
     with pytest.raises(UnknownSourceKind) as raised:
-        stages(kind="ebook")
+        stages(empty_dictionary, kind="ebook")
 
     assert "ebook" in str(raised.value)
 
 
-def test_a_deck_runs_the_word_list_stages_and_carries_the_deck_s_hints() -> None:
+def test_a_deck_runs_the_word_list_stages_and_carries_the_deck_s_hints(empty_dictionary) -> None:
     """ADR 0068 §4: `anki` is `word_list` with `unpack` in front, and `unpack`
     has already run in the app by the time a worker sees the row.
 
@@ -164,6 +165,7 @@ def test_a_deck_runs_the_word_list_stages_and_carries_the_deck_s_hints() -> None
     is consumed as the reading, so it is no longer carried as a hint too.
     """
     result = stages(
+        empty_dictionary,
         kind="anki",
         text="\n".join(["図書館\tとしょかん\tJLPT_5", "あります\tありまス\tJLPT N5"]),
     )
@@ -176,7 +178,7 @@ def test_a_deck_runs_the_word_list_stages_and_carries_the_deck_s_hints() -> None
     assert result.survivors[0].candidate.surface_form == "図書館"
 
 
-def test_a_deck_s_word_that_is_already_a_note_is_not_regenerated() -> None:
+def test_a_deck_s_word_that_is_already_a_note_is_not_regenerated(empty_dictionary) -> None:
     """#26's criterion: *a word that already has a note, including one of the 474
     cached pending ones, is not regenerated* (`filter_known`, ADR 0063 §4).
 
@@ -188,6 +190,7 @@ def test_a_deck_s_word_that_is_already_a_note_is_not_regenerated() -> None:
     dictionary's, so it collides with the *note* a word list or prose made.
     """
     result = stages(
+        empty_dictionary,
         kind="anki",
         text="\n".join(["図書館\tとしょかん\tJLPT_5", "駅\tえき\tJLPT_5"]),
         known_keys={LIBRARY: "note-1"},
@@ -198,7 +201,7 @@ def test_a_deck_s_word_that_is_already_a_note_is_not_regenerated() -> None:
     assert result.already_known == 1
 
 
-def test_a_word_list_ignores_anything_after_a_tab() -> None:
+def test_a_word_list_ignores_anything_after_a_tab(empty_dictionary) -> None:
     """ADR 0068 §5: the term is column 1 for every kind, and a `word_list` line
     carries no columns 2 and 3 to carry.
 
@@ -207,14 +210,14 @@ def test_a_word_list_ignores_anything_after_a_tab() -> None:
     whole under ADR 0063's *kept, not dropped* clause. One rule on both paths is
     what stops them disagreeing about what a line is.
     """
-    result = stages(kind="word_list", text="図書館\tlibrary")
+    result = stages(empty_dictionary, kind="word_list", text="図書館\tlibrary")
 
     assert [group.candidate.term for group in result.survivors] == ["図書館"]
     assert result.survivors[0].candidate.deck_reading == ""
     assert result.survivors[0].candidate.surface_form == "図書館"
 
 
-def test_a_word_list_runs_normalise_where_prose_runs_the_tokeniser() -> None:
+def test_a_word_list_runs_normalise_where_prose_runs_the_tokeniser(empty_dictionary) -> None:
     """ADR 0063's pipeline, end to end over the pure stages: one term per line,
     the dictionary form as the *term*, and ADR 0045's reading.
 
@@ -223,7 +226,7 @@ def test_a_word_list_runs_normalise_where_prose_runs_the_tokeniser() -> None:
     text: 図書館 twice is one *note* with two *occurrences* in prose, and two
     lines of a list are two sightings of one word for the same reason.
     """
-    result = stages(kind="word_list", text="\n".join(["図書館", "あります", "開いた"]))
+    result = stages(empty_dictionary, kind="word_list", text="\n".join(["図書館", "あります", "開いた"]))
 
     assert [group.candidate.term for group in result.survivors] == [
         "図書館",
@@ -238,13 +241,14 @@ def test_a_word_list_runs_normalise_where_prose_runs_the_tokeniser() -> None:
     assert result.extracted == 3
 
 
-def test_a_word_list_deduplicates_and_filters_like_prose_does() -> None:
+def test_a_word_list_deduplicates_and_filters_like_prose_does(empty_dictionary) -> None:
     """`deduplicate` and `filter_known` are *unchanged code* (ADR 0063), and this
     is what says so: the same word on two lines is one *note* and two
     *occurrences* (ADR 0006), and a term whose *note* already exists — including
     one of the 474 the first run paid for — costs nothing.
     """
     result = stages(
+        empty_dictionary,
         kind="word_list",
         text="\n".join(["駅", "駅", "図書館"]),
         known_keys={LIBRARY: "note-1"},
@@ -258,13 +262,13 @@ def test_a_word_list_deduplicates_and_filters_like_prose_does() -> None:
     assert collision.note_id == "note-1"
 
 
-def test_a_chunk_of_japanese_becomes_the_words_in_it() -> None:
+def test_a_chunk_of_japanese_becomes_the_words_in_it(empty_dictionary) -> None:
     """The whole of stages 1 to 5 on two sentences, with an empty corpus.
 
     図書館 appears twice and is one *candidate* with two sightings; 六 is a
     numeral and is gone; の / に / は / 。 are not vocabulary (ADR 0044).
     """
-    result = stages()
+    result = stages(empty_dictionary)
 
     assert [group.candidate.term for group in result.survivors] == [
         "駅",
@@ -278,11 +282,11 @@ def test_a_chunk_of_japanese_becomes_the_words_in_it() -> None:
     assert result.deduplicated == 1
 
 
-def test_no_generation_is_asked_for_a_word_the_corpus_already_has() -> None:
+def test_no_generation_is_asked_for_a_word_the_corpus_already_has(empty_dictionary) -> None:
     """⚠️ `11` §7's stage-order test, and ADR 0010's whole point: stages 4 and 5
     run **before** stage 6, so the money is never spent.
     """
-    result = stages(known_keys={LIBRARY: "note-1", STATION: "note-2"})
+    result = stages(empty_dictionary, known_keys={LIBRARY: "note-1", STATION: "note-2"})
 
     terms = [group.candidate.term for group in result.survivors]
     assert "図書館" not in terms
@@ -290,23 +294,23 @@ def test_no_generation_is_asked_for_a_word_the_corpus_already_has() -> None:
     assert result.already_known == 2
 
 
-def test_no_generation_is_asked_for_a_word_the_reader_has_rejected() -> None:
+def test_no_generation_is_asked_for_a_word_the_reader_has_rejected(empty_dictionary) -> None:
     """`S5` — *saying no once means it* — and ADR 0006's permanence. The
     fiftieth *source* asks about fewer *notes* than the fifth because of this
     line.
     """
-    result = stages(known_keys={LIBRARY: "note-1"}, rejected_keys={LIBRARY})
+    result = stages(empty_dictionary, known_keys={LIBRARY: "note-1"}, rejected_keys={LIBRARY})
 
     assert "図書館" not in [group.candidate.term for group in result.survivors]
     assert (result.already_known, result.rejected) == (0, 1)
 
 
-def test_a_collision_yields_the_occurrence_rather_than_the_note() -> None:
+def test_a_collision_yields_the_occurrence_rather_than_the_note(empty_dictionary) -> None:
     """ADR 0006: the second sighting **appends an occurrence** and never produces
     a competing set of fields to reconcile. Both sightings of 図書館 are
     positions; none of them is a *note* to vet.
     """
-    result = stages(known_keys={LIBRARY: "note-1"})
+    result = stages(empty_dictionary, known_keys={LIBRARY: "note-1"})
 
     collision = next(group for group in result.collisions if group.identity_key == LIBRARY)
     assert collision.note_id == "note-1"
@@ -314,30 +318,30 @@ def test_a_collision_yields_the_occurrence_rather_than_the_note() -> None:
     assert [sighting.char_start for sighting in collision.sightings] == [5, 14]
 
 
-def test_a_rejected_word_still_records_where_it_appeared() -> None:
+def test_a_rejected_word_still_records_where_it_appeared(empty_dictionary) -> None:
     """⚠️ ADR 0006 says *on a key match the second sighting appends an
     occurrence*, without an exception for a note the reader declined. An
     *occurrence* is **shared** data — a fact about the material (`04` §4) —
     while the rejection is a claim about the reader (ADR 0012). Dropping the
     position because of the rejection would confuse the two.
     """
-    result = stages(known_keys={LIBRARY: "note-1"}, rejected_keys={LIBRARY})
+    result = stages(empty_dictionary, known_keys={LIBRARY: "note-1"}, rejected_keys={LIBRARY})
 
     assert [group.identity_key for group in result.collisions] == [LIBRARY]
 
 
-def test_the_chunk_offset_reaches_every_position() -> None:
+def test_the_chunk_offset_reaches_every_position(empty_dictionary) -> None:
     """`04` §5.5 stores positions within the *source*; a chunk that is not the
     first begins somewhere else, and the offset has to survive all five stages.
     """
-    result = stages(char_start=1200)
+    result = stages(empty_dictionary, char_start=1200)
 
     assert result.survivors[0].candidate.char_start == 1200
 
 
-def test_the_result_names_the_dictionary_that_produced_it() -> None:
+def test_the_result_names_the_dictionary_that_produced_it(empty_dictionary) -> None:
     """`03` §5.3's corrected cache key — *(content-chunk hash, **dictionary
     version**, prompt version, model id)*. A run has to be able to say which
     tokenisation its *candidates* came from, and `04` §6.1 has the column.
     """
-    assert stages().dictionary_version == DICTIONARY_VERSION
+    assert stages(empty_dictionary).dictionary_version == DICTIONARY_VERSION

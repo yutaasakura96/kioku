@@ -178,6 +178,18 @@ def sample_dictionary(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
+def empty_dictionary(tmp_path_factory):
+    import gzip
+
+    from dictionary import open_dictionary
+
+    source = tmp_path_factory.mktemp("empty-jmdict") / "JMdict_e.gz"
+    with gzip.open(source, "wt", encoding="utf-8") as handle:
+        handle.write("<!-- JMdict created: 2026-10-09 --><JMdict></JMdict>")
+    return open_dictionary(source)
+
+
+@pytest.fixture(scope="session")
 def postgres_dsn() -> str:
     """A running Postgres 18, migrated, for the session."""
     try:

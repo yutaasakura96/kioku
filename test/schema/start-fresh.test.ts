@@ -18,6 +18,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 
 import { exportEverything } from '../../server/utils/export/queries'
+import { deleteSource, sourceDeletion } from '../../server/utils/ingest/delete'
 import { allSources, recentRuns, sourceDetail, startBlockCounts } from '../../server/utils/ingest/queries'
 import { dueCards, dueCount, newCards, nothingToStudy, readerZone, recentlyComposed, snapshotOf } from '../../server/utils/review/queries'
 import { recordGrade } from '../../server/utils/review/grade'
@@ -26,6 +27,8 @@ import { recordSynonym } from '../../server/utils/review/synonym'
 import { liveSession, resumeOrCompose } from '../../server/utils/review/session'
 import { ledger, statsRows } from '../../server/utils/stats/queries'
 import { CURRENT_SUBJECT_ID } from '../../server/utils/subject'
+import { endOpenRun, findOpenRun, openOrStartRun, openRunTally, sweepIdleRuns } from '../../server/utils/vet/run'
+import { undoLastDecision } from '../../server/utils/vet/undo'
 import { flaggedCount, queueBatch } from '../../server/utils/vet/queries'
 import { freshDatabase, reset } from './harness'
 import type { SchemaDatabase } from './harness'
@@ -148,6 +151,43 @@ describe('a reader whose whole history is under the old subject', () => {
     expect(await recordSynonym(db, OWNER, {
       sessionId: old.sessionId, cardId: old.cards.studied, text: 'library',
     })).toBe('not_in_session')
+  })
+
+  it('does not reuse, tally, end, sweep, or undo an old Vet run', async () => {
+    const old = await history(OLD_SUBJECT_ID, 'old')
+    const oldRun = await one(`
+      INSERT INTO vetting_session (owner_id, started_at)
+      VALUES ('${OWNER}', now() - interval '31 minutes') RETURNING id;
+    `)
+    await client.exec(`
+      UPDATE note_vetting SET vetting_session_id = '${oldRun}', vetted_at = now() - interval '31 minutes'
+      WHERE note_id = '${old.notes.studied}';
+    `)
+
+    expect(await findOpenRun(db, OWNER)).toBeNull()
+    expect(await openRunTally(db, OWNER)).toBeNull()
+    expect(await undoLastDecision(db, OWNER)).toEqual({ ok: false, reason: 'nothing_to_undo' })
+    await sweepIdleRuns(db, OWNER)
+    await endOpenRun(db, OWNER)
+    expect((await client.query<{ ended_at: Date | null }>(`SELECT ended_at FROM vetting_session WHERE id = '${oldRun}'`)).rows[0]!.ended_at).toBeNull()
+
+    const currentRun = await openOrStartRun(db, OWNER)
+    expect(currentRun).not.toBe(oldRun)
+    expect(await findOpenRun(db, OWNER)).toBe(currentRun)
+    expect(await openRunTally(db, OWNER)).toMatchObject({ id: currentRun, vetted: 0, rejections: 0 })
+    await endOpenRun(db, OWNER)
+    expect(await findOpenRun(db, OWNER)).toBeNull()
+    expect((await client.query<{ ended_at: Date | null }>(`SELECT ended_at FROM vetting_session WHERE id = '${oldRun}'`)).rows[0]!.ended_at).toBeNull()
+    expect((await client.query<{ state: string }>(`SELECT state FROM note_vetting WHERE note_id = '${old.notes.studied}'`)).rows[0]!.state).toBe('accepted')
+  })
+
+  it('does not confirm or delete an old source or suspend its cards', async () => {
+    const old = await history(OLD_SUBJECT_ID, 'old')
+
+    expect(await sourceDeletion(db, old.sourceId)).toBeNull()
+    expect(await deleteSource(db, old.sourceId)).toBeNull()
+    expect((await client.query<{ deleted_at: Date | null }>(`SELECT deleted_at FROM source WHERE id = '${old.sourceId}'`)).rows[0]!.deleted_at).toBeNull()
+    expect((await client.query<{ suspended_at: Date | null }>(`SELECT suspended_at FROM card WHERE id = '${old.cards.studied}'`)).rows[0]!.suspended_at).toBeNull()
   })
 
   it('has spent none of today on it', async () => {

@@ -47,22 +47,6 @@ class Lookup(Protocol):
         """The highest-priority usable entry for this term and optional reading."""
 
 
-class _NoDictionary:
-    """A dictionary with nothing in it."""
-
-    version = "none"
-
-    def find(self, term: str, reading: str) -> "Word | None":
-        return None
-
-
-#: What a caller that has no dictionary passes: every word is missing and goes
-#: on to stage 6, which is the pipeline as it was before this stage existed.
-#: ⚠️ **The worker never runs on it** — `worker/__main__.py` hands the chunk
-#: processor `dictionary.WorkerDictionary`.
-NO_DICTIONARY: Lookup = _NoDictionary()
-
-
 @dataclass(frozen=True)
 class Found:
     group: Group

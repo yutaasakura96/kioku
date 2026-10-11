@@ -64,6 +64,7 @@ const ownerId = () =>
 export const vettingSession = pgTable('vetting_session', {
   id: primaryId(),
   ownerId: ownerId(),
+  subjectId: text('subject_id'),
   startedAt: tstz('started_at').notNull().defaultNow(),
   /** Set on `Esc` or the **Done** control (ADR 0026), and by a 30-minute idle sweep. */
   endedAt: tstz('ended_at'),

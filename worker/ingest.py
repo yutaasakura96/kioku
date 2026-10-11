@@ -47,7 +47,7 @@ from pipeline.generate import (
     notes_from,
     request_for,
 )
-from pipeline.lookup import NO_DICTIONARY, Lookup, notes_for as dictionary_notes
+from pipeline.lookup import Lookup, notes_for as dictionary_notes
 from pipeline.tokenise import DICTIONARY_VERSION
 from pipeline.write_notes import (
     Destination,
@@ -180,9 +180,9 @@ class DatabaseCorpus(Corpus):
 def make_chunk_processor(
     job: ClaimedJob,
     *,
+    dictionary: Lookup,
     generate: Optional[Generate] = None,
     declaration: Optional[Declaration] = None,
-    dictionary: Lookup = NO_DICTIONARY,
     worker_environment: str | None = None,
     keepalive_every: float = KEEPALIVE_EVERY_SECONDS,
     log: Callable[..., None] = events.log,
@@ -200,8 +200,7 @@ def make_chunk_processor(
     them read again.
 
     ⚠️ **``dictionary`` is what `lookup` asks** (ADR 0075 §5). The worker passes
-    `dictionary.WorkerDictionary`; the default has nothing in it, which is the
-    pipeline with every word sent on to stage 6.
+    `dictionary.WorkerDictionary`.
     """
     resolved = declaration if declaration is not None else load_declaration()
     #: ⚠️ **A mutable default on the closure, not a `nonlocal`.** The first chunk

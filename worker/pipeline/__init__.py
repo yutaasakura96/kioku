@@ -48,7 +48,7 @@ from .chunk import chunk_text
 from .deduplicate import Group, deduplicate
 from .extract_candidates import Candidate, extract_candidates
 from .filter_known import filter_known
-from .lookup import NO_DICTIONARY, Found, Lookup, lookup
+from .lookup import Found, Lookup, lookup
 from .normalise import normalise
 from .tokenise import DICTIONARY_VERSION, Token, tokenise
 
@@ -154,7 +154,7 @@ class StageState:
     char_start: int
     corpus: Corpus
     #: What `lookup` asks (ADR 0075 §5). Injected, like the corpus.
-    dictionary: Lookup = NO_DICTIONARY
+    dictionary: Lookup
     tokens: tuple[Token, ...] = ()
     candidates: tuple[Candidate, ...] = ()
     groups: tuple[Group, ...] = ()
@@ -325,7 +325,7 @@ def run_stages(
     kind: str,
     char_start: int,
     corpus: Corpus,
-    dictionary: Lookup = NO_DICTIONARY,
+    dictionary: Lookup,
 ) -> StageResult:
     """The *chunk*'s pipeline, as the declaration orders it for this *kind*.
 
