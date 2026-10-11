@@ -2,7 +2,7 @@
 // The *shell* — `10` §3, `09` §2, ADR 0013. The bar, the start block, its
 // aside, and the page body in whichever measure the *place* reads at.
 //
-// ⚠️ **It is a component the three *places* opt into, not a layout they inherit.**
+// ⚠️ **It is a component the four *places* opt into, not a layout they inherit.**
 // ADR 0013 makes "which screens carry the shell" load-bearing — a *mode* has no
 // navigation, and that is what a mode *is* — so it is written at each of the
 // three call sites where it can be seen, rather than defaulted into and then
@@ -39,7 +39,7 @@ withDefaults(
 
     <!-- ⚠️ **EDRDG's licence §3 asks for the acknowledgement on the app's site**,
          with links (#30, `docs/kanjidic-research.md` §7 call 2). It sits on the
-         three *places* and not in a *mode*, which has no chrome (ADR 0013); the
+         four *places* and not in a *mode*, which has no chrome (ADR 0013); the
          retry *Review* shows quotes nothing from the file, so no screen owes it
          per display. `server/data/kanjidic/NOTICE.md` is the repository's half.
 

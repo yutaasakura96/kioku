@@ -21,15 +21,17 @@ const GATE_DISABLING_RULES = ['prerender', 'swr', 'isr'] as const
 // `08-authentication.md` §2. Everything else is behind the session.
 const PUBLIC_ROUTES = ['/auth', '/auth/refused', '/api/auth/**']
 
-// The three *places* and the refusal page. ⚠️ `/auth/refused` is **not** a
-// fourth *place* — it is the door's other half (`00-status.md` § Carrying,
-// "There are six routes, not five"). What the four share is that they ship no
+// The four *places* and the refusal page. ⚠️ `/auth/refused` is **not** a
+// *place* — it is the door's other half (`00-status.md` § Carrying,
+// "There are six routes, not five"). What the five share is that they ship no
 // JavaScript, and that is what this list is named for.
 // ⚠️ `/sources/**` added 2026-09-11 by #6. `09` §1's table has carried
 // `/sources/:id` and `/sources/:id/delete` since it was written, and both are
 // *places*; the rule covers them as a pattern so the delete confirmation does
 // not arrive as a default when `S11` builds it.
-const SCRIPT_FREE_ROUTES = ['/', '/sources', '/sources/**', '/stats', '/auth/refused']
+// ⚠️ `/settings` added 2026-10-12 by #70 (ADR 0076 §2): a form of three numbers,
+// posted and redirected, with no client.
+const SCRIPT_FREE_ROUTES = ['/', '/sources', '/sources/**', '/stats', '/settings', '/auth/refused']
 
 const MODES = ['/vet', '/review']
 
@@ -50,7 +52,7 @@ describe('route rules', () => {
     // A subset assertion, not an exact one: #6 adds `/sources/:id` and
     // `/sources/:id/delete` with rules of their own, and a test that counts
     // route rules would fail on a correct addition.
-    for (const route of ['/', '/sources', '/sources/**', '/stats', '/vet', '/review', '/auth', '/auth/refused'])
+    for (const route of ['/', '/sources', '/sources/**', '/stats', '/settings', '/vet', '/review', '/auth', '/auth/refused'])
       expect(routeRules, `${route} has no route rule`).toHaveProperty([route])
   })
 
@@ -66,7 +68,7 @@ describe('route rules', () => {
     expect(offenders).toEqual([])
   })
 
-  it('ships no JavaScript from the three places or the refusal page', () => {
+  it('ships no JavaScript from the four places or the refusal page', () => {
     for (const route of SCRIPT_FREE_ROUTES)
       expect(routeRules[route]).toMatchObject({ noScripts: true })
   })

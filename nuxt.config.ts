@@ -60,6 +60,8 @@ export default defineNuxtConfig({
     // route without one is a default (`10` §3).
     '/sources/**': { noScripts: true },
     '/stats': { noScripts: true },
+    // The fourth *place*: three numbers in a form (ADR 0076 §2).
+    '/settings': { noScripts: true },
 
     // The refusal page: a message and nothing else (`08` §2.1).
     '/auth/refused': { noScripts: true },

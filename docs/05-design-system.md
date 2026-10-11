@@ -61,6 +61,25 @@ The accent is spent on exactly two things: **where you are** (screen label, curr
 complete) and **what costs you the decision** (the *meaning* and *example* eyebrows). It is never
 decoration and never a state.
 
+### Right and wrong
+
+⚠️ **Added 2026-10-12 by [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§8 (#70), and the one place a colour means a state.** The prototype's values, each measured.
+
+| Token | Value | Contrast | Role |
+| --- | --- | --- | --- |
+| `--k-right` | `#2f6b3f` | 6.27 on raised, 5.76 on ground | The word *Correct*, and the border of a field whose answer was right. |
+| `--k-right-tint` | `#e4eedf` | — | The face of that field. |
+| `--k-right-ink` | `#1f4a2b` | 8.49 on its tint | The answer's own text on the tint. |
+| `--k-wrong` | `#b23a26` | 5.86 on raised | The words *Not quite*, the border of a field whose answer was wrong, a refusal's sentence, and a missed word's line on the summary. The accent's value, doing a different job. |
+| `--k-wrong-tint` | `#f7e2dc` | — | The face of that field. |
+| `--k-wrong-ink` | `#7d2415` | 7.90 on its tint | The answer's own text on the tint. |
+
+**Every use is beside a word that says the same thing**, so neither colour is the only signal
+(SC 1.4.1). They are for the result of an answer and nothing else: a brake, an empty state and a
+notice are still sentences in ink. ⚠️ **The prototype's stage ramp is not here.** Nothing draws a
+stage in colour until #71, and a token nothing uses is a decision nobody made.
+
 ## 3. Rules
 
 Two line tokens, split by the surface they sit on — not by whether they are chrome or content.
@@ -279,6 +298,12 @@ would be a character in the answer. The styling of the primary state is unchange
 
 ### Progress rail (*Review*)
 
+⚠️ **Retired 2026-10-12 by [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§8 (#70).** *Review*'s header is the prototype's bar (`app/components/ModeBar.vue`, `10` §5.2): the
+screen's name in the eyebrow style, one `6px` track on `--k-tick-empty` filled in `--k-ink`, a
+12.5px mono count of words, and the exit. A missed question returns, so a row of one tick a *card* could no
+longer say how far through the reader is. What follows is what was built until then.
+
 620px wide. A 12px mono counter at each end in `--k-ink-secondary`, `20px` from the bar. Between
 them, one `flex-grow: 1` tick per *card* in the *session*, `6px` tall, `4px` apart.
 
@@ -292,6 +317,13 @@ them, one `flex-grow: 1` tick per *card* in the *session*, `6px` tall, `4px` apa
 The rail is the only progress indicator in the app and it doubles as *Review*'s header.
 
 ### Card (*Review*)
+
+⚠️ **Replaced 2026-10-12 (ADR 0076, #70) by three cards from the prototype**, all on `--k-raised`
+with `--k-rule-raised`, `--k-radius-card` and `--k-shadow-card`, in the 760px measure: **the lesson
+card** (the *term* at 96px, its reading, a rule, the meaning at 36px, tags, the example when there is
+one), **the quiz card** (the *term* at 104px, a full-width band naming the question — the key face
+for *Meaning*, the ink ground for *Reading* — and one field with one control), and **the summary's
+word rows**. `10` §5 has each. What follows is the two-faced card built until then.
 
 760px wide, `min-height: 527px`, `--k-raised`, `1px solid --k-rule-raised`, `--k-radius-card`,
 `--k-shadow-card`. Padding `54px 64px 46px` — asymmetric, more at the top than the bottom.
@@ -310,6 +342,9 @@ The standalone variant (session end's "Start another session") is inline rather 
 `13px 24px` padding, `14px` gap, label at 17px.
 
 ### Grade control
+
+⚠️ **Not drawn since 2026-09-21** (ADR 0069: the check is the *grade*), **and since 2026-10-12 no
+control commits one at all** (ADR 0076 §4): a word is graded by its answers.
 
 Four controls in a row, `12px` apart, spanning the card's 760px. Each is a stacked pair — digit
 above, label below, `3px` between — with `9px` vertical padding and `--k-radius-control`.

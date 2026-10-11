@@ -1,172 +1,166 @@
 <script setup lang="ts">
-// *Review* — a *mode* (ADR 0013). `routeRules: { ssr: false }`, no header, no
-// navigation, and exactly one way out: `Esc`, and a Done control present on
-// every viewport, because a phone has no `Esc` (ADR 0026, ADR 0032).
+// *Review* — a *mode* (ADR 0013). `routeRules: { ssr: false }`, no navigation,
+// and since ADR 0076 the quiz the prototype shows: a lesson teaches new words,
+// the quiz asks the meaning and then the reading, a miss is asked again before
+// the run ends, and the summary says where each word went.
 //
-// ⚠️ **The *progress rail* stands in for the header** (`10` §5.2, `05` §7,
-// `CONTEXT.md`). *Review* carries no screen label in any of its four states, and
-// the rail is the only progress indicator in the application. It knows its own
-// length because a graded *card* leaves the *session* and never returns
-// (ADR 0016) — which is a scheduling decision showing up as a drawing one.
+// ⚠️ **Six screens, one at a time** (`view`): loading, error, what is waiting,
+// a lesson's teaching, the quiz, and the summary. The header is the
+// prototype's bar on every one of them (`ModeBar.vue`).
 //
 // ⚠️ **The key handlers bind to the mode container, never to `document` or
-// `window`** (ADR 0025, `10` §4.1). ADR 0023's map is all printable characters,
-// so **SC 2.1.4 Character Key Shortcuts (Level A)** applies and this application
-// conforms only through that criterion's "active only on focus" exception.
+// `window`** (ADR 0025, `10` §4.1). `X` is a printable character, so **SC 2.1.4
+// Character Key Shortcuts (Level A)** applies and this application conforms
+// only through that criterion's "active only on focus" exception.
 //
-// ⚠️ **Done performs an external document navigation** (`09` §5.2, ADR 0032).
-// A bare `<NuxtLink>` client-renders the *place* into the page that is already
-// running and hands the reader a `noScripts` screen with a live Vue application
-// on it, with no error anywhere.
+// ⚠️ **Every way out performs an external document navigation** (`09` §5.2,
+// ADR 0032). A bare `<NuxtLink>` client-renders the *place* into the page that
+// is already running and hands the reader a `noScripts` screen with a live Vue
+// application on it, with no error anywhere.
 //
-// ⚠️ **The interface never waits on a flush** (`S8`, ADR 0007). A *grade* is
-// stamped at the keystroke, appended to the outbox, painted at once, and sent
-// behind the reader; the next *card* renders from the snapshot this screen
-// already holds.
+// ⚠️ **The interface never waits on a flush** (`S8`, ADR 0007). An answer is
+// checked here, the question queue is written to the store, and — when it was
+// the last answer the word owed — the *grade* is stamped at that keystroke,
+// appended to the outbox, painted at once, and sent behind the reader.
 //
-// ⚠️ **The outbox carries three kinds of entry** (`03` §8.1 as amended
-// 2026-09-07, ADR 0039): a *grade*, `S9`'s `X`, and — since #28 — a synonym
-// (ADR 0069 §2). Both the snapshot and the
-// stream live in `localStorage` (ADR 0014), so a tunnel and a tab crash fail the
-// same way — which is to say they do not — and the storage helper is an
-// **explicit import** because Nuxt has a built-in of that name
+// ⚠️ **The database never sees a question** (ADR 0076 §4). It holds positions
+// and *grades*; which question is next and which words were missed is
+// `shared/review/quiz.ts`'s, kept in `localStorage` beside the snapshot.
+//
+// ⚠️ **The outbox carries three kinds of entry** (`03` §8.1, ADR 0039): a
+// *grade*, `S9`'s `X`, and *Finish early* (ADR 0076 §6). The storage helper is
+// an **explicit import** because Nuxt has a built-in of that name
 // (`app/utils/review-store.ts`).
 
-import { GRADE_LABELS, endScreenAction, reviewAction } from '#shared/review/keystroke'
-import { answerSteps, foldReading, gradeOf, meaningMatches, readingResult, synonymOffered } from '#shared/review/answer'
-import type { CheckedGrade } from '#shared/review/answer'
-import type { ReviewStep } from '#shared/review/keystroke'
+import { fieldAction, isHeldActivation, restingAction, reviewAction } from '#shared/review/keystroke'
+import { foldReading, meaningEntry, meaningResult, otherMeanings, readingEntry, readingResult } from '#shared/review/answer'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
-import { brakeSentence, emptyStateOf } from '#shared/review/brake'
-import type { BrakeReading } from '#shared/review/brake'
+import { brakeSentence } from '#shared/review/brake'
 import { NO_FILTER, isFiltered } from '#shared/review/filter'
 import type { SessionFilter } from '#shared/review/filter'
+import { startLines } from '#shared/review/offer'
+import type { StudyOffer } from '#shared/review/offer'
 import { append, head, parseOutbox, settle, unsentAnswers } from '#shared/review/outbox'
+import { answerQuestion, currentQuestion, dropWord, finishEarly, parseQuiz, reconcile, startQuestions, teach } from '#shared/review/quiz'
+import type { Question, QuizState } from '#shared/review/quiz'
 import { isRefused } from '#shared/review/request'
-import { isAnswered, mergeGrades, parseSnapshot, withSynonym } from '#shared/review/snapshot'
+import { isAnswered, mergeGrades, parseSnapshot } from '#shared/review/snapshot'
 import { jlptVocab } from '#shared/subject/declaration'
-import { nextDueLabel } from '#shared/review/next-due'
 import { resolveOrigin } from '#shared/utils/origin'
 import type { Grade } from '#shared/review/scheduler'
-import type { NothingToStudy, ReviewPosition, ReviewSnapshot } from '#shared/review/snapshot'
+import type { ReviewPosition, ReviewSnapshot, SessionKind } from '#shared/review/snapshot'
 import type { Answer, OutboxDraft, OutboxEntry } from '#shared/review/outbox'
 import type { AnswerOutcome } from '#shared/review/request'
-import type { Tick } from '../components/ProgressRail.vue'
+import type { QuizFeedback } from '../components/QuizCard.vue'
 // ⚠️ **The explicit import `03` §8.1 asks for.** `app/utils/` is auto-imported,
 // so the names below are ambiently available too — and a `useStorage`-shaped
 // call that resolved to Nitro's built-in of that name is the failure
 // verification §5.5 recorded. Naming the file at the call site is what makes it
 // unambiguous which store this is.
-import { OUTBOX_KEY, REFUSED_KEY, SNAPSHOT_KEY, clearStored, readStored, writeStored } from '../utils/review-store'
+import { OUTBOX_KEY, QUIZ_KEY, REFUSED_KEY, SNAPSHOT_KEY, clearStored, readStored, writeStored } from '../utils/review-store'
 
 const route = useRoute()
+const router = useRouter()
 const origin = computed(() => resolveOrigin(route.query.from))
+
+/**
+ * What the way out is called. ⚠️ `/` is *Home* here, as the prototype's
+ * summary has it, though the nav still calls that *place* Ingest: #71 puts the
+ * dashboard there.
+ */
+const PLACE_NAMES: Record<string, string> = {
+  '/': 'Home',
+  '/sources': 'Sources',
+  '/stats': 'Stats',
+  '/settings': 'Settings',
+}
+const home = computed(() => ({ to: origin.value, name: PLACE_NAMES[origin.value] ?? 'Home' }))
 
 /** `10` §5.9: below this a statement flashing is worse than quiet ground. */
 const LOADING_THRESHOLD = 500
 
 interface SessionResponse {
   session: ReviewSnapshot | null
-  empty: NothingToStudy | null
-  brake: BrakeReading
+  offer: StudyOffer
 }
 
 /**
- * The two endpoints answer the same shape — one stream, two entry types.
+ * The three answer endpoints answer the same shape — one stream, three entry
+ * types.
  *
- * ⚠️ **`AnswerOutcome` is imported rather than restated.** A sixth value written
- * into only one of the two places it lives is `04` §13's drift argument at five
+ * ⚠️ **`AnswerOutcome` is imported rather than restated.** A value written
+ * into only one of the places it lives is `04` §13's drift argument at five
  * string literals, and the drift would show as an outcome this screen silently
  * treats as a success.
  */
 interface AnswerResponse {
   outcome: AnswerOutcome
   session: ReviewSnapshot | null
-  /** Fresh once the run is over, and `null` until then (ADR 0066 §7). */
-  brake: BrakeReading | null
+  /** Fresh once the run is over, and `null` until then (ADR 0076 §8). */
+  offer: StudyOffer | null
 }
 
 const snapshot = ref<ReviewSnapshot | null>(null)
-const nothing = ref<NothingToStudy | null>(null)
 
 /**
- * ADR 0066 §7 — which brake is on, and the number it is on at.
+ * ADR 0076 §8 — what is waiting: reviews, a lesson, and which brake is on.
  *
  * ⚠️ **Not persisted.** It is a fact about the database rather than about the
  * run, so a reload asks again; a sentence read back out of `localStorage` a day
  * later would name yesterday's allowance.
  */
-const brake = ref<BrakeReading | null>(null)
-const brakeLine = computed(() => (brake.value ? brakeSentence(brake.value) : null))
+const offer = ref<StudyOffer | null>(null)
 
-/** `10` §5.7's three empty states, or `null` when there is a run. */
-const emptyState = computed(() => (nothing.value ? emptyStateOf(nothing.value, brake.value) : null))
 const status = ref<'loading' | 'ready' | 'error'>('loading')
 const slow = ref(false)
 const size = ref(DEFAULT_SESSION_SIZE)
 
 /**
- * ADR 0065 §5 — which new *cards* the next *session* introduces.
+ * ADR 0065 §5 — which new words the next lesson teaches.
  *
  * ⚠️ **Page memory and nothing else.** Not in the outbox's store and not in a
  * query string: a filter that outlived a reload would be a saved query, and a
- * saved query is a *deck* (ADR 0009, ADR 0065 §6). A reload is an unfiltered
- * start, the way it has always been.
+ * saved query is a *deck* (ADR 0009, ADR 0065 §6).
  */
 const filter = ref<SessionFilter>(NO_FILTER)
 
-/** Whether the request that produced the screen in front of the reader was filtered. */
+/** Whether the offer in front of the reader was counted through a filter. */
 const askedFiltered = ref(false)
 
 /**
- * ADR 0060 §2: one *card*, two steps, one *grade*.
- *
- * ⚠️ **None of this is persisted** (ADR 0060 §4). The typed text and the result
- * live for as long as the *card* is on screen; only the *grade* reaches the
- * outbox. A reload mid-*card* asks the reading again, which costs a few
- * keystrokes and records nothing.
+ * ADR 0076 §4 — the questions still owed and the words missed. ⚠️ **Durable**:
+ * a reload that lost it would forgive every miss in the run.
  */
-const step = ref<ReviewStep>('reading')
-const typed = ref({ reading: '', meaning: '' })
-const check = ref<{ reading: boolean | null, meaning: boolean | null }>({ reading: null, meaning: null })
+const quiz = ref<QuizState | null>(null)
 
 /**
- * ADR 0069 §5, #30 — whether this *card*'s reading step has spent its retry.
- * ⚠️ **One per step**: a second kanji reading is graded as the check says,
- * or a reader could walk the kanji's readings until one passed — the
- * *accept any reading* alternative the ADR rejected. Nothing is recorded.
+ * The answer on screen, until the reader moves on. ⚠️ **Not persisted**: the
+ * queue and the *grade* it produced already are, so a reload mid-result opens
+ * on the next question and has lost nothing but the sentence.
+ */
+const feedback = ref<(QuizFeedback & { question: Question }) | null>(null)
+
+/** Why the last entry was not taken as an answer (ADR 0076 §5). Nothing was counted. */
+const problem = ref<string | null>(null)
+const refusals = ref(0)
+const clearings = ref(0)
+
+/**
+ * ADR 0069 §5, #30 — whether this question has spent its one retry.
+ * ⚠️ **One per asking**: a second kanji reading is checked as the check says,
+ * or a reader could walk the kanji's readings until one passed.
  */
 const readingRetried = ref(false)
 
-/** ADR 0069 §4 — a kana-only term has no reading step. */
-const cardSteps = computed(() => answerSteps(current.value?.fields.term ?? ''))
-const asksReading = computed(() => cardSteps.value.includes('reading'))
-
-/**
- * ADR 0069 §1 — **the *grade***, which `Enter` commits on the back and nothing
- * overrules. It changes on the back only when a synonym re-runs the meaning.
- */
-const result = computed<CheckedGrade | null>(() => {
-  if (step.value !== 'back')
-    return null
-
-  return gradeOf({
-    reading: asksReading.value ? Boolean(check.value.reading) : null,
-    meaning: Boolean(check.value.meaning),
-  })
-})
-
-/** ADR 0069 §2 — whether the back offers `S`. */
-const offerSynonym = computed(() =>
-  step.value === 'back' && synonymOffered(check.value, typed.value.meaning),
-)
+/** How many questions have been put to the reader — the quiz card's key. */
+const askings = ref(0)
 
 /**
  * Answers given but not yet reflected in a snapshot the server has answered
  * with — a *grade*, or `S9`'s flag.
  *
  * ⚠️ **This is the whole of the client's optimism**, and it is what `S8` buys:
- * the next *card* paints on the keystroke rather than on the response. It is
+ * the next question paints on the keystroke rather than on the response. It is
  * pruned against every answer, so a position counts exactly once whether the
  * request has landed or not — and ⚠️ **it is rebuilt from the outbox on a
  * reload** (ADR 0039 property 4), because the durable record decides and this
@@ -188,12 +182,13 @@ const outbox = ref<OutboxEntry[]>([])
  */
 const refused = ref<OutboxEntry[]>([])
 
-/** ⚠️ `09` §4.8 — surfaced on the end screen, and it is a count of the stream. */
-const unsent = computed(() => outbox.value.length)
+/**
+ * ⚠️ `09` §4.8 — surfaced on the summary, and it is a count of **answers**: a
+ * *Finish early* still in the stream is not something the reader gave about a
+ * word.
+ */
+const unsent = computed(() => outbox.value.filter(entry => entry.kind !== 'finish').length)
 const sessionExpired = ref(false)
-
-/** `10` §5.5: visible for as long as it takes the next *card* to render. */
-const justGraded = ref<Grade | null>(null)
 
 const positions = computed(() =>
   (snapshot.value?.positions ?? []).map((position) => {
@@ -207,152 +202,72 @@ const positions = computed(() =>
   }),
 )
 
-const currentIndex = computed(() => positions.value.findIndex(position => !isAnswered(position)))
-const current = computed(() => positions.value[currentIndex.value] ?? null)
-const ended = computed(() => Boolean(snapshot.value) && currentIndex.value === -1)
+const kind = computed<SessionKind>(() => snapshot.value?.kind ?? 'review')
+const done = computed(() => positions.value.filter(isAnswered).length)
 
-/** The left counter — where the reader is, and the run's length once it ends. */
-const railPosition = computed(() => {
-  if (currentIndex.value === -1)
-    return positions.value.length
+/** The question on screen: the one just answered while its result shows, else the next owed. */
+const question = computed(() => feedback.value?.question ?? (quiz.value ? currentQuestion(quiz.value) : null))
+const asking = computed(() => positions.value.find(position => position.cardId === question.value?.cardId) ?? null)
 
-  return currentIndex.value + 1
+/**
+ * Which of the six screens is up.
+ *
+ * ⚠️ **A result on screen keeps the quiz up**, even when the answer it shows
+ * was the last one the run owed: the reader reads *Correct* before the summary
+ * replaces it.
+ */
+const view = computed(() => {
+  if (status.value !== 'ready')
+    return status.value
+
+  if (!snapshot.value || !quiz.value)
+    return 'start'
+
+  if (feedback.value)
+    return 'quiz'
+
+  if (quiz.value.finished || !question.value)
+    return 'summary'
+
+  return quiz.value.teaching !== null ? 'teach' : 'quiz'
 })
 
-const ticks = computed<Tick[]>(() =>
-  positions.value.map((position, index) => {
-    if (position.grade !== null)
-      return 'graded'
+const teachingIndex = computed(() => quiz.value?.teaching ?? 0)
+const teaching = computed(() => positions.value[teachingIndex.value] ?? null)
+const lastTaught = computed(() => teachingIndex.value >= positions.value.length - 1)
 
-    // ⚠️ `10` §5.3's fourth mark: **less than an answer and more than nothing**,
-    // so it takes the graded fill at 2px rather than a colour of its own.
-    if (position.flagged)
-      return 'flagged'
+const lines = computed(() => (offer.value ? startLines(offer.value, new Date(), askedFiltered.value) : null))
+const brakeLine = computed(() => (offer.value ? brakeSentence(offer.value, offer.value.limits) : null))
 
-    return index === currentIndex.value ? 'current' : 'empty'
-  }),
-)
+const quizFoot = computed(() => {
+  if (feedback.value && !feedback.value.right)
+    return 'This one comes back before the session ends.'
 
-/**
- * ⚠️ **The end screen's four figures are the four *grades***
- * ([ADR 0053](../../docs/adr/0053-the-end-screens-four-figures-are-the-four-grades.md)).
- * `10` §5.6 asks for "the *session*'s numbers" in `05` §7's four equal columns
- * and never says which four; the distribution is the only set of four the run
- * actually produced, and it is the one that answers *how did that go*.
- *
- * ⚠️ **A flagged position is in none of them**, which is what `S9`'s *advances
- * without a grade* looks like arithmetically: a twenty-*card* run can end with
- * nineteen answers, and the rail above is where that is visible (`09` §4.9).
- */
-const tally = computed(() =>
-  // ⚠️ **The eyebrows are the control labels, upper-cased, rather than a second
-  // list beside them.** ADR 0053's argument is that the reader does not have to
-  // learn a second naming for the key they just pressed — so the two must not be
-  // able to drift, which is `04` §13's rule at four words.
-  //
-  // ⚠️ **Forgot and Good always, Hard and Easy only when the run holds one**
-  // (ADR 0069 §1). The check gives two *grades*; a run resumed from before #28
-  // can still carry the other two, and a column that is always `0` says nothing.
-  ([1, 2, 3, 4] as const)
-    .map(grade => ({
-      grade,
-      eyebrow: GRADE_LABELS[grade].toUpperCase(),
-      figure: positions.value.filter(position => position.grade === grade).length,
-    }))
-    .filter(entry => entry.grade === 1 || entry.grade === 3 || entry.figure > 0)
-    .map(({ eyebrow, figure }) => ({ eyebrow, figure })),
-)
-
-/**
- * `10` §5.7's "single datum given weight".
- *
- * ⚠️ The `new Date()` is not decoration: the snapshot crosses the wire as JSON,
- * so a `Date` arrives here as a string and the seam takes the real thing.
- */
-const nextDue = computed(() =>
-  nextDueLabel(nothing.value?.nextDue ? new Date(nothing.value.nextDue) : null),
-)
+  return kind.value === 'lesson'
+    ? 'Meaning first, then reading, for each new word.'
+    : 'Meaning first, then reading. A missed word comes back before the session ends.'
+})
 
 // -- Focus ------------------------------------------------------------------
 
 const container = useTemplateRef<HTMLElement>('container')
-const steps = useTemplateRef<{ focus: () => void }>('steps')
-
-function focusContainer() {
-  container.value?.focus()
-}
+const primary = useTemplateRef<HTMLButtonElement>('primary')
 
 /**
- * ⚠️ **On the front focus is in a field, and on the back it is the container**
- * (ADR 0060 §7). The back's keys are the container's; leaving focus in a field
- * there would make the digits typing again.
+ * ⚠️ **Focus lives inside the mode container on every screen**, which is what
+ * makes `Esc` work from it (ADR 0025). The quiz card takes its own — the field,
+ * then *Next* — and a lesson's primary control takes it so `Enter` moves on.
  */
-async function focusStep() {
+async function focusView() {
   await nextTick()
 
-  if (current.value && step.value !== 'back')
-    steps.value?.focus()
+  if (view.value === 'quiz')
+    return
+
+  if (view.value === 'teach' && primary.value)
+    primary.value.focus({ preventScroll: true })
   else
-    focusContainer()
-}
-
-/**
- * ⚠️ **Called before the next *card* is current as well as after** — the
- * `cardId` watcher below runs it again once it is, before the render, so the
- * first step is always the *card* on screen's.
- */
-function resetAnswer() {
-  step.value = cardSteps.value[0]!
-  typed.value = { reading: '', meaning: '' }
-  check.value = { reading: null, meaning: null }
-  readingRetried.value = false
-}
-
-// -- The two steps (ADR 0060) -----------------------------------------------
-
-function checkReading(value: string) {
-  const position = current.value
-  if (!position)
-    return
-
-  // `?? []`: a position installed from a server answer is not parsed (§ Carrying).
-  const result = readingResult(value, position.fields.reading ?? '', position.kanjiReadings ?? [])
-
-  if (result === 'kanji' && !readingRetried.value) {
-    readingRetried.value = true
-    return
-  }
-
-  typed.value.reading = foldReading(value)
-  check.value.reading = result === 'right'
-  step.value = 'meaning'
-  void focusStep()
-}
-
-function checkMeaning(value: string) {
-  const position = current.value
-  if (!position)
-    return
-
-  typed.value.meaning = value.trim()
-  check.value.meaning = meaningMatches(value, acceptedOf(position))
-  step.value = 'back'
-  void focusStep()
-}
-
-/**
- * ADR 0069 §3 — the gloss, the model's list and the reader's synonyms.
- *
- * ⚠️ **`?? []` because a server answer is installed unparsed** (`start`), and a
- * tab open across the deploy that added the two fields would otherwise throw on
- * the first meaning it checked.
- */
-function acceptedOf(position: ReviewPosition) {
-  return {
-    meaning: position.fields.meaning ?? '',
-    meanings: position.meanings ?? [],
-    synonyms: position.synonyms ?? [],
-  }
+    container.value?.focus({ preventScroll: true })
 }
 
 // -- The store (ADR 0014) ---------------------------------------------------
@@ -364,6 +279,15 @@ function holdSnapshot(next: ReviewSnapshot | null) {
     writeStored(SNAPSHOT_KEY, next)
   else
     clearStored(SNAPSHOT_KEY)
+}
+
+function holdQuiz(next: QuizState | null) {
+  quiz.value = next
+
+  if (next)
+    writeStored(QUIZ_KEY, next)
+  else
+    clearStored(QUIZ_KEY)
 }
 
 function holdOutbox(next: OutboxEntry[]) {
@@ -378,6 +302,11 @@ function holdRefused(next: OutboxEntry[]) {
     writeStored(REFUSED_KEY, next)
   else
     clearStored(REFUSED_KEY)
+}
+
+/** A position the reader owes nothing more about — the server's word or the stream's. */
+function answeredHere(position: ReviewPosition): boolean {
+  return isAnswered(position) || answers.value.has(position.cardId)
 }
 
 /**
@@ -403,10 +332,14 @@ function restore() {
   snapshot.value = held
   size.value = held.size
   // ⚠️ **The stream re-answers the run.** The optimistic map is client memory
-  // and the reload just lost it; without this the reader is asked a *card* they
-  // have already answered and PRD §5's *the same card graded twice* stops being
+  // and the reload just lost it; without this the reader is asked a word they
+  // have already finished and PRD §5's *the same card graded twice* stops being
   // an edge case about two devices and becomes what a refresh does.
   answers.value = unsentAnswers(stream, held.sessionId)
+  // ⚠️ **And the queue comes back with its misses** (ADR 0076 §4). `reconcile`
+  // makes it agree with the run: a word the stream answers owes nothing, and a
+  // word that is owed and has no question left gets its questions back.
+  quiz.value = reconcile(parseQuiz(readStored(QUIZ_KEY)), held, answeredHere)
   status.value = 'ready'
 }
 
@@ -415,7 +348,7 @@ function restore() {
 /**
  * ⚠️ **One at a time, in the order they were given.** Two answers in flight at
  * once would apply their snapshots in whatever order they came back, and each
- * answer carries the whole run — so the later one could rewind the rail under
+ * answer carries the whole run — so the later one could rewind the track under
  * the reader's hands. The **interface** does not wait on this; only the requests
  * queue behind each other.
  */
@@ -437,17 +370,21 @@ function enqueue<T>(work: () => Promise<T>): Promise<T> {
  */
 function apply(fresh: ReviewSnapshot) {
   const held = snapshot.value
-  if (!held)
+  if (!held || fresh.sessionId !== held.sessionId)
     return
 
-  holdSnapshot(mergeGrades(held, fresh))
-  nothing.value = null
+  const merged = mergeGrades(held, fresh)
+  holdSnapshot(merged)
 
   const confirmed = new Set(
     fresh.positions.filter(isAnswered).map(position => position.cardId),
   )
 
   answers.value = new Map([...answers.value].filter(([cardId]) => !confirmed.has(cardId)))
+
+  // A word the server says is answered — in another tab, say — owes no question.
+  if (quiz.value)
+    holdQuiz(reconcile(quiz.value, merged, answeredHere))
 }
 
 type Landing = 'landed' | 'refused' | 'held'
@@ -456,7 +393,7 @@ type Landing = 'landed' | 'refused' | 'held'
  * One entry, at the head of the stream.
  *
  * ⚠️ **Three outcomes, and `held` is the only one that keeps the entry.**
- * `not_in_session` and `already_graded` are `200`s about a *grade* the durable
+ * `not_in_session` and `already_graded` are `200`s about an answer the durable
  * record has already decided; retrying either forever would be the client's
  * memory arguing with the database.
  */
@@ -470,8 +407,10 @@ async function send(entry: OutboxEntry): Promise<Landing> {
     if (response.session)
       apply(response.session)
 
-    if (response.brake)
-      brake.value = response.brake
+    // ⚠️ Only for the run on screen: a replay of yesterday's stream must not
+    // put yesterday's run's *What next* under today's.
+    if (response.offer && entry.sessionId === snapshot.value?.sessionId)
+      offer.value = response.offer
 
     return isRefused(response.outcome) ? 'refused' : 'landed'
   }
@@ -480,7 +419,7 @@ async function send(entry: OutboxEntry): Promise<Landing> {
 
     // ⚠️ **A flush that answers 401 is not a network error** (`08` §5.6,
     // `09` §4.8). The *session* expired mid-run, so it must not be retried on
-    // the same backoff forever: the replay stops, the end screen reports it and
+    // the same backoff forever: the replay stops, the summary reports it and
     // offers the door.
     if (status === 401) {
       sessionExpired.value = true
@@ -506,8 +445,8 @@ function bodyOf(entry: OutboxEntry) {
       return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt }
     case 'flag':
       return { sessionId: entry.sessionId, cardId: entry.cardId }
-    case 'synonym':
-      return { sessionId: entry.sessionId, cardId: entry.cardId, text: entry.text }
+    case 'finish':
+      return { sessionId: entry.sessionId }
   }
 }
 
@@ -529,34 +468,39 @@ async function flush(): Promise<void> {
       return
 
     // ⚠️ **A refused entry leaves the stream and is kept**, because nothing
-    // about it is retryable and everything about it is worth saying (`03` §8.2).
-    if (landing === 'refused')
+    // about it is retryable and everything about it is worth saying
+    // (`03` §8.2). ⚠️ **A *Finish early* is not kept**: it is not an answer,
+    // and the run it could not end is resumed or completed by the next start.
+    if (landing === 'refused' && entry.kind !== 'finish')
       holdRefused([...refused.value, entry])
 
     holdOutbox(settle(outbox.value, entry.seq))
   }
 }
 
-/** `09` §4.7 steps 2 and 3 — resume the run, or compose one. */
-async function start(requested?: number) {
+/**
+ * `09` §4.7 — resume the run, start the one asked for, or ask what is waiting.
+ *
+ * ⚠️ **`begin` is the reader's own act and nothing else sets it**: a control
+ * on this screen, or the start block's link (`?start=`). With none, the server
+ * resumes a live run or composes nothing (ADR 0076 §8).
+ */
+async function start(begin: SessionKind | null = null) {
   if (!snapshot.value)
     status.value = 'loading'
 
   try {
-    // ⚠️ **The filter travels with the knob and never without it.** The
-    // mount's start sends nothing, because nothing has been chosen yet and a
-    // live run is resumed whatever is sent (`09` §4.7).
-    const asked = requested === undefined ? NO_FILTER : filter.value
-    // ⚠️ **The zone rides every start, the mount's included** (ADR 0066 §4):
+    // ⚠️ **The zone rides every request, the mount's included** (ADR 0066 §4):
     // the day's allowance is counted in it, and it is the only way `/stats`,
     // which ships no JavaScript, ever learns where the reader is.
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    const narrowed = filter.value
     const response = await $fetch<SessionResponse>('/api/review/session', {
       method: 'POST',
-      body: requested === undefined ? { zone } : { size: requested, ...asked, zone },
+      body: { size: size.value, ...narrowed, zone, ...(begin ? { start: begin } : {}) },
     })
 
-    askedFiltered.value = isFiltered(asked)
+    askedFiltered.value = isFiltered(narrowed)
 
     install(response)
     status.value = 'ready'
@@ -577,109 +521,222 @@ async function start(requested?: number) {
  * ⚠️ **The same *session* is merged and a different one replaces.** A merge is
  * what keeps the words the reader was handed (PRD §5); a replace is the only
  * thing a run the server has never heard of can be, and it takes the refusals
- * with it because they were about the run that just ended.
+ * and the question queue with it because they were about the run that ended.
  */
 function install(response: SessionResponse) {
   const held = snapshot.value
   const fresh = response.session
 
-  brake.value = response.brake
+  offer.value = response.offer
 
   if (fresh && held && fresh.sessionId === held.sessionId) {
     apply(fresh)
-    size.value = fresh.size
-    nothing.value = response.empty
     return
   }
 
   answers.value = new Map()
-  resetAnswer()
+  resetQuestion()
   holdSnapshot(fresh)
   holdRefused([])
-  nothing.value = response.empty
-
-  if (fresh)
-    size.value = fresh.size
+  holdQuiz(fresh ? reconcile(null, fresh, isAnswered) : null)
 }
 
-// -- The grade, the synonym and the flag -------------------------------------
+// -- The lesson (ADR 0076 §1) ------------------------------------------------
 
-/**
- * ADR 0069 §1 — `Enter` on the back, or the commit control. ⚠️ **It commits the
- * check's result and takes no argument**: there is no path from a key to a
- * *grade* the check did not give.
- */
-function commit() {
-  const position = current.value
-  const session = snapshot.value
-  const grade = result.value
-  if (!position || !session || grade === null)
+function showWord(index: number) {
+  if (quiz.value)
+    holdQuiz(teach(quiz.value, Math.min(index, positions.value.length - 1)))
+}
+
+/** The teaching is over. ⚠️ It does not come back: the quiz is about what was just shown. */
+function beginQuestions() {
+  if (!quiz.value)
     return
 
-  // ⚠️ **Stamped here, at the keystroke** (ADR 0007, `03` §8.1). FSRS schedules
-  // on elapsed time, so a *card* answered at 09:00 underground and flushed at
-  // 18:00 would otherwise tell the scheduler that recall took nine hours — and
-  // every interval derived from it is wrong six months later.
-  const reviewedAt = new Date().toISOString()
+  holdQuiz(startQuestions(quiz.value))
+  resetQuestion()
+}
 
-  justGraded.value = grade
+// -- The quiz (ADR 0076 §3 to §5) --------------------------------------------
+
+/** A new question is on screen: nothing typed, nothing refused, one retry in hand. */
+function resetQuestion() {
+  feedback.value = null
+  problem.value = null
+  readingRetried.value = false
+  askings.value += 1
+}
+
+function refuse(why: string | null) {
+  problem.value = why
+  refusals.value += 1
+}
+
+/**
+ * ADR 0069 §3 — the gloss, the list and the reader's synonyms.
+ *
+ * ⚠️ **`?? []` because a server answer is installed unparsed** (`start`), and a
+ * tab open across a deploy that added a field would otherwise throw on the
+ * first meaning it checked.
+ */
+function acceptedOf(position: ReviewPosition) {
+  return {
+    meaning: position.fields.meaning ?? '',
+    meanings: position.meanings ?? [],
+    synonyms: position.synonyms ?? [],
+  }
+}
+
+/**
+ * One answer, checked. ⚠️ **Three things can happen and only two are
+ * answers**: an entry in the wrong script, an empty one, and the one
+ * kanji-reading retry (ADR 0069 §5) are handed back to the field with a
+ * sentence, and nothing is counted (ADR 0076 §5).
+ */
+function check(value: string) {
+  const state = quiz.value
+  const current = state ? currentQuestion(state) : null
+  const position = positions.value.find(entry => entry.cardId === current?.cardId)
+  if (!state || !current || !position || feedback.value)
+    return
+
+  let right: boolean
+  let close = false
+  let typed: string
+  let also: string[] = []
+
+  if (current.part === 'reading') {
+    const entry = readingEntry(value)
+    if (entry)
+      return refuse(entry === 'empty' ? null : 'Type the reading in kana. Romaji such as "keiken" converts as you type.')
+
+    // `?? []`: a position installed from a server answer is not parsed (§ Carrying).
+    const result = readingResult(value, position.fields.reading ?? '', position.kanjiReadings ?? [])
+
+    if (result === 'kanji' && !readingRetried.value) {
+      readingRetried.value = true
+      problem.value = 'That is a reading of the kanji, not of this word. Try once more.'
+      clearings.value += 1
+      return
+    }
+
+    typed = foldReading(value)
+    right = result === 'right'
+  }
+  else {
+    const entry = meaningEntry(value)
+    if (entry)
+      return refuse(entry === 'empty' ? null : 'Type the meaning in English.')
+
+    const result = meaningResult(value, acceptedOf(position))
+
+    typed = value.trim()
+    right = result !== 'wrong'
+    close = result === 'close'
+    also = right && !close ? otherMeanings(value, position.fields.meaning ?? '') : []
+  }
+
+  // ⚠️ **The queue is durable before the result paints** (ADR 0039 property
+  // 1): a reload on the result must not find the question unanswered and
+  // forgive the miss it just recorded.
+  const { state: next, completed } = answerQuestion(state, right)
+  holdQuiz(next)
+
+  problem.value = null
+  feedback.value = { question: current, right, close, typed, also }
+
+  if (completed)
+    grade(completed.cardId, completed.grade)
+}
+
+/** *Next*: the result leaves and the head of the queue is asked. */
+function advance() {
+  if (!feedback.value)
+    return
+
+  resetQuestion()
+}
+
+/**
+ * ADR 0076 §4 — the word's one *grade*, given by the answer that completed it.
+ *
+ * ⚠️ **Stamped here, at the keystroke** (ADR 0007, `03` §8.1). FSRS schedules
+ * on elapsed time, so a word answered at 09:00 underground and flushed at
+ * 18:00 would otherwise tell the scheduler that recall took nine hours — and
+ * every interval derived from it is wrong six months later.
+ */
+function grade(cardId: string, given: Grade) {
+  const session = snapshot.value
+  if (!session)
+    return
+
   answer(
-    { kind: 'grade', sessionId: session.sessionId, cardId: position.cardId, grade, reviewedAt },
-    grade,
+    { kind: 'grade', sessionId: session.sessionId, cardId, grade: given, reviewedAt: new Date().toISOString() },
+    given,
   )
 }
 
 /**
- * ADR 0069 §2 — `S` on the back: what was typed becomes the reader's synonym for
- * the *note*, and the meaning is checked again with it.
- *
- * ⚠️ **Three writes, in this order, before anything is sent.** The synonym joins
- * the held position (`withSynonym`) so a reload still has it; the outbox entry
- * is durable before the screen changes (ADR 0039 property 1); and the check
- * re-runs, so the *grade* `Enter` commits next is the one the synonym produced.
- * The entry is **ahead of** the *grade* in the stream, which is the order the
- * server learns them in.
- */
-function addSynonym() {
-  const position = current.value
-  const session = snapshot.value
-  const text = typed.value.meaning.trim()
-  if (!position || !session || !offerSynonym.value)
-    return
-
-  holdSnapshot(withSynonym(session, position.cardId, text))
-  holdOutbox(append(outbox.value, { kind: 'synonym', sessionId: session.sessionId, cardId: position.cardId, text }))
-
-  const updated = current.value ?? position
-  check.value.meaning = meaningMatches(text, acceptedOf(updated))
-
-  void enqueue(flush)
-}
-
-/**
- * `S9`'s `X` — ⚠️ **it advances without a *grade*** (`09` §4.9, `04` §7.8), and
- * *Review* history is left untouched. Catching a bad *card* costs the *card* and
- * not the record.
+ * `S9`'s `X` — ⚠️ **it leaves the run without a *grade*** (`09` §4.9,
+ * `04` §7.8), with every question the word still owed, and *Review* history is
+ * left untouched. Catching a bad word costs the *card* and not the record.
  */
 function flag() {
-  const position = current.value
   const session = snapshot.value
-  if (!position || !session)
+  const state = quiz.value
+  const target = question.value
+  if (!session || !state || !target)
     return
 
-  justGraded.value = null
-  answer({ kind: 'flag', sessionId: session.sessionId, cardId: position.cardId }, 'flagged')
+  // A word the last answer completed is already graded: the flag still
+  // suspends the *card*, and there is nothing left to take out of the queue.
+  holdQuiz(dropWord(state, target.cardId))
+  answer({ kind: 'flag', sessionId: session.sessionId, cardId: target.cardId }, 'flagged')
+  resetQuestion()
 }
 
 /**
  * ⚠️ **The durable write comes before the acknowledgement** (ADR 0039 property
  * 1): the entry is in `localStorage` before the screen has painted the next
- * *card*, and the request is what happens afterwards.
+ * question, and the request is what happens afterwards.
  */
-function answer(draft: OutboxDraft, given: Answer) {
+function answer(draft: Extract<OutboxDraft, { cardId: string }>, given: Answer) {
   holdOutbox(append(outbox.value, draft))
-  answers.value = new Map(answers.value).set(draft.cardId, given)
-  resetAnswer()
+
+  // ⚠️ **A *grade* is never replaced by a flag in this map**: the word was
+  // graded and then flagged, and the summary counts what the *grade* was.
+  if (!(given === 'flagged' && typeof answers.value.get(draft.cardId) === 'number'))
+    answers.value = new Map(answers.value).set(draft.cardId, given)
+
+  void enqueue(flush)
+}
+
+/**
+ * ADR 0076 §6 — *Finish early*. ⚠️ **Three writes, in this order, before
+ * anything is sent**: a Forgot for each word missed and not yet got right (a
+ * review run only), the `finish` entry behind them, and the queue emptied. The
+ * stream's order is the order the server learns them in.
+ */
+function finish() {
+  const session = snapshot.value
+  const state = quiz.value
+  if (!session || !state || state.finished)
+    return
+
+  const { state: next, forgot } = finishEarly(state, kind.value)
+  const reviewedAt = new Date().toISOString()
+  let stream = outbox.value
+  const given = new Map(answers.value)
+
+  for (const cardId of forgot) {
+    stream = append(stream, { kind: 'grade', sessionId: session.sessionId, cardId, grade: 1, reviewedAt })
+    given.set(cardId, 1)
+  }
+
+  holdOutbox(append(stream, { kind: 'finish', sessionId: session.sessionId }))
+  answers.value = given
+  holdQuiz(next)
+  resetQuestion()
 
   void enqueue(flush)
 }
@@ -687,72 +744,79 @@ function answer(draft: OutboxDraft, given: Answer) {
 // -- The keyboard -----------------------------------------------------------
 
 function onKeydown(event: KeyboardEvent) {
-  if (ended.value || !current.value) {
-    const action = endScreenAction(event)
-    if (!action)
-      return
+  const fromField = event.target instanceof HTMLInputElement
 
-    // ⚠️ **`space` on a checkbox or in the knob is the control's.** Both live
-    // inside the mode container (ADR 0025), so their key events bubble here —
-    // and a reader ticking `tech` would otherwise start the *session* they were
-    // still choosing. `Esc` still leaves from anywhere.
-    if (action === 'start' && event.target instanceof HTMLInputElement)
-      return
-
+  // ⚠️ **A held key is never an answer** (`shared/review/keystroke.ts`).
+  // `Enter` on *Check* moves focus to *Next*, and the browser sends the
+  // auto-repeat of the same held key to wherever focus now is — which would
+  // skip a result the reader has not read. A held `space` in a field is typing.
+  if (isHeldActivation(event) && !(fromField && event.key === ' ')) {
     event.preventDefault()
-
-    if (action === 'leave')
-      void leave()
-    else if (ended.value || nothing.value)
-      void enqueue(() => start(size.value))
-
     return
   }
 
-  // ⚠️ **Events from an answer field are the field's** (ADR 0060 §7): `space`,
-  // `x` and the digits are typing there, and its `Enter` is handled in
-  // `ReviewAnswer.vue`. Only `Esc` is still the container's.
-  const fromField = event.target instanceof HTMLInputElement
-  const action = reviewAction(event, step.value, fromField)
+  // ⚠️ **`Enter` in the field checks only when the field's own map says so**
+  // (ADR 0060 §7). The check itself is the form's submission; what is refused
+  // here is the `Enter` a system IME uses to finish a conversion, which would
+  // otherwise submit half a word.
+  if (fromField && event.key === 'Enter' && fieldAction(event) !== 'check') {
+    event.preventDefault()
+    return
+  }
+
+  if (view.value !== 'quiz') {
+    if (restingAction(event) !== 'leave')
+      return
+
+    event.preventDefault()
+    void leave()
+    return
+  }
+
+  // ⚠️ **Events from the answer field are the field's** (ADR 0060 §7): `x` is
+  // typing there. Only `Esc` is still the container's.
+  const action = reviewAction(event, feedback.value ? 'result' : 'asking', fromField)
   if (!action)
     return
 
   event.preventDefault()
 
-  if (action.kind === 'commit')
-    commit()
-  else if (action.kind === 'synonym')
-    addSynonym()
-  else if (action.kind === 'flag')
+  if (action.kind === 'flag')
     flag()
   else
-    void leave()
+    finish()
 }
 
 async function leave() {
   // ADR 0032 blesses this spelling alongside `<NuxtLink … external>`: both do a
   // real document load, which is what strips the *mode*'s JavaScript.
   //
-  // ⚠️ **Nothing is ended on the way out.** Leaving *Review* mid-*session* is a
-  // pause — `10` §5.3 and `09` §4.7 both say the run resumes — and
-  // `review_session.completed_at` is stamped by the answer that empties it.
-  // *Vet*'s Done is the opposite case only because a *rejection*'s reversibility
-  // hangs on its run ending (ADR 0033); nothing here does.
+  // ⚠️ **Nothing is ended on the way out.** Leaving a lesson's teaching is a
+  // pause and the lesson resumes (ADR 0076 §6); the summary and the screen
+  // before a run have nothing live to end. The quiz is the one screen whose
+  // exit ends something, and it does not come through here.
   await navigateTo(origin.value, { external: true })
 }
 
 // -- Lifecycle --------------------------------------------------------------
 
-watch(() => current.value?.cardId, () => {
-  justGraded.value = null
-  resetAnswer()
-  void focusStep()
+watch(view, () => void focusView())
+watch(teachingIndex, () => void focusView())
+
+/**
+ * ⚠️ **A changed filter asks again and starts nothing.** The count on the
+ * lesson control is the server's (`offerOf`), so a filter that only moved a
+ * checkbox would leave the control promising words the lesson will not hold.
+ */
+watch(filter, () => {
+  if (view.value === 'start')
+    void enqueue(() => start())
 })
 
 /**
  * ⚠️ **The one listener on `window`, and it is not a keystroke.** ADR 0025 binds
- * the key handlers to the mode container because ADR 0023's map is all printable
- * characters and SC 2.1.4 Character Key Shortcuts is Level A — a criterion about
+ * the key handlers to the mode container because `X` is a printable character
+ * and SC 2.1.4 Character Key Shortcuts is Level A — a criterion about
  * **keyboard shortcuts**, which this is not. `online` is the signal in
  * ADR 0039's sense: it shortens the latency of a replay the store would have
  * performed on the next load anyway, and removing it entirely changes when the
@@ -762,19 +826,39 @@ function onOnline() {
   void enqueue(flush)
 }
 
+/**
+ * The start block's link — `/review?start=lesson` — as a run to begin, once.
+ *
+ * ⚠️ **It is taken out of the address as soon as it is read.** Left there, a
+ * reload on the summary or the back button would start the next lesson, and a
+ * lesson spends the day's allowance by being composed (ADR 0066 §3).
+ */
+function takeStartParam(): SessionKind | null {
+  const begin = route.query.start
+  if (begin === undefined)
+    return null
+
+  const rest = { ...route.query }
+  delete rest.start
+  void router.replace({ query: rest })
+
+  return begin === 'lesson' || begin === 'review' ? begin : null
+}
+
 onMounted(async () => {
   restore()
 
   const threshold = setTimeout(() => (slow.value = true), LOADING_THRESHOLD)
   window.addEventListener('online', onOnline)
+  const begin = takeStartParam()
 
   // ⚠️ **The replay goes first.** A run resumed before its own owed answers had
   // landed would be answered by the server about a *session* it thinks is two
-  // *grades* behind, and the rail would fill twice.
+  // *grades* behind, and the track would fill twice.
   await enqueue(flush)
-  await enqueue(() => start())
+  await enqueue(() => start(begin))
   clearTimeout(threshold)
-  void focusStep()
+  void focusView()
 })
 
 onBeforeUnmount(() => {
@@ -785,221 +869,206 @@ onBeforeUnmount(() => {
 <template>
   <div class="mode">
     <!--
-      ⚠️ `10` §5.2: **a three-column grid — a left spacer, the rail, the Done
-      cluster.** The spacer is exactly the cluster's width, so the rail stays
-      optically centred, which it must be, because it is the header of a screen
-      whose 760px *card* is centred beneath it. 64px, and **no rule**.
+      ADR 0076 §8 — the prototype's bar: a name, one track, a count, the exit.
+      ⚠️ **The exit is outside the mode container on purpose** (ADR 0025): it is
+      a control with its own activation, and the container's keys are not its.
     -->
-    <header class="chrome">
-      <span class="cluster-width" aria-hidden="true" />
+    <ModeBar
+      v-if="view === 'teach'"
+      name="Lesson"
+      :progress="(teachingIndex + 1) / Math.max(1, positions.length)"
+      :count="`word ${teachingIndex + 1} of ${positions.length}`"
+    >
+      <template #exit>
+        <NuxtLink :to="origin" external class="exit">
+          Leave
+        </NuxtLink>
+      </template>
+    </ModeBar>
 
-      <ProgressRail
-        v-if="snapshot"
-        :ticks="ticks"
-        :complete="ended"
-        :position="railPosition"
-      />
-      <span v-else />
+    <ModeBar
+      v-else-if="view === 'quiz'"
+      :name="kind === 'lesson' ? 'Lesson quiz' : 'Reviews'"
+      :progress="done / Math.max(1, positions.length)"
+      :count="`${done} of ${positions.length} ${positions.length === 1 ? 'word' : 'words'}`"
+    >
+      <template #exit>
+        <!-- ⚠️ ADR 0076 §6: **a button, because it ends the run** — a link
+             out would leave the missed words ungraded and the run live. -->
+        <button type="button" class="exit" @click="finish">
+          Finish early
+        </button>
+      </template>
+    </ModeBar>
 
-      <NuxtLink :to="origin" external class="done">
-        <!-- ⚠️ `10` §10.2: **the Done cluster drops its cap on the phone.** A
-             phone has no `Esc` — which is the entire reason ADR 0026 gave every
-             *mode* a visible Done — so a cap reading `Esc` would name a key that
-             does not exist. The label alone is the control. -->
-        <KeyCap cap="Esc" label="Done" class="desktop-only" />
-        <span class="done-phone phone-only">Done</span>
-      </NuxtLink>
-    </header>
+    <ModeBar
+      v-else-if="view === 'summary'"
+      name="Summary"
+      :progress="1"
+      :count="`${done} ${done === 1 ? 'word' : 'words'}`"
+    >
+      <template #exit>
+        <NuxtLink :to="origin" external class="exit">
+          {{ home.name }}
+        </NuxtLink>
+      </template>
+    </ModeBar>
+
+    <ModeBar v-else name="Study">
+      <template #exit>
+        <NuxtLink :to="origin" external class="exit">
+          Done
+        </NuxtLink>
+      </template>
+    </ModeBar>
 
     <!--
       ⚠️ **The mode container.** Key handlers bind here and focus lives here —
-      never on `document` or `window` (ADR 0025, `10` §4.1, `11` §6.2). The Done
-      control above is deliberately **outside** it.
+      never on `document` or `window` (ADR 0025, `10` §4.1, `11` §6.2).
     -->
     <div ref="container" class="container" tabindex="-1" @keydown="onKeydown">
       <div class="column">
         <!-- `10` §5.9: the frame paints immediately and the statement waits
              500ms, because a statement that flashes for 120ms is worse than
-             120ms of quiet ground. The rail cannot paint before this at all —
-             it does not know its own length until `review_session.size` exists. -->
-        <EmptyBlock v-if="status === 'loading'" v-show="slow">
+             120ms of quiet ground. -->
+        <EmptyBlock v-if="view === 'loading'" v-show="slow">
           <template #statement>
-            Composing a session.
+            Seeing what is waiting.
           </template>
           <template #body>
             &nbsp;
           </template>
         </EmptyBlock>
 
-        <EmptyBlock v-else-if="status === 'error'">
+        <EmptyBlock v-else-if="view === 'error'">
           <template #statement>
-            The session could not be started.
+            That did not load.
           </template>
           <template #body>
             Nothing has been lost. Leave and come back.
           </template>
         </EmptyBlock>
 
-        <!-- `10` §5.6 — the end screen. ⚠️ **It shows the run's numbers and
-             never starts the next one** (`S7`): `space` is the reader's own
-             deliberate act, and it is safe here because the key before it was a
-             digit (`09` §4.7). -->
-        <div v-else-if="ended" class="end">
-          <SessionTally :columns="tally" />
+        <!-- ADR 0076 §8 — what is waiting, and the reader starts one. The
+             prototype puts this on Home (#71); until Home exists it is here.
+             ⚠️ **Neither control is drawn for a run of nothing**: the sentence
+             above says why, and a control that composed nothing would answer a
+             press with this same screen. -->
+        <section v-else-if="view === 'start' && offer && lines" class="start">
+          <span class="eyebrow">Today</span>
+          <h1 class="statement">
+            {{ lines.statement }}
+          </h1>
+          <p v-if="lines.body" class="sub">
+            {{ lines.body }}
+          </p>
 
-          <!-- ADR 0066 §7: which brake is on, before the reader asks for the
-               next run. ⚠️ **A brake that is silent is a bug report.** -->
+          <div class="cta">
+            <button v-if="offer.dueCount > 0" type="button" class="btn" @click="enqueue(() => start('review'))">
+              Start reviews · {{ offer.dueCount }} due
+            </button>
+            <button
+              v-if="offer.lesson > 0"
+              type="button"
+              class="btn"
+              :class="{ ghost: offer.dueCount > 0 }"
+              @click="enqueue(() => start('lesson'))"
+            >
+              Start lesson · {{ offer.lesson }} {{ offer.lesson === 1 ? 'new word' : 'new words' }}
+            </button>
+          </div>
+
+          <!-- ADR 0066 §7: which brake is on. ⚠️ **A brake that is silent is a
+               bug report.** -->
           <p v-if="brakeLine" class="brake">
             {{ brakeLine }}
           </p>
 
-          <!-- ⚠️ `10` §5.6's second block, and `09` §4.8 requires it: a flush
-               that answers 401 is not a network error, and a *grade* that did
-               not land is surfaced rather than dropped. **It is not styled as an
-               alert** — there is no alert in this system — it is a sentence with
-               a rule above it. -->
-          <p v-if="unsent > 0 || refused.length > 0" class="unsent">
-            <template v-if="unsent > 0">
-              {{ unsent }} {{ unsent === 1 ? 'answer has' : 'answers have' }} not reached the database yet. They are saved here and will be sent when the connection returns.
-              <NuxtLink v-if="sessionExpired" to="/auth" external class="sign-in">Sign in again</NuxtLink>
-            </template>
-
-            <!-- ⚠️ A refusal, surfaced rather than dropped (ADR 0039 property
-                 5). It names the clock because the clock is both the common
-                 cause (`03` §8.2) and the one the reader can fix — and it says
-                 *usually*, because a body the server cannot read is refused the
-                 same way and for good. It is a second sentence rather than a
-                 second block: both are the same notice, which is *what happened
-                 to the answers you gave*. -->
-            <template v-if="refused.length > 0">
-              {{ refused.length }} {{ refused.length === 1 ? 'answer was' : 'answers were' }} refused and will not be sent again — usually a clock that disagrees with the server's.
-            </template>
-          </p>
-
+          <!-- `10` §5.8: never mid-run, so they live on the screen before one.
+               The knob caps a review run; the filter narrows a lesson. -->
           <SessionSizeKnob v-model="size" class="knob" />
           <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
+        </section>
 
-          <button type="button" class="primary" @click="enqueue(() => start(size))">
-            <span class="hint">space</span>
-            <span class="primary-label">Start another session</span>
-          </button>
-        </div>
+        <!-- ADR 0076 §1 — a lesson's teaching, one word a screen. -->
+        <section v-else-if="view === 'teach' && teaching" class="teach">
+          <div class="dots" aria-hidden="true">
+            <i
+              v-for="(position, index) in positions"
+              :key="position.cardId"
+              :class="{ done: index < teachingIndex, now: index === teachingIndex }"
+            />
+          </div>
 
-        <!-- `10` §5.7's non-terminal empty states — three since #21. The difference between
-             them is the difference between going to *Vet* and coming back
-             tomorrow, and only one of them is a dead end. -->
-        <EmptyBlock v-else-if="emptyState === 'nothing-accepted'">
-          <template #statement>
-            Nothing to review.
-          </template>
-          <template #body>
-            A <i>card</i> is minted when a <i>note</i> is accepted, so the way to a first one is through <i>Vet</i>.
-          </template>
+          <LessonCard :key="teaching.cardId" :fields="teaching.fields" :level="teaching.level ?? null" />
 
-          <SessionSizeKnob v-model="size" />
-          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
-        </EmptyBlock>
+          <div class="rowbtns">
+            <button v-if="teachingIndex > 0" type="button" class="btn ghost" @click="showWord(teachingIndex - 1)">
+              Back
+            </button>
+            <button v-if="lastTaught" ref="primary" type="button" class="btn" @click="beginQuestions">
+              {{ positions.length === 1 ? 'Quiz me on this word' : `Quiz me on these ${positions.length}` }}
+            </button>
+            <button v-else ref="primary" type="button" class="btn" @click="showWord(teachingIndex + 1)">
+              Next word
+            </button>
+          </div>
 
-        <!-- ⚠️ `10` §5.7's third state (ADR 0066 §7): new words are waiting and
-             the day's ten are spent. Read as *Nothing due* it would be true
-             and would make the brake look like a bug. -->
-        <EmptyBlock v-else-if="emptyState === 'held-back' && brake">
-          <template #statement>
-            No new words today.
-          </template>
-          <template #body>
-            {{ brakeSentence(brake) }} Nothing is due, and the next ones arrive after 04:00.
-          </template>
-
-          <p v-if="nextDue" class="datum">
-            {{ nextDue }}
+          <p class="foot">
+            {{ lastTaught
+              ? 'Get a word right in the quiz and it enters your reviews.'
+              : `Take a moment with each word. The quiz comes after all ${positions.length}.` }}
           </p>
+        </section>
 
-          <SessionSizeKnob v-model="size" class="knob" />
-          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
-        </EmptyBlock>
-
-        <EmptyBlock v-else-if="nothing">
-          <template #statement>
-            Nothing due.
-          </template>
-          <template #body>
-            There is no ahead-of-schedule study<template v-if="askedFiltered">, and no new card matches the filter</template>.
-          </template>
-
-          <p v-if="nextDue" class="datum">
-            {{ nextDue }}
-          </p>
-
-          <SessionSizeKnob v-model="size" class="knob" />
-          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
-        </EmptyBlock>
-
-        <ReviewCard
-          v-else-if="current"
-          :fields="current.fields"
-          :declaration="jlptVocab"
-          :template-key="current.templateKey"
-          :face="step === 'back' ? 'back' : 'front'"
-        >
-          <!-- ⚠️ Keyed by *card*, so the fields, their `bind` and what was typed
-               cannot outlive the *card* they answered. -->
-          <ReviewAnswer
-            ref="steps"
-            :key="current.cardId"
-            :step="step"
-            :declaration="jlptVocab"
-            :typed="typed"
-            :check="check"
-            :stored-reading="current.fields.reading ?? ''"
-            :asks-reading="asksReading"
-            :retry="readingRetried && step === 'reading'"
-            @reading="checkReading"
-            @meaning="checkMeaning"
+        <section v-else-if="view === 'quiz' && asking && question" class="quiz">
+          <!-- ⚠️ Keyed by the asking, so the field, its `bind` and what was
+               typed cannot outlive the question they answered — the same
+               question asked again after a miss is a new field. -->
+          <QuizCard
+            :key="askings"
+            :fields="asking.fields"
+            :part="question.part"
+            :feedback="feedback"
+            :problem="problem"
+            :refusals="refusals"
+            :clearings="clearings"
+            @check="check"
+            @next="advance"
           />
-        </ReviewCard>
+
+          <p class="foot">
+            {{ quizFoot }}
+          </p>
+
+          <!-- `S9`'s `X`, on the result only: in the open field it is a letter.
+               ⚠️ A control and not a legend, because a phone has no `X`. -->
+          <p v-if="feedback" class="flagline">
+            <button type="button" class="flag" @click="flag">
+              <kbd class="desktop-only">X</kbd> Something is wrong with this word
+            </button>
+          </p>
+        </section>
+
+        <SessionSummary
+          v-else-if="view === 'summary'"
+          :kind="kind"
+          :early="quiz?.finished ?? false"
+          :positions="positions"
+          :offer="offer"
+          :unsent="unsent"
+          :refused="refused.length"
+          :session-expired="sessionExpired"
+          :home="home"
+          @start="begin => enqueue(() => start(begin))"
+        />
       </div>
     </div>
-
-    <!--
-      `10` §5.1's 104px footer, **no rule**: the key legend on the front, the
-      check's controls on the back (ADR 0069). `Esc` is not repeated in either,
-      because the Done cluster in the header names it (§5.2).
-    -->
-    <footer class="legend">
-      <div v-if="current" class="column legend-column">
-        <!-- `10` §5.1 as amended by ADR 0060 and ADR 0069: the front's legend
-             is `Enter` — check, which covers both steps. The back is the
-             commit control, named for the *grade* the check gave, with `S` —
-             add as synonym beside it after a refused meaning, and beneath them
-             `X` — flag. ⚠️ **`X` and `S` are on the back only**: on the front
-             either is the first letter of a meaning. -->
-        <div v-if="step !== 'back'" class="legend-row">
-          <KeyCap cap="Enter" label="check" variant="primary" />
-        </div>
-
-        <template v-else>
-          <CheckControls
-            v-if="result !== null"
-            :grade="result"
-            :offer-synonym="offerSynonym"
-            :committed="justGraded !== null"
-            @commit="commit"
-            @synonym="addSynonym"
-          />
-
-          <div class="legend-row flag-row">
-            <KeyCap cap="X" label="flag" variant="aside" class="flag-cap" />
-          </div>
-        </template>
-      </div>
-    </footer>
   </div>
 </template>
 
 <style scoped>
-/* `05` §5: every screen is a fixed-height column — chrome, a growing middle,
-   chrome. `10` §5.1: header 64px and footer 104px, **neither with a rule**. */
+/* The prototype's `.mode`: the bar, and a body that grows under it. */
 .mode {
   display: flex;
   flex-direction: column;
@@ -1007,176 +1076,191 @@ onBeforeUnmount(() => {
   background: var(--k-ground);
 }
 
-.chrome {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  flex: 0 0 64px;
-  padding: 0 var(--k-gutter);
-}
-
-/* ⚠️ The left spacer is the Done cluster's width and nothing else — it is what
-   keeps the rail optically centred under a cluster that only exists on one side
-   (`10` §5.2). */
-.cluster-width {
-  width: 90px;
-}
-
-.done {
-  justify-self: end;
-  text-decoration: none;
-}
-
-.done-phone {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  /* `10` §10.2: 14px `--k-ink`, in a 44 × 44 hit area. */
-  min-width: 44px;
-  min-height: 44px;
-  font-size: 14px;
-  color: var(--k-ink);
-}
-
 .container {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
-  padding: 0 var(--k-gutter);
+  padding: 34px var(--k-gutter) 48px;
   outline: none;
 }
 
+/* `05` §5's object measure — 760px, which is the prototype's too. */
 .column {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
   width: 100%;
   max-width: var(--k-measure-object);
 }
 
-/* `10` §5.6: the end screen's column is 620px — `05` §5's session-end measure. */
-.end {
-  width: 100%;
-  max-width: var(--k-measure-told);
-}
-
-/* ADR 0066 §7's sentence — `10` §5.6, amended by #21: `32px` under the
-   tally, secondary ink, because it is about the next run and not this one. */
-.brake {
-  margin: var(--k-space-7) 0 0;
-  font-size: 15px;
+.eyebrow {
+  font-family: var(--k-face-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--k-ink-secondary);
 }
 
-/* `10` §5.6: `32px` down, and a rule above it. */
-.unsent {
-  margin: var(--k-space-7) 0 0;
-  padding-top: var(--k-space-7);
-  border-top: 1px solid var(--k-rule);
-  font-size: 15px;
+.statement {
+  margin: 6px 0 0;
+  max-width: 18em;
+  font-size: 44px;
+  font-weight: 300;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.sub {
+  margin: var(--k-space-2) 0 0;
+  font-size: 17px;
+  color: var(--k-ink-secondary);
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--k-space-3);
+  margin-top: var(--k-space-6);
+}
+
+/* The prototype's `.btn` and its ghost. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 22px;
+  background: var(--k-ink-ground);
+  border: 1px solid var(--k-ink-ground);
+  border-radius: var(--k-radius-control);
+  font-family: var(--k-face-en);
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--k-on-ink);
+  text-align: center;
+  cursor: pointer;
+}
+
+.btn.ghost {
+  background: var(--k-raised);
+  border-color: var(--k-border-control);
   color: var(--k-ink);
 }
 
-.sign-in {
-  color: var(--k-accent);
+.btn.ghost:hover {
+  background: var(--k-key-face);
+}
+
+/* ADR 0066 §7's sentence: secondary ink, because it is about the day and not
+   about what is on the controls above it. */
+.brake {
+  margin: var(--k-space-5) 0 0;
+  font-size: 15px;
+  color: var(--k-ink-secondary);
 }
 
 .knob {
   margin-top: var(--k-space-7);
 }
 
-/* `05` §4's "single datum given weight" slot — `10` §5.7's next-due instant. */
-.datum {
-  margin: 0;
-  font-size: 24px;
-  color: var(--k-ink);
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--k-space-2);
+  margin: 0 0 var(--k-space-5);
 }
 
-/* `05` §7's standalone primary control: inline rather than full width,
-   `13px 24px`, `14px` gap, label at 17px. */
-.primary {
+.dots i {
+  width: 28px;
+  height: 5px;
+  border-radius: var(--k-radius-tick);
+  background: var(--k-tick-empty);
+}
+
+.dots i.done {
+  background: var(--k-ink);
+}
+
+.dots i.now {
+  background: var(--k-accent);
+}
+
+.rowbtns {
+  display: flex;
+  gap: var(--k-space-3);
+  margin-top: var(--k-space-5);
+}
+
+.rowbtns .btn {
+  flex: 1 1 0;
+}
+
+.rowbtns .btn.ghost {
+  flex: 0 0 auto;
+}
+
+.foot {
+  margin: var(--k-space-4) 0 0;
+  font-size: 14px;
+  font-style: italic;
+  color: var(--k-ink-secondary);
+  text-align: center;
+}
+
+.flagline {
+  margin: var(--k-space-3) 0 0;
+  text-align: center;
+}
+
+.flag {
   display: inline-flex;
   align-items: center;
-  gap: var(--k-space-4);
-  margin-top: var(--k-space-7);
-  padding: 13px 24px;
-  background: var(--k-ink-ground);
-  border: 1px solid var(--k-ink-ground);
-  border-radius: var(--k-radius-control);
+  gap: var(--k-space-2);
+  min-height: 32px;
+  padding: 0 var(--k-space-2);
+  background: none;
+  border: 0;
+  font-family: var(--k-face-en);
+  font-size: 14px;
+  color: var(--k-ink-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
-.hint {
+.flag:hover {
+  color: var(--k-ink);
+}
+
+.flag kbd {
+  padding: 1px 6px;
+  background: var(--k-key-face);
+  border-radius: var(--k-radius-key);
   font-family: var(--k-face-mono);
-  font-size: 12px;
-  color: var(--k-on-ink-quiet);
+  font-size: 11px;
+  color: var(--k-ink-value);
 }
 
-.primary-label {
-  font-family: var(--k-face-en);
-  font-size: 17px;
-  color: var(--k-ground);
-}
-
-.legend {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex: 0 0 104px;
-  padding: 0 var(--k-gutter);
-}
-
-.legend-column {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.legend-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* `10` §5.1: on the front the two caps share the row. `05` §7's legend spacing
-   between separate clusters. */
-.flag-cap {
-  margin-left: var(--k-space-6);
-}
-
-/* `10` §5.1: `12px` under the four controls, and the `X` line stands alone. */
-.flag-row {
-  margin-top: var(--k-space-3);
-}
-
-.phone-only {
-  display: none;
-}
-
-/* ⚠️ ADR 0026: ***Review* is the one screen that gets a phone layout**, because
-   it is the one screen with dead time. `10` §10.2's table is the rest of it, and
-   the *card*'s half lives in `ReviewCard.vue`. */
+/* ⚠️ ADR 0026: ***Review* is the one *mode* that gets a phone layout**, because
+   it is the one screen with dead time. The values are the prototype's. */
 @media (width < 720px) {
-  .chrome {
-    flex-basis: 56px;
+  .container {
+    padding: 18px var(--k-space-4) 28px;
   }
 
-  .cluster-width {
-    width: 0;
+  .statement {
+    font-size: 30px;
   }
 
-  .legend {
-    flex-basis: 72px;
+  .cta .btn {
+    width: 100%;
+  }
+
+  .flag {
+    min-height: 44px;
   }
 
   .desktop-only {
     display: none;
-  }
-
-  .phone-only {
-    display: inline-flex;
   }
 }
 </style>

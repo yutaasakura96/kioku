@@ -1,4 +1,5 @@
-// The review-load brake's arithmetic around `compose` — ADR 0066 §3, §4, §7.
+// The review-load brake's arithmetic — ADR 0066 §3, §4, §7, and since ADR 0076
+// §2 over the reader's own limits rather than two constants.
 //
 // ⚠️ **The day is `shared/time/local-day.ts`'s**, and `local-day.test.ts` owns
 // the boundary itself. What is asserted here is that the allowance is counted
@@ -9,12 +10,18 @@ import { describe, expect, it } from 'vitest'
 
 import {
   brakeSentence,
-  emptyStateOf,
   brakeState,
   introducedToday,
+  lessonRoom,
   newAllowance,
   newOnOffer,
 } from '../../shared/review/brake'
+import { DEFAULT_LIMITS } from '../../shared/review/limits'
+import type { StudyLimits } from '../../shared/review/limits'
+
+/** ADR 0066's numbers, which are the defaults: five a lesson, ten a day, fifty due. */
+const LIMITS = DEFAULT_LIMITS
+const limits = (over: Partial<StudyLimits>): StudyLimits => ({ ...DEFAULT_LIMITS, ...over })
 
 const TOKYO = 'Asia/Tokyo'
 
@@ -56,82 +63,106 @@ describe('introducedToday — sum(new_count) over the sessions composed today', 
   })
 })
 
-describe('newAllowance — ten a day', () => {
-  it('is what is left of ten, and never below nothing', () => {
-    expect(newAllowance(0)).toBe(10)
-    expect(newAllowance(7)).toBe(3)
-    expect(newAllowance(10)).toBe(0)
-    expect(newAllowance(14)).toBe(0)
+describe('newAllowance — what is left of the day', () => {
+  it('is what is left of ten by default, and never below nothing', () => {
+    expect(newAllowance(0, LIMITS)).toBe(10)
+    expect(newAllowance(7, LIMITS)).toBe(3)
+    expect(newAllowance(10, LIMITS)).toBe(0)
+    expect(newAllowance(14, LIMITS)).toBe(0)
+  })
+
+  it('follows the reader\'s setting', () => {
+    expect(newAllowance(7, limits({ dailyNew: 20 }))).toBe(13)
+    expect(newAllowance(0, limits({ dailyNew: 0 }))).toBe(0)
   })
 })
 
-// ⚠️ #33: the start block's `· N new`. It is the day's figure, not one run's —
-// the most the brake would let the next composed *session* introduce today.
+// ADR 0076 §1 — how many words one lesson may teach now.
+describe('lessonRoom — one lesson, as far as the brake allows', () => {
+  it('is the lesson size while the day has more than that left', () => {
+    expect(lessonRoom({ introducedToday: 0, dueCount: 0 }, LIMITS)).toBe(5)
+    expect(lessonRoom({ introducedToday: 5, dueCount: 0 }, LIMITS)).toBe(5)
+  })
+
+  it('is what is left of the day when that is less than a lesson', () => {
+    expect(lessonRoom({ introducedToday: 7, dueCount: 0 }, LIMITS)).toBe(3)
+  })
+
+  it('is nothing once the day is spent', () => {
+    expect(lessonRoom({ introducedToday: 10, dueCount: 0 }, LIMITS)).toBe(0)
+    expect(lessonRoom({ introducedToday: 12, dueCount: 0 }, LIMITS)).toBe(0)
+  })
+
+  // ⚠️ **The gate is over the whole due set**, and it wins over whatever the
+  // day has left: fifty or more waiting, no new words.
+  it('is nothing at fifty reviews waiting, and a full lesson at forty-nine', () => {
+    expect(lessonRoom({ introducedToday: 0, dueCount: 50 }, LIMITS)).toBe(0)
+    expect(lessonRoom({ introducedToday: 0, dueCount: 49 }, LIMITS)).toBe(5)
+  })
+
+  it('follows all three settings', () => {
+    const own = limits({ lessonSize: 8, dailyNew: 20, pauseAbove: 100 })
+
+    expect(lessonRoom({ introducedToday: 0, dueCount: 99 }, own)).toBe(8)
+    expect(lessonRoom({ introducedToday: 16, dueCount: 0 }, own)).toBe(4)
+    expect(lessonRoom({ introducedToday: 0, dueCount: 100 }, own)).toBe(0)
+  })
+
+  it('is nothing when new words are switched off', () => {
+    expect(lessonRoom({ introducedToday: 0, dueCount: 0 }, limits({ dailyNew: 0 }))).toBe(0)
+  })
+})
+
+// ⚠️ #33: the start block's `Lesson · N new`. It is the day's figure, not one
+// lesson's — a day of ten is two lessons of five.
 describe('newOnOffer — what the start block says is new (#33)', () => {
-  it('is nothing while the fifty-card gate is shut, whatever is left of the day', () => {
-    expect(newOnOffer({ introducedToday: 0, dueCount: 50 }, 43)).toBe(0)
+  it('is nothing while the fifty-review gate is shut, whatever is left of the day', () => {
+    expect(newOnOffer({ introducedToday: 0, dueCount: 50 }, 43, LIMITS)).toBe(0)
   })
 
   it('is nothing once the day\'s ten are spent', () => {
-    expect(newOnOffer({ introducedToday: 10, dueCount: 0 }, 43)).toBe(0)
-    expect(newOnOffer({ introducedToday: 12, dueCount: 0 }, 43)).toBe(0)
+    expect(newOnOffer({ introducedToday: 10, dueCount: 0 }, 43, LIMITS)).toBe(0)
+    expect(newOnOffer({ introducedToday: 12, dueCount: 0 }, 43, LIMITS)).toBe(0)
   })
 
-  it('is what is left of the day when more than that is waiting', () => {
-    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 43)).toBe(10)
-    expect(newOnOffer({ introducedToday: 7, dueCount: 49 }, 43)).toBe(3)
+  it('is what is left of the day when more than that is waiting, and not capped at a lesson', () => {
+    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 43, LIMITS)).toBe(10)
+    expect(newOnOffer({ introducedToday: 7, dueCount: 49 }, 43, LIMITS)).toBe(3)
   })
 
   it('is what is waiting when that is fewer than the day allows', () => {
-    expect(newOnOffer({ introducedToday: 2, dueCount: 0 }, 4)).toBe(4)
-    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 0)).toBe(0)
+    expect(newOnOffer({ introducedToday: 2, dueCount: 0 }, 4, LIMITS)).toBe(4)
+    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 0, LIMITS)).toBe(0)
   })
 })
 
 describe('the reader is told which brake is on (ADR 0066 §7)', () => {
-  it('names the due count when the fifty-card gate is shut', () => {
+  it('names the due count when the fifty-review gate is shut', () => {
     const reading = { introducedToday: 2, dueCount: 63 }
 
-    expect(brakeState(reading)).toBe('paused')
-    expect(brakeSentence(reading)).toBe('No new words today, 63 due.')
+    expect(brakeState(reading, LIMITS)).toBe('paused')
+    expect(brakeSentence(reading, LIMITS)).toBe('No new words today, 63 due.')
   })
 
   it('names the day\'s ten when they are spent', () => {
     const reading = { introducedToday: 10, dueCount: 4 }
 
-    expect(brakeState(reading)).toBe('spent')
-    expect(brakeSentence(reading)).toBe('10 of 10 new words today.')
+    expect(brakeState(reading, LIMITS)).toBe('spent')
+    expect(brakeSentence(reading, LIMITS)).toBe('10 of 10 new words today.')
   })
 
   it('says its number when no brake is on, too', () => {
     const reading = { introducedToday: 3, dueCount: 49 }
 
-    expect(brakeState(reading)).toBe('open')
-    expect(brakeSentence(reading)).toBe('3 of 10 new words today.')
+    expect(brakeState(reading, LIMITS)).toBe('open')
+    expect(brakeSentence(reading, LIMITS)).toBe('3 of 10 new words today.')
   })
 
   it('prefers the gate the reader can open tonight', () => {
-    expect(brakeState({ introducedToday: 10, dueCount: 50 })).toBe('paused')
-  })
-})
-
-describe('emptyStateOf — `10` §5.7\'s three empty states', () => {
-  const nothing = { hasCards: true, nextDue: null, newWaiting: true }
-
-  it('points at the pipeline when nothing was ever minted', () => {
-    expect(emptyStateOf({ hasCards: false, nextDue: null, newWaiting: false }, null)).toBe('nothing-accepted')
+    expect(brakeState({ introducedToday: 10, dueCount: 50 }, LIMITS)).toBe('paused')
   })
 
-  it('says the brake held words back when the day\'s ten are spent and some wait', () => {
-    expect(emptyStateOf(nothing, { introducedToday: 10, dueCount: 0 })).toBe('held-back')
-  })
-
-  // A filter that matched nothing is not the brake: the day has room.
-  it('is nothing due when the day still has room', () => {
-    expect(emptyStateOf(nothing, { introducedToday: 4, dueCount: 0 })).toBe('nothing-due')
-  })
-
-  it('is nothing due when no new card is waiting at all', () => {
-    expect(emptyStateOf({ ...nothing, newWaiting: false }, { introducedToday: 10, dueCount: 0 })).toBe('nothing-due')
+  it('names the reader\'s own limit, and an overrun as it happened', () => {
+    expect(brakeSentence({ introducedToday: 12, dueCount: 0 }, limits({ dailyNew: 5 }))).toBe('12 of 5 new words today.')
   })
 })

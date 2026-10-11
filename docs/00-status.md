@@ -7,7 +7,8 @@ sentence is history** ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-
 whose words are already there, from open data, and building a deck from your own material is a
 tucked-away option.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**75 ADRs** — ⚠️ **ADR 0075, the words are ready-made and a level comes from a list, added
+**76 ADRs** — ⚠️ **ADR 0076, new words are taught in a lesson and a miss is asked again, added
+2026-10-12** with #70 (this said *75* until then). ⚠️ **ADR 0075, the words are ready-made and a level comes from a list, added
 2026-10-10** with #68 (this said *74* until then). ⚠️ **ADR 0074, the app ships its own faces, added 2026-09-25** (this said *70* from
 2026-09-21 until then, three ADRs behind the directory). ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
 contributes only the words in it that name a level, on the re-measurement that ADR asked #26 for).
@@ -129,13 +130,56 @@ starts again under `jlpt-vocab-2` with nothing deleted.** ⚠️ **None of it is
 migration, the load and the release are Yuta's (§ Next). ⚠️ **And nothing above this paragraph was
 rewritten for it** — where an earlier paragraph says what the app is for, ADR 0075 is the newer word.
 
-**Updated:** 2026-10-10 (⚠️ this said 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
+⚠️ **2026-10-12: [#70](https://github.com/yutaasakura96/kioku/issues/70) is built — the quiz with
+lessons** (§ Done, [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)).
+A new word is taught in a lesson of five before it is asked, the quiz asks the meaning and then the
+reading, a miss comes back until it is right and still counts, a near miss in a meaning passes and
+nothing overrules the check, and the three limits are settings on a fourth *place*. **The starter
+words can now be studied**: a lesson accepts and mints the ones it teaches. ⚠️ **Migration `0013` is
+not on production, and neither is any of #68** (§ Next). The frontier is #69, then #71 and #72.
+
+**Updated:** 2026-10-12 (⚠️ this said 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-10, latest — [#68](https://github.com/yutaasakura96/kioku/issues/68): the starter set, and
+**2026-10-12, latest — [#70](https://github.com/yutaasakura96/kioku/issues/70): the quiz with
+lessons.** The second build step of #67's direction change
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)). *Review* is
+rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
+- **Two kinds of *session*** (`review_session.kind`, migration `0013_lessons`, additive). A review
+  run holds due *cards* only. A lesson holds new words only: the reader's own unscheduled *cards*
+  first, then starter words not yet started, easiest *level* first in a fixed shuffle
+  (`unstartedNotes`). **A lesson accepts and mints the starter words it teaches**, in the
+  transaction that composes it (`server/utils/review/session.ts`).
+- **The quiz** (`shared/review/quiz.ts`, `app/components/QuizCard.vue`): the meaning, then the
+  reading; a kana-only word asks the meaning alone. **A wrong question goes to the back of the queue
+  and returns until it is right, and the word is graded once**, when its last question is right:
+  Good if nothing was missed, Forgot if anything was. The queue and the misses live in
+  `localStorage` (`kioku:review:quiz`), so a reload does not forgive one.
+- **Tolerance** (`shared/review/answer.ts`): exact under five letters, one edit for five to eight,
+  two from nine, against every accepted meaning. A reading is exact; the one kanji-reading retry
+  stays. An entry in the wrong script is refused and not counted. **No manual override**: the
+  synonym key, the `synonym` outbox entry and `POST /api/review/synonym` are deleted.
+  `meaning_synonym` stays and is still read.
+- **Finish early** (the quiz's exit, and `Esc`): a third outbox entry, `finish`, and
+  `POST /api/review/finish`. A review run grades its missed-and-not-yet-right words Forgot first; a
+  lesson grades nothing and teaches those words again.
+- **Settings**: `/settings`, a fourth *place* with no JavaScript, and `POST /api/settings`. Lesson
+  size 5 (1 to 20), new words a day 10 (0 to 100), the pause at 50 waiting reviews (1 to 2,000), one
+  row a reader in `study_setting`, clamped on the way in and on the way out.
+- **Stages** (`shared/review/stage.ts`): Learning under 7 days of stability, Familiar from 7, Known
+  from 21. The snapshot carries each word's *level*, the stage it came with and where the *grade*
+  sent it, and the summary reads those.
+- **Screens**: `/review` opens on what is waiting and composes nothing; the start block has a
+  *Lesson* control beside *Review*; the header is `ModeBar.vue` and the *progress rail* is gone.
+  `ReviewCard`, `ReviewAnswer`, `CheckControls` and `ProgressRail` are deleted.
+- **Checked in a browser against `docs/prototype/`** at desktop and phone width (§ Carrying has what
+  differs on purpose).
+- ⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.
+
+**2026-10-10 — [#68](https://github.com/yutaasakura96/kioku/issues/68): the starter set, and
 a *level* from a list.** The first build step of #67's direction change
 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)). It builds the
 data and no screen.
@@ -2134,7 +2178,8 @@ expected. **Three things it actually decided**, plus [ADR 0030](adr/0030-the-ses
 - **The session is read in one Nitro server middleware**, into `event.context.session` — ADR 0030.
   `03` §2.2 left this open and it was the one real collision in the document: Better Auth's
   documented Nuxt fix is `<ClientOnly>`, which renders **nothing** on a `noScripts` route, and all
-  three *places* are those routes. ⚠️ It also **forbids `prerender`, `swr` and `isr` on the three
+  three *places* are those routes (⚠️ **four since #70 added `/settings`**, 2026-10-12). ⚠️ It also
+  **forbids `prerender`, `swr` and `isr` on the
   *places*** — each is the ordinary advice for a form, a list and five numbers, and each silently
   disables the gate.
 - **The allowlist is one environment variable**, `KIOKU_INVITED_EMAIL`. ⚠️ The load-bearing half is
@@ -2157,8 +2202,8 @@ decided**, three of them ADRs:
   `08` set `callbackURL: "/"` without saying which screen that was. A chooser was rejected because
   the version worth building would land the reader in a *mode*, on their first sight of the app,
   with no navigation on the screen.
-- **A *mode* is entered from a start control carrying its own count**, present on all three *places*
-  and never disabled — [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md).
+- **A *mode* is entered from a start control carrying its own count**, present on all four *places*
+  (⚠️ three until #70, which also added *Lesson* as a third control) and never disabled — [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md).
   ⚠️ **The exit has to be `external`** or Nuxt client-renders a *place* into the already-hydrated
   page, which is what `noScripts` exists to prevent, with no error (verification §12.1).
 - **⚠️ ADR 0013 did not close the empty-*Vet* gap and could not** — the gap is on *Vet*, ADR 0013
@@ -2300,15 +2345,17 @@ Seven findings worth knowing without opening it:
 ## Next
 
 ⚠️ **2026-10-10: the frontier is the direction change, [#67](https://github.com/yutaasakura96/kioku/issues/67).**
-#68 is built (§ Done) and the rest are filed:
+#68 and #70 are built (§ Done; ⚠️ this said *#68 is built* until 2026-10-12) and the rest are filed:
 
 - [#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
   Reads `categories()` and `noteInCategory()`, which #68 left unread. The reader's one active
   category is its to store.
-- [#70](https://github.com/yutaasakura96/kioku/issues/70): **the quiz with lessons.** ⚠️ **It owes
-  the mint**: a starter word has no *card* until a lesson starts it (ADR 0075 §4), so until #70 the
-  8,273 words can be counted and not studied. ⚠️ **And it has to settle the example sentence**: the
-  prototype's lesson shows one and the starter set has none (ADR 0075 §7).
+- ~~[#70](https://github.com/yutaasakura96/kioku/issues/70): **the quiz with lessons.**~~ ⚠️ **Built
+  2026-10-12** (§ Done, ADR 0076). It paid the mint — a lesson accepts and mints the starter words
+  it teaches — and settled the example sentence: it is drawn when the *note* has one, and a starter
+  word's lesson screen is shorter. ⚠️ **It leaves two things for the tickets after it**: the lesson's
+  pool is every *level* in order until #69 gives it an active *category*, and the screen before a
+  run lives on `/review` until #71 builds Home.
 - [#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.** The
   prototype puts the sources' acknowledgement on Welcome; it is in the *shell*'s footer until then
   (ADR 0075 §8), and wherever it moves it must stay on the site with its links.
@@ -2319,7 +2366,9 @@ Seven findings worth knowing without opening it:
 ⚠️ **Owed by Yuta before any of #68 reaches the deployed app**, in this order, by the release
 procedure in § Carrying. None of it was done or simulated by the build:
 
-1. **Apply the pending migrations to production**, `0011` among them. It is additive.
+1. **Apply the pending migrations to production**, `0011` among them, and since #70 `0013_lessons`.
+   Both are additive: `0013` adds `review_session.kind` with a default and the `study_setting`
+   table, and drops nothing.
 2. **Load the starter set into production**: `npm run starter:load`, with the production string
    injected the way the migration's is. It writes shared rows only, is repeatable, and prints the
    per-level counts to check against the table in ADR 0075 §4.
@@ -2328,7 +2377,7 @@ procedure in § Carrying. None of it was done or simulated by the build:
 4. **Merge `develop` into `main`.** ⚠️ **From that deploy the reader sees an empty app**: the old
    *cards* are out of every read, and the starter words have no *cards* until #70. **Releasing #68
    by itself is a worse app than today's**, so the release probably waits for #69 and #70; that
-   timing is Yuta's.
+   timing is Yuta's. ⚠️ **With #70 in the release the reader's first screen has a lesson on it.**
 5. **Deleting the old corpus from production is optional and his alone.** Nothing needs it, and
    `review_log` cannot be deleted from without lifting its trigger.
 
@@ -3101,6 +3150,34 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **The database never sees a question** (ADR 0076 §4, #70). It holds positions and *grades*.
+  Which question is next and which words were missed is `shared/review/quiz.ts`'s, kept in
+  `localStorage` under `kioku:review:quiz`. **A word is graded once, by the answer that completes
+  it**, so do not move the *grade* to the first miss: the server would call a run finished while the
+  reader is still being asked its questions.
+- ⚠️ **Opening `/review` composes nothing** (ADR 0076 §8). A lesson spends the day's allowance by
+  being composed (ADR 0066 §3), so a run starts only from `start` in the request body, which only a
+  control or the start block's `?start=` sets, and the page takes `start` out of the address once
+  it has read it. A mount that composed would spend a reader's ten words on page loads.
+- ⚠️ **`finish` is an outbox entry and not an answer.** It answers no position, it is not counted
+  in the summary's unsent line, and a refused one is dropped rather than kept. It must stay
+  **behind** the Forgot *grades* it follows: the stream's order is the order the server learns them.
+- ⚠️ **A lesson's words are graded or taught again, never left half-way.** A new word not got right
+  has no epoch, so `newCards` returns it and the next lesson teaches it. **An e2e or schema test that
+  leaves a lesson unfinished has put that word in the next test's lesson.**
+- ⚠️ **`position.level`, `stage` and `outcome` are read with `??`.** A server answer is installed
+  unparsed, and a snapshot held from before #70 has none of the three (the same trap as `meanings`
+  and `kanjiReadings` below).
+- ⚠️ **The settings are clamped twice**: `writeLimits` on the way in and `readLimits` on the way
+  out, because the table's checks are only a floor. A new reader of `study_setting` goes through
+  `readLimits`.
+- ⚠️ **Three things differ from the prototype on purpose** (ADR 0076 § Settled by the build): the
+  summary says the real due date where the prototype says *4 hours*; the placeholder and the
+  meaning band's second line use darker inks, on measured contrast; and no stage is drawn in colour
+  until #71.
+- ⚠️ **A nuxt-tier test that mounts `/review` from the store must let the mount's request land
+  before it ends.** The screen paints from `localStorage` first, and an answer still in flight
+  writes the next test's store (`test/nuxt/review-quiz.test.ts` has the wait).
 - ⚠️ **Every read a screen makes goes through `server/utils/subject.ts`** (ADR 0075 §1, #68). The
   old corpus is still in the database under `jlpt-vocab`, and the only thing keeping it off the
   screen is three predicates: `noteInCurrentSubject`, `cardInCurrentSubject` and
@@ -3112,9 +3189,10 @@ Nothing.
 - ⚠️ **A *session* has no `subject_id`; its membership is its *subject*.** A `review_session` with
   no member *card* is in no *subject* and no read counts it, which a test that inserts a bare
   *session* row will discover.
-- ⚠️ **A starter word has no *card*, and no example sentence** (ADR 0075 §4, §7). The loader writes
-  shared rows only; #70's lesson mints. Do not "fix" an empty *Review* by minting 8,273 *cards*: the
-  brake is ten a day. And the two example fields are optional in the declaration while the model's
+- ⚠️ **A starter word has no *card* until a lesson starts it, and no example sentence** (ADR 0075
+  §4, §7; ADR 0076 §1). The loader writes shared rows only, and a lesson accepts and mints the words
+  it teaches (⚠️ this said *#70's lesson mints* until #70 was built). Do not "fix" an empty *Review*
+  by minting 8,273 *cards*: the brake is ten a day. And the two example fields are optional in the declaration while the model's
   output schema still names both as properties, so **a model that answers one with an empty string
   now passes where it was refused before #68**. Nothing measures how often that happens.
 - ⚠️ **The model's *level* estimate is still written and nothing reads it** (ADR 0075 §2). It is in
@@ -3208,13 +3286,14 @@ Nothing.
   (#48):** drizzle-kit 0.31.10 bundles `dotenv/config` and reads the root `.env` itself, and
   `npm run db:migrate` applied all nine migrations from a `.env` alone. The release step no longer
   uses either file (the first entry of this section).
-- ⚠️ **A synonym is not an answer, and `unsentAnswers` is where that is enforced** (#28). Read as
-  one, a reload would mark its *card* flagged and skip it unanswered. Any new outbox kind that is not
-  an answer owes the same line.
+- ⚠️ **An outbox entry that is not an answer is skipped by `unsentAnswers`** (#28). Read as one, a
+  reload would mark its *card* flagged and skip it unanswered. ⚠️ **The `synonym` entry this was
+  written about is gone since #70** (ADR 0076 §5) **and `finish` is the one that owes the line now**;
+  any new kind that is not an answer owes it too.
 - ⚠️ **A server snapshot is installed unparsed** (`start` in `app/pages/review.vue`), so a field the
-  server adds to `ReviewPosition` is absent on a tab open across the deploy. `acceptedOf` and
-  `withSynonym` read `meanings` and `synonyms` with `?? []` for that reason; a new position field
-  owes the same.
+  server adds to `ReviewPosition` is absent on a tab open across the deploy. `acceptedOf` reads
+  `meanings` and `synonyms` with `?? []` for that reason (⚠️ `withSynonym` did too, until #70
+  deleted it); a new position field owes the same.
 - ⚠️ **The gloss is always accepted, even when a list exists** (ADR 0069 § Settled by the build). A
   change that matched the list *instead of* the gloss would refuse the meaning a *card* displays
   after a *Vet* fix.
@@ -3670,7 +3749,8 @@ Nothing.
 - ⚠️ **`review_session.size` is what was composed, not what the reader asked for**, and the two look
   identical until the queue runs short. The knob is a **cap** (`06-decision-log.md`, 2026-09-12):
   `04` §14 makes the *progress rail*'s length `review_session.size` and `04` §7.7 holds `size` rows,
-  so a reader with seven *cards* and a knob at twenty gets a rail of seven. **Anything that later
+  so a reader with seven *cards* and a knob at twenty gets a rail of seven (⚠️ since #70 the rail is
+  the header's one track and its count, *n of 7 words*; the rule is the same). **Anything that later
   reads `size` as an intention rather than as a count is wrong** — a *session* completion rate on
   Stats (#14) computed as *graded ÷ size* is correct only because of this, and would be silently
   wrong under the other reading.
@@ -4043,7 +4123,8 @@ Nothing.
   and the reader's text in it, and a Nitro route handler cannot render a page. `nitropack` 2.13.4's
   `localFetch` takes no context either, so the paste cannot travel to an internal render. **Everything
   the old row was for is unchanged** — form, post-redirect-get, `SameSite=Lax` CSRF.
-- ⚠️ **The three *places* read their data from `event.context`, not from a fetch.** `#5` set the idiom
+- ⚠️ **The *places* read their data from `event.context`, not from a fetch** (four of them since #70
+  added `/settings`; this said *three*). `#5` set the idiom
   (`app/pages/auth/index.vue` reads `useRequestEvent()?.context.session`) and #6 extended it:
   `server/middleware/shell-data.ts` attaches a **lazy reader**. The alternative — `useAsyncData` +
   `$fetch` against new `/api/**` read routes — was rejected on three counts, and **the middle one is

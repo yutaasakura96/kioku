@@ -2,15 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { resolveOrigin } from '../../shared/utils/origin'
 
 // ADR 0032: the origin travels in a `from` query parameter set by the start
-// control, and on the way out it is matched against the three *place* paths.
+// control, and on the way out it is matched against the *place* paths — four
+// since ADR 0076 §2 added `/settings`.
 // Anything else falls back to `/`, which ADR 0031 makes Ingest.
 // The attacks are named in `11-testing-plan.md` §8.
 
 describe('resolveOrigin', () => {
-  it('admits the three place paths and nothing else', () => {
+  it('admits the place paths and nothing else', () => {
     expect(resolveOrigin('/')).toBe('/')
     expect(resolveOrigin('/sources')).toBe('/sources')
     expect(resolveOrigin('/stats')).toBe('/stats')
+    expect(resolveOrigin('/settings')).toBe('/settings')
   })
 
   it.each([
@@ -21,6 +23,7 @@ describe('resolveOrigin', () => {
     ['a traversal', '/stats/../../x'],
     ['an encoded traversal', '/stats%2F..%2F..%2Fx'],
     ['a path that only starts like a place', '/statsomething'],
+    ['a page under a place', '/settings/saved'],
     ['a trailing slash', '/stats/'],
     ['the empty string', ''],
     ['an absent parameter', undefined],

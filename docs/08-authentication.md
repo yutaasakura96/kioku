@@ -60,14 +60,16 @@ right Google account, or nothing.
 
 **Six routes exist, and one of them is not in ADR 0013's taxonomy.** ADR 0013 named three *places*
 and two *modes*; those are the five screens of the app. The door is not a screen of the app, and it
-is added here rather than by amending ADR 0013.
+is added here rather than by amending ADR 0013. ⚠️ **Seven routes and six screens since 2026-10-12**:
+#70 added `/settings`, a fourth *place* behind the same gate
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §2).
 
 | Route | Rendering | Public? |
 | --- | --- | --- |
 | `/auth` — **the door**: sign in, and sign out | Universal. **The one route that ships JavaScript and is neither a *place* nor a *mode*** | Yes |
 | `/auth/refused` | `noScripts: true` | Yes |
 | `/api/auth/**` — Better Auth's catch-all | Nitro | Yes, and §3.3 is why that is safe |
-| Ingest, Sources, Stats | `noScripts: true` (`03` §2.1) | No |
+| Ingest, Sources, Stats, and Settings since 2026-10-12 | `noScripts: true` (`03` §2.1) | No |
 | *Vet*, *Review* | `ssr: false` (`03` §2.1) | No |
 
 **The flow:**

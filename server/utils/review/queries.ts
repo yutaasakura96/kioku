@@ -1,6 +1,6 @@
 /**
- * `04` §12's due query and the *session* snapshot — the two reads *Review*
- * makes.
+ * `04` §12's due query, the words a lesson can start and the *session*
+ * snapshot — the reads *Review* makes.
  *
  * ⚠️ **Every read here is sequential and `Promise.all` is a bug you can only
  * find in the e2e tier.** Measured 2026-09-12: `@electric-sql/pglite-socket`
@@ -18,6 +18,7 @@
  */
 
 import { and, asc, count, desc, eq, exists, gt, gte, inArray, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 
 import * as schema from '../../db/schema'
 import { DUE_READ_CEILING } from '../../../shared/review/compose'
@@ -29,15 +30,17 @@ import type { SessionFilter } from '../../../shared/review/filter'
 import { levelAuthority } from '../../../shared/category/category'
 import { NO_FILTER } from '../../../shared/review/filter'
 import type { Grade } from '../../../shared/review/scheduler'
+import { stageOfEpoch } from '../../../shared/review/stage'
+import { jlptVocab, levelValues } from '../../../shared/subject/declaration'
 import type { IngestDatabase } from '../ingest/record'
-import { noteInCurrentSubject, sessionInCurrentSubject } from '../subject'
+import { CURRENT_SUBJECT_ID, noteInCurrentSubject, sessionInCurrentSubject } from '../subject'
 import { kanjiReadingsOf } from './kanji'
 // ⚠️ **The snapshot's shape lives in `shared/`, not here.** It is what crosses
 // the wire, and `shared/review/snapshot.ts` carries the one rule about how a
 // later answer may touch it — the *grades* move, the words do not (PRD §5).
-import type { NothingToStudy, ReviewSnapshot } from '../../../shared/review/snapshot'
+import type { ReviewSnapshot, SessionKind } from '../../../shared/review/snapshot'
 
-export type { NothingToStudy, ReviewPosition, ReviewSnapshot } from '../../../shared/review/snapshot'
+export type { ReviewPosition, ReviewSnapshot } from '../../../shared/review/snapshot'
 
 /**
  * The *cards* whose live *scheduling epoch* has come due — every one of them,
@@ -209,8 +212,6 @@ export async function newCards(
   filter: SessionFilter = NO_FILTER,
 ): Promise<NewCard[]> {
   const epoch = schema.schedulingEpoch
-  const domain = schema.domainClaim
-  const level = schema.levelClaim
 
   const rows = await db
     .select({ cardId: schema.card.id, mintedAt: schema.card.createdAt })
@@ -223,30 +224,110 @@ export async function newCards(
         notExists(
           db.select({ one: sql`1` }).from(epoch).where(eq(epoch.cardId, schema.card.id)),
         ),
-        filter.domains.length === 0
-          ? undefined
-          : exists(
-              db.select({ one: sql`1` }).from(domain).where(
-                and(eq(domain.noteId, schema.card.noteId), inArray(domain.domain, filter.domains)),
-              ),
-            ),
-        filter.levels.length === 0
-          ? undefined
-          : exists(
-              db.select({ one: sql`1` }).from(level).where(
-                and(
-                  eq(level.noteId, schema.card.noteId),
-                  eq(level.authorityKey, LEVEL_AUTHORITY),
-                  inArray(level.level, filter.levels),
-                ),
-              ),
-            ),
+        noteInFilter(db, filter, schema.card.noteId),
       ),
     )
     .orderBy(asc(schema.card.createdAt), asc(schema.card.id))
     .limit(limit)
 
   return rows
+}
+
+/** The *session* filter as a predicate on a *note* id — `undefined` for no filter. */
+function noteInFilter(db: IngestDatabase, filter: SessionFilter, noteId: AnyPgColumn) {
+  const domain = schema.domainClaim
+  const level = schema.levelClaim
+
+  return and(
+    filter.domains.length === 0
+      ? undefined
+      : exists(
+          db.select({ one: sql`1` }).from(domain).where(
+            and(eq(domain.noteId, noteId), inArray(domain.domain, filter.domains)),
+          ),
+        ),
+    filter.levels.length === 0
+      ? undefined
+      : exists(
+          db.select({ one: sql`1` }).from(level).where(
+            and(
+              eq(level.noteId, noteId),
+              eq(level.authorityKey, LEVEL_AUTHORITY),
+              inArray(level.level, filter.levels),
+            ),
+          ),
+        ),
+  )
+}
+
+/** The declaration's *levels*, easiest first — the order a lesson walks them in. */
+const LEVEL_ORDER = levelValues(jlptVocab)
+
+/**
+ * The words a lesson can start: *notes* the list places at a *level* that this
+ * reader has no *card* for (ADR 0076 §1, ADR 0075 §4).
+ *
+ * ⚠️ **Easiest *level* first, and inside a *level* a fixed shuffle** — `md5` of
+ * the *note* id. The starter set was loaded in the list's order, which is
+ * alphabetical by reading, and a lesson of 会う, 青, 青い, 赤, 赤い is five
+ * words chosen to be confused. The shuffle is the same on every call, so a
+ * lesson composed twice offers the same words.
+ *
+ * ⚠️ **A word the reader rejected is never offered** (`S5`: say no once and
+ * mean it), and one they have a *card* for — suspended or not — is not new.
+ *
+ * ⚠️ **From `level_claim`, so only the declared *authority*'s words** (ADR 0075
+ * §2). A *note* no list places is somebody's own word, and it reaches a lesson
+ * as the *card* its *ingestion* minted (`newCards`).
+ *
+ * ⚠️ **The two `sql` fragments name `level_claim`'s columns, and that is safe
+ * here only because the query is not a subquery**: an interpolated column is
+ * emitted bare (§ Carrying), and neither `level` nor `note_id` is a column of
+ * `note`, the one table joined.
+ */
+export async function unstartedNotes(
+  db: IngestDatabase,
+  ownerId: string,
+  limit: number,
+  filter: SessionFilter = NO_FILTER,
+): Promise<string[]> {
+  if (limit <= 0)
+    return []
+
+  const level = schema.levelClaim
+  const order = sql.join(LEVEL_ORDER.map(value => sql`${value}`), sql`, `)
+
+  const rows = await db
+    .select({ noteId: level.noteId })
+    .from(level)
+    .innerJoin(schema.note, eq(schema.note.id, level.noteId))
+    .where(
+      and(
+        eq(level.authorityKey, LEVEL_AUTHORITY),
+        eq(schema.note.subjectId, CURRENT_SUBJECT_ID),
+        filter.levels.length === 0 ? undefined : inArray(level.level, filter.levels),
+        // The level half is the line above; this is the domain half.
+        noteInFilter(db, { domains: filter.domains, levels: [] }, level.noteId),
+        notExists(
+          db.select({ one: sql`1` }).from(schema.card).where(
+            and(eq(schema.card.noteId, level.noteId), eq(schema.card.ownerId, ownerId)),
+          ),
+        ),
+        notExists(
+          db.select({ one: sql`1` }).from(schema.noteVetting).where(
+            and(
+              eq(schema.noteVetting.noteId, level.noteId),
+              eq(schema.noteVetting.ownerId, ownerId),
+              eq(schema.noteVetting.state, 'rejected'),
+            ),
+          ),
+        ),
+      ),
+    )
+    .orderBy(sql`array_position(ARRAY[${order}]::text[], ${level.level})`, sql`md5(${level.noteId}::text)`)
+    .limit(limit)
+
+  return rows.map(row => row.noteId)
 }
 
 /**
@@ -261,6 +342,7 @@ export async function snapshotOf(
   const [session] = await db
     .select({
       id: schema.reviewSession.id,
+      kind: schema.reviewSession.kind,
       size: schema.reviewSession.size,
       snapshotTakenAt: schema.reviewSession.snapshotTakenAt,
     })
@@ -279,6 +361,7 @@ export async function snapshotOf(
       noteId: schema.note.id,
       fields: schema.note.fields,
       meanings: schema.noteMeaning.meanings,
+      level: schema.levelClaim.level,
     })
     .from(schema.reviewSessionCard)
     .innerJoin(schema.card, eq(schema.card.id, schema.reviewSessionCard.cardId))
@@ -286,6 +369,14 @@ export async function snapshotOf(
     // ⚠️ **Left**, because a *note* the backfill has not reached has no row and
     // is still a *card* to study — against its gloss alone (ADR 0069 §3).
     .leftJoin(schema.noteMeaning, eq(schema.noteMeaning.noteId, schema.note.id))
+    // ⚠️ **Left, and on the declared *authority* alone** (ADR 0075 §2): a word
+    // no list places has no *level*, and a model's estimate is not one.
+    // `level_claim` is unique on `(note_id, authority_key)`, so this cannot
+    // double a position.
+    .leftJoin(
+      schema.levelClaim,
+      and(eq(schema.levelClaim.noteId, schema.note.id), eq(schema.levelClaim.authorityKey, LEVEL_AUTHORITY)),
+    )
     .where(eq(schema.reviewSessionCard.reviewSessionId, sessionId))
     .orderBy(asc(schema.reviewSessionCard.ordinal))
 
@@ -313,6 +404,10 @@ export async function snapshotOf(
       cardId: schema.reviewLog.cardId,
       rating: schema.reviewLog.rating,
       reviewedAt: schema.reviewLog.reviewedAt,
+      // What the *card* was answered **from** (`04` §7.5) — the stage the
+      // reader came to it with, once the epoch has moved on.
+      state: schema.reviewLog.state,
+      stability: schema.reviewLog.stability,
     })
     .from(schema.reviewLog)
     .where(eq(schema.reviewLog.reviewSessionId, sessionId))
@@ -330,12 +425,40 @@ export async function snapshotOf(
   const given = new Map(graded.map(row => [row.cardId, row.rating as Grade]))
   const flagged = new Set(flags.map(row => row.cardId))
 
+  // ⚠️ **The first row, where `given` takes the last.** A position answered
+  // twice was answered *from* the state before the first answer; the later row
+  // starts from what the first one produced.
+  const before = new Map<string, { state: number, stability: number }>()
+  for (const row of graded) {
+    if (!before.has(row.cardId))
+      before.set(row.cardId, { state: row.state, stability: row.stability })
+  }
+
+  // ADR 0076 §7 — where each word is now, from its live epoch.
+  const cardIds = members.map(row => row.cardId)
+  const epochs = cardIds.length === 0
+    ? []
+    : await db
+        .select({
+          cardId: schema.schedulingEpoch.cardId,
+          state: schema.schedulingEpoch.state,
+          stability: schema.schedulingEpoch.stability,
+          due: schema.schedulingEpoch.due,
+        })
+        .from(schema.schedulingEpoch)
+        .where(and(inArray(schema.schedulingEpoch.cardId, cardIds), isNull(schema.schedulingEpoch.supersededAt)))
+  const live = new Map(epochs.map(row => [row.cardId, row]))
+
   return {
     sessionId: session.id,
+    kind: session.kind as SessionKind,
     size: session.size,
     snapshotTakenAt: session.snapshotTakenAt,
     positions: members.map((row) => {
       const fields = (row.fields ?? {}) as Record<string, string>
+      const grade = given.get(row.cardId) ?? null
+      const epoch = live.get(row.cardId)
+      const after = stageOfEpoch(epoch)
 
       return {
         ordinal: row.ordinal,
@@ -346,7 +469,12 @@ export async function snapshotOf(
         synonyms: synonyms.get(row.noteId) ?? [],
         // ADR 0069 §5: computed here, so the KANJIDIC2 table stays on the server.
         kanjiReadings: kanjiReadingsOf(fields),
-        grade: given.get(row.cardId) ?? null,
+        level: row.level ?? null,
+        // A graded word's stage is what it was answered from; an ungraded
+        // one's is where it stands.
+        stage: grade === null ? after : stageOfEpoch(before.get(row.cardId)),
+        outcome: grade !== null && epoch && after ? { stage: after, due: epoch.due.toISOString() } : null,
+        grade,
         flagged: flagged.has(row.cardId),
       }
     }),
@@ -354,32 +482,12 @@ export async function snapshotOf(
 }
 
 /**
- * `10` §5.7 — which of the three non-terminal empty states the reader is in, and
- * the datum the second one gives weight to.
- *
- * ⚠️ **A *card* the reader has but has not reached is not "nothing to review"**.
- * The difference between the two states is the difference between going to
- * *Vet* and coming back tomorrow, and only one of them is a dead end.
+ * The next instant one of the reader's words is due — in the past while reviews
+ * are waiting, and `null` when nothing has ever been scheduled, which is how
+ * the screen before a run tells a first visit from a quiet day
+ * (`shared/review/offer.ts`).
  */
-export async function nothingToStudy(
-  db: IngestDatabase,
-  ownerId: string,
-): Promise<NothingToStudy> {
-  const [any] = await db
-    .select({ cardId: schema.card.id })
-    .from(schema.card)
-    .where(
-      and(
-        eq(schema.card.ownerId, ownerId),
-        isNull(schema.card.suspendedAt),
-        noteInCurrentSubject(db, schema.card.noteId),
-      ),
-    )
-    .limit(1)
-
-  if (!any)
-    return { hasCards: false, nextDue: null, newWaiting: false }
-
+export async function nextDueAt(db: IngestDatabase, ownerId: string): Promise<Date | null> {
   const [next] = await db
     .select({ due: schema.schedulingEpoch.due })
     .from(schema.schedulingEpoch)
@@ -395,7 +503,5 @@ export async function nothingToStudy(
     .orderBy(asc(schema.schedulingEpoch.due))
     .limit(1)
 
-  const waiting = await newCards(db, ownerId, 1)
-
-  return { hasCards: true, nextDue: next?.due ?? null, newWaiting: waiting.length > 0 }
+  return next?.due ?? null
 }

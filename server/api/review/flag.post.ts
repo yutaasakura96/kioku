@@ -17,7 +17,7 @@
  */
 import { parseFlag } from '../../../shared/review/request'
 import { recordFlag } from '../../utils/review/flag'
-import { brakeIfFinished } from '../../utils/review/session'
+import { offerIfFinished } from '../../utils/review/session'
 import { requireOwnerId } from '../../utils/reader'
 import { snapshotOf } from '../../utils/review/queries'
 import { useDatabase } from '../../db'
@@ -39,8 +39,8 @@ export default defineEventHandler(async (event) => {
   return {
     outcome: outcome.ok ? ('ok' as const) : outcome.reason,
     session,
-    // ⚠️ Only once the run is over — the end screen's sentence (ADR 0066 §7),
+    // ⚠️ Only once the run is over — the summary's *What next* (ADR 0076 §8),
     // read after the answers rather than at composition.
-    brake: await brakeIfFinished(db, ownerId, session),
+    offer: await offerIfFinished(db, ownerId, session),
   }
 })

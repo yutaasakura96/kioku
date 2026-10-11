@@ -1676,6 +1676,24 @@ commit. ⚠️ **#68 builds the data and no screen**: a starter word has no *car
 mints one, and the screens are #69 to #72.
 → [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)
 
+### [2026-10-12] New words are taught in a lesson, and a miss is asked again
+*Review* becomes the quiz the prototype shows (#70; Yuta's answers 2, 3, 4, 5 and 10 on
+[#67](https://github.com/yutaasakura96/kioku/issues/67)). **A *session* is a lesson or a review
+run**: a lesson teaches up to five new words, one a screen, and then quizzes them; a review run holds
+due *cards* only. **Starting a starter word is its acceptance** — the lesson writes `note_vetting`
+and mints through `mint_cards`. **The quiz asks the meaning and then the reading; a wrong answer goes
+to the back of the queue and returns until it is right, and the word is graded once**, Good if
+nothing was missed and Forgot if anything was. **A near miss in a meaning is accepted** (one edit
+from five letters, two from nine, none under five), **a reading is exact, and nothing the reader can
+press changes a result**: the synonym key, its outbox entry and its endpoint are gone. **Finish
+early** ends a run. **Five a lesson, ten a day and none while fifty wait are settings**, on a fourth
+*place*, `/settings`. **A word's stage is read from the scheduler**: Learning, Familiar from 7 days
+of stability, Known from 21. The scheduler does not change. Overturns ADR 0060 §2 and §5's
+thresholds, ADR 0069 §2, ADR 0066 §1 and §2 as constants, and `S7`'s one kind of *session*; `02`,
+`03`, `04`, `05`, `09`, `10`, `11` and `CONTEXT.md` are amended in the same commit. ⚠️ **Migration
+`0013` is not applied to production.**
+→ [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

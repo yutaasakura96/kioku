@@ -83,11 +83,12 @@ ADR 0020, verification §5.5. Node 20 is out.
 ### 2.1 The rendering split is enforced by the build, not by discipline
 
 ADR 0013 made three screens *places* and two of them *modes*. That split is the reason Nuxt was
-chosen at all, and it is expressed per route:
+chosen at all, and it is expressed per route. ⚠️ **Four *places* since 2026-10-12**: ADR 0076 §2
+added Settings, which is a form and nothing else.
 
 | Route | Rule | Why |
 | --- | --- | --- |
-| Ingest, Sources, Stats | `routeRules: { noScripts: true }` | A form, a list and five numbers. They ship no JavaScript at all |
+| Ingest, Sources, Stats, Settings | `routeRules: { noScripts: true }` | A form, a list, five numbers and three settings. They ship no JavaScript at all |
 | *Vet*, *Review* | `routeRules: { ssr: false }` | Client-owned state — a *session* snapshot, an outbox, a keystroke budget |
 
 **Write `routeRules.noScripts` and `features.noScripts`.** `experimental.noScripts` and the route
@@ -774,6 +775,30 @@ grade endpoint still take `1`–`4`: the record ADR 0060 §4 fixed is unchanged,
 #28 stand. The meaning is matched against the gloss, the *note*'s accepted meanings (`04` §5.8) and
 the reader's synonyms (`04` §7.9).
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+(#70): the screen is a quiz, and the record under it is unchanged.**
+- **Two kinds of *session*** (`review_session.kind`, `04` §7.6). A review run is due *cards* only. A
+  lesson is new words only, taught and then quizzed, and it accepts and mints the starter words it
+  holds in the transaction that composes it (`server/utils/review/session.ts`).
+- **The database never sees a question.** The quiz asks each word's meaning and then its reading. A
+  wrong question goes to the back of a queue the page keeps in `localStorage` beside the snapshot
+  (`shared/review/quiz.ts`, key `kioku:review:quiz`), and **the word is graded once, when its last
+  question is right**: `3` if nothing was missed, `1` if anything was. One *grade*, one `review_log`
+  row, stamped at that answer. So `review_log`, the snapshot, the grade endpoint and
+  `completed_at` mean what they meant.
+- **A near miss in a meaning passes** (edit distance 0 under five letters, 1 for five to eight, 2
+  from nine), **a reading is exact, and nothing overrules the check.**
+- **Stages are read, not stored** (`shared/review/stage.ts`): Learning under 7 days of the live
+  epoch's stability, Familiar from 7, Known from 21. The snapshot carries each position's *level*,
+  the stage it came with, and — once graded — the stage and due date the *grade* left it at.
+- **`POST /api/review/session` composes only when asked.** Its body may carry `start: 'review'` or
+  `start: 'lesson'`; without one it resumes a live run or composes nothing. It always answers
+  `{ session, offer }`, and `offer` is what is waiting: the due count, the size of the next lesson,
+  which brake is on, the reader's limits and the next due instant (`shared/review/offer.ts`). The
+  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run.
+- **The three limits are the reader's** (`study_setting`, `04` §7.10): `POST /api/settings` takes
+  the form on `/settings`, clamps, and answers `303`.
+
 ⚠️ `ts-fsrs` is a **scheduler only, with no optimiser**. Optimisation is a separate route and
 **nothing forces it into the client** — it can run server-side, later. The thresholds not to
 conflate: `fsrs-rs` returns defaults below **8 items** (a hard floor); the Anki manual says
@@ -800,11 +825,21 @@ flag written by `X`, which suspends a *card* and returns its *note* to the vetti
 `04` §7.8). `S9` says the suspension is immediate, and immediate has to survive the same tunnel the
 *grades* do.
 
-⚠️ **And a third since 2026-09-21** ([ADR 0069](adr/0069-the-check-is-the-grade.md) §2, #28): a
+~~⚠️ **And a third since 2026-09-21** ([ADR 0069](adr/0069-the-check-is-the-grade.md) §2, #28): a
 **synonym**, written by `S` after a refused meaning, and sent to `/api/review/synonym`. It is ahead of
 the *grade* it changed in the stream, so the server learns them in that order. It answers nothing —
 `unsentAnswers` skips it — and the server's unique key `(owner_id, note_id, text)` makes its replay
-idempotent, where a flag's must not be.
+idempotent, where a flag's must not be.~~
+
+⚠️ **The synonym entry is gone and the third kind is `finish`, since 2026-10-12**
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §5, §6, #70).
+There is no manual override, so `S`, the entry and `/api/review/synonym` are deleted.
+***Finish early*** writes a `finish` entry, sent to `/api/review/finish`, which stamps
+`completed_at` and answers no position. In a review run it goes **behind** a Forgot for each word
+that was missed and not yet got right, so the server learns the *grades* first. Like the synonym it
+was, it is not an answer: `unsentAnswers` skips it, the summary does not count it as unsent, and a
+refused one is dropped rather than shown. Its replay is idempotent because the stamp is guarded on
+`completed_at IS NULL`.
 
 The outbox is **append-only, single-device, replays in order, never merges, resolves no conflicts**
 (ADR 0007). This is the same pattern as ADR 0028's worker loop and ADR 0015's job table, a third

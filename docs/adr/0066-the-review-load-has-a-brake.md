@@ -5,6 +5,12 @@ reader owes **50 or more** due *cards*. The day is the reader's local day starti
 backlog is ordered by what is closest to being forgotten rather than by what is latest. Nothing caps
 how many due *cards* a reader may answer.
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §1 and §2 (#70).** Ten and fifty are the reader's settings now,
+with ten and fifty as the defaults: §1's argument that they must be constants is overruled by Yuta's
+answer on the prototype. New *cards* reach the reader only through a lesson, of five by default, so
+the allowance is spent by lessons and a review run spends none. §3 to §7 stand: the day is counted
+from what was offered, in the reader's zone, and the reader is told which brake is on.
+
 **This is the feature that decides whether the app gets used.** Yuta quit WaniKani over the pile-up,
 and an app that produces one is a worse version of the thing he already stopped using.
 

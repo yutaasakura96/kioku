@@ -5,17 +5,18 @@
 // **SC 2.5.1 Pointer Gestures is Level A** and **SC 2.5.7 Dragging Movements is
 // Level AA** (verification §13.2), so a path-based or dragging gesture owes a
 // single-pointer equivalent — which is the controls it was meant to replace:
-// four *grade* controls until ADR 0069, and the commit and synonym controls
-// since (`app/components/CheckControls.vue`). **Swipe could only ever have been
+// four *grade* controls until ADR 0069, the commit and synonym controls until
+// ADR 0076, and the quiz's one *Check* / *Next* control since
+// (`app/components/QuizCard.vue`). **Swipe could only ever have been
 // additive**, and ADR 0026 had deferred it here by name as "genuinely good and
 // not needed to ship".
 //
 // ⚠️ **It is a source test because there is nothing else to ask.** A gesture
 // that was never written leaves no behaviour to observe, and the failure mode is
 // not a bug — it is somebody adding a touch handler in six months because the
-// phone layout (ADR 0026) makes it look obvious. The controls are at least
-// 74 × 48 at 375px, which clears SC 2.5.8's Level AA floor **and** SC 2.5.5's
-// Level AAA one (`10` §10.4), so there is nothing a gesture would buy.
+// phone layout (ADR 0026) makes it look obvious. Every control clears
+// SC 2.5.8's Level AA floor (`10` §10.4), so there is nothing a gesture would
+// buy.
 //
 // ⚠️ And the deeper reason it stays refused: **a *grade* is arithmetic that
 // cannot be undone** (ADR 0016, `03` §2.4). `Z` is *Vet*'s key and `X` is a
@@ -28,10 +29,11 @@ import { describe, expect, it } from 'vitest'
 
 const FILES = [
   '../../app/pages/review.vue',
-  '../../app/components/CheckControls.vue',
-  '../../app/components/ReviewAnswer.vue',
-  '../../app/components/ReviewCard.vue',
-  '../../app/components/ProgressRail.vue',
+  '../../app/components/ModeBar.vue',
+  '../../app/components/LessonCard.vue',
+  '../../app/components/QuizCard.vue',
+  '../../app/components/SessionSummary.vue',
+  '../../app/components/WordRow.vue',
 ]
 
 /**
@@ -54,14 +56,14 @@ describe('grade by swipe is refused (ADR 0036)', () => {
   })
 
   // The single-pointer path the criterion requires, and the one this screen
-  // actually ships: `<button>`s and a key map.
-  it('commits by pointer through a real control', () => {
+  // actually ships: a form whose one `<button>` checks and then moves on.
+  it('answers by pointer through a real control', () => {
     const controls = readFileSync(
-      fileURLToPath(new URL('../../app/components/CheckControls.vue', import.meta.url)),
+      fileURLToPath(new URL('../../app/components/QuizCard.vue', import.meta.url)),
       'utf8',
     )
 
-    expect(controls).toContain('type="button"')
-    expect(controls).toContain('@click')
+    expect(controls).toContain('type="submit"')
+    expect(controls).toContain('@submit.prevent')
   })
 })

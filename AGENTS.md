@@ -13,7 +13,7 @@ words or an Anki deck is now the secondary path, and most of the history below d
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-six more ADRs** with it — **75** as of 2026-10-10 (ADR 0075, the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until then. ADR 0074 self-hosts the three faces
+code since 2026-09-09 and **thirty-seven more ADRs** with it — **76** as of 2026-10-12 (ADR 0076, #70's lessons and quiz; ⚠️ this said *thirty-six* and *75* until then. ADR 0075 is the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until 2026-10-10. ADR 0074 self-hosts the three faces
 from `@fontsource` and closes the last "Still open" entry in the decision log; ⚠️ this said *73*
 until then. ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
@@ -39,7 +39,7 @@ favour of **retention, consistency and flag rate** (ADR 0062).
 word-list form, and the reader submits it as a plain `word_list` *source*; each request is a `seed`
 row on the spend ledger.
 **The review load has a brake** (ADR 0066): ten new *cards* a local day, counted at composition on
-`review_session.new_count`, none while fifty are due, and a backlog ordered by retrievability.
+`review_session.new_count`, none while fifty are due, and a backlog ordered by retrievability. ⚠️ **Since #70 (2026-10-12) ten and fifty are the reader's defaults on `/settings`, and only a lesson spends the allowance** (ADR 0076 §1, §2).
 **Every generated word carries a model-estimated *level* and *domain*** (`level_claim`,
 `domain_claim`, from the *subject*'s closed `levels` and `domains` sets), and *Review*'s end screen and
 empty states carry a filter that narrows the **new** half of the next *session* only (ADR 0065). ⚠️ **Since #68 (2026-10-10) the model's *level* is written and not read**: a word's *level* is the claim of a declared *authority*, `tanos-jlpt`, which the starter set carries (ADR 0075 §2), and a word the dictionary has is written by the `lookup` stage with no model and no claim. A *source* declares
@@ -64,7 +64,7 @@ it.~~ ⚠️ **#38 was re-scoped and built 2026-09-24** (ADR 0073): the worker's
 stopped answering without saying so. **The evidence it was filed on was wrong — macOS sleep — and the
 ticket was right anyway**, because an idle `serve` issues no statements and so cannot notice a
 half-open socket. ⚠️ **One link is unmeasured and ADR 0073 §4 names it rather than rounding it up.**
-~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-10-10 the frontier is the direction change, #69–#74, and #68 is built** (`docs/00-status.md` § Next: **the corpus started again under `subject_id` `jlpt-vocab-2`, every screen read goes through `server/utils/subject.ts`, and none of it is on production yet**). ⚠️ This said *since 2026-09-28 the frontier is the first deployment* until then (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
+~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-10-10 the frontier is the direction change, #69–#74, and #68 and #70 are built** (⚠️ **#70 on 2026-10-12, ADR 0076**: new words are taught in a lesson of five, *Review* asks the meaning then the reading and asks a miss again before grading it Forgot, the brake's numbers are the reader's on `/settings`, and migration `0013` is applied nowhere but a test database) (`docs/00-status.md` § Next: **the corpus started again under `subject_id` `jlpt-vocab-2`, every screen read goes through `server/utils/subject.ts`, and none of it is on production yet**). ⚠️ This said *since 2026-09-28 the frontier is the first deployment* until then (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
 ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
@@ -84,12 +84,12 @@ build on 2026-09-18, #21 until it was built that day, #23 until earlier that day
 until 2026-09-17.**
 
 **What exists now:** #2 through #18 are built (and the pivot's, above) — a Nuxt app with the rendering split enforced by the
-build, twenty-three tables (twenty-two until `backfill` on 2026-09-22, twenty-one until #25 added `seed`, nineteen until #28 added `note_meaning` and `meaning_synonym`, eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
+build, twenty-four tables (twenty-three until #70 added `study_setting` on 2026-10-12, twenty-two until `backfill` on 2026-09-22, twenty-one until #25 added `seed`, nineteen until #28 added `note_meaning` and `meaning_synonym`, eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
 a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by doing
 so, a bounded *session* of those *cards* that ends — composed due-first and snapshotted server-side,
-four *grades* under a *progress rail* that knows its own length — and, since 2026-09-12, **a
+four *grades* under a *progress rail* that knows its own length (⚠️ **the rail is retired and the outbox carries three kinds of entry since #70**, ADR 0076) — and, since 2026-09-12, **a
 *session* that survives the network**: an outbox in `localStorage` carrying two kinds of entry, so
 every answer is durable before the screen moves and the stream replays in order when the connection
 returns, and `X`, which suspends a bad *card* and leaves its *review* history standing. And, since
@@ -115,7 +115,7 @@ ADR 0062 retires the figure rather than the measurement (§ Carrying). ~~⚠️ 
 and the `Export everything` link on `/stats`, with `11` §4's reconciliation test. Signed out, it answers
 `302` to the door rather than `401` (`08` §6.3 as amended).
 ⚠️ **And, since 2026-09-15, `/review` is answered by typing** (ADR 0060, #18): the reading, then the
-meaning, with the app proposing the *grade*. **And the worker heartbeats while the model streams**
+meaning, with the app proposing the *grade* (⚠️ **the meaning, then the reading, since #70**, and the check has been the *grade* since ADR 0069). **And the worker heartbeats while the model streams**
 (ADR 0061, #17), so a long *chunk* no longer has its job silently reclaimed.
 ⚠️ **And, since 2026-09-12, there is an environment to run it in.** Neon project `kioku`
 (`small-hat-90514806`, Postgres 18.6, `aws-ap-southeast-1`) with all twenty-three tables migrated and
@@ -188,7 +188,7 @@ before writing code that touches any of them.**
 | --- | --- |
 | `02-product-requirements.md` | The twelve stories, `S1`–`S12`, each with an acceptance criterion |
 | `03-technical-design.md` | The rendering split, the worker, the pipeline, the outbox, security |
-| `04-database-schema.md` | Eighteen tables, every delete rule, and the one trigger |
+| `04-database-schema.md` | Twenty-four tables, every delete rule, and the one trigger |
 | `05-design-system.md` | Every token. **Where it disagrees with the canvas, it wins** (§9) |
 | `08-authentication.md` | The six routes, the allowlist's shape, the cookie attributes |
 | `09-user-flows.md` | What happens and in what order |

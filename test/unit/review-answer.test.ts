@@ -1,14 +1,15 @@
-// *Review*'s check — ADR 0060 §5 as amended by ADR 0069, the seam `11` §8 names
-// for the numbers.
+// *Review*'s check — ADR 0060 §5 as amended by ADR 0069 and ADR 0076 §5, the
+// seam `11` §8 names for the numbers.
 //
-// ⚠️ **The check is the *grade*** (ADR 0069 §1). A wrong result here is a
-// `Forgot` the reader cannot overrule, only answer with a synonym — so a check
-// that is too strict is paid for in lapses FSRS schedules on. That is why the
-// thresholds are tested at each boundary rather than by example.
+// ⚠️ **The check is the *grade*** (ADR 0069 §1), and since ADR 0076 §5 nothing
+// the reader can press overrules it. A wrong result here is a `Forgot` — so a
+// check that is too strict is paid for in lapses FSRS schedules on, and one
+// that is too loose passes a different word. That is why the thresholds are
+// tested at each boundary rather than by example.
 
 import { describe, expect, it } from 'vitest'
 
-import { answerSteps, foldReading, gradeOf, meaningMatches, readingMatches, synonymOffered } from '../../shared/review/answer'
+import { answerSteps, foldReading, glossPieces, meaningEntry, meaningMatches, meaningResult, otherMeanings, readingEntry, readingMatches } from '../../shared/review/answer'
 
 describe('the reading — the same fold on both sides', () => {
   it('matches hiragana typed against hiragana stored', () => {
@@ -83,29 +84,56 @@ describe('the meaning — lenient, and only as lenient as the table', () => {
     expect(meaningMatches('another', 'other')).toBe(false)
   })
 
-  // ⚠️ The boundaries: 0 for up to 3 characters, 1 for 4–7, 2 for 8 or more,
-  // measured on the stored candidate after normalising.
+  // ⚠️ ADR 0076 §5, the prototype's numbers: none under 5 letters, one for 5
+  // to 8, two from 9 — measured on the accepted meaning after normalising.
+  // ADR 0060 §5 had 0 / 1 from 4 / 2 from 8 until #70.
   describe('the edit distance, at each boundary', () => {
-    it('allows none at 3 characters', () => {
-      expect(meaningMatches('cat', 'cat')).toBe(true)
-      expect(meaningMatches('cot', 'cat')).toBe(false)
+    it('allows none at 4 letters — where one edit is most often another word', () => {
+      expect(meaningMatches('book', 'book')).toBe(true)
+      expect(meaningMatches('bool', 'book')).toBe(false)
+      expect(meaningMatches('gold', 'cold')).toBe(false)
     })
 
-    it('allows one at 4 characters, and not two', () => {
-      expect(meaningMatches('bool', 'book')).toBe(true)
-      expect(meaningMatches('bolt', 'book')).toBe(false)
+    it('allows one at 5 letters, and not two', () => {
+      expect(meaningMatches('wator', 'water')).toBe(true)
+      expect(meaningMatches('watr', 'water')).toBe(true)
+      expect(meaningMatches('wetor', 'water')).toBe(false)
     })
 
-    it('allows one at 7 characters, and not two', () => {
-      expect(meaningMatches('libary', 'library')).toBe(true)
-      expect(meaningMatches('libray', 'library')).toBe(true)
-      expect(meaningMatches('lbrry', 'library')).toBe(false)
+    it('allows one at 8 letters, and not two', () => {
+      expect(meaningMatches('hospitl', 'hospital')).toBe(true)
+      expect(meaningMatches('hospitql', 'hospital')).toBe(true)
+      expect(meaningMatches('hspitl', 'hospital')).toBe(false)
     })
 
-    it('allows two at 8 characters, and not three', () => {
-      expect(meaningMatches('hopsital', 'hospital')).toBe(true)
-      expect(meaningMatches('hspitl', 'hospital')).toBe(true)
-      expect(meaningMatches('hsptl', 'hospital')).toBe(false)
+    it('allows two at 9 letters, and not three', () => {
+      expect(meaningMatches('advnture', 'adventure')).toBe(true)
+      expect(meaningMatches('advntre', 'adventure')).toBe(true)
+      expect(meaningMatches('advntr', 'adventure')).toBe(false)
+    })
+
+    it('measures the accepted meaning, not what was typed', () => {
+      // Nine letters typed against an eight-letter meaning is still one edit's worth.
+      expect(meaningMatches('hospitall', 'hospital')).toBe(true)
+      expect(meaningMatches('hoospitall', 'hospital')).toBe(false)
+    })
+
+    it('counts the letters after the leading article is dropped', () => {
+      // `to open` normalises to `open`: four letters, so no edit.
+      expect(meaningMatches('to opem', 'to open')).toBe(false)
+    })
+  })
+
+  describe('exact, close or wrong', () => {
+    it('says which, so the screen can answer a near miss with the meaning', () => {
+      expect(meaningResult('library', 'library')).toBe('exact')
+      expect(meaningResult('libary', 'library')).toBe('close')
+      expect(meaningResult('station', 'library')).toBe('wrong')
+    })
+
+    it('is exact when any accepted meaning is typed as written', () => {
+      // `libary` is close to `library`, and `bookroom` is in the list exactly.
+      expect(meaningResult('bookroom', { meaning: 'library', meanings: ['bookroom'], synonyms: [] })).toBe('exact')
     })
   })
 
@@ -117,36 +145,6 @@ describe('the meaning — lenient, and only as lenient as the table', () => {
 
   it('refuses a different word', () => {
     expect(meaningMatches('station', 'library')).toBe(false)
-  })
-})
-
-// ADR 0060 §3's table, which ADR 0069 §1 makes the grade — and nothing between
-// its two rows.
-describe('the grade', () => {
-  it.each([
-    [true, true, 3],
-    [true, false, 1],
-    [false, true, 1],
-    [false, false, 1],
-  ] as const)('reading %s, meaning %s proposes %i', (reading, meaning, grade) => {
-    expect(gradeOf({ reading, meaning })).toBe(grade)
-  })
-
-  it.each([
-    [true, 3],
-    [false, 1],
-  ] as const)('with no reading step, meaning %s grades %i', (meaning, grade) => {
-    expect(gradeOf({ reading: null, meaning })).toBe(grade)
-  })
-
-  it('is only ever 1 or 3', () => {
-    const given = new Set<number>()
-
-    for (const reading of [true, false, null])
-      for (const meaning of [true, false])
-        given.add(gradeOf({ reading, meaning }))
-
-    expect([...given].sort()).toEqual([1, 3])
   })
 })
 
@@ -179,27 +177,62 @@ describe('accepted meanings', () => {
   })
 
   it('keeps the distance rule for a list entry', () => {
-    // `see` is three characters, so it allows no edit.
+    // `see` is three letters, so it allows no edit; `watch` is five.
     expect(meaningMatches('sea', 見る)).toBe(false)
     expect(meaningMatches('wach', 見る)).toBe(true)
   })
 })
 
-// ADR 0069 §2: the offer follows a refused meaning, and nothing else.
-describe('the synonym offer', () => {
-  it.each([
-    [false, 'look', true],
-    [false, '   ', false],
-    [false, '?!', false],
-    [true, 'look', false],
-    [null, 'look', false],
-  ] as const)('meaning %s, typed %j offers %s', (meaning, typed, offered) => {
-    expect(synonymOffered({ meaning }, typed)).toBe(offered)
+// ADR 0076 §5 — the gloss is cut into answers, and JMdict writes brackets.
+describe('the pieces of a gloss', () => {
+  it('cuts at a comma, a semicolon and a slash', () => {
+    expect(glossPieces('meeting, conference; assembly/gathering')).toEqual(['meeting', 'conference', 'assembly', 'gathering'])
+  })
+
+  it('does not cut inside brackets', () => {
+    expect(glossPieces('to open (a door, etc.); to unlock')).toEqual(['to open (a door, etc.)', 'to unlock'])
+  })
+
+  it('drops an empty piece', () => {
+    expect(glossPieces('library; ')).toEqual(['library'])
+  })
+
+  it('gives the result\'s *Also* line the pieces that were not typed, two at most', () => {
+    expect(otherMeanings('to meet', 'to meet; to encounter; to see; to have an accident')).toEqual(['to encounter', 'to see'])
+    expect(otherMeanings('library', 'library')).toEqual([])
+  })
+})
+
+// ADR 0076 §5 — an entry in the wrong script is not an answer, and is not counted.
+describe('whether an entry can be checked at all', () => {
+  it.each(['', '   ', '?!'])('calls %j an empty meaning', (typed) => {
+    expect(meaningEntry(typed)).toBe('empty')
+  })
+
+  it.each(['としょかん', 'トショカン', '図書館', 'library 図'])('refuses Japanese in a meaning — %j', (typed) => {
+    expect(meaningEntry(typed)).toBe('wrong_script')
+  })
+
+  it('takes an English meaning, right or wrong', () => {
+    expect(meaningEntry('library')).toBeNull()
+    expect(meaningEntry('statoin')).toBeNull()
+  })
+
+  it.each(['', '   '])('calls %j an empty reading', (typed) => {
+    expect(readingEntry(typed)).toBe('empty')
+  })
+
+  it.each(['図書館', 'library', 'としょkq'])('refuses a reading that is not kana — %j', (typed) => {
+    expect(readingEntry(typed)).toBe('wrong_script')
+  })
+
+  it.each(['としょかん', 'コーヒー', 'toshokan', 'としょかn'])('takes kana, and romaji that folds to it — %j', (typed) => {
+    expect(readingEntry(typed)).toBeNull()
   })
 })
 
 // ADR 0069 §4: a kana word is its own reading.
-describe('the steps a card asks', () => {
+describe('the questions a word asks', () => {
   it.each([
     ['こんな', 'hiragana'],
     ['コーヒー', 'katakana with a long-vowel mark'],
@@ -211,7 +244,8 @@ describe('the steps a card asks', () => {
     ['見る', 'kanji and kana'],
     ['夢', 'kanji only'],
     ['', 'no term at all'],
-  ])('asks the reading, then the meaning, for %j (%s)', (term) => {
-    expect(answerSteps(term)).toEqual(['reading', 'meaning'])
+  ])('asks the meaning, then the reading, for %j (%s)', (term) => {
+    // ADR 0076 §3 reversed ADR 0060 §2's order.
+    expect(answerSteps(term)).toEqual(['meaning', 'reading'])
   })
 })

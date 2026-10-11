@@ -8,7 +8,7 @@
 //
 // ⚠️ **The page reads its data from the request event**, not from a fetch —
 // `server/middleware/shell-data.ts` carries that argument in full, and
-// `app/pages/auth/index.vue` established the idiom in #5. The three *places*
+// `app/pages/auth/index.vue` established the idiom in #5. The four *places*
 // render only on the server; `useRequestEvent()` returns `undefined` anywhere
 // else, so every read below falls back to the empty state rather than to a
 // half-rendered screen.

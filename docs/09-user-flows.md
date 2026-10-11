@@ -30,7 +30,8 @@ story it protects.
 2. **How a *mode* is entered, and what the affordance is.** ADR 0013 decided a mode has no navigation
    out; nothing decided the way in.
    [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md): a
-   start control carrying its own count, on all three *places*, and Done as the only exit — including
+   start control carrying its own count, on all three *places* (⚠️ four since 2026-10-12, ADR 0076
+   §2), and Done as the only exit — including
    out of an empty queue, which is what actually closes the gap ADR 0013 claimed to have closed.
 3. **What Done means in *Vet*, which is not what it means in *Review*.**
    [ADR 0033](adr/0033-done-in-vet-ends-the-run-and-spends-the-undo.md): it is a commit boundary,
@@ -61,6 +62,7 @@ what happens and in what order; that one says what it is made of.
 | `/sources/:id` | One *source*, readable, with its *notes* and *occurrences* | `noScripts: true` | No |
 | `/sources/:id/delete` | The delete confirmation (§4.11) | `noScripts: true` | No |
 | `/stats` | **Stats** — the *place* | `noScripts: true` | No |
+| `/settings` | **Settings** — the *place* (ADR 0076 §2, #70): three study settings | `noScripts: true` | No |
 | `/vet` | ***Vet*** — the *mode* | `ssr: false` | No |
 | `/review` | ***Review*** — the *mode* | `ssr: false` | No |
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
@@ -68,6 +70,7 @@ what happens and in what order; that one says what it is made of.
 | `/api/auth/**` | Better Auth's catch-all | Nitro | Yes |
 | ⚠️ `/` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`** — see below | Nitro middleware, then the *place* | No |
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
+| `/api/settings` | `POST` — store the three study settings, clamped (ADR 0076 §2) | Nitro | No |
 | `/api/export` | `GET` — `S12`'s export (§4.12) | Nitro | No |
 | `/api/vetting/**`, `/api/review/**` | The two *modes*' data and outbox endpoints | Nitro | No |
 
@@ -77,7 +80,10 @@ prerendered `/sources/:id` is a static copy of a *source* with no request left t
 
 **The three *places* have no client, so every write they perform is a form.** The *source*
 submission and `/api/source/:id/delete` are the only two, and both are `POST`-redirect-`GET`: they do
-the work and answer `303` back to a page. On a validation failure they answer `200` with the form
+the work and answer `303` back to a page. ⚠️ **Four *places* and three writes since 2026-10-12**:
+`/settings` posts to `/api/settings`, which answers `303` to `/settings?saved=1`. It has no
+validation failure to re-render, because nothing is refused: a value out of range is clamped and the
+page shows what was kept. On a validation failure they answer `200` with the form
 re-rendered and the submitted text still in it, because a redirect would throw away a paste the
 reader cannot get back (§4.2).
 
@@ -110,13 +116,13 @@ requests, and cross-site only for top-level navigations using a safe method — 
 
 ## 2. The shell, and the two controls that leave it
 
-The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete` and `/stats`, and nowhere
-else (ADR 0013). It carries three things:
+The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and (since #70)
+`/settings`, and nowhere else (ADR 0013). It carries three things:
 
 | | What | Goes to |
 | --- | --- | --- |
-| **Navigation** | Ingest · Sources · Stats | The three *places*. Never a *mode* (ADR 0032) |
-| **The start block** | Vet, with the *pending* count · Review, with the number due now and the new *cards* the brake allows today | `/vet?from=…` · `/review?from=…` |
+| **Navigation** | Ingest · Sources · Stats · Settings | The four *places*. Never a *mode* (ADR 0032) |
+| **The start block** | Vet, with the flagged count · Review, with the number due now · Lesson, with the new words the brake allows today | `/vet?from=…` · `/review?start=review&from=…` · `/review?start=lesson&from=…` |
 | **The door** | A quiet link, for signing out | `/auth` (`08` §2) |
 
 Neither start control is ever disabled. A zero on Review is how the reader reaches the empty state
@@ -129,6 +135,13 @@ unreachable.
 allowed. It is #20's precedent in the other direction: #20 took a count off *Vet* that promised work
 the queue did not hold, and this puts one on Review for work that is there. `10` §3.2 carries the
 arithmetic (ADR 0066's brake).
+
+⚠️ **Amended 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70)
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)): three controls,
+`Review · 0 due` and `Lesson · 10 new`.** A review run never holds a new word and a lesson never
+holds a due one, so each count has its own control and each link says which run to start. The count
+on Lesson is still the brake's, with the reader's own limits, and it now counts starter words nobody
+has started as well as the reader's own unscheduled *cards*. No control is disabled at zero.
 
 **Every figure in the shell is as of page load and says so.** A *place* ships no JavaScript, so it
 cannot poll, and the alternatives are worse: a meta refresh on `/` would destroy a paste in progress,
@@ -385,6 +398,53 @@ condition. Once the flag is resolved the fields are frozen again.
 
 ### 4.7 `S7` — Study a session that ends
 
+⚠️ **Rewritten 2026-10-12 by [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+(#70). This block is the flow as built; everything under *As built until 2026-10-12* is history.**
+
+**Screen:** `/review`.
+**Keystrokes:** `Enter` check, then `Enter` next · `X` flag, on a result only · `Esc` finish early
+in the quiz, and leave from every other screen. No key gives a *grade* and none changes a result.
+**Exit:** *Leave* during a lesson's teaching (a pause) · *Finish early* in the quiz (ends the run) ·
+the summary's way back.
+
+1. **A start control loads `/review?start=review&from=/` or `/review?start=lesson&from=/`.** The app
+   shell renders. The page reads `start` once and takes it out of the address, so a reload or the
+   back button cannot start a second run. Opened with no `start`, the page starts nothing.
+2. The client replays its outbox, then asks the server. **A live run is resumed** whatever was
+   asked for (§6). Otherwise the server composes the run that was asked for, or none.
+3. **A review run** is the due *cards*, least remembered first when they do not all fit, up to the
+   *session* size. **A lesson** is new words up to the lesson size, as far as the brake allows: the
+   reader's own unscheduled *cards* first, then starter words not yet started, easiest *level*
+   first. **The lesson accepts and mints the starter words it holds, in the transaction that writes
+   the run** (`04` §7.6, §7.7). `snapshot_taken_at` is stamped server-side as before.
+4. **With no run, the screen says what is waiting**: how many reviews, how many new words a lesson
+   would teach, which brake is on, and a control for each run that has something in it. The
+   *session*-size knob and the filter live here.
+5. **A lesson teaches first**: one word a screen with its reading, meaning, part of speech, *level*
+   and its example when it has one, *Back* and *Next word*, and then *Quiz me on these 5*. The
+   teaching does not come back once the quiz has begun.
+6. **The quiz**, for a lesson and a review run alike: for each word the meaning, then the reading.
+   A kana-only word asks the meaning alone. `Enter` checks; the result is shown — *Correct*, *Close
+   enough* with the answer, or *Not quite* with the answer — and `Enter` moves on. **A wrong
+   question goes to the back of the queue and returns until it is right.** An entry in the wrong
+   script, an empty one, and the one kanji-reading retry are handed back with a sentence and
+   counted as nothing.
+7. **The word is graded when its last question is right**: Good if nothing was missed, Forgot if
+   anything was. The *grade* is stamped at that keystroke and appended to the outbox. **The
+   interface never waits on the flush** (`S8`, ADR 0007). The header counts words finished.
+8. ***Finish early*** ends the run. In a review run each word that was missed and not yet got right
+   is graded Forgot first; a word not reached stays due. In a lesson nothing is graded, and a word
+   not got right is taught again in the next lesson.
+9. **The summary**: words, the share right first try, the missed, then each word with the stage the
+   *grade* left it at and when it is back, and what is waiting next. `review_session.completed_at`
+   is set. **Starting another is one deliberate action, never automatic** (`S7`): a control that
+   names the run it starts.
+
+***Session* size and the filter are set on the screen before a run**, never mid-session. The knob
+caps a review run; the lesson's size, the day's new words and the pause are on `/settings`.
+
+#### As built until 2026-10-12
+
 **Screen:** `/review`.
 **Keystrokes:** `Enter` check · `Enter` commit the check's *grade* · `S` add a refused meaning as a
 synonym · `X` flag (`S` and `X` on the back only) · `Esc` leave. ⚠️ **Amended 2026-09-15 by
@@ -433,8 +493,14 @@ of the first run.
 
 ### 4.8 `S8` — Not lose grades on a train
 
-**Screen:** `/review`. No keystrokes of its own; it is what §4.7 step 5 does when the network is
-gone.
+**Screen:** `/review`. No keystrokes of its own; it is what §4.7's quiz does when the network is
+gone (steps 6 to 8 since #70; step 5 until then).
+
+⚠️ **Since 2026-10-12 (ADR 0076 §4, §6) three things live in `localStorage`, not two**: the
+snapshot, the outbox, and the quiz's queue of questions still owed with the words missed. A reload
+that lost the third would forgive every miss in the run. And the outbox carries *Finish early* as an
+entry of its own, behind the Forgot *grades* it follows. **The summary gives no stage and no date
+for an answer the database has not seen**: the row says *not sent yet* until it lands.
 
 The whole *session* is prefetched at step 3. Each *grade* is stamped at the moment it is given and
 appended to the outbox; **the snapshot and the outbox both live in `localStorage`**, so a tunnel and
@@ -481,6 +547,12 @@ nothing else (§4.3, amended). The three decisions are ADR 0064's: `decide()` re
 writes the application's first epoch reset. `card_flag.resolved_at` is written by all three
 resolutions, the queue orders by the oldest open flag, and `note_vetting.flagged_at` drives the
 `returned by a flag` aside.
+
+⚠️ **Since 2026-10-12 (ADR 0076, #70) `X` is a key on a result only, and a control beside it**
+(*Something is wrong with this word*), because a phone has no `X`. The word leaves the quiz with
+every question it still owed. If the answer on screen had just completed the word, it keeps its
+*grade* and is flagged as well. The rail and its fourth mark, below, went with the rail: the header
+counts a flagged word as finished.
 
 ⚠️ **The rail needs a third mark.** A flagged position is passed but not answered, so a twenty-card
 *session* can end with nineteen answers. `05` §7 gives the rail three fills (graded, current, not
@@ -641,6 +713,19 @@ direction real.
 ADR 0026 gave both modes the same control. It did not give them the same meaning, and
 [ADR 0033](adr/0033-done-in-vet-ends-the-run-and-spends-the-undo.md) is where that gets said.
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§6 (#70): *Review*'s column is true of a lesson's teaching and no longer of the quiz.** The way out
+is named for what it does:
+
+| Where | The control | What it does |
+| --- | --- | --- |
+| The screen before a run, and the summary | Done, or the *place*'s name | Leaves. Nothing is live |
+| A lesson's teaching | **Leave** | A pause. `completed_at` stays null and the lesson resumes on the word the reader was on |
+| The quiz | **Finish early**, and `Esc` | **Ends the run** and shows the summary. `completed_at` is set. In a review run a missed word not yet got right is graded Forgot |
+
+It asks nothing first: nothing it does is hidden, and the summary it lands on says what was left.
+A tab closed in the quiz is still a pause, and the run resumes with its queue and its misses.
+
 **The question, when it appears:** it names the number of rejections that are about to become
 permanent, and it is answered from the keyboard — `space` ends the run, `Z` goes back into the queue.
 Both keys already mean those things (ADR 0023). It does not appear at all when the run holds no
@@ -670,7 +755,9 @@ neither is an accident.
 
 **`/review` resumes from a snapshot.** The prefetched *session* and the outbox are both in
 `localStorage`. A reload re-renders the app shell, finds the snapshot, and continues at the first
-ungraded ordinal; the outbox flushes on load. This is the same code path as a crash, a closed lid and
+ungraded ordinal; the outbox flushes on load. ⚠️ **Since #70 it continues at the head of the stored
+question queue** (`kioku:review:quiz`), with the misses it had, or on the teaching screen the reader
+was on; on a device with no stored queue an unfinished word is asked from its first question. This is the same code path as a crash, a closed lid and
 a tunnel, which is the property ADR 0014 was arguing for — surviving a tunnel but not a refresh fails
 the story that exists to prevent it.
 
@@ -749,6 +836,12 @@ PRD §4 makes these requirements. Two of them gained a case while this document 
 | **Sources** | Nothing ingested | "Nothing ingested." Points at Ingest | The nav |
 | **Stats** | Under 20 vetted *notes* | Raw counts, ratios suppressed, **and a line saying why** | The nav |
 
+⚠️ **Amended 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70): *Review*'s
+three rows are one screen**, the screen before a run (§4.7 step 4, `10` §5.7). It always says what
+is waiting — reviews, a lesson, when the next word is due, and which brake is on — and draws a
+control only for a run that has something in it. The summary offers the next run by name and the
+way out is a control, not `space`.
+
 ⚠️ **Amended 2026-09-17 with [#20](https://github.com/yutaasakura96/kioku/issues/20): *Vet* has two
 empty states, and the three rows above are history.** Nothing running can add to the flag queue, so
 "nothing to vet yet" retired. What is left: **nothing flagged** (`Nothing to vet.`, the Ingest
@@ -778,7 +871,7 @@ where `S3` measures one keystroke per note. **An empty queue has no keystroke to
   single-line, which `Enter`-to-commit assumes (§4.3); and the *source* delete confirmation page,
   which is a *place* the canvas never drew (§4.11).
 - **`11-testing-plan.md`** — five this document generates, on top of the ones `04` §14 and `08` §11
-  already own: `from` rejects a path outside the three *places* and falls back to `/`; Done on *Vet*
+  already own: `from` rejects a path outside the *places* (⚠️ four since 2026-10-12) and falls back to `/`; Done on *Vet*
   makes a rejection permanent and `Z` before it does not; a `Z` on an acceptance whose *card* has
   reached a *review session* fails on the `RESTRICT` rather than deleting; the over-cap paste is
   re-rendered with its text intact; deleting a *source* suspends its *cards* and leaves `review_log`

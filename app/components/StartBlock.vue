@@ -12,14 +12,19 @@
 // decoration and never a state". The affordance keeps its arrow where it is
 // alone (`10` §4.5, §7.1).
 //
-// ⚠️ **Neither control is ever disabled** (ADR 0032, ADR 0035). A zero on Review
-// is how the reader reaches the empty state that tells them when the next *card*
-// is due, and a zero on Vet is how they reach the line saying nothing is flagged
+// ⚠️ **Three controls since ADR 0076**: a lesson and a review run are two
+// kinds of *session* (§1), so each has its own entrance and its own figure.
+// Each of the two carries `?start=`, which *Review* reads once and starts.
+//
+// ⚠️ **No control is ever disabled** (ADR 0032, ADR 0035). A zero on Review
+// or on Lesson is how the reader reaches the screen that says when the next
+// word is due or why no new ones are on offer, and a zero on Vet is how they
+// reach the line saying nothing is flagged
 // (`10` §4.5, amended with #20 — it said an *ingestion* was still running, and
 // an *ingestion* no longer adds to *Vet*). Disabling the entrances would make PRD §4's written empty
 // states unreachable — ADR 0032 refused a disabled start control once already.
 //
-// ⚠️ **The origin travels in `from`** and is matched against three strings on
+// ⚠️ **The origin travels in `from`** and is matched against four strings on
 // the way out (`shared/utils/origin.ts`, ADR 0032). This is the control that
 // sets it.
 
@@ -30,12 +35,13 @@ const props = defineProps<{
   origin: Place
   flagged: number
   due: number
-  /** New *cards* the brake would allow today — #33. */
+  /** New words the brake would allow today — #33, and what the Lesson control counts. */
   newToday: number
 }>()
 
 const vet = computed(() => `/vet?from=${encodeURIComponent(props.origin)}`)
-const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`)
+const review = computed(() => `/review?start=review&from=${encodeURIComponent(props.origin)}`)
+const lesson = computed(() => `/review?start=lesson&from=${encodeURIComponent(props.origin)}`)
 </script>
 
 <template>
@@ -53,8 +59,13 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
         <span class="dot" aria-hidden="true">·</span>
         <span class="count">{{ due }}</span>
         <span class="word">due</span>
-        <!-- ⚠️ #33: a zero due in front of new *cards* the day still allows read
-          as nothing to do. Same count treatment, no new colour or size. -->
+      </NuxtLink>
+
+      <!-- ⚠️ #33: a zero due in front of new words the day still allows read as
+        nothing to do. Since ADR 0076 the new words are a control of their own:
+        a lesson teaches them, and a review run never holds one. -->
+      <NuxtLink :to="lesson" class="control">
+        <span class="label">Lesson</span>
         <span class="dot" aria-hidden="true">·</span>
         <span class="count">{{ newToday }}</span>
         <span class="word">new</span>
@@ -63,7 +74,7 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
 
     <!--
       ⚠️ `09` §2 requires the *shell* to **say** that every figure in it is as of
-      page load, and this is the sentence. It is the same line on all three
+      page load, and this is the sentence. It is the same line on all four
       *places*. A *place* ships no JavaScript so it cannot poll, and the
       alternatives are worse: a meta refresh on `/` would destroy a paste in
       progress, and a stale number presented as live is a lie the reader has no
@@ -81,6 +92,7 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
    frames it. The 28px below the bar's rule is the page's job, not this one's. */
 .start {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--k-space-3); /* 12px — the grade-control gap */
 }
 
@@ -148,7 +160,7 @@ const review = computed(() => `/review?from=${encodeURIComponent(props.origin)}`
   color: var(--k-ink-secondary);
 }
 
-/* `10` §10.6 — nothing bespoke on a phone; the two controls stack. */
+/* `10` §10.6 — nothing bespoke on a phone; the controls stack. */
 @media (width < 720px) {
   .start {
     flex-direction: column;

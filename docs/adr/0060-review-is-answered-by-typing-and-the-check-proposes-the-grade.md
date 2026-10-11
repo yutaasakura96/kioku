@@ -5,6 +5,12 @@ reveal-then-self-grade. The reader types the reading, then types the meaning. Th
 **proposes** a *grade*, and the reader commits it with the same four keys as before. This replaces the
 current interaction; it does not add a second one beside it.
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) (#70).** §2's order is reversed: the meaning is asked first,
+then the reading. §5's distances are tightened to exact under five letters, one edit for five to
+eight, two from nine. And a word is graded when every question about it has been answered right,
+a wrong one having been asked again first. The typed answer, the kana conversion and §4's record
+stand.
+
 ## Why now
 
 Asked what he was aiming for after vetting 39 *notes*, the reader described WaniKani: see the word,

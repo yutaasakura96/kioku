@@ -169,6 +169,8 @@ _Avoid_: skipped, ignored, dismissed, deleted
 **Grade**:
 The answer given to a card when it is reviewed, carrying the timestamp of the moment it was given.
 ⚠️ Since ADR 0069 it is the typed check's result — Good or Forgot — and never the reader's choice.
+⚠️ Since ADR 0076 a word has one a *session*, given when every question about it has been answered
+right: Good if none was missed, Forgot if any was.
 _Avoid_: score, rating, result, mark
 
 **Accepted meanings** — ⚠️ **added 2026-09-21 (ADR 0069)**:
@@ -179,18 +181,38 @@ _Avoid_: answers, glosses (the gloss is the one `meaning` the card shows)
 **Synonym** — ⚠️ **added 2026-09-21 (ADR 0069)**:
 A meaning the check refused that the reader added, from the back of the card, as right. It belongs to
 the reader and the note together, and it changes the check for that reader only. There is no synonym
-for a reading.
+for a reading. ⚠️ **Nothing adds one since 2026-10-12 (ADR 0076 §5)**: there is no manual override.
+The ones already stored are still accepted.
 _Avoid_: alias, override, correction (it corrects nothing on the note)
 
 **Session**:
-A bounded, finishable run of due cards, prefetched as a unit and sized to be finishable rather than
-to exhaust what is due.
+A bounded, finishable run of cards, prefetched as a unit and sized to be finishable rather than to
+exhaust what is waiting. ⚠️ Since ADR 0076 it is one of two kinds: a *review run*, of due cards
+only, or a *lesson*, of new words only.
 _Avoid_: queue, batch, round, set
 
+**Lesson** — ⚠️ **added 2026-10-12 (ADR 0076)**:
+A session of new words: each is taught on a screen of its own, and then the same words are quizzed.
+It is where a word starts, and a starter word gets its card by being in one. A word the reader does
+not get right in a lesson's quiz is taught again in the next.
+_Avoid_: tutorial, introduction, learn mode, new-card session
+
+**Quiz** — ⚠️ **added 2026-10-12 (ADR 0076)**:
+The asking half of a session: for each word the meaning and then the reading, typed, with a wrong
+answer asked again before the session ends. A lesson ends in one and a review run is one.
+_Avoid_: test, exam, drill. ⚠️ It left *Review*'s list below: *Review* is the activity and the
+screen, and the quiz is what a session does there.
+
+**Stage** — ⚠️ **added 2026-10-12 (ADR 0076)**:
+How far along a word is, as the reader is shown it: Learning, Familiar or Known. Read from the
+scheduler's stability for the card and never stored. A word that has never been graded has none.
+_Avoid_: level (a *level* is the JLPT's), rank, status, mastery
+
 **Brake**:
-What limits the new cards a session introduces (ADR 0066): at most ten a local day, counted when a
-session is composed rather than when a card is answered, and none at all while fifty or more are due.
-It never limits due cards. The reader is always told which brake is on.
+What limits the new words lessons introduce (ADR 0066): at most ten a local day, counted when a
+lesson is composed rather than when a word is answered, and none at all while fifty or more are due.
+It never limits due cards. The reader is always told which brake is on. ⚠️ Since ADR 0076 both
+numbers are the reader's settings, and ten and fifty are the defaults.
 _Avoid_: daily limit, quota, throttle, cap (for due cards, which have none)
 
 **Vetting** — ⚠️ **moved 2026-09-16 (ADR 0064)**:
@@ -202,7 +224,7 @@ _Avoid_: review, approval, triage, curation, moderation
 
 **Review**:
 Answering a due card and grading it. Never used for the human check of a generated note.
-_Avoid_: study, test, quiz, practice
+_Avoid_: study, test, practice
 
 **Deck**:
 A saved query over the card pool. Owns nothing; nothing is ever moved into or out of one.
@@ -245,19 +267,23 @@ estimate. The one visible honesty bit, and it is never placed behind a hover.
 _Avoid_: badge, indicator, icon, dot, confidence marker
 
 **Shell**:
-The persistent frame carrying navigation, present on Ingest, Sources and Stats and absent from
-*Vet* and *Review*. What makes those three *places* rather than *modes*.
+The persistent frame carrying navigation, present on Ingest, Sources, Stats and Settings and absent
+from *Vet* and *Review*. What makes those four *places* rather than *modes* (⚠️ three until ADR 0076
+added Settings).
 _Avoid_: chrome, layout, frame, nav
 
 **Mode**:
-A screen that replaces the *shell* entirely — no header, no navigation — and carries exactly one way
-out: `Esc`, and a Done control present on every viewport. *Vet* and *Review* are the only two,
-because both are keyboard-driven surfaces where a pointer target would cost more than it gives. The
-visible exit is the one thing they carry that a pointer can reach, and it exists because a phone has
-no `Esc`.
+A screen that replaces the *shell* entirely — no navigation — and carries exactly one way out:
+`Esc`, and a visible exit present on every viewport. *Vet* and *Review* are the only two, because
+both are keyboard-driven surfaces where a pointer target would cost more than it gives. The visible
+exit is the one thing they carry that a pointer can reach, and it exists because a phone has no
+`Esc`. ⚠️ Since ADR 0076 *Review*'s exit is named for what it does: *Leave* during a lesson's
+teaching, which is a pause, and *Finish early* in the quiz, which ends the session.
 _Avoid_: fullscreen, focus mode, overlay, modal
 
-**Progress rail**:
-The row of per-card ticks that stands in for *Review*'s header — one tick per card in the session,
-marking graded, current and not-yet-reached. The only progress indicator in the app.
-_Avoid_: progress bar, stepper, pagination, breadcrumb
+**Progress rail** — ⚠️ **retired 2026-10-12 (ADR 0076 §8)**:
+The row of per-card ticks that stood in for *Review*'s header — one tick per card in the session,
+marking graded, current and not-yet-reached. *Review*'s header is now one track and a count of words
+finished, because a missed question returns and a row of ticks could no longer say how far through
+the reader is.
+_Avoid_: stepper, pagination, breadcrumb
