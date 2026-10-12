@@ -666,3 +666,45 @@ describe('a starter word, and a lesson finished early', () => {
     await page.close()
   })
 })
+
+// ADR 0076 §2, `10` §8A: nothing is refused. The reader's own browser must not
+// hold back a value the server would clamp, and this is the tier with a browser.
+describe('the settings form, submitted by a browser', () => {
+  const FIELDS = ['lessonSize', 'dailyNew', 'pauseAbove']
+
+  afterAll(async () => {
+    await database.client.exec('DELETE FROM study_setting;')
+  })
+
+  async function save(page: Page, typed: string[]): Promise<string[]> {
+    await page.goto(url('/settings'), { waitUntil: 'networkidle' })
+
+    for (const [index, name] of FIELDS.entries())
+      await page.locator(`input[name="${name}"]`).fill(typed[index]!)
+
+    await page.getByRole('button', { name: 'Save' }).click()
+    await page.getByText('Saved.').waitFor({ timeout: 5_000 })
+
+    return Promise.all(FIELDS.map(name => page.locator(`input[name="${name}"]`).inputValue()))
+  }
+
+  it('sends what is out of range or fractional, and shows what was kept', async () => {
+    const page = await createPage()
+    const [name, ...rest] = reader.cookie.split('=')
+
+    await page.context().addCookies([{
+      name: name!,
+      value: rest.join('='),
+      domain: '127.0.0.1',
+      path: '/',
+    }])
+
+    expect(await save(page, ['21', '101', '2001'])).toEqual(['20', '100', '2000'])
+    expect(await save(page, ['2.5', '7.9', '40'])).toEqual(['2', '7', '40'])
+
+    expect(await scalar('SELECT count(*)::int AS n FROM study_setting;')).toBe(1)
+    expect(await scalar('SELECT lesson_size AS n FROM study_setting;')).toBe(2)
+
+    await page.close()
+  })
+})

@@ -10,8 +10,9 @@
 //
 // ⚠️ **Nothing is refused and the field says its range.** A value out of range
 // is clamped by the server (`shared/review/limits.ts`) and the page that comes
-// back shows what was kept. `min` and `max` on the inputs are the browser's
-// half of the same bounds, from the same constant.
+// back shows what was kept. `min` and `max` on the inputs are the stepper's
+// bounds, from the same constant, and the form is `novalidate` so the browser
+// does not refuse what the server would clamp.
 //
 // ⚠️ **ADR 0066 §1 made the last two constants on purpose**, and Yuta's answer
 // on the prototype is that they are adjustable. The defaults are that ADR's
@@ -40,7 +41,7 @@ const saved = useRoute().query.saved === '1'
         Saved.
       </p>
 
-      <form method="post" action="/api/settings" class="form">
+      <form method="post" action="/api/settings" class="form" novalidate>
         <label class="field">
           <span class="name">New words per lesson</span>
           <input

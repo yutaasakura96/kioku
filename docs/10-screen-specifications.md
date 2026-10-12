@@ -1416,7 +1416,8 @@ the number does, its range and its usual value.
 
 One quiet control, `Save`. It posts to `/api/settings`, which answers `303` to `/settings?saved=1`,
 and that document says `Saved.` above the form (`role="status"`). **Nothing is refused**: a value
-out of range is clamped, a blank one is the default, and the fields show what was kept. The start
+out of range is clamped, a blank one is the default, and the fields show what was kept; the form is
+`novalidate`, so the browser does not hold back a value the server would clamp. The start
 block's Lesson figure follows from the next page load.
 
 ---
