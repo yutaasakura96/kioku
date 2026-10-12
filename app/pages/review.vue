@@ -1057,7 +1057,7 @@ onBeforeUnmount(() => {
           :positions="positions"
           :offer="offer"
           :unsent="unsent"
-          :refused="refused.length"
+          :refused="refused"
           :session-expired="sessionExpired"
           :home="home"
           @start="begin => enqueue(() => start(begin))"

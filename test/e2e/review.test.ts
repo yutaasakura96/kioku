@@ -191,6 +191,36 @@ describe('the key handlers bind to the mode container', () => {
     expect(await grades()).toBe(0)
 
     await throughTeaching(page, 1)
+    await page.locator('.modebar .count').evaluate(element => { element.textContent = '200 of 200 words' })
+    await page.setViewportSize({ width: 320, height: 700 })
+    const narrow = await page.evaluate(() => {
+      const bar = document.querySelector('.modebar')!
+      const parts = ['.name', '.track', '.count', '.exit'].map(selector => bar.querySelector(selector)!.getBoundingClientRect())
+      const bounds = bar.getBoundingClientRect()
+      return {
+        contained: parts.every(part => part.left >= bounds.left && part.right <= bounds.right),
+        separated: parts.every((part, index) => parts.slice(index + 1).every(other =>
+          part.right <= other.left || other.right <= part.left || part.bottom <= other.top || other.bottom <= part.top)),
+        firstRow: parts[0]!.bottom > parts[3]!.top && parts[3]!.bottom > parts[0]!.top,
+        secondRow: parts[1]!.bottom > parts[2]!.top && parts[2]!.bottom > parts[1]!.top,
+        ordered: Math.min(parts[1]!.top, parts[2]!.top) >= Math.max(parts[0]!.bottom, parts[3]!.bottom),
+        scrollWidth: document.documentElement.scrollWidth,
+      }
+    })
+    expect(narrow.contained).toBe(true)
+    expect(narrow.separated).toBe(true)
+    expect(narrow.firstRow).toBe(true)
+    expect(narrow.secondRow).toBe(true)
+    expect(narrow.ordered).toBe(true)
+    expect(narrow.scrollWidth).toBeLessThanOrEqual(320)
+
+    await page.setViewportSize({ width: 390, height: 700 })
+    const wideRow = await page.evaluate(() => {
+      const parts = ['.name', '.track', '.count', '.exit'].map(selector => document.querySelector(`.modebar ${selector}`)!.getBoundingClientRect())
+      return Math.max(...parts.map(part => part.top)) < Math.min(...parts.map(part => part.bottom))
+    })
+    expect(wideRow).toBe(true)
+
     await answer(page, 'library')
     expect(await verdict(page)).toBe('Correct')
 

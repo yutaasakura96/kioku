@@ -155,6 +155,8 @@ are two constants in `shared/review/stage.ts`.
 The summary says where each word went — *now Learning*, *up to Familiar*, *stays Known*, *down to
 Learning* — and when it is back, both from what the server recorded and never from the client's own
 arithmetic. An answer that has not reached the server yet says so.
+An answer the server refused is shown as not recorded and is excluded from the summary's learned,
+missed and right-first-try figures, although the quiz still moves past it.
 
 ### §8 — The screens
 

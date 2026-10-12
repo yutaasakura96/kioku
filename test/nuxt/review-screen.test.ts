@@ -260,7 +260,7 @@ describe('the summary (ADR 0076 §7, §8)', () => {
         positions: [],
         offer: OFFER,
         unsent: 0,
-        refused: 0,
+        refused: [],
         sessionExpired: false,
         home: { to: '/', name: 'Home' },
         ...props,
@@ -379,9 +379,39 @@ describe('the summary (ADR 0076 §7, §8)', () => {
   })
 
   it('says an answer was refused, and that it will not be sent again', async () => {
-    const view = await summary({ refused: 2 })
+    const view = await summary({ refused: [
+      { kind: 'flag', sessionId: 'run', cardId: 'a', seq: 1 },
+      { kind: 'flag', sessionId: 'run', cardId: 'b', seq: 2 },
+    ] })
 
     expect(view.find('.unsent').text()).toContain('2 answers were refused and will not be sent again')
+  })
+
+  it('keeps a refused grade out of the totals and labels its row as not recorded', async () => {
+    const refused = position(0, { grade: 1 })
+    const landed = position(1, { grade: 3, outcome: { stage: 'familiar', due: inDays(9) } })
+    const view = await summary({
+      positions: [refused, landed],
+      refused: [{ kind: 'grade', sessionId: 'run', cardId: refused.cardId, grade: 1, reviewedAt: new Date().toISOString(), seq: 1 }],
+    })
+
+    expect(view.findAll('.figure .v').map(figure => figure.text())).toEqual(['1', '100%', '0'])
+    expect(view.find('.sumlist').text()).toContain('Right first try · 1')
+    expect(view.findAll('.wrow .x').map(row => row.text())).toContain('refused · not recorded')
+    expect(view.text()).not.toContain('not sent yet')
+  })
+
+  it('does not call a refused lesson word learned', async () => {
+    const refused = position(0, { grade: 3 })
+    const view = await summary({
+      kind: 'lesson',
+      positions: [refused],
+      refused: [{ kind: 'grade', sessionId: 'run', cardId: refused.cardId, grade: 3, reviewedAt: new Date().toISOString(), seq: 1 }],
+    })
+
+    expect(view.find('.statement').text()).toBe('Lesson complete.')
+    expect(view.findAll('.figure .v').map(figure => figure.text())).toEqual(['0', '0%', '0'])
+    expect(view.find('.wrow .x').text()).toBe('refused · not recorded')
   })
 })
 

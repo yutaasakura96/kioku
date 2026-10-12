@@ -580,6 +580,9 @@ height. The exit is outside the mode container (§4.1's rule, unchanged).
 | The quiz | `Lesson quiz` or `Reviews` | Words finished: `3 of 12 words` | **`Finish early`, a button.** It ends the run (`09` §5.3) |
 | The summary | `Summary` | Full; `12 words` | The *place* it goes back to, by name |
 
+At widths below 360px, a bar with progress uses two rows: name and exit above the track and count.
+At 390px it keeps the prototype's single row.
+
 **The screen before a run.** An eyebrow, `TODAY`; a statement at 44px Newsreader 300 saying what is
 waiting; one line under it at 17px `--k-ink-secondary`; then a control for each run that has
 something in it, the first on the ink ground and a second as a ghost:
@@ -630,9 +633,12 @@ mono label. A line for what a run that stopped short left. Then two lists, **Mis
 eyebrow in the accent, then **Right first try**: a row a word (`WordRow.vue`) with the *term* at
 23px, its first meaning over its reading, and at the right in 12px mono where the *grade* sent it —
 `up to Familiar · back in 9 days`. A missed word's is in `--k-wrong`. **An answer the database has
-not seen says `not sent yet`.** The unsent notice (§5.6's, unchanged: a rule and a sentence, never
+not seen says `not sent yet`; one the server refused is listed as `refused · not recorded` and does
+not enter the three figures.** The unsent notice (§5.6's, unchanged: a rule and a sentence, never
 an alert). Last, a raised block, `WHAT NEXT`: a sentence, a control naming the run it starts when
 one is waiting, and `Back to Home`. **Nothing here starts a run by itself.**
+If every lesson grade was refused, the statement is `Lesson complete.` rather than claiming a word
+was learned or that the reader finished early.
 
 **Keys.** `Enter` is the field's and then *Next*'s. `X` flags, on a result only. `Esc` is *Finish
 early* in the quiz and the way out everywhere else. No digit, and no `S`.

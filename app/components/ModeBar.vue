@@ -136,4 +136,34 @@ defineProps<{
     min-height: 44px;
   }
 }
+
+@media (width < 360px) {
+  .modebar:has(.track) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    padding-block: 8px;
+  }
+
+  .modebar:has(.track) .name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .modebar:has(.track) .track {
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+  }
+
+  .modebar:has(.track) .count {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .modebar:has(.track) :deep(.exit) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
 </style>

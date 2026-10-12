@@ -191,6 +191,8 @@ describe('property 5 — a rejected entry is surfaced, never dropped', () => {
     expect(view.text()).toContain('2 answers were refused and will not be sent again')
     expect(view.text()).not.toContain('have not reached the database yet')
     expect(parseOutbox(stored(REFUSED_KEY))).toHaveLength(2)
+    expect(texts(view, '.figure .v')).toEqual(['0', '0%', '0'])
+    expect(texts(view, '.wrow .x')).toEqual(['refused · not recorded', 'refused · not recorded'])
   })
 
   // ⚠️ **An entry the server cannot read blocks the head of the stream for
@@ -211,6 +213,8 @@ describe('property 5 — a rejected entry is surfaced, never dropped', () => {
     await vi.waitFor(() => expect(parseOutbox(stored(OUTBOX_KEY))).toEqual([]))
     expect(server.seen).toEqual([`grade:${SECOND}`])
     expect(view.text()).toContain('1 answer was refused and will not be sent again')
+    expect(texts(view, '.figure .v')).toEqual(['1', '100%', '0'])
+    expect(texts(view, '.wrow .x')).toContain('refused · not recorded')
   })
 
   // ⚠️ **A flush that answers 401 is not a network error** (`08` §5.6, `09`

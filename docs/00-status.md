@@ -3745,12 +3745,12 @@ Nothing.
   the outbox drains and never whether it does, because the next load replays anyway. ⚠️ **It is also
   the reason the nuxt tier unmounts every page it mounts** — a screen left mounted answers the next
   test's reconnection with its own outbox, on the one `window` they share.
-- ⚠️ **A refused *grade* stays painted as answered, and that is deliberate.** `03` §8.2's refusal
+- ⚠️ **A refused *grade* stays painted as answered in the quiz, and that is deliberate.** `03` §8.2's refusal
   arrives after the reader has moved on; un-painting the position would put a *card* they have
   already left back in front of them, and on a clock that is an hour fast **every** *grade* is
   refused, so the run would loop on the first *card* forever. The end screen names the count and the
-  cause instead (`10` §5.6). ⚠️ **The consequence to carry: the end screen's four figures can
-  overstate what reached the database**, and the sentence under them is what reconciles it.
+  cause instead (`10` §5.6). ⚠️ **The summary excludes it from learned, missed and right-first-try
+  figures and lists the word as `refused · not recorded`**, while retaining the refusal notice.
 
 - ⚠️ **An answer to a *grade* moves the *grades* and never the words.**
   `shared/review/snapshot.ts`'s `mergeGrades`, added 2026-09-12 by #12 after `/code-review` found the

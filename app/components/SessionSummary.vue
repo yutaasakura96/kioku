@@ -19,6 +19,7 @@ import type { StudyOffer } from '#shared/review/offer'
 import { summarise } from '#shared/review/quiz'
 import type { ReviewPosition, SessionKind } from '#shared/review/snapshot'
 import { backIn, movement } from '#shared/review/stage'
+import type { OutboxEntry } from '#shared/review/outbox'
 
 const props = defineProps<{
   kind: SessionKind
@@ -29,7 +30,7 @@ const props = defineProps<{
   /** What is waiting, fresh from the answer that ended the run. `null` until it lands. */
   offer: StudyOffer | null
   unsent: number
-  refused: number
+  refused: OutboxEntry[]
   sessionExpired: boolean
   /** The way out — a *place*, and what to call it. */
   home: { to: string, name: string }
@@ -37,14 +38,19 @@ const props = defineProps<{
 
 const emit = defineEmits<{ start: [kind: SessionKind] }>()
 
-const summary = computed(() => summarise(props.positions))
+const refusedCards = computed(() => {
+  const ids = new Set(props.refused.filter(entry => entry.kind !== 'finish').map(entry => entry.cardId))
+  return props.positions.filter(position => ids.has(position.cardId) && !position.outcome)
+})
+const refusedIds = computed(() => new Set(refusedCards.value.map(position => position.cardId)))
+const summary = computed(() => summarise(props.positions.filter(position => !refusedIds.value.has(position.cardId))))
 const words = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
 const title = computed(() => {
   if (props.kind === 'lesson') {
     return summary.value.total > 0
       ? `${words(summary.value.total, 'new word', 'new words')} learned.`
-      : 'Lesson finished early.'
+      : props.early ? 'Lesson finished early.' : 'Lesson complete.'
   }
 
   return props.early ? 'Session finished early.' : 'Reviews done.'
@@ -157,10 +163,22 @@ const startLabel = computed(() => {
       </ul>
     </div>
 
+    <div v-if="refusedCards.length > 0" class="sumlist">
+      <span class="eyebrow">Not recorded · {{ refusedCards.length }}</span>
+      <ul>
+        <WordRow
+          v-for="position in refusedCards"
+          :key="position.cardId"
+          :fields="position.fields"
+          note="refused · not recorded"
+        />
+      </ul>
+    </div>
+
     <!-- ⚠️ `09` §4.8 requires it: a flush that answers 401 is not a network
          error, and an answer that did not land is surfaced rather than dropped
          (ADR 0039 property 5). -->
-    <p v-if="unsent > 0 || refused > 0" class="unsent">
+    <p v-if="unsent > 0 || refused.length > 0" class="unsent">
       <template v-if="unsent > 0">
         {{ unsent }} {{ unsent === 1 ? 'answer has' : 'answers have' }} not reached the database yet. They are saved here and will be sent when the connection returns.
         <NuxtLink v-if="sessionExpired" to="/auth" external class="sign-in">Sign in again</NuxtLink>
@@ -169,8 +187,8 @@ const startLabel = computed(() => {
       <!-- It names the clock because the clock is both the common cause
            (`03` §8.2) and the one the reader can fix — and it says *usually*,
            because a body the server cannot read is refused the same way. -->
-      <template v-if="refused > 0">
-        {{ refused }} {{ refused === 1 ? 'answer was' : 'answers were' }} refused and will not be sent again — usually a clock that disagrees with the server's.
+      <template v-if="refused.length > 0">
+        {{ refused.length }} {{ refused.length === 1 ? 'answer was' : 'answers were' }} refused and will not be sent again — usually a clock that disagrees with the server's.
       </template>
     </p>
 
