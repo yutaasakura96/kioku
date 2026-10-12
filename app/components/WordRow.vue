@@ -12,6 +12,8 @@ const props = defineProps<{
   missed?: boolean
 }>()
 
+// A kana word is its own reading (ADR 0069 §4); drawing it twice says nothing.
+const reading = computed(() => (props.fields.reading === props.fields.term ? '' : props.fields.reading))
 const meaning = computed(() => glossPieces(props.fields.meaning ?? '')[0] ?? props.fields.meaning ?? '')
 </script>
 
@@ -20,7 +22,7 @@ const meaning = computed(() => glossPieces(props.fields.meaning ?? '')[0] ?? pro
     <span class="t" lang="ja">{{ fields.term }}</span>
     <span class="m">
       {{ meaning }}
-      <small lang="ja">{{ fields.reading }}</small>
+      <small v-if="reading" lang="ja">{{ reading }}</small>
     </span>
     <span class="x" :class="{ bad: missed }">{{ note }}</span>
   </li>

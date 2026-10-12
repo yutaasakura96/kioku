@@ -42,11 +42,17 @@ export interface StartLines {
 
 const words = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 
-/** *Next reviews Tomorrow, 08:40.* — or nothing, when no word is scheduled. */
+/**
+ * *Next reviews tomorrow, 08:40.* — or nothing, when no word is scheduled.
+ *
+ * ⚠️ `nextDueLabel` writes a datum, which opens with a capital. Here it is the
+ * middle of a sentence, so *Today* and *Tomorrow* are lowered; a weekday keeps
+ * its own.
+ */
 function nextReviews(offer: StudyOffer, now: Date): string {
   const label = offer.nextDue ? nextDueLabel(new Date(offer.nextDue), now) : null
 
-  return label ? `Next reviews ${label}.` : ''
+  return label ? `Next reviews ${label.replace(/^(Today|Tomorrow)/, day => day.toLowerCase())}.` : ''
 }
 
 /**

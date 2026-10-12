@@ -591,7 +591,7 @@ and the sentence above says why there is none. Under them, ADR 0066 §7's line n
 | Reviews and new words | `12 words to review, then 5 new ones.` | `Reviews first, so nothing slips.` |
 | Reviews only | `12 words to review.` | Why no lesson: the pause, the day spent, new words switched off, or none left |
 | New words only, nothing ever scheduled | `Start with your first 5 words.` | `A short lesson, then a quiz on the same words.` |
-| New words only | `Reviews are done. 5 new words are ready.` | `Next reviews Tomorrow, 08:40.` |
+| New words only | `Reviews are done. 5 new words are ready.` | `Next reviews tomorrow, 08:40.` |
 | Nothing | `All done for now.` | When the next reviews are, and why no lesson |
 
 **A lesson's teaching.** A row of dots, one a word, `28 × 5px`: done in `--k-ink`, current in

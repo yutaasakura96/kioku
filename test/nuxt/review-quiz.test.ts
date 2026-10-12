@@ -71,6 +71,9 @@ describe('one word, two questions (ADR 0076 §3)', () => {
     await next(view)
 
     expect(view.find('.summary').exists()).toBe(true)
+    // Its row draws the word once, not the word and then the word again.
+    expect(view.find('.wrow .t').text()).toBe('こんな')
+    expect(view.find('.wrow small').exists()).toBe(false)
   })
 })
 

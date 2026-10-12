@@ -202,6 +202,13 @@ Things #70 had to choose to build §1 to §8, none of which changes a rule above
 - **`study_setting` is not in `S12`'s export**, whose scope is named in `02` and does not include
   settings.
 - **The *session*-size knob caps a review run only.** A lesson's size is its own setting.
+- **The summary's three figures are the height the prototype's stylesheet asks for, not the height
+  it draws.** Its `.tally div` rule also matches the two `div`s inside each figure, so the padding
+  is applied twice and *Right first try* wraps onto three lines in the phone frame. The app's
+  figures take the padding once.
+- **A kana-only word is drawn once.** Its reading is the word (ADR 0069 §4), so the lesson and the
+  summary row leave the second line out.
+- **The lesson's footnote counts in figures** (*after all 5*), because the size is a setting.
 
 ## Alternatives considered
 

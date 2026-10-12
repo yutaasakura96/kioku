@@ -28,7 +28,8 @@ const others = computed(() => meanings.value.slice(1, 4))
     <div class="term" lang="ja">
       {{ fields.term }}
     </div>
-    <div class="reading" lang="ja">
+    <!-- A kana word is its own reading (ADR 0069 §4). -->
+    <div v-if="fields.reading !== fields.term" class="reading" lang="ja">
       {{ fields.reading }}
     </div>
 

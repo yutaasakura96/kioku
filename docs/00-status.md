@@ -175,8 +175,16 @@ rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
 - **Screens**: `/review` opens on what is waiting and composes nothing; the start block has a
   *Lesson* control beside *Review*; the header is `ModeBar.vue` and the *progress rail* is gone.
   `ReviewCard`, `ReviewAnswer`, `CheckControls` and `ProgressRail` are deleted.
-- **Checked in a browser against `docs/prototype/`** at desktop and phone width (§ Carrying has what
-  differs on purpose).
+- **Checked in a browser against `docs/prototype/`**, side by side, at 1280 and at a 390px phone
+  viewport, on the production build over a throwaway PGlite: the screen before a run, a lesson of
+  five with Back and a reload mid-teaching, the quiz (a miss asked again, a near miss, English
+  refused in a reading, a kana-only word, the kanji-reading retry, the flag), the summary of a
+  lesson and of a review run, Finish early by its control and by `Esc` in both kinds, and `/settings`
+  saving. The stored *grades* were read back after the early finish: one Good, the missed word
+  Forgot, three left due. It turned up three things, fixed in the same commit: the bar's exit was
+  44px as a link and 32px as a button, *Next reviews Tomorrow* had a capital mid-sentence, and a
+  kana-only word drew its reading under itself. ADR 0076 § Settled by the build has what differs
+  from the prototype on purpose. ⚠️ **Not on `dev:session`, which does not start** (§ Carrying).
 - ⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.
 
 **2026-10-10 — [#68](https://github.com/yutaasakura96/kioku/issues/68): the starter set, and
@@ -3150,6 +3158,15 @@ Nothing.
 
 ## Carrying
 
+- ⚠️ **`nuxt dev` answers `500` to every page, so `npm run dev:session` shows nothing** (found
+  2026-10-12 during #70, present on `develop` at `8974f3f` without #70). #73's `nitro.alias` points
+  `@opentelemetry/api` at `server/stubs/not-installed.mjs`, which throws when it is evaluated. A
+  production build keeps that module in a chunk loaded on demand, inside the `.catch()`
+  `better-auth` wraps it in; the dev bundle is one file, so the stub runs at boot, the bundle stops
+  there, and every request ends in `Cannot access 'renderer' before initialization`. **Not fixed
+  here and not ticketed.** Until it is, look at screens on `npm run build` and
+  `node .output/server/index.mjs` with `.data/dev-session/app.env`'s values, which is what #70 did
+  and what the e2e tier does.
 - ⚠️ **The database never sees a question** (ADR 0076 §4, #70). It holds positions and *grades*.
   Which question is next and which words were missed is `shared/review/quiz.ts`'s, kept in
   `localStorage` under `kioku:review:quiz`. **A word is graded once, by the answer that completes

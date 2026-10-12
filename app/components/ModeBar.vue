@@ -98,6 +98,9 @@ defineProps<{
 /* The exit's face, whichever element the screen hands in. */
 .modebar :deep(.exit) {
   /* SC 2.5.8: 24 × 24 at least; the phone rule below makes it 44 tall. */
+  /* ⚠️ A link is `content-box` and a button is not: without this the same face
+     is 44px tall as *Home* and 32px as *Finish early*. */
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   min-height: 32px;

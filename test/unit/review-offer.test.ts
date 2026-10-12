@@ -49,7 +49,7 @@ describe('the screen before a run', () => {
   it('says the reviews are done and the lesson is ready, with when the next reviews are', () => {
     expect(startLines(offer({ lesson: 5, waiting: true, nextDue: tomorrow.toISOString() }), now)).toEqual({
       statement: 'Reviews are done. 5 new words are ready.',
-      body: `Next reviews Tomorrow, ${time}.`,
+      body: `Next reviews tomorrow, ${time}.`,
     })
   })
 
@@ -67,7 +67,7 @@ describe('the screen before a run', () => {
 
     expect(startLines(spent, now)).toEqual({
       statement: 'All done for now.',
-      body: `Next reviews Tomorrow, ${time}. You have had today's new words. More tomorrow, so reviews stay manageable.`,
+      body: `Next reviews tomorrow, ${time}. You have had today's new words. More tomorrow, so reviews stay manageable.`,
     })
   })
 })
@@ -110,14 +110,14 @@ describe('the summary\'s *What next*', () => {
 
   it('offers a lesson when no review is waiting', () => {
     expect(whatNext(offer({ lesson: 5, waiting: true, nextDue: tomorrow.toISOString() }), now)).toEqual({
-      body: `Next reviews Tomorrow, ${time}. You also have 5 new words ready.`,
+      body: `Next reviews tomorrow, ${time}. You also have 5 new words ready.`,
       start: 'lesson',
     })
   })
 
   it('offers nothing when nothing is waiting, and says why', () => {
     expect(whatNext(offer({ introducedToday: 10, waiting: true, nextDue: tomorrow.toISOString() }), now)).toEqual({
-      body: `Nothing else due. Next reviews Tomorrow, ${time}. You have had today's new words. More tomorrow, so reviews stay manageable.`,
+      body: `Nothing else due. Next reviews tomorrow, ${time}. You have had today's new words. More tomorrow, so reviews stay manageable.`,
       start: null,
     })
   })
