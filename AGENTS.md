@@ -128,7 +128,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1483 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-12, after #70)
+npm run test        # 1499 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-12, after #70)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # ⚠️ does not start since #73 (`docs/00-status.md` § Carrying, 2026-10-12).
