@@ -20,11 +20,10 @@ import type { PGlite } from '@electric-sql/pglite'
 import { exportEverything } from '../../server/utils/export/queries'
 import { deleteSource, sourceDeletion } from '../../server/utils/ingest/delete'
 import { allSources, recentRuns, sourceDetail, startBlockCounts } from '../../server/utils/ingest/queries'
-import { dueCards, dueCount, newCards, nothingToStudy, readerZone, recentlyComposed, snapshotOf } from '../../server/utils/review/queries'
+import { dueCards, dueCount, newCards, nextDueAt, readerZone, recentlyComposed, snapshotOf, unstartedNotes } from '../../server/utils/review/queries'
 import { recordGrade } from '../../server/utils/review/grade'
 import { recordFlag } from '../../server/utils/review/flag'
-import { recordSynonym } from '../../server/utils/review/synonym'
-import { liveSession, resumeOrCompose } from '../../server/utils/review/session'
+import { finishSession, liveSession, offerOf, resumeOrStart } from '../../server/utils/review/session'
 import { ledger, statsRows } from '../../server/utils/stats/queries'
 import { CURRENT_SUBJECT_ID } from '../../server/utils/subject'
 import { endOpenRun, findOpenRun, openOrStartRun, openRunTally, sweepIdleRuns } from '../../server/utils/vet/run'
@@ -132,14 +131,20 @@ describe('a reader whose whole history is under the old subject', () => {
     expect(await dueCards(db, OWNER, NOW)).toEqual([])
     expect(await dueCount(db, OWNER, NOW)).toBe(0)
     expect(await newCards(db, OWNER, 20)).toEqual([])
-    expect(await nothingToStudy(db, OWNER)).toEqual({ hasCards: false, nextDue: null, newWaiting: false })
+    expect(await nextDueAt(db, OWNER)).toBeNull()
+    expect(await unstartedNotes(db, OWNER, 20)).toEqual([])
+    expect(await offerOf(db, OWNER, 'UTC')).toMatchObject({
+      lesson: 0, waiting: false, nextDue: null, dueCount: 0, introducedToday: 0,
+    })
   })
 
   it('is not handed the run they left open, and composes nothing from it', async () => {
     const old = await history(OLD_SUBJECT_ID, 'old')
 
     expect(await liveSession(db, OWNER)).toBeNull()
-    expect(await resumeOrCompose(db, OWNER, 20)).toBeNull()
+    expect(await resumeOrStart(db, OWNER, { start: 'review', size: 20 })).toBeNull()
+    expect(await resumeOrStart(db, OWNER, { start: 'lesson', size: 20 })).toBeNull()
+    expect(await finishSession(db, OWNER, old.sessionId)).toBeNull()
     expect(await snapshotOf(db, OWNER, old.sessionId)).toBeNull()
     expect(await readerZone(db, OWNER)).toBe('UTC')
     expect(await recordGrade(db, OWNER, {
@@ -148,9 +153,6 @@ describe('a reader whose whole history is under the old subject', () => {
     expect(await recordFlag(db, OWNER, {
       sessionId: old.sessionId, cardId: old.cards.studied,
     })).toEqual({ ok: false, reason: 'not_in_session' })
-    expect(await recordSynonym(db, OWNER, {
-      sessionId: old.sessionId, cardId: old.cards.studied, text: 'library',
-    })).toBe('not_in_session')
   })
 
   it('does not reuse, tally, end, sweep, or undo an old Vet run', async () => {

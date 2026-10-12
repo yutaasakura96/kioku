@@ -22,13 +22,13 @@ await setup({
 })
 
 /**
- * ⚠️ The five screens, and `S1` says **every** route. The two *modes* are in
+ * ⚠️ The six screens, and `S1` says **every** route. The two *modes* are in
  * this list and it would be easy to leave them out: `ssr: false` makes them feel
  * client-side, but the document still comes from the server and the middleware
  * still runs on it (`03` §2.1 — an app shell, not a blank page). A mode that was
  * not gated would hand out its shell and then 401 on every fetch inside it.
  */
-const GATED_DOCUMENTS = ['/', '/sources', '/stats', '/vet', '/review']
+const GATED_DOCUMENTS = ['/', '/sources', '/stats', '/settings', '/vet', '/review']
 
 const PUBLIC_DOCUMENTS = ['/auth', '/auth/refused']
 

@@ -229,7 +229,7 @@ async function resolveFlags(
  * handing it the array directly would call the function with one argument per
  * template.
  */
-async function mint(
+export async function mint(
   tx: IngestDatabase,
   ownerId: string,
   noteId: string,

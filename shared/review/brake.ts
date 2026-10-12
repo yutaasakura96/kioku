@@ -17,8 +17,7 @@
  */
 
 import { localDayKey } from '../time/local-day'
-import { DAILY_NEW_CARDS, NEW_CARDS_PAUSED_ABOVE_DUE } from './compose'
-import type { NothingToStudy } from './snapshot'
+import type { StudyLimits } from './limits'
 
 /** One composed *session*, as the allowance needs to see it. */
 export interface ComposedSession {
@@ -44,14 +43,14 @@ export function introducedToday(sessions: ComposedSession[], now: Date, zone: st
     .reduce((sum, session) => sum + session.newCount, 0)
 }
 
-/** ADR 0066 §3: `10 - sum(new_count)`, and never below nothing. */
-export function newAllowance(introduced: number): number {
-  return Math.max(0, DAILY_NEW_CARDS - introduced)
+/** ADR 0066 §3: the day's limit less `sum(new_count)`, and never below nothing. */
+export function newAllowance(introduced: number, limits: StudyLimits): number {
+  return Math.max(0, limits.dailyNew - introduced)
 }
 
 /** What *Review* tells the reader about the brake (ADR 0066 §7). */
 export interface BrakeReading {
-  /** New *cards* composed today, this run's included. */
+  /** New words put in front of the reader today, a live lesson's included. */
   introducedToday: number
   /** Due *cards* outstanding, over the whole set rather than the *session*. */
   dueCount: number
@@ -61,34 +60,35 @@ export interface BrakeReading {
  * Which brake is on.
  *
  * ⚠️ **`paused` wins over `spent`** because it is the one the reader can do
- * something about tonight: clearing the backlog below fifty is in their hands, and
- * the day's ten are not.
+ * something about tonight: clearing the backlog is in their hands, and the
+ * day's allowance is not.
  */
 export type BrakeState = 'paused' | 'spent' | 'open'
 
-export function brakeState(reading: BrakeReading): BrakeState {
-  if (reading.dueCount >= NEW_CARDS_PAUSED_ABOVE_DUE)
+export function brakeState(reading: BrakeReading, limits: StudyLimits): BrakeState {
+  if (reading.dueCount >= limits.pauseAbove)
     return 'paused'
 
-  return reading.introducedToday >= DAILY_NEW_CARDS ? 'spent' : 'open'
+  return reading.introducedToday >= limits.dailyNew ? 'spent' : 'open'
 }
 
 /**
- * How many new *cards* the brake would let the next composed *session*
- * introduce today — the start block's `· N new` (#33, `10` §3.2).
- *
- * ⚠️ **A day's figure, not a run's.** It is not capped by the *session*'s size
- * or by how much of it the due half fills: the start block says what today still
- * holds, and a run of twenty with fifteen due introduces five now and the rest
- * next time. `waiting` is the count of *cards* with no *scheduling epoch*, and
- * the caller may cap it at `DAILY_NEW_CARDS` — nothing past that changes the
- * answer.
+ * How many new words the brake would let **one lesson** teach now (ADR 0076
+ * §1): the lesson's size, or what is left of the day, or nothing while the
+ * backlog is at the gate.
  */
-export function newOnOffer(reading: BrakeReading, waiting: number): number {
-  if (brakeState(reading) === 'paused')
+export function lessonRoom(reading: BrakeReading, limits: StudyLimits): number {
+  if (brakeState(reading, limits) === 'paused')
     return 0
 
-  return Math.min(newAllowance(reading.introducedToday), waiting)
+  return Math.min(limits.lessonSize, newAllowance(reading.introducedToday, limits))
+}
+
+/**
+ * How many new words the next lesson can teach — the start block's `· N new`.
+ */
+export function newOnOffer(reading: BrakeReading, waiting: number, limits: StudyLimits): number {
+  return Math.min(lessonRoom(reading, limits), waiting)
 }
 
 /**
@@ -96,39 +96,18 @@ export function newOnOffer(reading: BrakeReading, waiting: number): number {
  * *10 of 10 new words today*.
  *
  * ⚠️ **A brake that is silent is a bug report** (ADR 0066 §7). The reader who
- * does not know why new words stopped concludes the app is broken, and there is only
- * one reader — so the open state says its number too, and the
- * reader learns the cap before meeting it.
+ * does not know why new words stopped concludes the app is broken, and there is
+ * only one reader — so the open state says its number too, and the reader
+ * learns the limit before meeting it.
  *
- * ⚠️ **`introducedToday` can exceed ten** — two tabs composing at the same
- * instant each read the same allowance — and the sentence says what happened
- * rather than clamping it into a fiction.
+ * ⚠️ **`introducedToday` can exceed the limit** — two tabs composing at the
+ * same instant each read the same allowance, and a limit lowered in settings
+ * after lunch — and the sentence says what happened rather than clamping it
+ * into a fiction.
  */
-export function brakeSentence(reading: BrakeReading): string {
-  if (brakeState(reading) === 'paused')
+export function brakeSentence(reading: BrakeReading, limits: StudyLimits): string {
+  if (brakeState(reading, limits) === 'paused')
     return `No new words today, ${reading.dueCount} due.`
 
-  return `${reading.introducedToday} of ${DAILY_NEW_CARDS} new words today.`
-}
-
-/** `10` §5.7's three non-terminal empty states, as amended by #21. */
-export type EmptyState = 'nothing-accepted' | 'nothing-due' | 'held-back'
-
-/**
- * Which empty state the reader is in.
- *
- * ⚠️ **`held-back` is the third one and ADR 0066 §7 is why it exists.** A
- * reader with new words waiting, nothing due and the day's ten spent would
- * otherwise read *Nothing due* — true, and the one sentence that makes the brake
- * look like a bug. It cannot be the fifty-*card* gate: that needs fifty due, and
- * with fifty due there is a run to compose.
- */
-export function emptyStateOf(nothing: NothingToStudy, brake: BrakeReading | null): EmptyState {
-  if (!nothing.hasCards)
-    return 'nothing-accepted'
-
-  if (nothing.newWaiting && brake && brakeState(brake) !== 'open')
-    return 'held-back'
-
-  return 'nothing-due'
+  return `${reading.introducedToday} of ${limits.dailyNew} new words today.`
 }

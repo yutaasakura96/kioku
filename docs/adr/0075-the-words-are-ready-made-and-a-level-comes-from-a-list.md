@@ -10,6 +10,10 @@ again under a new *subject* id, and nothing is deleted.** Decided by Yuta on 202
 record of that decision and of what [#68](https://github.com/yutaasakura96/kioku/issues/68), the
 first build step, settled to carry it out.
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) (#70).** §4's *nothing mints a starter word* is paid: a lesson
+accepts and mints the words it teaches. §7's open point is settled: the example sentence is drawn
+when the *note* has one, and no sentence source is added.
+
 ## What changed, and why
 
 Yuta reviewed the deployed app on 2026-10-10 and found it was not the app he had meant: it was built

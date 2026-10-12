@@ -1,14 +1,16 @@
 /**
  * *Review*'s check — [ADR 0060](../../docs/adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md)
- * §5 and §6, as amended by [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md).
- * The reader types the reading, then the meaning; this decides whether each was
- * right and **which *grade* that is**.
+ * §5 and §6, as amended by [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md)
+ * and [ADR 0076](../../docs/adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md).
+ * The reader types the meaning, then the reading; this decides whether each
+ * answer was right. **Which *grade* a word gets from its answers is
+ * `shared/review/quiz.ts`'s.**
  *
- * ⚠️ **The result is the *grade*, and nothing overrules it** (ADR 0069 §1). The
- * digits commit nothing; what replaces the override is a synonym the reader adds
- * for a refused meaning, after which the check runs again (§2). Nothing here is
- * persisted: the typed text and the result are ADR 0060's revisit condition,
- * not a column.
+ * ⚠️ **Nothing overrules a result** (ADR 0069 §1, ADR 0076 §5). There is no key
+ * that turns a wrong answer right, so a check that is too strict is paid for in
+ * lapses, and one that is too loose in words marked known that are not. Nothing
+ * here is persisted: the typed text is ADR 0060's revisit condition, not a
+ * column.
  *
  * ⚠️ **No matching logic lives in a component** (ADR 0060 §6, ADR 0045's
  * reason). `wanakana`'s `bind` converts as the reader types; deciding what counts
@@ -22,17 +24,51 @@ import type { Grade } from './scheduler'
 export type AnswerStep = 'reading' | 'meaning'
 
 /**
- * Which steps a *card* asks, in order —
- * [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md) §4.
+ * Which questions a word asks, in order — the meaning, then the reading
+ * (ADR 0076 §3, which reversed ADR 0060 §2).
  *
- * ⚠️ **A term written only in kana is its own reading**, so asking for it tests
- * nothing but typing: such a *card* asks for the meaning only. `isKana` counts
- * `ー` as kana (コーヒー) and is false for an empty string, so a *note* with no
- * term keeps both steps rather than silently losing one. Measured 2026-09-21
- * against wanakana 5.3.1.
+ * ⚠️ **A term written only in kana is its own reading** (ADR 0069 §4), so
+ * asking for it tests nothing but typing: such a word asks for the meaning
+ * only. `isKana` counts `ー` as kana (コーヒー) and is false for an empty
+ * string, so a *note* with no term keeps both questions rather than silently
+ * losing one. Measured 2026-09-21 against wanakana 5.3.1.
  */
 export function answerSteps(term: string): readonly AnswerStep[] {
-  return isKana(term.trim()) ? ['meaning'] : ['reading', 'meaning']
+  return isKana(term.trim()) ? ['meaning'] : ['meaning', 'reading']
+}
+
+/** Why an answer was not taken as one — ADR 0076 §5. Nothing is counted. */
+export type EntryProblem = 'empty' | 'wrong_script'
+
+/**
+ * Whether what was typed can be checked as a reading at all.
+ *
+ * ⚠️ **Anything but kana is refused, not marked wrong.** Romaji the field has
+ * not finished converting folds to kana first (`としょかn`), so what is left
+ * is kanji or Latin letters that are no syllable — a slip of the keyboard, and
+ * not what the reader thinks the word sounds like.
+ */
+export function readingEntry(typed: string): EntryProblem | null {
+  const answer = foldReading(typed)
+
+  if (answer === '')
+    return 'empty'
+
+  return isKana(answer) ? null : 'wrong_script'
+}
+
+/** Hiragana, katakana and the CJK ideographs, extension A included. */
+const JAPANESE = /[\u3040-\u30FF\u3400-\u9FFF]/
+
+/**
+ * The same for a meaning: an answer that normalises to nothing is empty, and
+ * one with Japanese in it was typed into the wrong field.
+ */
+export function meaningEntry(typed: string): EntryProblem | null {
+  if (JAPANESE.test(typed))
+    return 'wrong_script'
+
+  return normaliseMeaning(typed) === '' ? 'empty' : null
 }
 
 /**
@@ -88,12 +124,17 @@ function normaliseMeaning(text: string): string {
     .replace(/^(?:to|a|an|the) /, '')
 }
 
-/** ADR 0060 §5: 0 for up to 3 characters, 1 for 4–7, 2 for 8 or more. */
+/**
+ * ADR 0076 §5, the prototype's numbers: none under 5 letters, one for 5 to 8,
+ * two for 9 or more. ⚠️ **This was 0 / 4–7 / 8 until #70** (ADR 0060 §5).
+ * Four-letter words are where one edit most often makes another word, and
+ * nothing overrules the check.
+ */
 function allowedDistance(candidate: string): number {
-  if (candidate.length <= 3)
+  if (candidate.length < 5)
     return 0
 
-  return candidate.length <= 7 ? 1 : 2
+  return candidate.length < 9 ? 1 : 2
 }
 
 /** Levenshtein, over code points so a stray non-ASCII letter counts once. */
@@ -133,10 +174,44 @@ export interface AcceptedMeanings {
   synonyms: readonly string[]
 }
 
+const DIGIT = /^\d$/
+
+/**
+ * The gloss cut at `,`, `;` and `/` — ⚠️ **but not inside brackets.** JMdict
+ * writes *to open (a door, etc.)*, and cut at every comma that is two answers,
+ * one of which is *etc*. ⚠️ **Nor at a comma between two digits**: 万 is
+ * *10,000; ten thousand*, and cut there it is taught as *10*.
+ */
+export function glossPieces(gloss: string): string[] {
+  const characters = [...gloss]
+  const pieces: string[] = []
+  let depth = 0
+  let piece = ''
+
+  for (const [index, character] of characters.entries()) {
+    if (character === '(')
+      depth += 1
+    else if (character === ')')
+      depth = Math.max(0, depth - 1)
+
+    const inNumber = character === ',' && DIGIT.test(characters[index - 1] ?? '') && DIGIT.test(characters[index + 1] ?? '')
+
+    if (depth === 0 && !inNumber && (character === ',' || character === ';' || character === '/')) {
+      pieces.push(piece)
+      piece = ''
+    }
+    else {
+      piece += character
+    }
+  }
+
+  return [...pieces, piece].map(entry => entry.trim()).filter(entry => entry !== '')
+}
+
 /** Every accepted phrase, normalised: the gloss's pieces, the list and the synonyms. */
 function candidates(accepted: AcceptedMeanings): string[] {
   return [
-    ...accepted.meaning.split(/[,;/]/),
+    ...glossPieces(accepted.meaning),
     ...accepted.meanings,
     ...accepted.synonyms,
   ]
@@ -145,41 +220,58 @@ function candidates(accepted: AcceptedMeanings): string[] {
 }
 
 /**
- * ⚠️ **ADR 0060 §5's normalising and edit distance are unchanged**; only what
- * the answer is compared with grew. A plain string is `meaning` alone, the shape
- * every *card* had before ADR 0069.
+ * `exact` is an accepted meaning as written; `close` is one within the edit
+ * distance its length allows, which the screen marks right and answers with the
+ * meaning itself (ADR 0076 §5).
  */
-export function meaningMatches(typed: string, accepted: AcceptedMeanings | string): boolean {
+export type MeaningResult = 'exact' | 'close' | 'wrong'
+
+/**
+ * ⚠️ **ADR 0060 §5's normalising is unchanged**; what the answer is compared
+ * with grew in ADR 0069 and the distance tightened in ADR 0076. A plain string
+ * is `meaning` alone, the shape every *card* had before ADR 0069.
+ */
+export function meaningResult(typed: string, accepted: AcceptedMeanings | string): MeaningResult {
   const answer = normaliseMeaning(typed)
 
   if (answer === '')
-    return false
+    return 'wrong'
 
   const against = typeof accepted === 'string'
     ? { meaning: accepted, meanings: [], synonyms: [] }
     : accepted
+  const all = candidates(against)
 
-  return candidates(against)
-    .some(candidate => distance(answer, candidate) <= allowedDistance(candidate))
+  if (all.includes(answer))
+    return 'exact'
+
+  return all.some(candidate => distance(answer, candidate) <= allowedDistance(candidate)) ? 'close' : 'wrong'
+}
+
+export function meaningMatches(typed: string, accepted: AcceptedMeanings | string): boolean {
+  return meaningResult(typed, accepted) !== 'wrong'
 }
 
 /**
- * Whether the back offers to add what was typed as a synonym — ADR 0069 §2.
- *
- * Only after a meaning step marked wrong, and only when something was typed:
- * an answer that normalises to nothing is not a meaning anyone could mean. ⚠️ **There is no synonym
- * for a reading**, so the reading's result plays no part here.
+ * The prototype's *Also:* line — up to two pieces of the gloss the reader did
+ * not type. ⚠️ **From the gloss and not the list**: the list is check data and
+ * runs to forty entries, some of them a dictionary's asides.
  */
-export function synonymOffered(check: { meaning: boolean | null }, typedMeaning: string): boolean {
-  // ⚠️ **Normalised, not trimmed**: `?!` is not empty and folds to nothing, so
-  // as a synonym it could never match and the offer would never go away.
-  return check.meaning === false && normaliseMeaning(typedMeaning) !== ''
-}
+export function otherMeanings(typed: string, gloss: string, limit = 2): string[] {
+  const seen = new Set([normaliseMeaning(typed)])
+  const others: string[] = []
 
-export interface Check {
-  /** `null` when the *card* has no reading step (ADR 0069 §4). */
-  reading: boolean | null
-  meaning: boolean
+  for (const piece of glossPieces(gloss)) {
+    const normal = normaliseMeaning(piece)
+
+    if (normal === '' || seen.has(normal))
+      continue
+
+    seen.add(normal)
+    others.push(piece)
+  }
+
+  return others.slice(0, limit)
 }
 
 /**
@@ -188,12 +280,3 @@ export interface Check {
  * one habit they cannot absorb is Hard pressed on a real miss.
  */
 export type CheckedGrade = Extract<Grade, 1 | 3>
-
-/**
- * ADR 0060 §3's table, which ADR 0069 §1 makes the *grade*: `3` when both are
- * right, `1` when either is wrong. A *card* with no reading step is graded on
- * its meaning alone (ADR 0069 §4).
- */
-export function gradeOf(check: Check): CheckedGrade {
-  return check.reading !== false && check.meaning ? 3 : 1
-}

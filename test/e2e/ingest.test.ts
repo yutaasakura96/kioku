@@ -106,7 +106,7 @@ beforeAll(async () => {
 describe('the gate is still the gate', () => {
   // ⚠️ Asserting the forgery *works* would pass on an application that had
   // stopped checking. This is the other half: the same routes, no cookie.
-  it.each(['/', '/sources', '/stats'])('%s without a session is a 302 to /auth', async (path) => {
+  it.each(['/', '/sources', '/stats', '/settings'])('%s without a session is a 302 to /auth', async (path) => {
     const response = await nuxtFetch(path, { redirect: 'manual' })
 
     expect(response.status).toBe(302)
@@ -115,7 +115,7 @@ describe('the gate is still the gate', () => {
 })
 
 describe('assertion 1, signed in — the places ship no JavaScript', () => {
-  it.each(['/', '/sources', '/stats'])('%s contains no <script', async (path) => {
+  it.each(['/', '/sources', '/stats', '/settings'])('%s contains no <script', async (path) => {
     const response = await asReader(path)
 
     expect(response.status).toBe(200)
@@ -138,20 +138,77 @@ describe('ADR 0031 — signing in lands on Ingest', () => {
     expect(html).not.toContain('disabled')
   })
 
-  // ⚠️ #33: the Review control carries the new *cards* the brake would allow
-  // today beside the due count. Read as text, because the count and its word are
-  // separate spans with a scoped attribute on each.
-  it('reads Review · 0 due · 0 new for a reader with no cards', async () => {
+  // ⚠️ #33: the new words the brake would allow today are on the block beside
+  // the due count — since ADR 0076 on a control of their own, because a lesson
+  // teaches them and a review run never holds one. Read as text, because the
+  // count and its word are separate spans with a scoped attribute on each.
+  it('reads Review · 0 due and Lesson · 0 new for a reader with no cards', async () => {
     const html = await asReader('/').then(response => response.text())
     const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
 
     expect(text).toContain('Vet · 0 flagged')
-    expect(text).toContain('Review · 0 due · 0 new')
+    expect(text).toContain('Review · 0 due')
+    expect(text).toContain('Lesson · 0 new')
+    // Each control asks for its own run, and says where to come back to.
+    expect(html).toContain('href="/review?start=review&amp;from=%2F"')
+    expect(html).toContain('href="/review?start=lesson&amp;from=%2F"')
   })
 
   it('says every figure is as of this page load — `09` §2', async () => {
     const html = await asReader('/').then(response => response.text())
     expect(html).toContain('as of this page load')
+  })
+})
+
+// ADR 0076 §2 — the fourth *place*. A form and nothing else: no JavaScript, a
+// POST, and a `303` back to the document that shows what was stored.
+describe('Settings — ADR 0076 §2', () => {
+  const values = (html: string) =>
+    ['lessonSize', 'dailyNew', 'pauseAbove'].map(name => html.match(new RegExp(`name="${name}"[^>]*value="(\\d+)"`))?.[1])
+
+  it('shows ADR 0066\'s numbers to a reader who has saved nothing, and writes no row to do it', async () => {
+    const html = await asReader('/settings').then(response => response.text())
+
+    expect(values(html)).toEqual(['5', '10', '50'])
+    expect(html).toContain('action="/api/settings"')
+    expect(html).not.toContain('Saved.')
+    expect(await count('study_setting')).toBe(0)
+  })
+
+  it('is in the nav of every place', async () => {
+    for (const path of ['/', '/sources', '/stats', '/settings'])
+      expect(await asReader(path).then(response => response.text())).toContain('href="/settings"')
+  })
+
+  it('stores what the form sends, answers 303, and shows it back', async () => {
+    const response = await asReader('/api/settings', form({ lessonSize: '3', dailyNew: '6', pauseAbove: '40' }))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/settings?saved=1')
+
+    const html = await asReader('/settings?saved=1').then(page => page.text())
+
+    expect(values(html)).toEqual(['3', '6', '40'])
+    expect(html).toContain('Saved.')
+  })
+
+  // ⚠️ Nothing is refused: a value out of range is clamped, a blank one is the
+  // default, and the page shows what was kept — which is how the bound is learnt.
+  it('clamps what is out of range rather than refusing it', async () => {
+    await asReader('/api/settings', form({ lessonSize: '500', dailyNew: '-3', pauseAbove: '' }))
+
+    expect(values(await asReader('/settings').then(page => page.text()))).toEqual(['20', '0', '50'])
+    expect(await count('study_setting'), 'a second save wrote a second row').toBe(1)
+  })
+
+  it('is the reader\'s alone: no session, no write', async () => {
+    const response = await nuxtFetch('/api/settings', { ...form({ lessonSize: '9' }), redirect: 'manual' })
+
+    expect(response.status).toBe(401)
+    expect(values(await asReader('/settings').then(page => page.text()))).toEqual(['20', '0', '50'])
+
+    // Back to the defaults, for the files' other tests.
+    await database.client.exec('DELETE FROM study_setting;')
   })
 })
 
@@ -247,7 +304,7 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
 
   it('⚠️ escapes a paste that contains markup, on a page that ships no scripts', async () => {
     // The refusal hands the reader's own bytes back into the document, which is
-    // the one place in the three *places* where reader input reaches the HTML.
+    // the one place in the four *places* where reader input reaches the HTML.
     // Vue escapes it; this is the assertion that says so, because the cost of
     // being wrong is a `<script>` on a route whose whole contract is that it has
     // none — and `test/e2e/no-scripts.test.ts` would go on passing, since it

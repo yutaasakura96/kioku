@@ -2,12 +2,13 @@
 // against a real database.
 //
 // ⚠️ **These are in the schema tier rather than the unit one because what they
-// are about is rows.** `compose` is a pure function and has its own tests
-// (`test/unit/review-compose.test.ts`); what is here is that the *session* is
-// **written** the way `04` §7.6 and §7.7 describe — `size` rows, a *card* once,
-// a server-side `snapshot_taken_at` — and that a *grade* mints the *card*'s
-// first *scheduling epoch* and one `review_log` row that can never be taken
-// back.
+// are about is rows.** The two compositions are pure functions and have their
+// own tests (`test/unit/review-compose.test.ts`); what is here is that the
+// *session* is **written** the way `04` §7.6 and §7.7 describe — `size` rows, a
+// *card* once, a server-side `snapshot_taken_at` — that a lesson accepts and
+// mints the words it starts (ADR 0076 §1), and that a *grade* mints the
+// *card*'s first *scheduling epoch* and one `review_log` row that can never be
+// taken back.
 //
 // ⚠️ **One test asserts an absence in the other direction from
 // `test/schema/vet.test.ts`'s.** That file asserts acceptance mints **no**
@@ -18,12 +19,15 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import type { PGlite } from '@electric-sql/pglite'
 
-import { dueCards, newCards, nothingToStudy, readerZone, snapshotOf } from '../../server/utils/review/queries'
+import { dueCards, newCards, nextDueAt, readerZone, snapshotOf, unstartedNotes } from '../../server/utils/review/queries'
 import { freshDatabase, reset } from './harness'
 import { recordFlag } from '../../server/utils/review/flag'
 import { recordGrade } from '../../server/utils/review/grade'
-import { recordSynonym, synonymCount } from '../../server/utils/review/synonym'
-import { brakeIfFinished, brakeReading, resumeOrCompose } from '../../server/utils/review/session'
+import { brakeReading, finishSession, offerIfFinished, offerOf, resumeOrStart } from '../../server/utils/review/session'
+import { readLimits, writeLimits } from '../../server/utils/review/settings'
+import { DEFAULT_LIMITS } from '../../shared/review/limits'
+import { NO_FILTER } from '../../shared/review/filter'
+import type { SessionFilter } from '../../shared/review/filter'
 import type { Grade } from '../../shared/review/scheduler'
 import type { SchemaDatabase } from './harness'
 
@@ -113,6 +117,48 @@ async function count(table: string, where = 'true'): Promise<number> {
   return n
 }
 
+/** A review run: due *cards* only, capped at `size` (ADR 0076 §1). */
+function review(size = 20, owner = OWNER, zone: string | null = null) {
+  return resumeOrStart(db, owner, { start: 'review', size, zone })
+}
+
+/** A lesson: new words only, as far as the brake and the settings allow. */
+function lesson(filter?: SessionFilter, owner = OWNER, zone: string | null = null) {
+  return resumeOrStart(db, owner, { start: 'lesson', size: 20, filter, zone })
+}
+
+/** An accepted *card* that is due — `daysAgo` since it came due. */
+async function dueCard(key: string, daysAgo = 1): Promise<string> {
+  const cardId = await acceptedCard(key)
+  await scheduled(cardId, -daysAgo)
+
+  return cardId
+}
+
+/**
+ * A starter word as `scripts/starter-load.ts` leaves one (ADR 0075): a *note*
+ * the list places at a *level*, with ⚠️ **no *card*, no vetting row and no
+ * example sentence**.
+ */
+async function starterWord(term: string, level: string): Promise<string> {
+  const fields = { term, reading: 'よみ', part_of_speech: '名詞', meaning: `meaning of ${term}` }
+  const note = await one<{ id: string }>(`
+    INSERT INTO note (subject_id, identity_key, fields)
+    VALUES ('jlpt-vocab-2', '${term}␟よみ', '${JSON.stringify(fields)}'::jsonb)
+    RETURNING id;
+  `)
+
+  await client.exec(`
+    INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${note.id}', 'tanos-jlpt', '${level}');
+  `)
+
+  return note.id
+}
+
+async function noteOf(cardId: string): Promise<string> {
+  return (await one<{ noteId: string }>(`SELECT note_id AS "noteId" FROM card WHERE id = '${cardId}';`)).noteId
+}
+
 describe('the two reads the composer is built from (`04` §11)', () => {
   it('offers a card whose live epoch has come due, and not one that has not', async () => {
     const overdue = await acceptedCard('一␟いち')
@@ -166,40 +212,52 @@ describe('the two reads the composer is built from (`04` §11)', () => {
   })
 })
 
-describe('composing a session (`S7`, `04` §7.6, §7.7)', () => {
-  it('writes `size` rows of membership, due first, and a card once', async () => {
-    const due = await acceptedCard('一␟いち')
-    await scheduled(due, -1)
-    const fresh = await acceptedCard('二␟に', { minutesAgo: 1 })
-    await acceptedCard('三␟さん')
+describe('composing a review run (`S7`, `04` §7.6, §7.7, ADR 0076 §1)', () => {
+  it('writes `size` rows of membership — due cards only, and a card once', async () => {
+    const older = await dueCard('一␟いち', 2)
+    const newer = await dueCard('二␟に', 1)
+    const fresh = await acceptedCard('三␟さん')
 
-    const session = await resumeOrCompose(db, OWNER, 2)
+    const session = await review()
 
     expect(session).not.toBeNull()
+    expect(session!.kind).toBe('review')
     expect(session!.size).toBe(2)
     expect(await count('review_session_card', `review_session_id = '${session!.sessionId}'`)).toBe(2)
-    expect(session!.positions.map(p => p.cardId)).toEqual([due, fresh])
+    expect(session!.positions.map(p => p.cardId)).toEqual([older, newer])
     expect(session!.positions.map(p => p.ordinal)).toEqual([0, 1])
+    // ⚠️ ADR 0076 §1: a new word reaches the reader through a lesson, never
+    // here — and a review run spends none of the day.
+    expect(session!.positions.map(p => p.cardId)).not.toContain(fresh)
+    expect(await one(`SELECT kind, new_count FROM review_session;`)).toEqual({ kind: 'review', new_count: 0 })
   })
 
   // ⚠️ **`review_session.size` is what was composed, not what was asked for.**
-  // `04` §14 makes the *progress rail*'s length `review_session.size`, so a
-  // reader with one *card* and a knob at twenty must get a rail of one —
-  // nineteen ticks that can never fill would be the only progress indicator in
-  // the application promising work that does not exist.
+  // The header counts the run's words, so a reader with one due and a knob at
+  // twenty must get a run of one — a track that can never fill would be the
+  // only progress indicator in the application promising work that does not
+  // exist.
   it('is as long as what there was to study, not as long as the knob', async () => {
-    await acceptedCard('一␟いち')
+    await dueCard('一␟いち')
 
-    const session = await resumeOrCompose(db, OWNER, 20)
+    const session = await review(20)
 
     expect(session!.size).toBe(1)
     expect(session!.positions).toHaveLength(1)
   })
 
-  it('carries the note fields, so the run is prefetched as a unit (`S8`)', async () => {
-    await acceptedCard('図書館␟としょかん')
+  it('stops at the knob when more is due', async () => {
+    await dueCard('一␟いち')
+    await dueCard('二␟に')
+    await dueCard('三␟さん')
 
-    const session = await resumeOrCompose(db, OWNER, 20)
+    expect((await review(2))!.positions).toHaveLength(2)
+  })
+
+  it('carries the note fields, so the run is prefetched as a unit (`S8`)', async () => {
+    await dueCard('図書館␟としょかん')
+
+    const session = await review()
 
     expect(session!.positions[0]!.fields).toEqual(FIELDS)
     expect(session!.positions[0]!.templateKey).toBe('recognition')
@@ -210,10 +268,10 @@ describe('composing a session (`S7`, `04` §7.6, §7.7)', () => {
   // sent over would be this process's clock standing in for the database's on
   // the one timestamp that decides whether a *grade* is believable.
   it('stamps `snapshot_taken_at` on the server', async () => {
-    await acceptedCard('一␟いち')
+    await dueCard('一␟いち')
 
     const before = await one<{ now: Date }>('SELECT now() AS now;')
-    const session = await resumeOrCompose(db, OWNER, 20)
+    const session = await review()
     const after = await one<{ now: Date }>('SELECT now() AS now;')
 
     expect(session!.snapshotTakenAt.getTime()).toBeGreaterThanOrEqual(before.now.getTime())
@@ -221,24 +279,225 @@ describe('composing a session (`S7`, `04` §7.6, §7.7)', () => {
   })
 
   it('answers nothing when there is nothing to study, and writes no session', async () => {
-    expect(await resumeOrCompose(db, OWNER, 20)).toBeNull()
+    expect(await review()).toBeNull()
+    expect(await lesson()).toBeNull()
     expect(await count('review_session')).toBe(0)
   })
 
-  // ⚠️ `09` §4.7: *session* size is set on the end screen and on the empty
-  // states, **never mid-session** — the current one is snapshotted, and a knob
-  // that appeared to change it would be lying. Done mid-*session* is a pause
-  // (`10` §5.3), so the live run is what `/review` answers with.
-  it('resumes the live run rather than composing a second one', async () => {
-    await acceptedCard('一␟いち')
+  // ⚠️ ADR 0076 §8: opening `/review` asks what is waiting and **composes
+  // nothing**. A lesson spends the day's allowance by being composed, so the
+  // mount must not be the reader starting one.
+  it('composes nothing when no run is asked for', async () => {
+    await dueCard('一␟いち')
     await acceptedCard('二␟に')
 
-    const first = await resumeOrCompose(db, OWNER, 1)
-    const again = await resumeOrCompose(db, OWNER, 20)
+    expect(await resumeOrStart(db, OWNER, { start: null, size: 20 })).toBeNull()
+    expect(await count('review_session')).toBe(0)
+  })
 
-    expect(again!.sessionId).toBe(first!.sessionId)
-    expect(again!.size).toBe(1)
+  // ⚠️ `09` §4.7: *session* size is never set mid-session — the current one is
+  // snapshotted, and a control that appeared to change it would be lying. The
+  // live run is what `/review` answers with, whatever was asked for.
+  it('resumes the live run rather than composing a second one', async () => {
+    await dueCard('一␟いち')
+    await dueCard('二␟に')
+    await acceptedCard('三␟さん')
+
+    const first = await review(1)
+
+    for (const start of ['review', 'lesson', null] as const) {
+      const again = await resumeOrStart(db, OWNER, { start, size: 20 })
+
+      expect(again!.sessionId).toBe(first!.sessionId)
+      expect(again!.size).toBe(1)
+    }
+
     expect(await count('review_session')).toBe(1)
+  })
+})
+
+// ADR 0076 §1 — where a word starts. ⚠️ **Starting a starter word is its
+// acceptance**: the lesson writes `note_vetting` and mints through
+// `mint_cards`, in the transaction that composes the run.
+describe('composing a lesson (ADR 0076 §1)', () => {
+  it('teaches the reader\'s own unscheduled cards, oldest first, five at a time', async () => {
+    const cards: string[] = []
+    for (let index = 0; index < 7; index += 1)
+      cards.push(await acceptedCard(`新${index}␟しん${index}`, { minutesAgo: 10 - index }))
+
+    const run = (await lesson())!
+
+    expect(run.kind).toBe('lesson')
+    expect(run.positions.map(p => p.cardId)).toEqual(cards.slice(0, 5))
+    expect(await one(`SELECT kind, size, new_count FROM review_session;`)).toEqual({ kind: 'lesson', size: 5, new_count: 5 })
+  })
+
+  it('never holds a due card', async () => {
+    const due = await dueCard('一␟いち')
+    const fresh = await acceptedCard('二␟に')
+
+    expect((await lesson())!.positions.map(p => p.cardId)).toEqual([fresh])
+    expect(due).toBeDefined()
+  })
+
+  it('starts starter words by accepting them and minting their cards', async () => {
+    const notes = [await starterWord('会う', 'N5'), await starterWord('青', 'N5')]
+
+    expect(await count('card')).toBe(0)
+
+    const run = (await lesson())!
+
+    expect(run.positions).toHaveLength(2)
+    expect(await rows(`SELECT note_id, state FROM note_vetting WHERE owner_id = '${OWNER}' ORDER BY note_id;`))
+      .toEqual([...notes].sort().map(note_id => ({ note_id, state: 'accepted' })))
+    expect(await count('card', `owner_id = '${OWNER}' AND suspended_at IS NULL`)).toBe(2)
+    // ⚠️ The epoch still belongs to the first *grade*, not to the lesson that
+    // started the word (`04` §9).
+    expect(await count('scheduling_epoch')).toBe(0)
+  })
+
+  it('takes the reader\'s own words before the starter set', async () => {
+    await starterWord('会う', 'N5')
+    const own = await acceptedCard('経験␟けいけん')
+
+    const run = (await lesson())!
+
+    expect(run.positions[0]!.cardId).toBe(own)
+    expect(run.positions).toHaveLength(2)
+  })
+
+  // ⚠️ The list is alphabetical by reading, and the lesson is not: easiest
+  // *level* first, whatever order the words were loaded in.
+  it('takes the easiest level first', async () => {
+    await starterWord('概念', 'N1')
+    await starterWord('経験', 'N3')
+    await starterWord('会う', 'N5')
+    await starterWord('映画', 'N4')
+
+    const run = (await lesson())!
+
+    expect(run.positions.map(p => p.level)).toEqual(['N5', 'N4', 'N3', 'N1'])
+  })
+
+  // ⚠️ A fixed shuffle: the same words whichever request asks, so the count on
+  // the control and the lesson behind it cannot disagree.
+  it('offers the same words in the same order each time it is asked', async () => {
+    for (let index = 0; index < 12; index += 1)
+      await starterWord(`語${index}`, 'N5')
+
+    const once = await unstartedNotes(db, OWNER, 5)
+    const twice = await unstartedNotes(db, OWNER, 5)
+
+    expect(once).toHaveLength(5)
+    expect(twice).toEqual(once)
+  })
+
+  it('offers neither a word the reader rejected nor one they already have a card for', async () => {
+    const rejected = await starterWord('嫌', 'N5')
+    const started = await starterWord('既', 'N5')
+    const open = await starterWord('新', 'N5')
+    await client.exec(`
+      INSERT INTO note_vetting (note_id, owner_id, state, vetted_at) VALUES ('${rejected}', '${OWNER}', 'rejected', now());
+      INSERT INTO note_vetting (note_id, owner_id, state, vetted_at) VALUES ('${started}', '${OWNER}', 'accepted', now());
+      INSERT INTO card (note_id, owner_id, template_key, suspended_at, suspended_reason)
+      VALUES ('${started}', '${OWNER}', 'recognition', now(), 'flagged');
+    `)
+
+    expect(await unstartedNotes(db, OWNER, 5)).toEqual([open])
+    expect(await one(`SELECT state FROM note_vetting WHERE note_id = '${rejected}';`)).toEqual({ state: 'rejected' })
+  })
+
+  // ⚠️ Only what the declared *authority* places (ADR 0075 §2). A *note* with
+  // no list behind it is somebody's own word, and reaches a lesson as a *card*.
+  it('offers no note the list does not place, and none from the corpus the reader left', async () => {
+    await client.exec(`
+      INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab-2', '無␟む', '{"term":"無"}'::jsonb);
+    `)
+    const old = await one<{ id: string }>(`
+      INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab', '旧␟きゅう', '{"term":"旧"}'::jsonb) RETURNING id;
+    `)
+    await client.exec(`INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${old.id}', 'tanos-jlpt', 'N5');`)
+
+    expect(await unstartedNotes(db, OWNER, 5)).toEqual([])
+  })
+
+  it('upgrades a pending vetting row rather than refusing the word', async () => {
+    const note = await starterWord('待', 'N5')
+    await client.exec(`INSERT INTO note_vetting (note_id, owner_id, state) VALUES ('${note}', '${OWNER}', 'pending');`)
+
+    expect((await lesson())!.positions).toHaveLength(1)
+    expect(await one(`SELECT state FROM note_vetting WHERE note_id = '${note}';`)).toEqual({ state: 'accepted' })
+  })
+
+  it('gives each reader their own card for the same word', async () => {
+    await starterWord('会う', 'N5')
+
+    await lesson()
+    await lesson(undefined, OTHER)
+
+    expect(await rows(`SELECT owner_id FROM card ORDER BY owner_id;`)).toEqual([{ owner_id: OTHER }, { owner_id: OWNER }])
+  })
+
+  // ⚠️ *Get a word right in the quiz and it enters your reviews* — and one that
+  // was not got right has no epoch, so it is simply still new.
+  it('teaches a word again in the next lesson when it was not graded', async () => {
+    const first = await acceptedCard('一␟いち', { minutesAgo: 2 })
+    const second = await acceptedCard('二␟に', { minutesAgo: 1 })
+    const run = (await lesson())!
+
+    await recordGrade(db, OWNER, { sessionId: run.sessionId, cardId: first, grade: 3, reviewedAt: new Date() })
+    await finishSession(db, OWNER, run.sessionId)
+
+    const next = (await lesson())!
+
+    expect(next.sessionId).not.toBe(run.sessionId)
+    expect(next.positions.map(p => p.cardId)).toEqual([second])
+  })
+
+  it('carries the level the list gives a word, and none for a word no list places', async () => {
+    await starterWord('会う', 'N5')
+    await acceptedCard('経験␟けいけん')
+
+    expect((await lesson())!.positions.map(p => p.level)).toEqual([null, 'N5'])
+  })
+})
+
+// ADR 0076 §7 — a stage is read from the scheduler. What is here is that the
+// snapshot carries the stage the reader **came with** and where the *grade*
+// **sent** the word, both from rows.
+describe('a word\'s stage, in the snapshot (ADR 0076 §7)', () => {
+  it('has none for a word that has never been scheduled, and Learning once it is graded', async () => {
+    const cardId = await acceptedCard('一␟いち')
+    const run = (await lesson())!
+
+    expect(run.positions[0]).toMatchObject({ stage: null, outcome: null })
+
+    const reviewedAt = new Date()
+    await recordGrade(db, OWNER, { sessionId: run.sessionId, cardId, grade: 3, reviewedAt })
+    const after = (await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!
+
+    // ⚠️ The stage stays what the reader came with — none — so the summary
+    // says *now Learning* rather than *stays*.
+    expect(after.stage).toBeNull()
+    expect(after.outcome!.stage).toBe('learning')
+    expect(new Date(after.outcome!.due).getTime() - reviewedAt.getTime()).toBeGreaterThanOrEqual(DAY)
+  })
+
+  it('reads the stage a due word came with from its epoch, and keeps it after the grade', async () => {
+    // `scheduled` writes 61.4 days of stability: Known.
+    const cardId = await dueCard('一␟いち')
+    const run = (await review())!
+
+    expect(run.positions[0]!.stage).toBe('known')
+
+    await recordGrade(db, OWNER, { sessionId: run.sessionId, cardId, grade: 1, reviewedAt: new Date() })
+    const after = (await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!
+    const { stability } = await one<{ stability: number }>(`SELECT stability FROM scheduling_epoch WHERE card_id = '${cardId}';`)
+
+    // A lapse cuts stability, and the stage follows it with no rule of its own.
+    expect(stability).toBeLessThan(21)
+    expect(after.stage).toBe('known')
+    expect(after.outcome!.stage).toBe(stability >= 7 ? 'familiar' : 'learning')
   })
 })
 
@@ -263,57 +522,63 @@ async function claimed(cardId: string, { domain, level }: { domain?: string, lev
   }
 }
 
-describe('a filtered session (ADR 0065 §5)', () => {
+describe('a filtered lesson (ADR 0065 §5)', () => {
   // ⚠️ **#22's criterion in its own words: a due card outside the filter is
   // still composed.** What is owed is owed; a filter over the due half lets
   // `business` rot for a fortnight while the reader studies `tech`.
-  it('still composes a due card outside the filter', async () => {
+  it('leaves a review run alone', async () => {
     const owed = await acceptedCard('会議␟かいぎ', { minutesAgo: 10 })
     await claimed(owed, { domain: 'business', level: 'N3' })
     await scheduled(owed, -1)
 
-    const session = await resumeOrCompose(db, OWNER, 20, { domains: ['tech'], levels: [] })
+    const session = await resumeOrStart(db, OWNER, { start: 'review', size: 20, filter: { domains: ['tech'], levels: [] } })
 
     expect(session!.positions.map(p => p.cardId)).toEqual([owed])
   })
 
-  it('introduces only the new cards inside it, due first as ever', async () => {
-    const owed = await acceptedCard('会議␟かいぎ', { minutesAgo: 10 })
-    await claimed(owed, { domain: 'business' })
-    await scheduled(owed, -1)
+  it('teaches only the new words inside it', async () => {
     const deploy = await acceptedCard('デプロイ␟でぷろい', { minutesAgo: 3 })
     await claimed(deploy, { domain: 'tech', level: 'N2' })
     const meeting = await acceptedCard('打ち合わせ␟うちあわせ', { minutesAgo: 2 })
     await claimed(meeting, { domain: 'business', level: 'N2' })
 
-    const session = await resumeOrCompose(db, OWNER, 20, { domains: ['tech'], levels: [] })
+    const session = await lesson({ domains: ['tech'], levels: [] })
 
-    expect(session!.positions.map(p => p.cardId)).toEqual([owed, deploy])
+    expect(session!.positions.map(p => p.cardId)).toEqual([deploy])
   })
 
   // Both sets restrict at once: a `tech` word at `N1` is not a `tech` word at
   // `N2`, and a set left empty restricts nothing.
-  it('asks for both sets when both are sent, and neither when neither is', async () => {
+  it('asks for both sets when both are sent', async () => {
     const hard = await acceptedCard('冗長化␟じょうちょうか', { minutesAgo: 3 })
     await claimed(hard, { domain: 'tech', level: 'N1' })
     const easy = await acceptedCard('画面␟がめん', { minutesAgo: 2 })
     await claimed(easy, { domain: 'tech', level: 'N4' })
 
-    const filtered = await resumeOrCompose(db, OWNER, 20, { domains: ['tech'], levels: ['N4', 'N5'] })
+    const filtered = await lesson({ domains: ['tech'], levels: ['N4', 'N5'] })
     expect(filtered!.positions.map(p => p.cardId)).toEqual([easy])
   })
 
-  // ⚠️ **A *note* with no claim at all matches no filter.** The 474 *pending
-  // notes* written before ADR 0065 carry none, and backfilling them is out of
-  // #22's scope — so they are studied unfiltered or not at all, never guessed
-  // into a bucket.
+  it('narrows the starter words by level', async () => {
+    await starterWord('会う', 'N5')
+    await starterWord('経験', 'N3')
+
+    const filtered = await lesson({ domains: [], levels: ['N3'] })
+
+    expect(filtered!.positions.map(p => p.level)).toEqual(['N3'])
+    // ⚠️ And only the word the lesson holds was started: the N5 one has no card.
+    expect(await count('card')).toBe(1)
+  })
+
+  // ⚠️ **A *note* with no claim at all matches no filter.** It is studied
+  // unfiltered or not at all, never guessed into a bucket.
   it('leaves out a new card with no claim when a filter is set, and keeps it when none is', async () => {
     const unclaimed = await acceptedCard('一␟いち')
 
-    expect(await resumeOrCompose(db, OWNER, 20, { domains: ['daily'], levels: [] })).toBeNull()
+    expect(await lesson({ domains: ['daily'], levels: [] })).toBeNull()
     expect(await count('review_session')).toBe(0)
 
-    const session = await resumeOrCompose(db, OWNER, 20)
+    const session = await lesson()
     expect(session!.positions.map(p => p.cardId)).toEqual([unclaimed])
   })
 })
@@ -323,7 +588,8 @@ describe('one grade (`S7`, ADR 0016, `04` §7.4, §7.5)', () => {
     for (let index = 0; index < cards; index += 1)
       await acceptedCard(`${index}␟${index}`, { minutesAgo: cards - index })
 
-    return (await resumeOrCompose(db, OWNER, cards))!
+    // A lesson of the reader's own words: the run whose *grade* is a first one.
+    return (await lesson())!
   }
 
   function grade(sessionId: string, cardId: string, given: Grade = 3, reviewedAt = new Date()) {
@@ -488,7 +754,7 @@ describe('the end of the run (`09` §4.7 step 6, `04` §7.6)', () => {
   it('stamps `completed_at` when the last position is answered, and not before', async () => {
     await acceptedCard('一␟いち', { minutesAgo: 2 })
     await acceptedCard('二␟に', { minutesAgo: 1 })
-    const run = (await resumeOrCompose(db, OWNER, 2))!
+    const run = (await lesson())!
 
     await recordGrade(db, OWNER, {
       sessionId: run.sessionId,
@@ -509,13 +775,13 @@ describe('the end of the run (`09` §4.7 step 6, `04` §7.6)', () => {
     expect(await count('review_session', 'completed_at is not null')).toBe(1)
   })
 
-  // ⚠️ **Finishing is not starting** (`S7`): the end screen shows the run's
+  // ⚠️ **Finishing is not starting** (`S7`): the summary shows the run's
   // numbers and **never** starts the next one. Nothing on the *grade* path
-  // composes, so the *session* count after the last keystroke is still one.
+  // composes, so the *session* count after the last answer is still one.
   it('starts nothing when it ends', async () => {
-    await acceptedCard('一␟いち')
-    await acceptedCard('二␟に')
-    const run = (await resumeOrCompose(db, OWNER, 1))!
+    await dueCard('一␟いち')
+    await dueCard('二␟に')
+    const run = (await review(1))!
 
     await recordGrade(db, OWNER, {
       sessionId: run.sessionId,
@@ -529,49 +795,106 @@ describe('the end of the run (`09` §4.7 step 6, `04` §7.6)', () => {
 
   // And the next one is composed only when the reader asks — from what is left.
   it('composes the next run from what the first one did not take', async () => {
-    const first = await acceptedCard('一␟いち', { minutesAgo: 2 })
-    const second = await acceptedCard('二␟に', { minutesAgo: 1 })
-    const run = (await resumeOrCompose(db, OWNER, 1))!
+    const cards = [await dueCard('一␟いち'), await dueCard('二␟に')]
+    const run = (await review(1))!
+    const taken = run.positions[0]!.cardId
 
-    await recordGrade(db, OWNER, {
-      sessionId: run.sessionId,
-      cardId: run.positions[0]!.cardId,
-      grade: 3,
-      reviewedAt: new Date(),
-    })
+    await recordGrade(db, OWNER, { sessionId: run.sessionId, cardId: taken, grade: 3, reviewedAt: new Date() })
 
-    const next = (await resumeOrCompose(db, OWNER, 20))!
+    const next = (await review())!
 
-    expect(run.positions[0]!.cardId).toBe(first)
     expect(next.sessionId).not.toBe(run.sessionId)
-    // The graded *card* is a day out, so what is left is the one never seen.
-    expect(next.positions.map(p => p.cardId)).toEqual([second])
+    // The graded *card* is a day out, so what is left is the one not taken.
+    expect(next.positions.map(p => p.cardId)).toEqual(cards.filter(cardId => cardId !== taken))
   })
 })
 
-// `10` §5.7 — the two non-terminal empty states, and the difference between
-// going to *Vet* and coming back tomorrow.
-describe('nothing to study', () => {
-  it('says the reader has no cards at all', async () => {
-    expect(await nothingToStudy(db, OWNER)).toEqual({ hasCards: false, nextDue: null, newWaiting: false })
+// ADR 0076 §6 — *Finish early*: the run is stamped complete with whatever it
+// holds, and it answers no position.
+describe('finishing early (ADR 0076 §6)', () => {
+  it('stamps the run complete and grades nothing', async () => {
+    await dueCard('一␟いち')
+    await dueCard('二␟に')
+    const run = (await review())!
+
+    const finished = await finishSession(db, OWNER, run.sessionId)
+
+    expect(finished!.sessionId).toBe(run.sessionId)
+    expect(await count('review_session', 'completed_at is not null')).toBe(1)
+    expect(await count('review_log')).toBe(0)
+    // What was not reached is still due, and the next run holds it.
+    expect((await review())!.positions).toHaveLength(2)
   })
 
-  it('names when the next card is due', async () => {
-    const card = await acceptedCard('一␟いち')
-    await scheduled(card, 1)
+  it('keeps the grades given before it', async () => {
+    const cardId = await dueCard('一␟いち')
+    await dueCard('二␟に')
+    const run = (await review())!
 
-    const answer = await nothingToStudy(db, OWNER)
+    await recordGrade(db, OWNER, { sessionId: run.sessionId, cardId, grade: 1, reviewedAt: new Date() })
+    const finished = (await finishSession(db, OWNER, run.sessionId))!
 
-    expect(answer.hasCards).toBe(true)
-    expect(answer.nextDue!.getTime()).toBeGreaterThan(Date.now())
+    expect(finished.positions.find(p => p.cardId === cardId)!.grade).toBe(1)
+    expect(await count('review_log')).toBe(1)
+  })
+
+  // A replay of the entry, or a tab left open: nothing is stamped twice.
+  it('is harmless twice, and does nothing to a run that is somebody else\'s', async () => {
+    await dueCard('一␟いち')
+    const run = (await review())!
+
+    expect(await finishSession(db, OTHER, run.sessionId)).toBeNull()
+    expect(await count('review_session', 'completed_at is not null')).toBe(0)
+
+    await finishSession(db, OWNER, run.sessionId)
+    const { completed_at: first } = await one<{ completed_at: Date }>(`SELECT completed_at FROM review_session;`)
+    await finishSession(db, OWNER, run.sessionId)
+    const { completed_at: second } = await one<{ completed_at: Date }>(`SELECT completed_at FROM review_session;`)
+
+    expect(second.getTime()).toBe(first.getTime())
+  })
+
+  it('answers nothing for a run that does not exist', async () => {
+    expect(await finishSession(db, OWNER, '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b')).toBeNull()
   })
 })
 
-// ADR 0066 — the brake, as rows. `compose`'s arithmetic has its own unit tests;
-// what is here is that the allowance is **read from `review_session.new_count`
-// and written by the composition**, that the fifty-card gate counts the whole
-// due set rather than a session's worth, and that the zone is stored.
-describe('the review-load brake (ADR 0066, #21)', () => {
+// The screen before a run names when the next word is due, and tells a first
+// visit — nothing ever scheduled — from a quiet day (`shared/review/offer.ts`).
+describe('when the next word is due', () => {
+  it('is nothing for a reader with nothing scheduled', async () => {
+    await acceptedCard('一␟いち')
+
+    expect(await nextDueAt(db, OWNER)).toBeNull()
+  })
+
+  it('names the soonest live epoch, in the future or already past', async () => {
+    await scheduled(await acceptedCard('一␟いち'), 3)
+    await scheduled(await acceptedCard('二␟に'), 1)
+
+    const next = (await nextDueAt(db, OWNER))!
+
+    expect(next.getTime()).toBeGreaterThan(Date.now())
+    expect(next.getTime()).toBeLessThan(Date.now() + 2 * DAY)
+
+    await dueCard('三␟さん')
+    expect((await nextDueAt(db, OWNER))!.getTime()).toBeLessThan(Date.now())
+  })
+
+  it('ignores a suspended card, and another reader\'s', async () => {
+    await scheduled(await acceptedCard('一␟いち', { suspended: true }), 1)
+    await scheduled(await acceptedCard('二␟に', { owner: OTHER }), 1, OTHER)
+
+    expect(await nextDueAt(db, OWNER)).toBeNull()
+  })
+})
+
+// ADR 0066 — the brake, as rows. The arithmetic has its own unit tests; what is
+// here is that the allowance is **read from `review_session.new_count` and
+// written by the composition**, that the gate counts the whole due set rather
+// than a session's worth, that the zone is stored — and, since ADR 0076 §2,
+// that all three numbers are the reader's own.
+describe('the review-load brake (ADR 0066, #21, ADR 0076 §2)', () => {
   async function newWords(n: number) {
     for (let index = 0; index < n; index += 1)
       await acceptedCard(`新${index}␟しん${index}`, { minutesAgo: n - index })
@@ -587,40 +910,79 @@ describe('the review-load brake (ADR 0066, #21)', () => {
     await client.exec(`UPDATE review_session SET completed_at = now() WHERE completed_at IS NULL;`)
   }
 
-  it('composes at most ten new cards, and writes how many on the session', async () => {
+  it('teaches five a lesson, and writes how many on the session', async () => {
     await newWords(15)
 
-    const run = (await resumeOrCompose(db, OWNER, 20))!
+    const run = (await lesson())!
 
-    expect(run.positions).toHaveLength(10)
+    expect(run.positions).toHaveLength(5)
     expect(await one<{ new_count: number }>(`SELECT new_count FROM review_session;`))
-      .toEqual({ new_count: 10 })
+      .toEqual({ new_count: 5 })
   })
 
   // ⚠️ **Counted at composition, not from first epochs.** Nothing here is
   // graded, so a count of `ordinal = 1` epochs would say the day is untouched.
-  it('spends the day on what was offered, so an unanswered run still counts', async () => {
+  it('spends the day on what was offered, so an unanswered lesson still counts', async () => {
     await newWords(15)
 
-    await resumeOrCompose(db, OWNER, 6)
+    await lesson()
     await finish()
-    const second = (await resumeOrCompose(db, OWNER, 20))!
-
-    expect(second.positions).toHaveLength(4)
+    expect((await lesson())!.positions).toHaveLength(5)
     expect(await count('scheduling_epoch')).toBe(0)
 
     await finish()
-    expect(await resumeOrCompose(db, OWNER, 20)).toBeNull()
+    expect(await lesson()).toBeNull()
     expect(await brakeReading(db, OWNER, 'UTC')).toEqual({ introducedToday: 10, dueCount: 0 })
   })
 
-  it('tells the held-back state apart from nothing due', async () => {
-    await newWords(12)
-    await resumeOrCompose(db, OWNER, 20)
+  it('offers what is left of the day when that is less than a lesson', async () => {
+    await newWords(15)
+    await writeLimits(db, OWNER, { lessonSize: 5, dailyNew: 7, pauseAbove: 50 })
+
+    await lesson()
     await finish()
 
-    expect(await resumeOrCompose(db, OWNER, 20)).toBeNull()
-    expect((await nothingToStudy(db, OWNER)).newWaiting).toBe(true)
+    expect((await lesson())!.positions).toHaveLength(2)
+  })
+
+  // ⚠️ **A brake that is silent is a bug report** (ADR 0066 §7): the offer says
+  // that words are waiting and none is on offer, which is what lets the screen
+  // say *why*.
+  it('tells held back apart from nothing left', async () => {
+    await newWords(12)
+
+    expect(await offerOf(db, OWNER, 'UTC')).toMatchObject({ lesson: 5, waiting: true, introducedToday: 0 })
+
+    await lesson()
+    await finish()
+    await lesson()
+    await finish()
+
+    expect(await offerOf(db, OWNER, 'UTC')).toMatchObject({ lesson: 0, waiting: true, introducedToday: 10 })
+  })
+
+  it('says nothing is waiting when no new word is', async () => {
+    await overdue(1)
+
+    expect(await offerOf(db, OWNER, 'UTC')).toMatchObject({ lesson: 0, waiting: false, dueCount: 1 })
+  })
+
+  it('counts the starter words in what a lesson would hold', async () => {
+    await starterWord('会う', 'N5')
+    await starterWord('青', 'N5')
+    await newWords(1)
+
+    expect((await offerOf(db, OWNER, 'UTC')).lesson).toBe(3)
+    // ⚠️ Asking is not starting: nothing was accepted and nothing minted.
+    expect(await count('note_vetting', `owner_id = '${OWNER}'`)).toBe(1)
+    expect(await count('card')).toBe(1)
+  })
+
+  it('counts through the filter, and says so when it matches nothing', async () => {
+    await starterWord('会う', 'N5')
+
+    expect(await offerOf(db, OWNER, 'UTC', { domains: [], levels: ['N5'] })).toMatchObject({ lesson: 1, waiting: true })
+    expect(await offerOf(db, OWNER, 'UTC', { domains: [], levels: ['N1'] })).toMatchObject({ lesson: 0, waiting: false })
   })
 
   // ⚠️ **A run composed yesterday does not spend today.** The window the query
@@ -628,21 +990,23 @@ describe('the review-load brake (ADR 0066, #21)', () => {
   // day's rule, in the reader's zone.
   it('gives a new day a new allowance', async () => {
     await newWords(15)
-    await resumeOrCompose(db, OWNER, 20)
+    await lesson()
+    await finish()
+    await lesson()
     await finish()
     await client.exec(`UPDATE review_session SET started_at = now() - interval '30 hours';`)
 
-    // Ten again — and not five, because yesterday's run was never answered and
-    // its ten are still new. What was offered spends a day; it does not use
-    // the words up.
-    expect((await resumeOrCompose(db, OWNER, 20))!.positions).toHaveLength(10)
+    expect((await lesson())!.positions).toHaveLength(5)
   })
 
-  it('composes no new card at fifty due, and a due-only run instead', async () => {
+  it('starts no lesson at fifty due, and the review run holds no new word', async () => {
     await overdue(50)
     await newWords(3)
 
-    const run = (await resumeOrCompose(db, OWNER, 200))!
+    expect(await lesson()).toBeNull()
+    expect(await count('review_session')).toBe(0)
+
+    const run = (await review(200))!
 
     expect(run.positions).toHaveLength(50)
     expect(await one<{ new_count: number }>(`SELECT new_count FROM review_session;`))
@@ -650,15 +1014,35 @@ describe('the review-load brake (ADR 0066, #21)', () => {
     expect((await brakeReading(db, OWNER, 'UTC')).dueCount).toBe(50)
   })
 
-  it('introduces new cards at forty-nine due', async () => {
+  it('starts a lesson at forty-nine due', async () => {
     await overdue(49)
     await newWords(3)
 
-    expect((await resumeOrCompose(db, OWNER, 200))!.positions).toHaveLength(52)
+    expect((await lesson())!.positions).toHaveLength(3)
+  })
+
+  it('moves the gate with the reader\'s setting', async () => {
+    await overdue(3)
+    await newWords(2)
+    await writeLimits(db, OWNER, { lessonSize: 5, dailyNew: 10, pauseAbove: 3 })
+
+    expect(await lesson()).toBeNull()
+
+    await writeLimits(db, OWNER, { lessonSize: 5, dailyNew: 10, pauseAbove: 4 })
+
+    expect((await lesson())!.positions).toHaveLength(2)
+  })
+
+  it('starts no lesson for a reader who set no new words a day', async () => {
+    await newWords(2)
+    await writeLimits(db, OWNER, { lessonSize: 5, dailyNew: 0, pauseAbove: 50 })
+
+    expect(await lesson()).toBeNull()
+    expect(await offerOf(db, OWNER, 'UTC')).toMatchObject({ lesson: 0, waiting: true })
   })
 
   // ⚠️ **The due read lost its `LIMIT size`** — the gate and the order both
-  // need the whole set, and the session size is `compose`'s to apply.
+  // need the whole set, and the session size is the composition's to apply.
   it('reads every due card, not a session\'s worth', async () => {
     await overdue(25)
 
@@ -679,7 +1063,7 @@ describe('the review-load brake (ADR 0066, #21)', () => {
         ('${shaky}', '${OWNER}', 1, now() - interval '1 day', 2.3, 7, 3, 2, 1, 2, now() - interval '4 days');
     `)
 
-    const run = (await resumeOrCompose(db, OWNER, 1))!
+    const run = (await review(1))!
 
     expect(run.positions.map(p => p.cardId)).toEqual([shaky])
   })
@@ -689,24 +1073,87 @@ describe('the review-load brake (ADR 0066, #21)', () => {
 
     expect(await readerZone(db, OWNER)).toBe('UTC')
 
-    await resumeOrCompose(db, OWNER, 1, undefined, 'Asia/Tokyo')
+    await lesson(undefined, OWNER, 'Asia/Tokyo')
     await finish()
-    await resumeOrCompose(db, OWNER, 1)
+    await lesson()
 
     expect(await rows(`SELECT zone FROM review_session ORDER BY started_at;`))
       .toEqual([{ zone: 'Asia/Tokyo' }, { zone: null }])
     expect(await readerZone(db, OWNER)).toBe('Asia/Tokyo')
   })
 
-  it('reads the brake for the end screen only once the run is over', async () => {
+  it('reads the offer for the summary only once the run is over', async () => {
     await newWords(1)
-    const run = (await resumeOrCompose(db, OWNER, 1))!
+    const run = (await lesson())!
 
-    expect(await brakeIfFinished(db, OWNER, run)).toBeNull()
-    expect(await brakeIfFinished(db, OWNER, {
+    expect(await offerIfFinished(db, OWNER, run, NO_FILTER)).toBeNull()
+    expect(await offerIfFinished(db, OWNER, {
       ...run,
       positions: run.positions.map(position => ({ ...position, grade: 3 as Grade })),
-    })).toEqual({ introducedToday: 1, dueCount: 0 })
+    }, NO_FILTER)).toMatchObject({ introducedToday: 1, dueCount: 0, limits: DEFAULT_LIMITS })
+    // ADR 0076 §6: a run finished early is over, whatever is unanswered in it.
+    expect(await offerIfFinished(db, OWNER, run, NO_FILTER, true)).toMatchObject({ introducedToday: 1 })
+  })
+
+  // ⚠️ The summary's control starts the next lesson through the reader's
+  // filter, so its count is read through the same one.
+  it('counts the summary\'s lesson through the filter the answer carried', async () => {
+    await starterWord('会う', 'N5')
+    await starterWord('食べる', 'N5')
+    await starterWord('経済', 'N3')
+    const run = (await lesson())!
+
+    // Left unfinished, so its three words are still new and still on offer.
+    expect(await offerIfFinished(db, OWNER, run, NO_FILTER, true)).toMatchObject({ lesson: 3, waiting: true })
+    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N3'] }, true))
+      .toMatchObject({ lesson: 1, waiting: true })
+    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N1'] }, true))
+      .toMatchObject({ lesson: 0, waiting: false })
+    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N5'] }, true))
+      .toMatchObject({ lesson: 2, waiting: true })
+  })
+})
+
+// ADR 0076 §2 — `study_setting`, one row per reader and none until they save.
+describe('the study settings (ADR 0076 §2, `04` §7.10)', () => {
+  it('is the defaults for a reader with no row, and reading writes none', async () => {
+    expect(await readLimits(db, OWNER)).toEqual(DEFAULT_LIMITS)
+    expect(await count('study_setting')).toBe(0)
+  })
+
+  it('stores what the form sent, clamped, as the reader\'s one row', async () => {
+    expect(await writeLimits(db, OWNER, { lessonSize: '8', dailyNew: '999', pauseAbove: '' }))
+      .toEqual({ lessonSize: 8, dailyNew: 100, pauseAbove: 50 })
+    await writeLimits(db, OWNER, { lessonSize: 3, dailyNew: 0, pauseAbove: 75 })
+
+    expect(await count('study_setting')).toBe(1)
+    expect(await readLimits(db, OWNER)).toEqual({ lessonSize: 3, dailyNew: 0, pauseAbove: 75 })
+    expect(await readLimits(db, OTHER)).toEqual(DEFAULT_LIMITS)
+  })
+
+  // ⚠️ The checks are a floor; the ceiling is the clamp's, on the way out too.
+  it('clamps a row that is wider than the form would have taken', async () => {
+    await client.exec(`
+      INSERT INTO study_setting (owner_id, lesson_size, daily_new, pause_above) VALUES ('${OWNER}', 150, 5000, 90000);
+    `)
+
+    expect(await readLimits(db, OWNER)).toEqual({ lessonSize: 20, dailyNew: 100, pauseAbove: 2000 })
+  })
+
+  it.each([
+    ['a lesson of none', 'lesson_size', 0],
+    ['a negative day', 'daily_new', -1],
+    ['a gate at nothing', 'pause_above', 0],
+  ])('refuses %s at the table', async (_, column, value) => {
+    await expect(client.exec(`
+      INSERT INTO study_setting (owner_id, ${column}) VALUES ('${OWNER}', ${value});
+    `)).rejects.toThrow(/study_setting_/)
+  })
+
+  it('refuses a kind of session that is neither', async () => {
+    await expect(client.exec(`
+      INSERT INTO review_session (owner_id, size, kind) VALUES ('${OWNER}', 1, 'cram');
+    `)).rejects.toThrow(/review_session_kind/)
   })
 })
 
@@ -721,7 +1168,8 @@ describe('the flag (`S9`, `04` §7.8)', () => {
     for (let index = 0; index < cards; index += 1)
       await acceptedCard(`${index}␟${index}`, { minutesAgo: cards - index })
 
-    return (await resumeOrCompose(db, OWNER, cards))!
+    // A lesson of the reader's own words: the run whose *grade* is a first one.
+    return (await lesson())!
   }
 
   /** A *note* with the run that generated it, so `04` §7.8 has three things to copy. */
@@ -918,7 +1366,7 @@ describe('the flag (`S9`, `04` §7.8)', () => {
 describe('a stamp the server cannot trust (`03` §8.2)', () => {
   async function run() {
     await acceptedCard('一␟いち')
-    return (await resumeOrCompose(db, OWNER, 1))!
+    return (await lesson())!
   }
 
   it('refuses a grade stamped an hour into the future, and writes nothing', async () => {
@@ -967,16 +1415,14 @@ describe('a stamp the server cannot trust (`03` §8.2)', () => {
   })
 })
 
-// ADR 0069 §2–§3: what the check is run against, and the reader's own additions.
-describe('accepted meanings and synonyms (ADR 0069)', () => {
+// ADR 0069 §3: what the check is run against. ⚠️ **Nothing adds a synonym since
+// ADR 0076 §5** — there is no manual override — and the ones stored before are
+// still read, so an answer that was accepted then is accepted now.
+describe('accepted meanings and stored synonyms (ADR 0069, ADR 0076 §5)', () => {
   async function session() {
     await acceptedCard('見る␟みる', { fields: { ...FIELDS, term: '見る', reading: 'みる', meaning: 'to see/have (a dream)' } })
 
-    return (await resumeOrCompose(db, OWNER, 1))!
-  }
-
-  async function noteOf(cardId: string): Promise<string> {
-    return (await one<{ noteId: string }>(`SELECT note_id AS "noteId" FROM card WHERE id = '${cardId}';`)).noteId
+    return (await lesson())!
   }
 
   it('hands the snapshot the note\'s list, and an empty one when there is none', async () => {
@@ -993,39 +1439,16 @@ describe('accepted meanings and synonyms (ADR 0069)', () => {
     expect((await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!.meanings).toEqual(['see', 'look', 'watch', 'view'])
   })
 
-  it('records a synonym against the note, for this reader, once however often it is replayed', async () => {
+  it('still hands over a synonym the reader stored before, and nobody else\'s', async () => {
     const run = await session()
-    const cardId = run.positions[0]!.cardId
-    const request = { sessionId: run.sessionId, cardId, text: 'look' }
+    const noteId = await noteOf(run.positions[0]!.cardId)
 
-    expect(await recordSynonym(db, OWNER, request)).toBe('ok')
-    expect(await recordSynonym(db, OWNER, request)).toBe('ok')
+    await client.exec(`
+      INSERT INTO meaning_synonym (owner_id, note_id, text) VALUES ('${OWNER}', '${noteId}', 'look');
+      INSERT INTO meaning_synonym (owner_id, note_id, text) VALUES ('${OTHER}', '${noteId}', 'gaze');
+    `)
 
-    expect(await count('meaning_synonym', `note_id = '${await noteOf(cardId)}' AND owner_id = '${OWNER}'`)).toBe(1)
     expect((await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!.synonyms).toEqual(['look'])
-    expect(await synonymCount(db, OWNER)).toBe(1)
-  })
-
-  // ⚠️ ADR 0069 §2 and ADR 0052: a synonym is the reader's, and it never
-  // touches the *note*.
-  it('leaves note.fields and note_meaning alone', async () => {
-    const run = await session()
-    const cardId = run.positions[0]!.cardId
-    const before = await one<{ fields: unknown }>(`SELECT fields FROM note WHERE id = '${await noteOf(cardId)}';`)
-
-    await recordSynonym(db, OWNER, { sessionId: run.sessionId, cardId, text: 'look' })
-
-    expect(await one<{ fields: unknown }>(`SELECT fields FROM note WHERE id = '${await noteOf(cardId)}';`)).toEqual(before)
-    expect(await count('note_meaning')).toBe(0)
-  })
-
-  it('refuses a card outside the reader\'s session, and counts nobody else\'s', async () => {
-    const run = await session()
-    const cardId = run.positions[0]!.cardId
-
-    expect(await recordSynonym(db, OTHER, { sessionId: run.sessionId, cardId, text: 'look' })).toBe('not_in_session')
-    expect(await count('meaning_synonym')).toBe(0)
-    expect(await synonymCount(db, OTHER)).toBe(0)
   })
 
   it('refuses an empty list and a blank synonym at the table', async () => {
@@ -1049,7 +1472,7 @@ describe('accepted meanings and synonyms (ADR 0069)', () => {
 describe('kanji readings at composition (ADR 0069 §5)', () => {
   it('hands the snapshot the term\'s kanji readings, without the word\'s own', async () => {
     await acceptedCard('夢␟ゆめ', { fields: { ...FIELDS, term: '夢', reading: 'ゆめ', meaning: 'dream' } })
-    const run = (await resumeOrCompose(db, OWNER, 1))!
+    const run = (await lesson())!
 
     const readings = (await snapshotOf(db, OWNER, run.sessionId))!.positions[0]!.kanjiReadings
 

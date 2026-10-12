@@ -17,13 +17,14 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { isAnswered, isFinished, mergeGrades, parseSnapshot, withSynonym } from '../../shared/review/snapshot'
+import { isAnswered, isFinished, mergeGrades, parseSnapshot } from '../../shared/review/snapshot'
 import type { ReviewSnapshot } from '../../shared/review/snapshot'
 
 const snapshot = (
   positions: { cardId: string, meaning: string, grade: 1 | 2 | 3 | 4 | null, flagged?: boolean }[],
 ): ReviewSnapshot => ({
   sessionId: '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b',
+  kind: 'review',
   size: positions.length,
   snapshotTakenAt: new Date('2026-09-12T09:00:00Z'),
   positions: positions.map((position, ordinal) => ({
@@ -34,6 +35,9 @@ const snapshot = (
     meanings: [],
     synonyms: [],
     kanjiReadings: [],
+    level: null,
+    stage: null,
+    outcome: null,
     grade: position.grade,
     flagged: position.flagged ?? false,
   })),
@@ -206,30 +210,45 @@ describe('reading a snapshot back out of storage (ADR 0014)', () => {
   })
 })
 
-// ADR 0069 §2: the one thing the screen adds to a held position.
-describe('withSynonym — a synonym joins the held run', () => {
-  it('adds it to its card and to nothing else', () => {
-    const held = withSynonym(snapshot([
-      { cardId: 'a', meaning: 'to see', grade: null },
-      { cardId: 'b', meaning: 'library', grade: null },
-    ]), 'a', 'look')
+// ADR 0076 §7 — where a word went is the server's to say, and the stage it
+// came with is not moved by the answer.
+describe('mergeGrades — the outcome moves with the grade, the stage stays', () => {
+  const withStage = (grade: 1 | 3 | null, stage: 'learning' | 'familiar' | null, outcome: { stage: 'learning' | 'familiar', due: string } | null) => {
+    const run = snapshot([{ cardId: 'a', meaning: 'library', grade }])
 
-    expect(held.positions.map(position => position.synonyms)).toEqual([['look'], []])
+    return { ...run, positions: run.positions.map(position => ({ ...position, stage, outcome })) }
+  }
+
+  it('takes the outcome the server recorded', () => {
+    const held = withStage(null, 'learning', null)
+    const fresh = withStage(3, 'learning', { stage: 'familiar', due: '2026-09-20T09:00:00.000Z' })
+
+    expect(mergeGrades(held, fresh).positions[0]).toMatchObject({
+      grade: 3,
+      stage: 'learning',
+      outcome: { stage: 'familiar', due: '2026-09-20T09:00:00.000Z' },
+    })
   })
 
-  it('adds the same one once', () => {
-    const once = withSynonym(snapshot([{ cardId: 'a', meaning: 'to see', grade: null }]), 'a', 'look')
+  // ⚠️ The summary says *up to Familiar* from the stage the reader came with.
+  // A later answer reads the stage after the grade, and installing it would
+  // turn every row into *stays*.
+  it('keeps the stage the reader came to the word with', () => {
+    const held = withStage(null, 'learning', null)
+    const fresh = withStage(3, 'familiar', { stage: 'familiar', due: '2026-09-20T09:00:00.000Z' })
 
-    expect(withSynonym(once, 'a', 'look').positions[0]!.synonyms).toEqual(['look'])
+    expect(mergeGrades(held, fresh).positions[0]!.stage).toBe('learning')
   })
 
-  it('survives a server answer, because the words stay held', () => {
-    const held = withSynonym(snapshot([{ cardId: 'a', meaning: 'to see', grade: null }]), 'a', 'look')
-    const fresh = snapshot([{ cardId: 'a', meaning: 'to see', grade: 3 }])
+  it('does not take an outcome back when a later answer has none', () => {
+    const held = withStage(3, 'learning', { stage: 'familiar', due: '2026-09-20T09:00:00.000Z' })
+    const fresh = withStage(null, 'learning', null)
 
-    expect(mergeGrades(held, fresh).positions[0]).toMatchObject({ grade: 3, synonyms: ['look'] })
+    expect(mergeGrades(held, fresh).positions[0]!.outcome).toEqual({ stage: 'familiar', due: '2026-09-20T09:00:00.000Z' })
   })
+})
 
+describe('a position from before a field existed is still the reader\'s place', () => {
   // ⚠️ A run held in `localStorage` from before #28 has neither field, and it
   // is still the reader's place.
   it('reads a stored position with no list and no synonyms as empty rather than malformed', () => {
@@ -255,5 +274,78 @@ describe('withSynonym — a synonym joins the held run', () => {
 
     expect(stored({})?.positions[0]?.kanjiReadings).toEqual([])
     expect(stored({ kanjiReadings: ['む', 'ぼう'] })?.positions[0]?.kanjiReadings).toEqual(['む', 'ぼう'])
+  })
+
+  // ⚠️ #70's four, the same way: a run held from before it is a review run of
+  // words with no level, no stage and no outcome.
+  it('reads a stored run with no kind as a review run, and a position with no stage as none', () => {
+    const parsed = parseSnapshot({
+      sessionId: 'a',
+      size: 1,
+      snapshotTakenAt: '2026-09-12T09:00:00.000Z',
+      positions: [{ ordinal: 0, cardId: 'a', templateKey: 'recognition', fields: { term: '夢' }, grade: null }],
+    })
+
+    expect(parsed?.kind).toBe('review')
+    expect(parsed?.positions[0]).toMatchObject({ level: null, stage: null, outcome: null })
+  })
+
+  it('keeps a lesson\'s kind, and a word\'s level, stage and outcome, when present', () => {
+    const parsed = parseSnapshot({
+      sessionId: 'a',
+      kind: 'lesson',
+      size: 1,
+      snapshotTakenAt: '2026-09-12T09:00:00.000Z',
+      positions: [{
+        ordinal: 0,
+        cardId: 'a',
+        templateKey: 'recognition',
+        fields: { term: '夢' },
+        grade: 3,
+        level: 'N4',
+        stage: 'familiar',
+        outcome: { stage: 'known', due: '2026-10-12T09:00:00.000Z' },
+      }],
+    })
+
+    expect(parsed?.kind).toBe('lesson')
+    expect(parsed?.positions[0]).toMatchObject({
+      level: 'N4',
+      stage: 'familiar',
+      outcome: { stage: 'known', due: '2026-10-12T09:00:00.000Z' },
+    })
+  })
+
+  it.each([
+    ['a kind that is neither', { kind: 'cram' }, 'review'],
+  ])('reads %s as a review run', (_, extra, kind) => {
+    const parsed = parseSnapshot({
+      sessionId: 'a',
+      size: 1,
+      snapshotTakenAt: '2026-09-12T09:00:00.000Z',
+      positions: [{ ordinal: 0, cardId: 'a', templateKey: 'recognition', fields: {}, grade: null }],
+      ...extra,
+    })
+
+    expect(parsed?.kind).toBe(kind)
+  })
+
+  it('drops a stage or an outcome that is not one, rather than the whole run', () => {
+    const parsed = parseSnapshot({
+      sessionId: 'a',
+      size: 1,
+      snapshotTakenAt: '2026-09-12T09:00:00.000Z',
+      positions: [{
+        ordinal: 0,
+        cardId: 'a',
+        templateKey: 'recognition',
+        fields: {},
+        grade: null,
+        stage: 'mastered',
+        outcome: { stage: 'mastered', due: 'soon' },
+      }],
+    })
+
+    expect(parsed?.positions[0]).toMatchObject({ stage: null, outcome: null })
   })
 })

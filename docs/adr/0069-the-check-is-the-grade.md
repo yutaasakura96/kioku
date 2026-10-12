@@ -8,6 +8,11 @@ three changes to the check itself: a word written only in kana has no reading st
 **list of accepted meanings** rather than one gloss, and a kanji's reading typed for a word's reading
 is a **retry**, not a miss.
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §5 (#70).** §2 is removed: there is no manual override, so
+nothing adds a synonym, and the `S` key, its outbox entry and its endpoint are deleted. The synonyms
+already stored are still accepted. §1, §3, §4 and §5 stand, with a queue in front of §1: a wrong
+answer is asked again, and the word is graded Forgot once it is right.
+
 This amends [ADR 0060](0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md) §3 and
 §5, and it overrides the part of [ADR 0016](0016-four-grades-and-no-same-day-relearning.md) that
 required all four *grades* to be emitted.

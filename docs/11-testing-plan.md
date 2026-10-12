@@ -96,6 +96,7 @@ about the export and it is true of all twelve.
 | **S5** Say no once | Stage 5 drops an already-*rejected* `identity_key` **before** stage 6 spends money (`03` §5.1); re-ingesting the same *source* asks about fewer *notes* | worker |
 | **S6** Fix before accepting | `Enter` commits and accepts with `edited = true`; an *accepted* note's fields are frozen — **in the `WHERE` of both write paths**, the app's and the worker's, each sabotaged to red (ADR 0052). ⚠️ **Amended 2026-09-18 by #23**: the *acceptance rate* half of this row is gone with the figure (ADR 0062), and `edited` is now written and read by nothing on `/stats` | unit + schema + nuxt + worker |
 | **S7** A session that ends | `review_session.size` rows in `review_session_card`, composed due-first; `snapshot_taken_at` is **server-side**; a graded *card* leaves and never returns; ⚠️ the end screen **never starts the next session** | schema + e2e |
+| **S7**, as ADR 0076 amended it (#70, 2026-10-12) | **Two kinds of run**: a review run holds due *cards* only and a lesson new words only, five at a time, ten a day, none at fifty due, each limit the reader's (`test/schema/review.test.ts`). **A lesson accepts and mints the starter words it holds** and never a rejected one. **A miss is asked again and still counts**: the question goes to the back, and the word is graded Forgot by the answer that finally gets it (`test/unit/review-quiz.test.ts`, `test/nuxt/review-quiz.test.ts`, and against the real scheduler in `test/e2e/review.test.ts`). **The tolerance limits**: exact under five letters, one edit for five to eight, two from nine, a reading exact (`test/unit/review-answer.test.ts`). **No key overrules a result.** *Finish early* grades a missed word Forgot in a review run and nothing in a lesson. ⚠️ The summary **never starts the next run**, and opening `/review` composes none | unit + schema + nuxt + e2e |
 | **S8** Not lose grades | ADR 0039's five properties, browser side. A *session* completed with the network off loses nothing when it returns | nuxt + e2e |
 | **S9** Catch a bad card | `X` does **four things in one transaction** (`04` §7.8): `card_flag` with `prompt_version` and `model_id` denormalised, `suspended_at`, `note_vetting.flagged_at`, advance without a *grade*. ⚠️ **History untouched** | schema |
 | **S10** The numbers | §3 in full | unit + schema |
@@ -474,6 +475,15 @@ asserted three times in three idioms:
 landing after a grade for a different *card*, and a harness that made the two one type would have
 erased the distinction the test exists to protect.
 
+⚠️ **Three entry types since 2026-10-12, and the third is not an answer** (ADR 0076 §6, #70):
+*Finish early* is a `finish` entry. `test/nuxt/review-outbox.test.ts` asserts it replays **behind**
+the Forgot *grades* it follows, that the summary does not count it as an unsent answer, and that a
+refused one is dropped rather than kept (property 5 is about answers). The `synonym` entry #28
+added is gone with the override. ⚠️ **And there is a third thing in the store**: the question queue,
+`kioku:review:quiz`. Property 4's reload test now also asserts that **a reload does not forgive a
+miss** (`test/nuxt/review-quiz.test.ts`). The three nuxt files share one fake server,
+`test/nuxt/support/review-server.ts`, so the run they describe is the same run.
+
 ⚠️ **Built 2026-09-12 with #13, and the browser half is two tiers rather than one.**
 `test/nuxt/review-outbox.test.ts` mounts `/review` against registered endpoints and asserts all five
 against `localStorage`; `test/e2e/review.test.ts` takes a real browser offline
@@ -671,6 +681,16 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   ([ADR 0054](adr/0054-the-skew-allowance-is-two-minutes-and-it-covers-both-of-8-2-s-rules.md)), so
   the test that matters most is the one asserting a **slightly slow** clock's opening *grade* is
   taken: an exact before-snapshot rule passes every other test in the file.
+- ⚠️ **The quiz**, added 2026-10-12 with #70 (ADR 0076) — four pure modules and a test file each.
+  `shared/review/quiz.ts`: which question is next, what a wrong answer does to the queue, when a
+  word is complete and with which *grade*, what *Finish early* grades, and how a stored queue is
+  made to agree with the run after a reload (`test/unit/review-quiz.test.ts`).
+  `shared/review/stage.ts`: the two thresholds and the summary's *up to Familiar · back in 9 days*
+  (`review-stage.test.ts`). `shared/review/limits.ts`: the three settings and their clamp
+  (`review-limits.test.ts`). `shared/review/offer.ts`: every sentence the screen before a run and
+  the summary's *What next* can say (`review-offer.test.ts`). The tolerance is in
+  `shared/review/answer.ts` and `review-answer.test.ts`, at each boundary: four, five, eight and
+  nine letters.
 - ⚠️ **The outbox**, added 2026-09-12 with #13 — `shared/review/outbox.ts` and
   `test/unit/review-outbox.test.ts`. Append, replay order, settle by `seq`, and what a resumed run
   inherits, as arithmetic over a list. **What is asserted hardest is an absence**: there is no

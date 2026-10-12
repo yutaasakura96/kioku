@@ -1,5 +1,5 @@
 // The two things `server/middleware/shell-data.ts` and
-// `server/middleware/submit-source.ts` hand to the three *places*, typed here in
+// `server/middleware/submit-source.ts` hand to the four *places*, typed here in
 // `server/types/`, which Nuxt scans for server-only types — the same place and
 // for the same reason as `session.d.ts` (`08` §6.2).
 
@@ -7,6 +7,7 @@ import type { RunRow, SourceDetail, SourceRow, StartBlockCounts } from '../utils
 import type { SeedDraft } from '../utils/ingest/seed'
 import type { SourceDeletion } from '../utils/ingest/delete'
 import type { StatsData } from '../utils/stats/queries'
+import type { StudyLimits } from '../../shared/review/limits'
 
 /**
  * A lazy reader over the *places*' data. Every member is a function: a `POST /`
@@ -33,6 +34,8 @@ interface PlaceReader {
    * cannot ask the client (ADR 0066 §4).
    */
   zone: () => Promise<string>
+  /** The reader's three study settings, the defaults when none is stored (ADR 0076 §2). */
+  limits: () => Promise<StudyLimits>
   /**
    * The delete confirmation's count — `10` §7.3. ⚠️ **The same predicate the
    * `POST` suspends by**, so the page cannot promise one number and do another.
@@ -95,7 +98,7 @@ export interface IngestFailure {
 declare module 'h3' {
   interface H3EventContext {
     /**
-     * Attached on `/`, `/sources` and `/stats`, for a reader with a session.
+     * Attached on `/`, `/sources`, `/stats` and `/settings`, for a reader with a session.
      *
      * ⚠️ `undefined` means either that this is not a *place* or that no session
      * resolved — the *place* renders its empty state rather than guessing.

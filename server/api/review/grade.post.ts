@@ -1,5 +1,7 @@
 /**
- * One *grade* — `1`, `2`, `3` or `4` (`S7`, ADR 0016, ADR 0034).
+ * One *grade* — `1`, `2`, `3` or `4` (`S7`, ADR 0016, ADR 0034). Since ADR 0076
+ * §4 the quiz sends one per word, when every question about it has been
+ * answered right: `3`, or `1` if any was missed.
  *
  * ⚠️ **The interface never waits on this** (`S8`, ADR 0007). The selected state
  * on the control is visible for exactly as long as it takes the next *card* to
@@ -23,16 +25,19 @@
  * tell them from a flush that simply did not arrive, because one is surfaced on
  * the end screen and the other is tried again (ADR 0039 property 5).
  */
+import { jlptVocab } from '../../../shared/subject/declaration'
+import { offerFilter } from '../../../shared/review/filter'
 import { parseGrade } from '../../../shared/review/request'
 import { recordGrade } from '../../utils/review/grade'
-import { brakeIfFinished } from '../../utils/review/session'
+import { offerIfFinished } from '../../utils/review/session'
 import { requireOwnerId } from '../../utils/reader'
 import { snapshotOf } from '../../utils/review/queries'
 import { useDatabase } from '../../db'
 
 export default defineEventHandler(async (event) => {
   const ownerId = requireOwnerId(event)
-  const parsed = parseGrade(await readBody(event))
+  const body = await readBody(event)
+  const parsed = parseGrade(body)
 
   if (!parsed.ok)
     throw createError({ statusCode: 400, statusMessage: parsed.code })
@@ -47,8 +52,8 @@ export default defineEventHandler(async (event) => {
   return {
     outcome: outcome.ok ? ('ok' as const) : outcome.reason,
     session,
-    // ⚠️ Only once the run is over — the end screen's sentence (ADR 0066 §7),
+    // ⚠️ Only once the run is over — the summary's *What next* (ADR 0076 §8),
     // read after the answers rather than at composition.
-    brake: await brakeIfFinished(db, ownerId, session),
+    offer: await offerIfFinished(db, ownerId, session, offerFilter(body, jlptVocab)),
   }
 })

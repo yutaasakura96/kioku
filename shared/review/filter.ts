@@ -66,6 +66,20 @@ export function parseSessionFilter(body: unknown, declaration: SubjectDeclaratio
   return { ok: true, filter: { domains, levels } }
 }
 
+/**
+ * The filter an answer carries, for the offer that comes back with the one
+ * that ends a run (ADR 0076 §8).
+ *
+ * ⚠️ **Never a refusal.** It narrows a count and nothing else, so an answer
+ * with no filter — one stored before answers carried any — or with one that
+ * is not legal is counted unfiltered rather than turned away with its *grade*.
+ */
+export function offerFilter(body: unknown, declaration: SubjectDeclaration): SessionFilter {
+  const parsed = parseSessionFilter(body, declaration)
+
+  return parsed.ok ? parsed.filter : NO_FILTER
+}
+
 /** The set, deduplicated in the order sent, or `null` for one that is not legal. */
 function valuesIn(value: unknown, legal: string[]): string[] | null {
   if (value === undefined || value === null)

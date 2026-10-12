@@ -1,5 +1,5 @@
 /**
- * Everything the three *places* read, in one module.
+ * Everything the four *places* read, in one module.
  *
  * ⚠️ **Every figure here is as of the instant it is read, and the screens say
  * so** (`09` §2, `10` §3.2). A *place* ships no JavaScript, so it cannot poll,
@@ -47,9 +47,9 @@ import { alias } from 'drizzle-orm/pg-core'
 
 import * as schema from '../../db/schema'
 import { flaggedCount } from '../vet/queries'
-import { newCards, readerZone, recentlyComposed } from '../review/queries'
+import { newCards, readerZone, recentlyComposed, unstartedNotes } from '../review/queries'
+import { readLimits } from '../review/settings'
 import { introducedToday, newOnOffer } from '../../../shared/review/brake'
-import { DAILY_NEW_CARDS } from '../../../shared/review/compose'
 import type { RunStatus } from '../../../shared/ingest/run-detail'
 import type { IngestDatabase } from './record'
 import { CURRENT_SUBJECT_ID, noteInCurrentSubject } from '../subject'
@@ -230,7 +230,7 @@ export interface StartBlockCounts {
   flagged: number
   /** `Review · N due` — due **now**, which is what the control offers to start. */
   due: number
-  /** `· N new` after it — what the brake would let today introduce (#33, `shared/review/brake.ts`). */
+  /** `Lesson · N new` — what the next lesson would teach (ADR 0076). */
   newToday: number
 }
 
@@ -275,16 +275,22 @@ export async function startBlockCounts(
 
   // ⚠️ #33: `Review · 0 due` read as nothing to do in front of 43 new *cards*
   // and an unspent day — the mirror of the 474 #20 took off *Vet*. The figure is
-  // the brake's, from the same reads the composition makes: `newCards`'
-  // predicate, and the day in the zone `/stats` uses, because a *place* has no
-  // client to ask (ADR 0020, #21). Sequential, as in `server/utils/review/`.
+  // the brake's, from the same reads a lesson's composition makes: `newCards`
+  // and then the words not started (ADR 0076 §1), the reader's own limits, and
+  // the day in the zone `/stats` uses, because a *place* has no client to ask
+  // (ADR 0020, #21). Sequential, as in `server/utils/review/`.
   const zone = await readerZone(db, ownerId)
   const now = new Date()
+  const limits = await readLimits(db, ownerId)
   const recent = await recentlyComposed(db, ownerId, now)
-  const waiting = await newCards(db, ownerId, DAILY_NEW_CARDS)
+  // ⚠️ Read up to the day's limit and no further: nothing past it changes the
+  // answer, and the starter set is eight thousand rows.
+  const own = await newCards(db, ownerId, limits.dailyNew)
+  const unstarted = await unstartedNotes(db, ownerId, limits.dailyNew - own.length)
   const newToday = newOnOffer(
     { introducedToday: introducedToday(recent, now, zone), dueCount: dueNow },
-    waiting.length,
+    own.length + unstarted.length,
+    limits,
   )
 
   return { flagged, due: dueNow, newToday }

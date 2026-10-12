@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// ADR 0065 §5 — the *session* filter, beside the *session*-size knob and in the
-// same three homes (`10` §5.8): the end screen and *Review*'s two non-terminal
-// empty states, **never mid-session**, because the run is snapshotted.
+// ADR 0065 §5 — the *session* filter, beside the *session*-size knob on the
+// screen before a run (`10` §5.8, ADR 0076 §8), **never mid-session**, because
+// the run is snapshotted.
 //
-// ⚠️ **It chooses which new *cards* are introduced and says so.** The due half
+// ⚠️ **It chooses which new words a lesson teaches and says so.** A review run
 // is never filtered — what is owed is owed — and a control that let the reader
 // believe otherwise would be the one lie on the screen.
 //
@@ -57,7 +57,7 @@ function toggle(group: { key: 'domains' | 'levels', values: string[] }, value: s
     </fieldset>
 
     <p class="aside">
-      New cards only. Every card that is due is still in the session, and nothing ticked means everything.
+      New words only. A lesson teaches from what is ticked, reviews are never filtered, and nothing ticked means everything.
     </p>
   </div>
 </template>

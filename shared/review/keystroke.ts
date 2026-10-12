@@ -2,29 +2,20 @@
  * *Review*'s key map, as pure functions over a keyboard event — the same seam
  * `shared/vet/keystroke.ts` is for the other *mode*.
  *
- * ⚠️ **Amended 2026-09-15 by
- * [ADR 0060](../../docs/adr/0060-review-is-answered-by-typing-and-the-check-proposes-the-grade.md):
- * *Review* is answered by typing.** The front is two steps, the reading and then
- * the meaning, each a text field whose `Enter` checks it. The back carries both
- * results and the four *grades* with one **proposed**: `Enter` commits the
- * proposal, `1`–`4` commit any *grade*, `X` flags. `space` no longer reveals,
- * because there is nothing left to reveal by hand. `Esc` leaves from anywhere.
- *
- * ⚠️ **Amended 2026-09-21 by
- * [ADR 0069](../../docs/adr/0069-the-check-is-the-grade.md) §1–§2: the check is
- * the *grade*.** The four controls are gone and **the digits commit nothing**.
- * `Enter` commits the check's *grade*; `S` adds a refused meaning as the
- * reader's synonym, after which the check runs again and `Enter` commits what it
- * says then. Whether `S` is offered is `synonymOffered`'s, not this map's.
+ * ⚠️ **Rewritten 2026-10-12 for
+ * [ADR 0076](../../docs/adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md).**
+ * The quiz is one question at a time: a text field whose `Enter` checks it, and
+ * then the result, where `Enter` is the *Next* control's own and `X` flags the
+ * word. **No key commits a *grade* and none changes a result** — the *grade* is
+ * what the answers were (ADR 0069 §1), and `S`, which added a synonym from #28
+ * until #70, is gone with the override it was (ADR 0076 §5). `Esc` is the
+ * screen's one way out from anywhere.
  *
  * ⚠️ **The map depends on the step, and that is the whole reason it is a seam.**
- * A *grade* is arithmetic that cannot be undone (ADR 0016, `03` §2.4), so a digit
- * pressed before the reader has answered must do nothing at all. While a field
- * has focus a digit is typing, not a command.
+ * While a field has focus every printable key is typing, not a command.
  *
- * ⚠️ **`X` is on the back only** (ADR 0060 §7). It was on both faces while the
- * front was the *term* alone; now the front is a text field, and an `x` there is
- * the first letter of a meaning.
+ * ⚠️ **`X` is on the result only** (ADR 0060 §7). While the question is open
+ * the focus is in a text field, and an `x` there is a letter of a meaning.
  *
  * ⚠️ **Grades are given by key or by pointer and never by swipe**
  * ([ADR 0036](../../docs/adr/0036-grade-by-swipe-is-refused-because-it-could-only-ever-be-additive.md)).
@@ -66,14 +57,12 @@ export interface ReviewKeystroke extends Keystroke {
   repeat: boolean
 }
 
-/** Where the reader is on one *card* (ADR 0060 §2). */
-export type ReviewStep = 'reading' | 'meaning' | 'back'
+/** Where the reader is on one question (ADR 0076 §3): typing, or reading the result. */
+export type ReviewStep = 'asking' | 'result'
 
 export type ReviewAction
-  = | { kind: 'commit' }
-    | { kind: 'synonym' }
-    | { kind: 'flag' }
-    | { kind: 'leave' }
+  = | { kind: 'flag' }
+    | { kind: 'exit' }
 
 /**
  * ADR 0034: the labels name recall, because this configuration cannot name a
@@ -97,37 +86,29 @@ function modified(event: Keystroke): boolean {
 }
 
 /**
- * The mode container's map.
+ * The mode container's map, in the quiz.
  *
- * @param fromField the event's target is one of the two answer fields. ⚠️ **The
- * container ignores those** (ADR 0060 §7) — `space`, `x` and the digits are
- * typing — except `Esc`, which leaves from anywhere.
+ * @param fromField the event's target is the answer field. ⚠️ **The container
+ * ignores those** (ADR 0060 §7) — every printable key is typing — except `Esc`,
+ * which is the way out from anywhere. In the quiz that is *Finish early*
+ * (ADR 0076 §6); what it does is the page's.
  */
 export function reviewAction(event: ReviewKeystroke, step: ReviewStep, fromField: boolean): ReviewAction | null {
   if (modified(event) || event.isComposing)
     return null
 
   if (event.key === 'Escape')
-    return { kind: 'leave' }
+    return { kind: 'exit' }
 
-  if (fromField || step !== 'back' || event.repeat)
+  if (fromField || step !== 'result' || event.repeat)
     return null
-
-  // ⚠️ **`Enter` commits the check's *grade* and never checks again.** The results are
-  // already on the back; a second `Enter` from the meaning field that fell
-  // through to here would grade a *card* the reader has not yet looked at, which
-  // is why the page moves focus to the container only after the back renders.
-  if (event.key === 'Enter')
-    return { kind: 'commit' }
 
   if (event.key === 'x' || event.key === 'X')
     return { kind: 'flag' }
 
-  if (event.key === 's' || event.key === 'S')
-    return { kind: 'synonym' }
-
-  // ⚠️ **The digits are not in the map at all** (ADR 0069 §1). A `3` on the
-  // back is nothing, rather than a *grade* the check did not give.
+  // ⚠️ **Nothing else is in the map** (ADR 0069 §1, ADR 0076 §5). `Enter` on
+  // the result is the *Next* control's own activation; a digit or an `S` is
+  // nothing, rather than a *grade* or a pass the check did not give.
   return null
 }
 
@@ -140,18 +121,24 @@ export function fieldAction(event: ReviewKeystroke): 'check' | null {
 }
 
 /**
- * The end screen — ⚠️ **starting another *session* is one deliberate action and
- * never automatic** (`S7`, `09` §4.7 step 7). `space` is safe here because the
- * key before it was a digit or `Enter` on the back: no reader arrives on this
- * screen with it held down.
+ * A held `Enter` must not answer twice. ⚠️ `Enter` on the field moves focus to
+ * the *Next* control, and the browser sends the auto-repeat of the same held
+ * key to wherever focus now is — which would skip a result the reader has not
+ * read. The control asks this before it lets a key activate it.
  */
-export function endScreenAction(event: Keystroke): 'start' | 'leave' | null {
+export function isHeldActivation(event: Keystroke & { repeat: boolean }): boolean {
+  return event.repeat && (event.key === 'Enter' || event.key === ' ')
+}
+
+/**
+ * Every screen of the *mode* that is not a question: the screen before a run,
+ * a lesson's teaching and the summary. ⚠️ **Starting a run is a control and
+ * never a key** (`S7`: one deliberate action, never automatic), so `Esc` is the
+ * only key here.
+ */
+export function restingAction(event: Keystroke): 'leave' | null {
   if (modified(event))
     return null
 
-  switch (event.key) {
-    case ' ': return 'start'
-    case 'Escape': return 'leave'
-    default: return null
-  }
+  return event.key === 'Escape' ? 'leave' : null
 }

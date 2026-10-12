@@ -1,7 +1,7 @@
 // The outbox — ADR 0039's five properties, at the seam where three of them are
 // arithmetic over a list rather than a thing a browser does.
 //
-// ⚠️ **Property 3 has to hold across two entry types in one stream** (`11`
+// ⚠️ **Property 3 has to hold across the entry types in one stream** (`11`
 // §6.3): the ordering that matters is a flag landing after a *grade* for a
 // **different** *card*, and a stream that made the two one type would have
 // nothing to assert. Half of this file is that one sentence.
@@ -22,7 +22,10 @@ const grade = (cardId: string, value: 1 | 2 | 3 | 4, reviewedAt = '2026-09-12T09
   ({ kind: 'grade', sessionId: SESSION, cardId, grade: value, reviewedAt }) as const
 
 const flag = (cardId: string) => ({ kind: 'flag', sessionId: SESSION, cardId }) as const
-const synonym = (cardId: string, text = 'look') => ({ kind: 'synonym', sessionId: SESSION, cardId, text }) as const
+const finish = () => ({ kind: 'finish', sessionId: SESSION }) as const
+
+/** A `finish` names a run and no *card* (ADR 0076 §6). */
+const cardOf = (entry: OutboxEntry) => (entry.kind === 'finish' ? null : entry.cardId)
 
 function stream(...drafts: Parameters<typeof append>[1][]): OutboxEntry[] {
   return drafts.reduce<OutboxEntry[]>((entries, draft) => append(entries, draft), [])
@@ -57,6 +60,15 @@ describe('append-only, and in order (ADR 0007, ADR 0039 property 3)', () => {
     expect(entries.map(entry => entry.kind === 'grade' && entry.grade)).toEqual([1, 4])
   })
 
+  // ⚠️ ADR 0076 §6: the run is not called finished while an answer in it is
+  // still on the way — the finish queues behind the *grades* it follows.
+  it('replays a finish behind the grades given before it', () => {
+    const entries = stream(grade('a', 3), grade('b', 1), finish())
+
+    expect(entries.map(entry => entry.kind)).toEqual(['grade', 'grade', 'finish'])
+    expect(head(settle(settle(entries, 1), 2))).toMatchObject({ kind: 'finish', sessionId: SESSION })
+  })
+
   it('appends without reading what is already there', () => {
     const before = stream(grade('a', 3))
     const after = append(before, flag('a'))
@@ -70,7 +82,7 @@ describe('settling — by seq, because the reader keeps answering', () => {
   it('removes the entry the server answered about and leaves the rest in order', () => {
     const entries = stream(grade('a', 3), grade('b', 2), flag('c'))
 
-    expect(settle(entries, 1).map(entry => entry.cardId)).toEqual(['b', 'c'])
+    expect(settle(entries, 1).map(cardOf)).toEqual(['b', 'c'])
   })
 
   // ⚠️ The failure this shape prevents: two more *grades* land behind the one in
@@ -79,7 +91,7 @@ describe('settling — by seq, because the reader keeps answering', () => {
     const inFlight = head(stream(grade('a', 3)))!
     const grown = stream(grade('a', 3), grade('b', 2), grade('c', 4))
 
-    expect(settle(grown, inFlight.seq).map(entry => entry.cardId)).toEqual(['b', 'c'])
+    expect(settle(grown, inFlight.seq).map(cardOf)).toEqual(['b', 'c'])
   })
 
   it('is a no-op for an entry that is already gone', () => {
@@ -99,13 +111,12 @@ describe('what a resumed run inherits (ADR 0039 property 4, ADR 0014)', () => {
     expect(answers.get('b')).toBe('flagged')
   })
 
-  // ⚠️ ADR 0069 §2: a synonym answers nothing. Read as an answer, a reload
-  // would skip its *card* as if it had been flagged.
-  it('does not answer a card whose only entry is a synonym', () => {
-    const answers = unsentAnswers(stream(synonym('a'), grade('b', 3)), SESSION)
+  // ⚠️ ADR 0076 §6: *Finish early* answers nothing. It is about the run, and
+  // the Forgot for each missed word is its own entry ahead of it.
+  it('answers no card for a finish', () => {
+    const answers = unsentAnswers(stream(grade('b', 1), finish()), SESSION)
 
-    expect(answers.has('a')).toBe(false)
-    expect(answers.get('b')).toBe(3)
+    expect([...answers.entries()]).toEqual([['b', 1]])
   })
 
   it('takes the later entry when one card has two', () => {
@@ -129,7 +140,7 @@ describe('what a resumed run inherits (ADR 0039 property 4, ADR 0014)', () => {
 
 describe('reading the stream back out of storage', () => {
   it('round-trips through JSON', () => {
-    const entries = stream(grade('a', 3), flag('b'), synonym('c'), grade('c', 3))
+    const entries = stream(grade('a', 3), flag('b'), grade('c', 1), finish())
 
     expect(parseOutbox(JSON.parse(JSON.stringify(entries)))).toEqual(entries)
   })
@@ -140,7 +151,7 @@ describe('reading the stream back out of storage', () => {
     const entries = stream(grade('a', 3), flag('b'))
     const damaged = [{ seq: 0, kind: 'grade', sessionId: SESSION }, ...entries]
 
-    expect(parseOutbox(damaged).map(entry => entry.cardId)).toEqual(['a', 'b'])
+    expect(parseOutbox(damaged).map(cardOf)).toEqual(['a', 'b'])
   })
 
   it.each([
@@ -148,7 +159,10 @@ describe('reading the stream back out of storage', () => {
     ['a stamp that is not a date', { seq: 1, kind: 'grade', sessionId: SESSION, cardId: 'a', grade: 3, reviewedAt: 'yesterday' }],
     ['an entry kind nothing sends', { seq: 1, kind: 'undo', sessionId: SESSION, cardId: 'a' }],
     ['no sequence number', { kind: 'flag', sessionId: SESSION, cardId: 'a' }],
-    ['a synonym with no text', { seq: 1, kind: 'synonym', sessionId: SESSION, cardId: 'a', text: ' ' }],
+    // ⚠️ An entry written before #70 removed the override (ADR 0076 §5): it
+    // has no endpoint any more, and held at the head it would block the stream.
+    ['a synonym, which nothing sends any more', { seq: 1, kind: 'synonym', sessionId: SESSION, cardId: 'a', text: 'look' }],
+    ['a finish that names no run', { seq: 1, kind: 'finish' }],
   ])('refuses %s', (_, entry) => {
     expect(parseOutbox([entry])).toEqual([])
   })

@@ -19,7 +19,7 @@
 // ⚠️ **No threshold is asserted here either** (ADR 0037). The seeded retention
 // is 75% because a fixture needs a number, and nothing below says 75 is good.
 //
-// ⚠️ **That the three *places* ship no `<script>` while signed in is
+// ⚠️ **That the four *places* ship no `<script>` while signed in is
 // `test/e2e/ingest.test.ts`'s** — #6 paid `11` §6.1's debt there and `/stats` is
 // in its list. It is not re-asserted here.
 
@@ -314,8 +314,9 @@ describe('the start block — `10` §3.2, amended by #33', () => {
     }
   })
 
-  it('reads Review · 0 due · 3 new', async () => {
+  it('reads Review · 0 due and Lesson · 3 new', async () => {
     const text = (await stats()).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
-    expect(text).toContain('Review · 0 due · 3 new')
+    expect(text).toContain('Review · 0 due')
+    expect(text).toContain('Lesson · 3 new')
   })
 })

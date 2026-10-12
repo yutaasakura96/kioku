@@ -1,31 +1,35 @@
 /**
- * `09` §4.7 steps 2 and 3 — the run the reader is in, or a new one.
+ * `09` §4.7 — the run the reader is in, the one they asked to start, and what
+ * is waiting.
  *
  * ⚠️ **A `POST`, and never a `GET`, because it writes.** Composing a *session*
- * inserts `review_session` and `size` rows of `review_session_card`; a `GET`
- * that writes is actioned by a prefetch, a back button or a link preview, and
- * this one would compose a run nobody asked for and then answer the reader's
- * real request with the leftovers. `10` §6.2's resume control carries the same
- * argument for the same reason.
+ * inserts `review_session` and its positions, and a lesson accepts and mints the
+ * words it starts; a `GET` that writes is actioned by a prefetch, a back button
+ * or a link preview, and this one would start a lesson nobody asked for.
  *
- * ⚠️ **Resume and compose are one endpoint on purpose.** The alternative — a
+ * ⚠️ **It composes only when `start` names a kind** (ADR 0076 §1, §8). With no
+ * `start` it resumes a live run or answers `session: null` with the offer —
+ * which is the screen before a run. ⚠️ Until #70 the mount composed: opening
+ * `/review` was the action. A lesson spends the day's allowance by being
+ * composed (ADR 0066 §3), so opening a page must not be one.
+ *
+ * ⚠️ **Resume and start are one endpoint on purpose.** The alternative — a
  * `GET` that reports and a `POST` that composes — is two round trips on the only
  * screen in the app with a latency criterion (`03` §8), and the decision between
  * them is the server's: `09` §4.7 says *session* size is never set mid-session,
  * so a client that chose would be choosing with the one fact it does not have.
  *
  * ⚠️ **The answer is the whole *session*, prefetched as a unit** (`S8`,
- * ADR 0007). Every *card*'s fields travel with it, so the run is decided once
- * and the interface never asks the network for the next *card* — which is what
- * makes a *session* answerable underground, and what makes PRD §5's "the
+ * ADR 0007). Every word's fields travel with it, so the run is decided once
+ * and the interface never asks the network for the next question — which is
+ * what makes a *session* answerable underground, and what makes PRD §5's "the
  * snapshot wins" a mechanism rather than a promise.
  */
 import { jlptVocab } from '../../../shared/subject/declaration'
-import { nothingToStudy } from '../../utils/review/queries'
 import { parseSessionFilter } from '../../../shared/review/filter'
-import { parseSessionSize } from '../../../shared/review/request'
+import { parseSessionSize, parseStart } from '../../../shared/review/request'
 import { requireOwnerId } from '../../utils/reader'
-import { brakeReading, resumeOrCompose } from '../../utils/review/session'
+import { offerOf, resumeOrStart } from '../../utils/review/session'
 import { canonicalZone, resolveZone } from '../../../shared/time/local-day'
 import { useDatabase } from '../../db'
 
@@ -39,8 +43,12 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event).catch(() => undefined)
   const size = parseSessionSize(body)
 
+  const start = parseStart(body)
+  if (!start.ok)
+    throw createError({ statusCode: 400, statusMessage: start.code })
+
   // ⚠️ **A filter naming a value the *subject* does not declare is refused, not
-  // dropped** (ADR 0065 §2): dropped, it would compose an unfiltered run the
+  // dropped** (ADR 0065 §2): dropped, it would start an unfiltered lesson the
   // reader did not ask for.
   const filter = parseSessionFilter(body, jlptVocab)
   if (!filter.ok)
@@ -52,20 +60,13 @@ export default defineEventHandler(async (event) => {
   // hours, and a *session* that would not start over it would be the brake
   // taking the run away.
   const zone = canonicalZone((body as Record<string, unknown> | undefined)?.zone)
-  const session = await resumeOrCompose(db, ownerId, size, filter.filter, zone)
+  const session = await resumeOrStart(db, ownerId, { start: start.start, size, filter: filter.filter, zone })
 
   return {
     session,
-    // ADR 0066 §7 — which brake is on, counted after the run so the run's own
-    // new *cards* are in it. Always, because the end screen and the third
-    // empty state read it.
-    brake: await brakeReading(db, ownerId, resolveZone(zone)),
-    // ⚠️ Only when there is no *session*, and it is what tells `10` §5.7's three
-    // empty states apart: *nothing ever accepted* points the reader at *Vet*,
-    // *nothing due* names the instant the next *card* comes back, and *no new
-    // words today* says the brake held them back (ADR 0066 §7). One is a dead
-    // end and the others are a tomorrow, and a single "nothing to review" would
-    // send a reader with four hundred *cards* to go and paste more text.
-    empty: session ? null : await nothingToStudy(db, ownerId),
+    // ADR 0076 §8 — what is waiting, counted after the run so that a lesson's
+    // own words are in the day (ADR 0066 §7). Always: the screen before a run
+    // is made of it, and so is the summary's *What next*.
+    offer: await offerOf(db, ownerId, resolveZone(zone), filter.filter),
   }
 })

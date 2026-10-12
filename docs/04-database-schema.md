@@ -150,6 +150,7 @@ of who is asking. *Personal* is a statement about one reader.
 | `review_session` | **personal** | `owner_id` | One reader's bounded run |
 | `review_session_card` | **personal** | `owner_id` | The snapshot's membership |
 | `card_flag` | **personal** | `owner_id` | A judgement that a card is wrong |
+| `study_setting` | **personal** | `owner_id` | How much one reader wants to be new each day (ADR 0076 §2, §7.10) |
 
 ⚠️ **A column that references a user does not make an entity personal.** `ingestion.submitted_by` and
 `job.requested_by` exist for the audit line and are nullable; the label asks what the row *asserts*,
@@ -1067,6 +1068,15 @@ Drizzle, which is still one migration owner (`03` §4.2).
 | `completed_at` | `timestamptz` | yes | — | Null means abandoned; the end screen's numbers only exist for a completed run |
 | `new_count` | `integer` | no | `0` | `CHECK (new_count >= 0 AND new_count <= size)`. New *cards* this run put in front of the reader, **written by the composition** — the day's allowance is `10 - sum(new_count)` over today's runs (ADR 0066 §3) |
 | `zone` | `text` | yes | — | The IANA zone the client sent, canonicalised, or null when it sent none. `/stats` reads the newest (ADR 0066, amended by #21) |
+| `kind` | `text` | no | `'review'` | `CHECK (kind IN ('review','lesson'))`. A review run is due *cards* only; a lesson is new words only (ADR 0076 §1) |
+
+⚠️ **`kind` added 2026-10-12 with #70** ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)),
+migration `0013_lessons`, additive: a run composed before it is `'review'` by the default, which is
+what every one of them was closest to. ⚠️ **Since then `new_count` is the whole of a lesson and `0`
+for a review run**, and the allowance is the reader's `daily_new` (§7.10) less the day's sum, where
+this table's note above says ten. ⚠️ **`completed_at` is also stamped by *Finish early***
+(`POST /api/review/finish`), with positions still unanswered: *null means abandoned* still holds,
+and *completed* no longer means every position has an answer.
 
 ⚠️ **Added 2026-09-18 with #21** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md)), migration
 `0005_review_brake`. ⚠️ **`new_count` is not derivable from first *scheduling epochs*** — an epoch is
@@ -1199,6 +1209,35 @@ reader added as their own synonym with `S` on the back of the *card*.
 a second signal, and a second identical synonym is the same fact. **There is no synonym for a
 reading.** `count(*)` here is ADR 0069's revisit signal (`synonymCount`,
 `server/utils/review/synonym.ts`); it is not on `/stats`.
+
+⚠️ **Nothing writes this table since 2026-10-12** ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§5, #70): there is no manual override, and `S`, the outbox entry, `/api/review/synonym` and
+`server/utils/review/synonym.ts` are deleted. **The table and its rows stay, and `snapshotOf` still
+reads them**, so a meaning that was accepted before is still accepted. `S12`'s export still carries
+them.
+
+### 7.10 `study_setting`
+
+⚠️ **Added 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70), migration
+`0013_lessons`.** [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§2: the three numbers ADR 0066 made constants, as one reader's settings.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `owner_id` | `text` | no | — | PK. → `auth."user".id`, `RESTRICT` |
+| `lesson_size` | `integer` | no | `5` | `CHECK (lesson_size > 0)`. New words a lesson teaches |
+| `daily_new` | `integer` | no | `10` | `CHECK (daily_new >= 0)`. New words a local day; `0` stops them |
+| `pause_above` | `integer` | no | `50` | `CHECK (pause_above > 0)`. No new words while this many or more are due |
+| `updated_at` | `timestamptz` | no | `now()` | |
+
+**One row a reader, and none until they save.** A reader with no row has the defaults, which are
+ADR 0066's numbers, so nothing is written on a read. ⚠️ **The checks are a floor and the ceiling is
+the clamp's** (`shared/review/limits.ts`: 1 to 20, 0 to 100, 1 to 2,000): the floor is what a lesson
+of nothing or a negative day would break, and the ceiling is a product choice. `readLimits` clamps on
+the way out as well, so every reader of this table goes through it
+(`server/utils/review/settings.ts`).
+
+**Example:** `('usr_7f…', 5, 10, 50, 2026-10-12T07:00:00Z)` is a reader who saved the defaults.
 
 ---
 

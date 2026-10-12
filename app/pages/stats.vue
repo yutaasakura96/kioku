@@ -19,7 +19,7 @@
 // document. There is nothing to poll with and nothing to disable.
 //
 // ⚠️ **Every figure is as of this page load and the *shell* says so** (`09` §2).
-// The line lives in `StartBlock.vue` and is the same sentence on all three
+// The line lives in `StartBlock.vue` and is the same sentence on all four
 // *places*; nothing here caches, because the request *is* the instant.
 //
 // ⚠️ **`S12`'s export is a plain `<a>`, and that is the specification**

@@ -1,26 +1,27 @@
-// *Review* in a browser — `S7` end to end, and `11` §6.2's behavioural proxy on
-// the second *mode*.
+// *Review* in a browser — `S7` end to end as ADR 0076 left it, and `11` §6.2's
+// behavioural proxy on the second *mode*.
 //
-// Three properties are only observable here:
+// What is only observable here:
 //
 // - ⚠️ **The key handlers bind to the mode container, never to `document`**
 //   (ADR 0025, `10` §4.1). `11` §6.2 says where a listener lives is not
 //   assertable — `getEventListeners` is a DevTools API, inspecting Vue
 //   internals tests the framework's shape — so the assertion is the behaviour
-//   that distinguishes the two bindings: with focus on the Done control, which
+//   that distinguishes the two bindings: with focus on the exit control, which
 //   is outside the container, a keystroke changes nothing. **It is a proxy and
-//   it is written down as one**; if Done is ever moved inside the container this
-//   test needs re-thinking rather than re-running.
-// - ⚠️ **The *session* is composed server-side and prefetched as a unit**, so
-//   the whole run is in the document before the first keystroke — which is what
-//   `S8` is built on.
-// - ⚠️ **A digit before the *card* turns does nothing.** A *grade* is arithmetic
-//   that cannot be undone (`03` §2.4) and there is no `Z` on this screen, so the
-//   one input that would permanently answer a question the reader has not been
-//   shown is the one this asserts is inert. Since ADR 0060 the front is a text
-//   field, so the digit is typed rather than ignored.
+//   it is written down as one**; if the exit is ever moved inside the container
+//   this test needs re-thinking rather than re-running.
+// - ⚠️ **The run is composed server-side and prefetched as a unit**, so the
+//   whole of it is in the document before the first keystroke — which is what
+//   `S8` is built on. A lesson is composed by the reader's own act: the start
+//   block's link, taken out of the address once it is read.
+// - ⚠️ **No key gives a *grade*.** A *grade* is arithmetic that cannot be
+//   undone (`03` §2.4), and since ADR 0076 it is what the answers were: a digit
+//   is typed into the field or does nothing at all.
 // - ⚠️ **Romaji becomes hiragana as it is typed** (ADR 0060 §2). `wanakana`'s
 //   `bind` works on real `input` events, and this is the tier that has them.
+// - ⚠️ **A miss is asked again and still counts** (ADR 0076 §4), against a real
+//   scheduler: the word is graded Forgot by the answer that finally gets it.
 
 import { fileURLToPath } from 'node:url'
 import { createPage, setup, url } from '@nuxt/test-utils/e2e'
@@ -54,14 +55,18 @@ const FIELDS = {
 }
 
 /**
- * One accepted *note* and the *card* it minted.
+ * One accepted *note* and the *card* it minted — a new word, which a lesson
+ * teaches.
  *
  * ⚠️ **Nothing in this file deletes a `review_log` row, and nothing can**:
  * `04` §7.5's trigger refuses the `DELETE`, which is the point of the table
- * (ADR 0011). So the two runs below take a *card* each rather than sharing one
- * and cleaning up between them — which is § Carrying's "a committed
- * `review_log` row poisons every later test in the session", met in the tier
- * where it bites.
+ * (ADR 0011). So the runs below take a *card* each rather than sharing one and
+ * cleaning up between them — which is § Carrying's "a committed `review_log`
+ * row poisons every later test in the session", met in the tier where it bites.
+ *
+ * ⚠️ **And every run leaves its words graded or flagged**, because a new word
+ * that was not got right is taught again (ADR 0076 §1) and would join the next
+ * describe's lesson.
  */
 async function acceptedCard(key: string, fields: Record<string, string> = FIELDS): Promise<string> {
   const note = await database.client.query<{ id: string }>(`
@@ -84,6 +89,19 @@ async function acceptedCard(key: string, fields: Record<string, string> = FIELDS
   return card.rows[0]!.id
 }
 
+/** The same, already scheduled and a day overdue — what a review run holds. */
+async function dueCard(key: string): Promise<string> {
+  const cardId = await acceptedCard(key)
+
+  await database.client.exec(`
+    INSERT INTO scheduling_epoch
+      (card_id, owner_id, ordinal, due, stability, difficulty, scheduled_days, reps, lapses, state)
+    VALUES ('${cardId}', '${reader.userId}', 1, now() - interval '1 day', 12.5, 5.2, 12, 4, 0, 2);
+  `)
+
+  return cardId
+}
+
 beforeAll(async () => {
   await database.client.exec(`
     DELETE FROM review_session_card;
@@ -98,29 +116,21 @@ beforeAll(async () => {
   await acceptedCard('図書館␟としょかん')
 })
 
-async function grades(): Promise<number> {
-  const result = await database.client.query<{ n: number }>(
-    'SELECT count(*)::int AS n FROM review_log;',
-  )
+async function scalar(sql: string): Promise<number> {
+  const result = await database.client.query<{ n: number }>(sql)
   return result.rows[0]!.n
 }
 
-async function flagRows(): Promise<number> {
-  const result = await database.client.query<{ n: number }>(
-    'SELECT count(*)::int AS n FROM card_flag;',
-  )
-  return result.rows[0]!.n
-}
+const grades = () => scalar('SELECT count(*)::int AS n FROM review_log;')
+const flagRows = () => scalar('SELECT count(*)::int AS n FROM card_flag;')
+const sessions = (where = 'true') => scalar(`SELECT count(*)::int AS n FROM review_session WHERE ${where};`)
 
-async function sessions(where = 'true'): Promise<number> {
-  const result = await database.client.query<{ n: number }>(
-    `SELECT count(*)::int AS n FROM review_session WHERE ${where};`,
-  )
-  return result.rows[0]!.n
+async function latestRating(): Promise<number> {
+  return scalar('SELECT rating AS n FROM review_log ORDER BY received_at DESC LIMIT 1;')
 }
 
 /** A browser tab carrying the session cookie `test/e2e/session.ts` forged. */
-async function openReview() {
+async function openReview(start: 'lesson' | 'review' | null, ready: string) {
   const page = await createPage()
   const [name, ...rest] = reader.cookie.split('=')
 
@@ -131,128 +141,217 @@ async function openReview() {
     path: '/',
   }])
 
-  await page.goto(url('/review?from=/sources'), { waitUntil: 'networkidle' })
-  // The *term* is the last thing to arrive: `ssr: false` means the document is
-  // an app shell, so waiting for it is waiting for the *session* to compose.
-  await page.locator('.term').waitFor()
+  const query = start ? `start=${start}&from=/sources` : 'from=/sources'
+  await page.goto(url(`/review?${query}`), { waitUntil: 'networkidle' })
+  // `ssr: false` means the document is an app shell, so waiting for the run's
+  // first word is waiting for it to compose.
+  await page.locator(ready).waitFor()
 
   return page
 }
 
 type Page = Awaited<ReturnType<typeof openReview>>
 
-/** ADR 0060 §2: the reading, then the meaning, each checked by `Enter`. */
-async function turn(page: Page, reading = 'toshokan', meaning = 'library') {
-  await page.locator('#answer-reading:focus').waitFor()
-  await page.keyboard.type(reading)
-  await page.keyboard.press('Enter')
-  await page.locator('#answer-meaning:focus').waitFor()
-  await page.keyboard.type(meaning)
-  await page.keyboard.press('Enter')
-  await page.locator('.value.meaning').waitFor()
+/** A lesson, opened the way the start block opens one, on its first word. */
+const openLesson = () => openReview('lesson', '.lesson .term')
+
+/** Through the teaching: *Next word* until the last, then *Quiz me*. */
+async function throughTeaching(page: Page, words: number) {
+  for (let index = 1; index < words; index += 1)
+    await page.getByRole('button', { name: 'Next word' }).click()
+
+  await page.getByRole('button', { name: /^Quiz me/ }).click()
+  await page.locator('.quizcard input:focus').waitFor()
 }
 
+/** One answer, typed and checked with `Enter` — the field has the focus. */
+async function answer(page: Page, text: string) {
+  await page.locator('.quizcard input:focus').waitFor()
+  await page.keyboard.type(text)
+  await page.keyboard.press('Enter')
+}
+
+/** *Next*, by the key: the result took the focus to the one control. */
+async function next(page: Page) {
+  await page.locator('.quizcard button:focus', { hasText: 'Next' }).waitFor()
+  await page.keyboard.press('Enter')
+}
+
+async function verdict(page: Page): Promise<string> {
+  await page.locator('.quizcard button', { hasText: 'Next' }).waitFor()
+  return (await page.locator('.fb .verdict').textContent()) ?? ''
+}
+
+const asked = (page: Page) => page.locator('.quizcard .ask b').textContent()
+
 describe('the key handlers bind to the mode container', () => {
-  it('does nothing while focus is on the Done control, and acts when it is back', async () => {
-    const page = await openReview()
+  it('does nothing while focus is on the exit control', async () => {
+    const page = await openLesson()
 
     expect(await grades()).toBe(0)
 
-    await turn(page)
+    await throughTeaching(page, 1)
+    await page.locator('.modebar .count').evaluate(element => { element.textContent = '200 of 200 words' })
+    await page.setViewportSize({ width: 320, height: 700 })
+    const narrow = await page.evaluate(() => {
+      const bar = document.querySelector('.modebar')!
+      const parts = ['.name', '.track', '.count', '.exit'].map(selector => bar.querySelector(selector)!.getBoundingClientRect())
+      const bounds = bar.getBoundingClientRect()
+      return {
+        contained: parts.every(part => part.left >= bounds.left && part.right <= bounds.right),
+        separated: parts.every((part, index) => parts.slice(index + 1).every(other =>
+          part.right <= other.left || other.right <= part.left || part.bottom <= other.top || other.bottom <= part.top)),
+        firstRow: parts[0]!.bottom > parts[3]!.top && parts[3]!.bottom > parts[0]!.top,
+        secondRow: parts[1]!.bottom > parts[2]!.top && parts[2]!.bottom > parts[1]!.top,
+        ordered: Math.min(parts[1]!.top, parts[2]!.top) >= Math.max(parts[0]!.bottom, parts[3]!.bottom),
+        scrollWidth: document.documentElement.scrollWidth,
+      }
+    })
+    expect(narrow.contained).toBe(true)
+    expect(narrow.separated).toBe(true)
+    expect(narrow.firstRow).toBe(true)
+    expect(narrow.secondRow).toBe(true)
+    expect(narrow.ordered).toBe(true)
+    expect(narrow.scrollWidth).toBeLessThanOrEqual(320)
 
-    // ⚠️ `x` and not `Enter`: `Enter` on a focused link follows it, which is
-    // the link's behaviour and proves nothing about where the handler lives.
-    await page.getByRole('link', { name: /Done/ }).focus()
+    await page.setViewportSize({ width: 390, height: 700 })
+    const wideRow = await page.evaluate(() => {
+      const parts = ['.name', '.track', '.count', '.exit'].map(selector => document.querySelector(`.modebar ${selector}`)!.getBoundingClientRect())
+      return Math.max(...parts.map(part => part.top)) < Math.min(...parts.map(part => part.bottom))
+    })
+    expect(wideRow).toBe(true)
+
+    await answer(page, 'library')
+    expect(await verdict(page)).toBe('Correct')
+
+    // ⚠️ `x` and not `Enter`: `Enter` on a focused control activates it, which
+    // is the control's behaviour and proves nothing about where the handler
+    // lives. The result is on screen, which is the one step `X` is a key on.
+    await page.getByRole('button', { name: 'Finish early' }).focus()
     await page.keyboard.press('x')
     await page.waitForTimeout(250)
 
     // A `document`-bound handler passes that through.
     expect(await flagRows(), 'a keystroke acted while focus was outside the mode container').toBe(0)
-    expect(await page.locator('.value.meaning').count(), 'the card moved on from outside the container').toBe(1)
+    expect(await page.locator('.fb.ok').count(), 'the word moved on from outside the container').toBe(1)
 
-    await page.locator('.container').focus()
-    await page.keyboard.press('Enter')
+    // Back inside, the word is finished and graded — the offline run below is
+    // where `X` is pressed with the focus where it belongs.
+    await page.locator('.quizcard button').focus()
+    await next(page)
+    await answer(page, 'toshokan')
     await expect.poll(grades, { timeout: 5_000 }).toBe(1)
 
     await page.close()
   })
 })
 
-describe('one session, from the rail to the end screen', () => {
-  // A second *card*, because the first run graded the first one and a graded
-  // *card* is a day out (ADR 0016) — so this composes a run of exactly one.
+describe('one lesson, from the teaching to the summary', () => {
+  // A second new word, because the first run graded the first one and a graded
+  // word is a day out (ADR 0016) — so this composes a lesson of exactly one.
   beforeAll(async () => {
     await acceptedCard('会議␟かいぎ')
   })
 
-  it('answers by typing, commits the check\'s grade, and ends without starting another', async () => {
-    const page = await openReview()
+  it('teaches, quizzes by typing, grades by the answers, and ends without starting another', async () => {
+    const page = await openLesson()
 
-    // ⚠️ The rail is the header and the only progress indicator in the app
-    // (`10` §5.2). Its length is `review_session.size`, which is what there was
-    // to study rather than what the knob asked for.
-    expect(await page.locator('.tick').count()).toBe(1)
+    // ⚠️ The link's `start` is taken out of the address once it is read: left
+    // there, a reload would start the next lesson and spend the day on it.
+    await expect.poll(() => page.url(), { timeout: 5_000 }).not.toContain('start=')
+    expect(page.url()).toContain('from=/sources')
 
-    // ⚠️ **A digit before the *card* turns does nothing** — it is typed into
-    // the field, and a *grade* cannot be taken back.
+    // The teaching: the word with its answers, and no question yet.
+    expect(await page.locator('.modebar .count').textContent()).toBe('word 1 of 1')
+    expect(await page.locator('.lesson .reading').textContent()).toContain('としょかん')
+    expect(await page.locator('.lesson .meaning').textContent()).toContain('library')
+    expect(await page.locator('.quizcard').count()).toBe(0)
+
     const before = await grades()
-    await page.locator('#answer-reading:focus').waitFor()
+
+    // ⚠️ `Enter` on the teaching's own control — it has the focus — starts the quiz.
+    await page.locator('.rowbtns .btn:focus').waitFor()
+    await page.keyboard.press('Enter')
+    await page.locator('.quizcard input:focus').waitFor()
+
+    // The question shows the word and neither answer.
+    expect(await asked(page)).toBe('Meaning')
+    expect(await page.locator('.quizcard').textContent()).not.toContain('としょかん')
+
+    // ⚠️ **A digit is typed, not obeyed** — a *grade* cannot be taken back.
     await page.keyboard.press('4')
     await page.keyboard.press(' ')
     await page.waitForTimeout(250)
-    expect(await grades(), 'a grade was recorded before the answer was shown').toBe(before)
-    expect(await page.locator('.value.meaning').count()).toBe(0)
-    await page.locator('#answer-reading').fill('')
+    expect(await grades(), 'a grade was recorded before an answer was given').toBe(before)
+    expect(await page.locator('.quizcard input').inputValue()).toBe('4 ')
+    await page.locator('.quizcard input').fill('')
+
+    await answer(page, 'the library')
+    expect(await verdict(page)).toBe('Correct')
+
+    // ⚠️ **No key overrules or commits anything** (ADR 0076 §5): a `1` or an
+    // `s` on the result is nothing.
+    await page.keyboard.press('1')
+    await page.keyboard.press('s')
+    await page.waitForTimeout(250)
+    expect(await grades(), 'a key gave a grade the answers did not').toBe(before)
+    expect(await page.locator('.fb.ok').count()).toBe(1)
+
+    await next(page)
+    expect(await asked(page)).toBe('Reading')
 
     // ⚠️ `bind` converts as the reader types, in a real browser — and holds a
     // trailing `n` until the next key, because `na` and `ん` both start with it.
     // `Enter` arrives on `としょかn`, and the fold is what finishes it.
+    await page.locator('.quizcard input:focus').waitFor()
     await page.keyboard.type('toshokan')
-    expect(await page.locator('#answer-reading').inputValue()).toBe('としょかn')
+    expect(await page.locator('.quizcard input').inputValue()).toBe('としょかn')
     await page.keyboard.press('Enter')
-    expect(await page.locator('.given .verdict').first().textContent()).toBe('Right')
-    await page.locator('#answer-meaning:focus').waitFor()
-    await page.keyboard.type('the library')
-    await page.keyboard.press('Enter')
-    await page.locator('.value.meaning').waitFor()
+    expect(await verdict(page)).toBe('Correct')
 
-    // ADR 0034's labels — recall, not time — naming the one *grade* the check
-    // gave (ADR 0069 §1). `Again` would promise a same-day return this
-    // configuration cannot make.
-    const footer = await page.locator('.legend').textContent()
-    expect(footer).not.toContain('Again')
-    expect(await page.locator('.commit').textContent()).toContain('Good')
-
-    // ⚠️ **No digit overrules it** (ADR 0069 §1): a `1` on the back is nothing.
-    await page.keyboard.press('1')
-    await page.waitForTimeout(250)
-    expect(await grades(), 'a digit committed a grade the check did not give').toBe(before)
-
-    // ⚠️ `Enter` commits the check's *grade*, stamped at this keystroke
-    // (ADR 0060 §4).
-    await page.keyboard.press('Enter')
+    // ⚠️ The word's one *grade*, given by the answer that completed it and
+    // stamped at that keystroke (ADR 0076 §4): Good, for a word never missed.
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+    expect(await latestRating()).toBe(3)
 
-    // ⚠️ The end screen shows the run's numbers and **never** starts the next
-    // one (`S7`): no *session* is composed until the reader asks for one.
-    await page.getByText('Start another session').waitFor()
+    await next(page)
+
+    // ⚠️ The summary shows the run's numbers and **never** starts the next one
+    // (`S7`): no run is composed until the reader asks for one.
+    await page.getByText('1 new word learned.').waitFor()
+    expect(await page.locator('.summary').textContent()).toContain('Lesson complete')
+
+    // Where the word went is the server's: its first epoch, and a real date.
+    await page.locator('.wrow .x', { hasText: 'now Learning' }).waitFor()
 
     const runs = await sessions()
     await page.waitForTimeout(250)
-    expect(await sessions(), 'the end screen started the next session').toBe(runs)
+    expect(await sessions(), 'the summary started the next run').toBe(runs)
 
     // And the run it ended is finished rather than abandoned.
     expect(await sessions('completed_at is null')).toBe(0)
+    expect(await scalar(`SELECT count(*)::int AS n FROM review_session WHERE kind = 'lesson';`)).toBe(runs)
+
+    await page.close()
+  })
+
+  // ADR 0076 §8: opening *Review* asks what is waiting and composes nothing.
+  it('opens on what is waiting and starts nothing, whatever is pressed', async () => {
+    const runs = await sessions()
+    const page = await openReview(null, '.start .statement')
+
+    expect(await page.locator('.start .statement').textContent()).toContain('All done for now.')
 
     // ⚠️ **ADR 0065 §5's filter sits inside the mode container**, so `space` on
-    // one of its checkboxes bubbles to the handler that starts a *session*. It
-    // ticks the box and starts nothing.
+    // one of its checkboxes bubbles to the container's handler. It ticks the
+    // box and starts nothing.
     const tech = page.getByRole('checkbox', { name: 'tech' })
     await tech.focus()
     await page.keyboard.press(' ')
     expect(await tech.isChecked()).toBe(true)
+    await page.keyboard.press('Enter')
     await page.waitForTimeout(250)
-    expect(await sessions(), 'space on a filter checkbox started a session').toBe(runs)
+    expect(await sessions(), 'opening Review, or a key on it, started a run').toBe(runs)
 
     await page.close()
   })
@@ -263,18 +362,11 @@ describe('one session, from the rail to the end screen', () => {
 // registered endpoint; what only exists here is a **real browser with the
 // network switched off** — a store that survives, and a replay that happens
 // because the connection came back rather than because a test called a function.
-describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', () => {
+describe('a review run answered with the network off (`S8`, ADR 0007, ADR 0014)', () => {
   beforeAll(async () => {
-    await acceptedCard('電車␟でんしゃ')
-    await acceptedCard('切符␟きっぷ')
+    await dueCard('電車␟でんしゃ')
+    await dueCard('切符␟きっぷ')
   })
-
-  async function flags(): Promise<number> {
-    const result = await database.client.query<{ n: number }>(
-      'SELECT count(*)::int AS n FROM card_flag;',
-    )
-    return result.rows[0]!.n
-  }
 
   /**
    * The *flag* and the suspension as **one value, read in one statement** —
@@ -283,9 +375,9 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
    * ⚠️ **`flag()` writes the `card_flag` row and suspends the *card* in one
    * transaction** (`server/utils/review/flag.ts` — four writes, `04` §7.8), and
    * the e2e tier's in-process handle is **inside** that transaction rather than
-   * outside it. Polling `flags()` to `1` and then counting suspended *cards* as
-   * a second statement is the shape that flaked in `vet.test.ts`: the poll can
-   * land between the insert and the update and take an uncommitted `1` as
+   * outside it. Polling `flagRows()` to `1` and then counting suspended *cards*
+   * as a second statement is the shape that flaked in `vet.test.ts`: the poll
+   * can land between the insert and the update and take an uncommitted `1` as
    * *the flag has landed*. `1/1` cannot be read out of that gap.
    */
   async function flagged(): Promise<string> {
@@ -298,29 +390,38 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
   }
 
   it('loses nothing, and replays both entry types in order when it comes back', async () => {
-    const page = await openReview()
+    // ⚠️ A review run: due *cards* only, started by the start block's other link.
+    const page = await openReview('review', '.quizcard .term')
 
     const before = await grades()
-    expect(await page.locator('.tick').count()).toBe(2)
+    expect(await page.locator('.modebar .name').textContent()).toBe('Reviews')
+    expect(await page.locator('.modebar .count').textContent()).toBe('0 of 2 words')
+    expect(await scalar(`SELECT new_count AS n FROM review_session WHERE kind = 'review';`)).toBe(0)
 
     await page.context().setOffline(true)
 
-    // ⚠️ **The interface never waits on the flush** (`S8`): both answers are
-    // given, and the run ends, with nothing reachable.
-    await turn(page)
-    await page.keyboard.press('Enter')
+    // ⚠️ **The interface never waits on the flush** (`S8`): both words are
+    // answered, and the run ends, with nothing reachable.
+    await answer(page, 'library')
+    await next(page)
+    await answer(page, 'toshokan')
+    await next(page)
+    expect(await page.locator('.modebar .count').textContent()).toBe('1 of 2 words')
 
     // `S9`'s `X` — the outbox's second entry type, behind a *grade* for a
-    // different *card* (ADR 0039 property 3). Since ADR 0060 it is on the back
-    // only, so the second *card* is answered first.
-    await turn(page)
+    // different *card* (ADR 0039 property 3). It is a key on the result only,
+    // and the focus is inside the container, on *Next*.
+    await answer(page, 'library')
+    await page.locator('.quizcard button:focus', { hasText: 'Next' }).waitFor()
     await page.keyboard.press('x')
 
-    await page.getByText('Start another session').waitFor()
+    await page.getByText('Reviews done.').waitFor()
     expect(await page.textContent('.unsent')).toContain('2 answers have not reached the database')
+    // ⚠️ No stage and no date for an answer the database has not seen.
+    expect(await page.locator('.wrow .x').textContent()).toBe('not sent yet')
 
     expect(await grades(), 'a grade reached the database with the network off').toBe(before)
-    expect(await flags()).toBe(0)
+    expect(await flagRows()).toBe(0)
 
     // ⚠️ **Both entries are in `localStorage`, not in the page** (ADR 0014).
     const owed = await page.evaluate(() => localStorage.getItem('kioku:review:outbox'))
@@ -348,23 +449,26 @@ describe('a session answered with the network off (`S8`, ADR 0007, ADR 0014)', (
     `)
     expect(order.rows[0]!.afterwards, 'the flag overtook the grade it was given after').toBe(true)
 
+    // The summary's row catches up with the database: a stage and a date.
+    await page.locator('.wrow .x', { hasText: 'back' }).waitFor()
+
     // ⚠️ **The durable record decides, and it is empty now** (property 4). A
     // reload replays whatever is still owed, so a store that still held these
     // two would grade the same *card* twice on the next visit.
     //
     // ⚠️ **Polled, not slept.** An entry settles out of the store only after its
     // response returns, which is after the row the polls above read has
-    // landed; and the mount composes a run only after its own replay, so
-    // *Nothing due* is the sign that replay has finished.
+    // landed; and the mount asks what is waiting only after its own replay, so
+    // the screen before a run is the sign that replay has finished.
     const outbox = () => page.evaluate(() => localStorage.getItem('kioku:review:outbox'))
     await expect.poll(outbox, { timeout: 10_000 }).toBe('[]')
 
     await page.reload({ waitUntil: 'networkidle' })
-    await page.getByText('Nothing due.').waitFor()
+    await page.locator('.start .statement').waitFor()
 
     expect(await outbox()).toBe('[]')
     expect(await grades()).toBe(before + 1)
-    expect(await flags()).toBe(1)
+    expect(await flagRows()).toBe(1)
 
     await page.close()
   })
@@ -387,78 +491,88 @@ describe('a kana-only term', () => {
     })
   })
 
-  it('opens on the meaning, and grades on the meaning alone', async () => {
-    const page = await openReview()
+  it('is asked for its meaning alone, and graded on it', async () => {
+    const page = await openLesson()
     const before = await grades()
 
-    // Focus lands in the meaning field and the reading field never exists.
-    await page.locator('#answer-meaning:focus').waitFor()
-    expect(await page.locator('#answer-reading').count()).toBe(0)
+    await throughTeaching(page, 1)
 
-    await page.keyboard.type('like this')
-    await page.keyboard.press('Enter')
-    await page.locator('.value.meaning').waitFor()
+    expect(await asked(page)).toBe('Meaning')
+    await answer(page, 'like this')
+    expect(await verdict(page)).toBe('Correct')
 
-    // The back carries one result — the meaning's — and proposes `3` from it.
-    expect(await page.locator('.given').count()).toBe(1)
-
-    await page.keyboard.press('Enter')
+    // One question was all the word owed: it is graded, Good, already.
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+    expect(await latestRating()).toBe(3)
 
-    const latest = await database.client.query<{ rating: number }>(
-      'SELECT rating FROM review_log ORDER BY received_at DESC LIMIT 1;',
-    )
-    expect(latest.rows[0]!.rating).toBe(3)
+    // And the reading is never asked.
+    await next(page)
+    await page.getByText('1 new word learned.').waitFor()
 
     await page.close()
   })
 })
 
-// ADR 0069 §2: a refused meaning becomes the reader's synonym, the check runs
-// again, and the *grade* is what it says then. ⚠️ Last with the kana case, for
-// the same reason: every earlier *card* is answered, so this run is one *card*.
-describe('a refused meaning the reader was right about', () => {
+// ADR 0076 §4, the criterion in its own words: *a wrong answer is asked again
+// in the same session until right; the word still counts as missed for
+// scheduling*. ⚠️ Last with the kana case, for the same reason: every earlier
+// word is answered, so this lesson is one word.
+describe('a missed answer', () => {
   beforeAll(async () => {
-    await acceptedCard('見る␟みる', {
+    await acceptedCard('経験␟けいけん', {
       ...FIELDS,
-      term: '見る',
-      reading: 'みる',
-      part_of_speech: '動詞',
-      meaning: 'to see/have (a dream)',
+      term: '経験',
+      reading: 'けいけん',
+      part_of_speech: '名詞',
+      meaning: 'experience',
     })
   })
 
-  it('becomes a synonym, and the card is graded Good', async () => {
-    const page = await openReview()
+  it('is asked again before the run ends, and the word is graded Forgot', async () => {
+    const page = await openLesson()
     const before = await grades()
 
-    await turn(page, 'miru', 'look')
+    await throughTeaching(page, 1)
 
-    expect(await page.locator('.commit').textContent()).toContain('Forgot')
+    await answer(page, 'to eat')
+    expect(await verdict(page)).toBe('Not quite')
+    expect(await page.locator('.fb.no .ans').textContent()).toContain('experience')
+    expect(await page.locator('.foot').textContent()).toContain('This one comes back before the session ends.')
 
-    await page.keyboard.press('s')
-    await page.locator('.commit', { hasText: 'Good' }).waitFor()
-    await page.keyboard.press('Enter')
+    await next(page)
+    expect(await asked(page)).toBe('Reading')
+    await answer(page, 'keiken')
+    expect(await verdict(page)).toBe('Correct')
+
+    // ⚠️ Both questions have been asked and the word is **not** graded: the
+    // missed one is still owed.
+    await page.waitForTimeout(250)
+    expect(await grades(), 'a word was graded with a question still owed').toBe(before)
+
+    await next(page)
+    expect(await asked(page)).toBe('Meaning')
+
+    // ⚠️ A near miss is accepted (ADR 0076 §5) — and the miss before it stays.
+    await answer(page, 'experiance')
+    expect(await verdict(page)).toBe('Correct')
+    expect(await page.locator('.fb.ok').textContent()).toContain('Close enough')
 
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
-    await expect.poll(async () => {
-      const result = await database.client.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM meaning_synonym WHERE text = 'look' AND owner_id = '${reader.userId}';`,
-      )
-      return result.rows[0]!.n
-    }, { timeout: 5_000 }).toBe(1)
+    expect(await latestRating(), 'a word that was missed was graded as if it had not been').toBe(1)
 
-    const latest = await database.client.query<{ rating: number }>(
-      'SELECT rating FROM review_log ORDER BY received_at DESC LIMIT 1;',
-    )
-    expect(latest.rows[0]!.rating).toBe(3)
+    await next(page)
+    await page.locator('.sumlist', { hasText: 'Missed · 1' }).waitFor()
+
+    // ADR 0076 §5: nothing was offered that could have turned the miss into a
+    // pass, and nothing was stored that would.
+    expect(await scalar('SELECT count(*)::int AS n FROM meaning_synonym;')).toBe(0)
 
     await page.close()
   })
 })
 
 // ADR 0069 §5, #30: 夢 answered む, the report that started it. ⚠️ Last, for
-// the same reason as the two above: this run is the one 夢 *card*, and む comes
+// the same reason as the two above: this lesson is the one 夢 word, and む comes
 // from the committed KANJIDIC2 table through the server, which is the point.
 describe('a kanji\'s reading typed for the word\'s', () => {
   beforeAll(async () => {
@@ -471,23 +585,125 @@ describe('a kanji\'s reading typed for the word\'s', () => {
     })
   })
 
-  it('is a retry that records nothing, and the second answer is graded', async () => {
-    const page = await openReview()
+  it('is a retry that counts nothing, and the second answer is the one checked', async () => {
+    const page = await openLesson()
     const before = await grades()
 
-    await page.locator('#answer-reading:focus').waitFor()
-    await page.keyboard.type('mu')
-    await page.keyboard.press('Enter')
+    await throughTeaching(page, 1)
+    await answer(page, 'dream')
+    await next(page)
 
-    await page.locator('.retry').waitFor()
-    expect(await page.locator('#answer-reading').inputValue()).toBe('')
-    await page.locator('#answer-reading:focus').waitFor()
+    await answer(page, 'mu')
 
-    await turn(page, 'yume', 'dream')
+    await page.getByText('That is a reading of the kanji, not of this word.').waitFor()
+    expect(await page.locator('.quizcard input').inputValue()).toBe('')
+    expect(await page.locator('.quizcard button').textContent()).toContain('Check')
 
-    expect(await page.locator('.commit').textContent()).toContain('Good')
-    await page.keyboard.press('Enter')
+    await answer(page, 'yume')
+    expect(await verdict(page)).toBe('Correct')
+
     await expect.poll(grades, { timeout: 5_000 }).toBe(before + 1)
+    expect(await latestRating(), 'the retry was counted as a miss').toBe(3)
+
+    await page.close()
+  })
+})
+
+// ADR 0076 §1 and §6: a word from the starter set has no *card* until a lesson
+// starts it, and a lesson finished early leaves its words to be taught again.
+describe('a starter word, and a lesson finished early', () => {
+  let noteId: string
+
+  beforeAll(async () => {
+    const note = await database.client.query<{ id: string }>(`
+      INSERT INTO note (subject_id, identity_key, fields)
+      VALUES ('jlpt-vocab-2', '会う␟あう',
+              '{"term":"会う","reading":"あう","part_of_speech":"動詞","meaning":"to meet; to encounter"}'::jsonb)
+      RETURNING id;
+    `)
+    noteId = note.rows[0]!.id
+
+    await database.client.exec(`
+      INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'tanos-jlpt', 'N5');
+    `)
+  })
+
+  it('is accepted and minted by the lesson that teaches it, with its level and no example', async () => {
+    expect(await scalar(`SELECT count(*)::int AS n FROM card WHERE note_id = '${noteId}';`)).toBe(0)
+
+    const page = await openLesson()
+
+    expect(await page.locator('.lesson .term').textContent()).toContain('会う')
+    expect(await page.locator('.lesson .tags').textContent()).toContain('JLPT N5')
+    expect(await page.locator('.lesson .others').textContent()).toContain('to encounter')
+    expect(await page.locator('.lesson .example').count()).toBe(0)
+
+    expect(await scalar(`SELECT count(*)::int AS n FROM card WHERE note_id = '${noteId}';`)).toBe(1)
+    expect(await scalar(`
+      SELECT count(*)::int AS n FROM note_vetting WHERE note_id = '${noteId}' AND state = 'accepted';
+    `)).toBe(1)
+
+    // ⚠️ Leaving the teaching is a pause: the lesson is still live.
+    expect(await page.getByRole('link', { name: 'Leave' }).getAttribute('href')).toBe('/sources')
+    expect(await sessions('completed_at is null')).toBe(1)
+
+    const before = await grades()
+
+    // *Finish early* in the quiz ends the run and grades nothing: a new word
+    // enters reviews by being got right.
+    await throughTeaching(page, 1)
+    await answer(page, 'to eat')
+    expect(await verdict(page)).toBe('Not quite')
+    await page.getByRole('button', { name: 'Finish early' }).click()
+
+    await page.getByText('Lesson finished early.').waitFor()
+    await expect.poll(() => sessions('completed_at is null'), { timeout: 5_000 }).toBe(0)
+    expect(await grades()).toBe(before)
+    expect(await scalar(`
+      SELECT count(*)::int AS n FROM scheduling_epoch e JOIN card c ON c.id = e.card_id WHERE c.note_id = '${noteId}';
+    `)).toBe(0)
+
+    await page.close()
+  })
+})
+
+// ADR 0076 §2, `10` §8A: nothing is refused. The reader's own browser must not
+// hold back a value the server would clamp, and this is the tier with a browser.
+describe('the settings form, submitted by a browser', () => {
+  const FIELDS = ['lessonSize', 'dailyNew', 'pauseAbove']
+
+  afterAll(async () => {
+    await database.client.exec('DELETE FROM study_setting;')
+  })
+
+  async function save(page: Page, typed: string[]): Promise<string[]> {
+    await page.goto(url('/settings'), { waitUntil: 'networkidle' })
+
+    for (const [index, name] of FIELDS.entries())
+      await page.locator(`input[name="${name}"]`).fill(typed[index]!)
+
+    await page.getByRole('button', { name: 'Save' }).click()
+    await page.getByText('Saved.').waitFor({ timeout: 5_000 })
+
+    return Promise.all(FIELDS.map(name => page.locator(`input[name="${name}"]`).inputValue()))
+  }
+
+  it('sends what is out of range or fractional, and shows what was kept', async () => {
+    const page = await createPage()
+    const [name, ...rest] = reader.cookie.split('=')
+
+    await page.context().addCookies([{
+      name: name!,
+      value: rest.join('='),
+      domain: '127.0.0.1',
+      path: '/',
+    }])
+
+    expect(await save(page, ['21', '101', '2001'])).toEqual(['20', '100', '2000'])
+    expect(await save(page, ['2.5', '7.9', '40'])).toEqual(['2', '7', '40'])
+
+    expect(await scalar('SELECT count(*)::int AS n FROM study_setting;')).toBe(1)
+    expect(await scalar('SELECT lesson_size AS n FROM study_setting;')).toBe(2)
 
     await page.close()
   })

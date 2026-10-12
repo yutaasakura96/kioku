@@ -27,11 +27,18 @@
  * on a keystroke would be worse than the failure it is guarding against.
  */
 
-/** The two keys, named so they are legible in a devtools pane. */
+/** The keys, named so they are legible in a devtools pane. */
 export const SNAPSHOT_KEY = 'kioku:review:session'
 export const OUTBOX_KEY = 'kioku:review:outbox'
-/** `03` §8.2's refusals, kept so the end screen can still say so after a reload. */
+/** `03` §8.2's refusals, kept so the summary can still say so after a reload. */
 export const REFUSED_KEY = 'kioku:review:refused'
+/**
+ * ADR 0076 §4 — which questions are still owed and which words were missed
+ * (`shared/review/quiz.ts`). ⚠️ **Beside the snapshot and not inside it**: the
+ * snapshot is what the server handed over and is merged with its answers, and
+ * the queue is something the server never sees.
+ */
+export const QUIZ_KEY = 'kioku:review:quiz'
 
 function store(): Storage | null {
   try {

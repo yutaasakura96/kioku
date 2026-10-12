@@ -1,4 +1,4 @@
-// What the three *places* read — `server/utils/ingest/queries.ts`, against a
+// What the four *places* read — `server/utils/ingest/queries.ts`, against a
 // real database.
 //
 // ⚠️ **These read as trivial and two of them are not.** `startBlockCounts`'s due
@@ -316,15 +316,15 @@ describe('startBlockCounts', () => {
     expect((await startBlockCounts(db, OWNER)).due).toBe(0)
   })
 
-  // ⚠️ #33: `Review · 0 due · 10 new`. The arithmetic is `newOnOffer`'s and
+  // The arithmetic is `newOnOffer`'s and
   // unit-tested; these are the reads under it — which *cards* are new, and which
   // runs spent today.
-  it('counts a card with no epoch as new, up to the day\'s ten', async () => {
+  it('counts a card with no epoch as new, up to the lesson size', async () => {
     for (let n = 0; n < 12; n += 1)
       await seedNewCard(`語${n}␟ご`)
     await seedDueCard({ due: `now() - interval '1 hour'` })
 
-    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 10 })
+    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 5 })
   })
 
   it('does not count a suspended card, or one with only a superseded epoch, as new', async () => {
@@ -359,6 +359,35 @@ describe('startBlockCounts', () => {
     expect((await startBlockCounts(db, OWNER)).newToday).toBe(3)
   })
 
+  // ADR 0076 §1: a starter word has no *card* until a lesson starts it, and it
+  // is new all the same — the control must not say `0 new` in front of the
+  // whole list.
+  it('counts the starter words nobody has started', async () => {
+    for (const term of ['会う', '青', '赤']) {
+      const noteId = await seedNote(`${term}␟よみ`)
+      await client.exec(`
+        INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'tanos-jlpt', 'N5');
+      `)
+    }
+    await seedNewCard('窓␟まど')
+
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(4)
+    // ⚠️ Counting is not starting: no *card* was minted for the three.
+    expect((await client.query(`SELECT 1 FROM card;`)).rows).toHaveLength(1)
+  })
+
+  // ADR 0076 §2: the lesson's number is the reader's own.
+  it('stops at the reader\'s own limit, and at nothing when they set none', async () => {
+    for (let n = 0; n < 6; n += 1)
+      await seedNewCard(`語${n}␟ご`)
+
+    await client.exec(`INSERT INTO study_setting (owner_id, daily_new) VALUES ('${OWNER}', 4);`)
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(4)
+
+    await client.exec(`UPDATE study_setting SET daily_new = 0;`)
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(0)
+  })
+
   it('counts nothing for a different reader', async () => {
     await client.exec(`
       INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
@@ -371,12 +400,17 @@ describe('startBlockCounts', () => {
   })
 })
 
-async function seedVetting(state: string, identityKey = '図書館␟としょかん') {
+async function seedNote(identityKey: string) {
   const note = await client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
     VALUES ('jlpt-vocab-2', '${identityKey}', '{}'::jsonb) RETURNING id;
   `)
-  const noteId = note.rows[0]!.id
+
+  return note.rows[0]!.id
+}
+
+async function seedVetting(state: string, identityKey = '図書館␟としょかん') {
+  const noteId = await seedNote(identityKey)
 
   await client.exec(`
     INSERT INTO note_vetting (note_id, owner_id, state) VALUES ('${noteId}', '${OWNER}', '${state}');

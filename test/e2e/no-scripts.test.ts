@@ -46,7 +46,7 @@ describe('assertion 1 — the noScripts rule strips scripts from an emitted docu
   it('/auth/refused contains no <script', async () => {
     // ⚠️ `/auth/refused` is **not** a *place* — it is the door's other half
     // (`00-status.md` § Carrying, "There are six routes, not five"). What it
-    // shares with the three *places* is the rule, which is what this asserts.
+    // shares with the four *places* is the rule, which is what this asserts.
     expect(await $fetch<string>('/auth/refused')).not.toContain('<script')
   })
 })

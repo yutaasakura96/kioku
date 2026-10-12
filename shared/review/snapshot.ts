@@ -25,8 +25,24 @@
  */
 
 import type { Grade } from './scheduler'
+import { isStage } from './stage'
+import type { Stage } from './stage'
 
-/** One position in the *session*, and one tick on the *progress rail*. */
+/** ADR 0076 §1 — the two kinds of *session*. */
+export type SessionKind = 'review' | 'lesson'
+
+/**
+ * Where a word went when it was graded, as the server recorded it (ADR 0076
+ * §7). ⚠️ **Never computed on the client**: the summary says what is in the
+ * database, and an answer still in the outbox has none.
+ */
+export interface Outcome {
+  stage: Stage
+  /** ISO 8601 — the live epoch's `due` after the *grade*. */
+  due: string
+}
+
+/** One position in the *session*, and one word in the bar's count. */
 export interface ReviewPosition {
   /** 0-based, and the rail's order (`04` §7.7). */
   ordinal: number
@@ -42,10 +58,9 @@ export interface ReviewPosition {
    */
   meanings: string[]
   /**
-   * ADR 0069 §2 — this reader's synonyms for the *note*. ⚠️ **The one thing the
-   * screen adds to a held position**: a synonym added mid-run joins it at once,
-   * because the check runs again before the *grade* is committed, and the
-   * outbox carries it to the server behind that.
+   * ADR 0069 §2 — this reader's synonyms for the *note*. ⚠️ **Read and never
+   * added to since #70** (ADR 0076 §5): nothing overrules the check, and the
+   * ones stored before are still accepted.
    */
   synonyms: string[]
   /**
@@ -57,10 +72,25 @@ export interface ReviewPosition {
    */
   kanjiReadings: string[]
   /**
+   * The *level* the list gives the word, or `null` when no list places it
+   * (ADR 0075 §2). The lesson shows it. ⚠️ **Server-added, like the three
+   * above** — read it as possibly absent.
+   */
+  level: string | null
+  /**
+   * The stage the reader came to the word with (ADR 0076 §7) — `null` for a
+   * word that has never been scheduled, which is every word in a lesson.
+   * ⚠️ **It stays what it was at composition**: `mergeGrades` never moves it,
+   * so the summary can say *up to* or *down to*.
+   */
+  stage: Stage | null
+  /** Where the *grade* sent it. `null` until the server has answered about it. */
+  outcome: Outcome | null
+  /**
    * The *grade* this position was given, or `null` while it is still ahead of
-   * the reader. ⚠️ **A graded *card* leaves the *session* and never returns to
-   * it** (`S7`, ADR 0016), so this is what the rail's graded tick reads and what
-   * the end screen counts.
+   * the reader. ⚠️ **A word is graded once, when every question about it has
+   * been answered right** (ADR 0076 §4), so a graded position is one the quiz
+   * has finished with — the track and the summary both count these.
    */
   grade: Grade | null
   /**
@@ -75,27 +105,13 @@ export interface ReviewPosition {
 
 export interface ReviewSnapshot {
   sessionId: string
+  /** ADR 0076 §1. ⚠️ A run held from before #70 has none and is a review run. */
+  kind: SessionKind
   /** `review_session.size` — and therefore the rail's length (`04` §14). */
   size: number
   /** ⚠️ **Server-side**, because `03` §8.2's replay rule compares against it. */
   snapshotTakenAt: Date
   positions: ReviewPosition[]
-}
-
-/** What `10` §5.7's three non-terminal empty states need to tell the reader apart. */
-export interface NothingToStudy {
-  /** False means *nothing ever accepted*; true means *nothing due* (`10` §5.7). */
-  hasCards: boolean
-  /** The "single datum given weight" slot — `Tomorrow, 08:40`. Null when there is none. */
-  nextDue: Date | null
-  /**
-   * Whether any *card* has never been scheduled — unfiltered. ⚠️ **With the
-   * day's ten spent, this is what tells *nothing due* from *the brake held
-   * words back*** (ADR 0066 §7): the first is a tomorrow and so is the second,
-   * but only the second is the app deciding, and a brake that is silent is a
-   * bug report.
-   */
-  newWaiting: boolean
 }
 
 /**
@@ -111,7 +127,7 @@ export interface NothingToStudy {
  * ⚠️ **A position the held snapshot does not have is ignored rather than
  * added.** Membership is decided once, at compose (`04` §7.7), so a server
  * answer carrying a *card* this run never had is a different *session* — and
- * appending it would lengthen the *progress rail* mid-run, which is the one
+ * appending it would lengthen the run under the reader, which is the one
  * thing ADR 0016 turned short-term scheduling off to prevent.
  *
  * ⚠️ **A *grade* is never taken back.** The client paints on the keystroke and
@@ -130,6 +146,9 @@ export function mergeGrades(held: ReviewSnapshot, fresh: ReviewSnapshot): Review
         ...position,
         grade: position.grade ?? server?.grade ?? null,
         flagged: position.flagged || (server?.flagged ?? false),
+        // ⚠️ **The outcome moves with the *grade***, and the newest wins: it is
+        // the server's reading of where the word is now, not a word.
+        outcome: server?.outcome ?? position.outcome ?? null,
       }
     }),
   }
@@ -142,7 +161,7 @@ export function mergeGrades(held: ReviewSnapshot, fresh: ReviewSnapshot): Review
  * `09` §4.9: `X` advances without a *grade*, so a twenty-*card* run can end with
  * nineteen answers. Three things read *is there anything left* — the screen
  * deciding which *card* is current, the *grade* deciding whether the run is
- * over, and `resumeOrCompose` deciding whether to resume one — and each of them
+ * over, and `resumeOrStart` deciding whether to resume one — and each of them
  * written separately is `04` §13's drift argument at one boolean: the shape that
  * fails is a run whose last position is flagged, which never completes and
  * resumes forever onto a *card* the reader has already passed.
@@ -173,7 +192,7 @@ export function parseSnapshot(raw: unknown): ReviewSnapshot | null {
   if (!isRecord(raw))
     return null
 
-  const { sessionId, size, snapshotTakenAt, positions } = raw
+  const { sessionId, size, snapshotTakenAt, positions, kind } = raw
 
   if (typeof sessionId !== 'string' || typeof size !== 'number' || !Array.isArray(positions))
     return null
@@ -198,14 +217,14 @@ export function parseSnapshot(raw: unknown): ReviewSnapshot | null {
     parsed.push(one)
   }
 
-  return { sessionId, size, snapshotTakenAt: takenAt, positions: parsed }
+  return { sessionId, kind: kind === 'lesson' ? 'lesson' : 'review', size, snapshotTakenAt: takenAt, positions: parsed }
 }
 
 function parsePosition(raw: unknown): ReviewPosition | null {
   if (!isRecord(raw))
     return null
 
-  const { ordinal, cardId, templateKey, fields, grade, flagged, meanings, synonyms, kanjiReadings } = raw
+  const { ordinal, cardId, templateKey, fields, grade, flagged, meanings, synonyms, kanjiReadings, level, stage, outcome } = raw
 
   if (typeof ordinal !== 'number' || typeof cardId !== 'string' || typeof templateKey !== 'string')
     return null
@@ -227,6 +246,10 @@ function parsePosition(raw: unknown): ReviewPosition | null {
     synonyms: strings(synonyms),
     // The same for a run held from before #30.
     kanjiReadings: strings(kanjiReadings),
+    // And for one held from before #70.
+    level: typeof level === 'string' ? level : null,
+    stage: isStage(stage) ? stage : null,
+    outcome: parseOutcome(outcome),
     grade,
     flagged: flagged === true,
   }
@@ -236,23 +259,11 @@ function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
-/**
- * ADR 0069 §2 — a synonym joined to every held position of its *note*'s *card*.
- * ⚠️ **Appended once**: a second identical synonym would change nothing the
- * check reads and would only make the store disagree with the table's unique key.
- */
-export function withSynonym(held: ReviewSnapshot, cardId: string, text: string): ReviewSnapshot {
-  return {
-    ...held,
-    positions: held.positions.map((position) => {
-      // `?? []`: a position installed from a server answer is not parsed.
-      const synonyms = position.synonyms ?? []
+function parseOutcome(raw: unknown): Outcome | null {
+  if (!isRecord(raw) || !isStage(raw.stage) || typeof raw.due !== 'string' || Number.isNaN(Date.parse(raw.due)))
+    return null
 
-      return position.cardId !== cardId || synonyms.includes(text)
-        ? position
-        : { ...position, synonyms: [...synonyms, text] }
-    }),
-  }
+  return { stage: raw.stage, due: raw.due }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -193,7 +193,7 @@ describe('the kana-only rule, over the starter set', () => {
   })
 
   it('still asks a word with kanji for both', () => {
-    expect(answerSteps('会う')).toEqual(['reading', 'meaning'])
+    expect(answerSteps('会う')).toEqual(['meaning', 'reading'])
     const kanji = bundle.words.filter(word => !KANA.test(word.term))
     expect(kanji.filter(word => answerSteps(word.term).length !== 2).map(word => word.term)).toEqual([])
   })

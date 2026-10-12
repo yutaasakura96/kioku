@@ -3,6 +3,10 @@
 ***Review* ships all four FSRS grades — `1 Again / 2 Hard / 3 Good / 4 Easy` — and `enable_short_term`
 is off, so a graded *card* always leaves the current *session*.**
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §4 (#70).** A graded *card* still leaves the *session* and
+`enable_short_term` is still off. What changed is in front of the *grade*: a wrong answer is asked
+again in the same *session* until it is right, and only then is the word graded, once, Forgot.
+
 Phase 2 drew those four labels as an explicit placeholder, not to be extracted into the design
 system until the scheduler was chosen. Verified 2026-09-06: they are exactly FSRS's canonical set.
 The placeholder becomes the decision.
