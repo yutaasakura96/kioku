@@ -177,7 +177,9 @@ Things #70 had to choose to build §1 to §8, none of which changes a rule above
   lesson spends the day's allowance by being composed (ADR 0066 §3) and a reload on the summary must
   not compose the next one. Opening `/review` without it composes nothing.
 - **The start block has a third control**, *Lesson · n new*, beside *Review · n due*. #33's *n new*
-  moved there from the Review control, because a review run never holds a new word.
+  moved there from the Review control, because a review run never holds a new word. It counts the
+  next lesson's words, capped by lesson size, today's remaining allowance and available words; it
+  reads zero while the review backlog pauses lessons.
 - **Six tokens** in `tokens.css`: `--k-right`, `--k-right-tint`, `--k-right-ink`, `--k-wrong`,
   `--k-wrong-tint`, `--k-wrong-ink` (`05` §2). The prototype's stage ramp is not added: nothing draws
   a stage in colour until #71.

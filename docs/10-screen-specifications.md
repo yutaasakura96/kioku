@@ -205,13 +205,14 @@ control is still never disabled.
 
 ⚠️ **Amended 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70)
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)): three
-controls — `Vet · 2 flagged`, `Review · 12 due`, `Lesson · 10 new`.** A review run never holds a new
+controls — `Vet · 2 flagged`, `Review · 12 due`, `Lesson · 5 new`.** A review run never holds a new
 word, so #33's second figure left the Review control and became a control of its own, in the same
 face and count treatment. `href` is `/review?start=review&from=<place>` and
 `/review?start=lesson&from=<place>`: each link says which run to start, and `/review` starts none
-without one (§5.0). The Lesson figure is still `newOnOffer`'s, with the reader's own limits
-(§8A) in place of ten and fifty, and it counts what a lesson could teach: the reader's own
-unscheduled *cards* and then the starter words nobody has started. The three wrap onto a second row
+without one (§5.0). The Lesson figure is `newOnOffer`'s, with the reader's own limits
+(§8A), and it counts what the next lesson would teach: at most the lesson size, capped by today's
+remaining allowance and the reader's own unscheduled *cards* plus starter words nobody has started;
+zero while the review backlog pauses lessons. The three wrap onto a second row
 when they do not fit, `12px` apart both ways, and none is ever disabled.
 
 ⚠️ **The accent `→` is dropped here, and it is the one departure from `05` §7's affordance.** `05` §2

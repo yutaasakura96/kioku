@@ -173,7 +173,8 @@ rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
   from 21. The snapshot carries each word's *level*, the stage it came with and where the *grade*
   sent it, and the summary reads those.
 - **Screens**: `/review` opens on what is waiting and composes nothing; the start block has a
-  *Lesson* control beside *Review*; the header is `ModeBar.vue` and the *progress rail* is gone.
+  *Lesson* control beside *Review*, counting the next lesson's words (size, daily allowance and
+  availability capped, zero while the backlog pauses lessons); the header is `ModeBar.vue` and the *progress rail* is gone.
   `ReviewCard`, `ReviewAnswer`, `CheckControls` and `ProgressRail` are deleted.
 - **Checked in a browser against `docs/prototype/`**, side by side, at 1280 and at a 390px phone
   viewport, on the production build over a throwaway PGlite: the screen before a run, a lesson of
@@ -584,7 +585,7 @@ found #28's $0.1654 on `/stats` nowhere.
   the new *cards* waiting. `startBlockCounts` feeds it from the composition's own reads
   (`recentlyComposed`, `newCards` capped at ten) in `readerZone`'s zone, so the four *places* render
   it with no new query shape.
-- ⚠️ **A day's figure, not a run's.** It is not capped by the *session*'s size or by the room the
+- ⚠️ **A day's figure, not a run's (superseded by #70).** It was not capped by the *session*'s size or by the room the
   due half leaves, so with fifteen due a run of twenty introduces five and the block said ten. That
   is the ticket's definition. Matching `compose`'s room would make the figure depend on a size the
   start block does not choose.

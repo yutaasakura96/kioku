@@ -85,19 +85,10 @@ export function lessonRoom(reading: BrakeReading, limits: StudyLimits): number {
 }
 
 /**
- * How many new words today still holds — the start block's `· N new` (#33,
- * `10` §3.2).
- *
- * ⚠️ **A day's figure, not a lesson's.** It is not capped by the lesson size:
- * the start block says what today still holds, and a day of ten is two lessons
- * of five. `waiting` is how many new words there are to teach, and the caller
- * may cap it at the day's limit — nothing past that changes the answer.
+ * How many new words the next lesson can teach — the start block's `· N new`.
  */
 export function newOnOffer(reading: BrakeReading, waiting: number, limits: StudyLimits): number {
-  if (brakeState(reading, limits) === 'paused')
-    return 0
-
-  return Math.min(newAllowance(reading.introducedToday, limits), waiting)
+  return Math.min(lessonRoom(reading, limits), waiting)
 }
 
 /**

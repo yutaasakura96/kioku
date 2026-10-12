@@ -113,9 +113,7 @@ describe('lessonRoom — one lesson, as far as the brake allows', () => {
   })
 })
 
-// ⚠️ #33: the start block's `Lesson · N new`. It is the day's figure, not one
-// lesson's — a day of ten is two lessons of five.
-describe('newOnOffer — what the start block says is new (#33)', () => {
+describe('newOnOffer — what the next lesson would teach', () => {
   it('is nothing while the fifty-review gate is shut, whatever is left of the day', () => {
     expect(newOnOffer({ introducedToday: 0, dueCount: 50 }, 43, LIMITS)).toBe(0)
   })
@@ -125,14 +123,18 @@ describe('newOnOffer — what the start block says is new (#33)', () => {
     expect(newOnOffer({ introducedToday: 12, dueCount: 0 }, 43, LIMITS)).toBe(0)
   })
 
-  it('is what is left of the day when more than that is waiting, and not capped at a lesson', () => {
-    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 43, LIMITS)).toBe(10)
+  it('is capped by the lesson size and the remaining daily allowance', () => {
+    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 43, LIMITS)).toBe(5)
     expect(newOnOffer({ introducedToday: 7, dueCount: 49 }, 43, LIMITS)).toBe(3)
   })
 
   it('is what is waiting when that is fewer than the day allows', () => {
     expect(newOnOffer({ introducedToday: 2, dueCount: 0 }, 4, LIMITS)).toBe(4)
     expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 0, LIMITS)).toBe(0)
+  })
+
+  it('uses the reader\'s lesson size and daily limit', () => {
+    expect(newOnOffer({ introducedToday: 0, dueCount: 0 }, 20, limits({ lessonSize: 8, dailyNew: 12 }))).toBe(8)
   })
 })
 

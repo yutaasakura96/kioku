@@ -316,15 +316,15 @@ describe('startBlockCounts', () => {
     expect((await startBlockCounts(db, OWNER)).due).toBe(0)
   })
 
-  // ⚠️ #33: `Review · 0 due · 10 new`. The arithmetic is `newOnOffer`'s and
+  // The arithmetic is `newOnOffer`'s and
   // unit-tested; these are the reads under it — which *cards* are new, and which
   // runs spent today.
-  it('counts a card with no epoch as new, up to the day\'s ten', async () => {
+  it('counts a card with no epoch as new, up to the lesson size', async () => {
     for (let n = 0; n < 12; n += 1)
       await seedNewCard(`語${n}␟ご`)
     await seedDueCard({ due: `now() - interval '1 hour'` })
 
-    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 10 })
+    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 5 })
   })
 
   it('does not count a suspended card, or one with only a superseded epoch, as new', async () => {
@@ -376,7 +376,7 @@ describe('startBlockCounts', () => {
     expect((await client.query(`SELECT 1 FROM card;`)).rows).toHaveLength(1)
   })
 
-  // ADR 0076 §2: the day's number is the reader's own.
+  // ADR 0076 §2: the lesson's number is the reader's own.
   it('stops at the reader\'s own limit, and at nothing when they set none', async () => {
     for (let n = 0; n < 6; n += 1)
       await seedNewCard(`語${n}␟ご`)

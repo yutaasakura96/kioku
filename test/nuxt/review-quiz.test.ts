@@ -24,6 +24,39 @@ const owed = () => parseOutbox(stored(OUTBOX_KEY))
 const grades = () => owed().map(entry => entry.kind === 'grade' && [entry.cardId, entry.grade])
 
 describe('one word, two questions (ADR 0076 §3)', () => {
+  it('ignores touch and pointer drags, then checks through the rendered control', async () => {
+    const view = await open()
+    server.reachable = false
+    const before = stored(QUIZ_KEY)
+    const card = view.find('.quizcard')
+
+    for (const event of ['touchstart', 'touchmove', 'touchend', 'pointerdown', 'pointermove', 'pointerup', 'dragstart', 'drag'])
+      await card.trigger(event)
+
+    expect(asked(view)).toBe('Meaning')
+    expect(view.find('.fb.hint').exists()).toBe(true)
+    expect(view.find('.fb.ok').exists()).toBe(false)
+    expect(view.find('.fb.no').exists()).toBe(false)
+    expect(view.find('.quizcard button').text()).toBe('Check')
+    expect(stored(QUIZ_KEY)).toEqual(before)
+    expect(stored(OUTBOX_KEY)).toBeNull()
+    expect(server.graded.size).toBe(0)
+
+    await view.find('.quizcard input').setValue('library')
+    const form = view.find('.quizcard form').element as HTMLFormElement
+    const button = view.find('.quizcard button').element as HTMLButtonElement
+    form.requestSubmit(button)
+    await flushPromises()
+
+    expect(view.find('.fb.ok').text()).toContain('Correct')
+    expect(owed()).toEqual([])
+
+    form.requestSubmit(button)
+    await flushPromises()
+
+    expect(asked(view)).toBe('Reading')
+  })
+
   it('asks the meaning, then the reading, back to back', async () => {
     const view = await open()
 

@@ -138,10 +138,11 @@ arithmetic (ADR 0066's brake).
 
 ⚠️ **Amended 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70)
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)): three controls,
-`Review · 0 due` and `Lesson · 10 new`.** A review run never holds a new word and a lesson never
+`Review · 0 due` and `Lesson · 5 new`.** A review run never holds a new word and a lesson never
 holds a due one, so each count has its own control and each link says which run to start. The count
-on Lesson is still the brake's, with the reader's own limits, and it now counts starter words nobody
-has started as well as the reader's own unscheduled *cards*. No control is disabled at zero.
+on Lesson is the next lesson's size, capped by the day's allowance and the words available: starter
+words nobody has started and the reader's own unscheduled *cards*. It is zero while the backlog
+pauses lessons. No control is disabled at zero.
 
 **Every figure in the shell is as of page load and says so.** A *place* ships no JavaScript, so it
 cannot poll, and the alternatives are worse: a meta refresh on `/` would destroy a paste in progress,

@@ -230,7 +230,7 @@ export interface StartBlockCounts {
   flagged: number
   /** `Review · N due` — due **now**, which is what the control offers to start. */
   due: number
-  /** `Lesson · N new` — what the brake would let today introduce (#33, ADR 0076, `shared/review/brake.ts`). */
+  /** `Lesson · N new` — what the next lesson would teach (ADR 0076). */
   newToday: number
 }
 
