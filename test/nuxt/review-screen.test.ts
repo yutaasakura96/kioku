@@ -259,6 +259,7 @@ describe('the summary (ADR 0076 §7, §8)', () => {
         early: false,
         positions: [],
         offer: OFFER,
+        filtered: false,
         unsent: 0,
         refused: [],
         sessionExpired: false,

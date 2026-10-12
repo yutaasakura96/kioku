@@ -398,10 +398,12 @@ type Landing = 'landed' | 'refused' | 'held'
  * memory arguing with the database.
  */
 async function send(entry: OutboxEntry): Promise<Landing> {
+  const narrowed = filter.value
+
   try {
     const response = await $fetch<AnswerResponse>(`/api/review/${entry.kind}`, {
       method: 'POST',
-      body: bodyOf(entry),
+      body: bodyOf(entry, narrowed),
     })
 
     if (response.session)
@@ -409,8 +411,10 @@ async function send(entry: OutboxEntry): Promise<Landing> {
 
     // ⚠️ Only for the run on screen: a replay of yesterday's stream must not
     // put yesterday's run's *What next* under today's.
-    if (response.offer && entry.sessionId === snapshot.value?.sessionId)
+    if (response.offer && entry.sessionId === snapshot.value?.sessionId) {
       offer.value = response.offer
+      askedFiltered.value = isFiltered(narrowed)
+    }
 
     return isRefused(response.outcome) ? 'refused' : 'landed'
   }
@@ -446,14 +450,14 @@ async function send(entry: OutboxEntry): Promise<Landing> {
  * the answer that ends a run is counted the way the next lesson is composed
  * (ADR 0076 §8) and the stream still holds no saved query (ADR 0065 §6).
  */
-function bodyOf(entry: OutboxEntry) {
+function bodyOf(entry: OutboxEntry, narrowed: SessionFilter) {
   switch (entry.kind) {
     case 'grade':
-      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt, ...filter.value }
+      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt, ...narrowed }
     case 'flag':
-      return { sessionId: entry.sessionId, cardId: entry.cardId, ...filter.value }
+      return { sessionId: entry.sessionId, cardId: entry.cardId, ...narrowed }
     case 'finish':
-      return { sessionId: entry.sessionId, ...filter.value }
+      return { sessionId: entry.sessionId, ...narrowed }
   }
 }
 
@@ -1068,6 +1072,7 @@ onBeforeUnmount(() => {
           :early="quiz?.finished ?? false"
           :positions="positions"
           :offer="offer"
+          :filtered="askedFiltered"
           :unsent="unsent"
           :refused="refused"
           :session-expired="sessionExpired"

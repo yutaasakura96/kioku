@@ -196,6 +196,34 @@ describe('the summary\'s what next (ADR 0066 §7, ADR 0076 §8)', () => {
     await vi.waitFor(() => expect(server.starts.at(-1)).toMatchObject({ start: 'lesson', levels: ['N3'] }))
   })
 
+  // ⚠️ The summary's offer was counted through the filter, so its sentence is
+  // the start screen's: nothing matches, not nothing is left.
+  it('says the filter matched no new word, as the screen before a run does', async () => {
+    server.offer = { ...NOTHING_WAITING, dueCount: 1 }
+    server.cards = [server.cards[0]!]
+    const view = await start()
+
+    await view.find('input[value=N3]').setValue(true)
+    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
+    await view.find('.cta button').trigger('click')
+    await vi.waitFor(() => expect(view.find('.quizcard').exists()).toBe(true))
+
+    await word(view)
+
+    await vi.waitFor(() => expect(view.find('.next').text()).toContain('No new word matches the filter.'))
+    expect(view.find('.next').text()).not.toContain('no new words left')
+  })
+
+  it('says no new words are left when no filter was set', async () => {
+    server.live = true
+    server.cards = [server.cards[0]!]
+    const view = await open()
+
+    await word(view)
+
+    await vi.waitFor(() => expect(view.find('.next').text()).toContain('There are no new words left to learn.'))
+  })
+
   it('offers a lesson once the reviews are done', async () => {
     server.live = true
     server.cards = [server.cards[0]!]

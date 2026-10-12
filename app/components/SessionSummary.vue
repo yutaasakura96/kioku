@@ -29,6 +29,8 @@ const props = defineProps<{
   positions: ReviewPosition[]
   /** What is waiting, fresh from the answer that ended the run. `null` until it lands. */
   offer: StudyOffer | null
+  /** Whether that offer was counted through the reader's filter (ADR 0065 §5). */
+  filtered: boolean
   unsent: number
   refused: OutboxEntry[]
   sessionExpired: boolean
@@ -79,7 +81,7 @@ function noteFor(position: ReviewPosition): string {
   return `${movement(position.stage ?? null, outcome.stage)} · ${backIn(new Date(outcome.due))}`
 }
 
-const next = computed(() => (props.offer ? whatNext(props.offer) : null))
+const next = computed(() => (props.offer ? whatNext(props.offer, new Date(), props.filtered) : null))
 
 const nextBody = computed(() => {
   const learned = props.kind === 'lesson' && summary.value.total > 0

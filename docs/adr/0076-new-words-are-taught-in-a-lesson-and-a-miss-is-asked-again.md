@@ -171,7 +171,8 @@ The lesson, the quiz and the summary are the prototype's. Three things are this 
   memory for the next run (ADR 0065 §5), so each *grade*, flag and finish carries it and the offer
   that comes back with the answer that ends a run is counted through it. It is added when an entry
   is sent and never stored with one; an answer with no filter, or one that is not legal, is counted
-  unfiltered and never refused.
+  unfiltered and never refused. When that filter matches no new word the summary says so, in the
+  start screen's words (`No new word matches the filter.`), not that no new words are left.
 - **The example sentence is drawn when the *note* has one** (ADR 0075 §7's open point). A starter
   word has none and its lesson screen is shorter. No sentence source is added.
 - **Two colours**, `--k-right` and `--k-wrong`, with a tint each, as the prototype has them. Every

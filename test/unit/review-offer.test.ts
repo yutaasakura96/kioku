@@ -121,4 +121,11 @@ describe('the summary\'s *What next*', () => {
       start: null,
     })
   })
+
+  // ⚠️ An offer counted through a filter says so: *none left* would be untrue
+  // of the pool.
+  it('says the filter matched nothing rather than that nothing is left', () => {
+    expect(whatNext(offer(), now).body).toBe('Nothing else due. There are no new words left to learn.')
+    expect(whatNext(offer(), now, true).body).toBe('Nothing else due. No new word matches the filter.')
+  })
 })

@@ -120,7 +120,7 @@ export interface NextStep {
  * The summary's *What next* (prototype `vSummary`): reviews still waiting come
  * first, then a lesson, then nothing.
  */
-export function whatNext(offer: StudyOffer, now: Date = new Date()): NextStep {
+export function whatNext(offer: StudyOffer, now: Date = new Date(), filtered = false): NextStep {
   if (offer.dueCount > 0) {
     return {
       body: `${words(offer.dueCount, 'review is', 'reviews are')} still waiting.`,
@@ -137,5 +137,5 @@ export function whatNext(offer: StudyOffer, now: Date = new Date()): NextStep {
     }
   }
 
-  return { body: ['Nothing else due.', next, noLessonLine(offer)].filter(line => line !== '').join(' '), start: null }
+  return { body: ['Nothing else due.', next, noLessonLine(offer, filtered)].filter(line => line !== '').join(' '), start: null }
 }
