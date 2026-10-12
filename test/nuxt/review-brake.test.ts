@@ -105,6 +105,53 @@ describe('the screen before a run (ADR 0076 §8)', () => {
     expect(server.starts[1]).toMatchObject({ levels: ['N3'], domains: [] })
     expect(server.starts[1]!.start).toBeUndefined()
   })
+
+  // ⚠️ The re-ask must not take the screen away: the checkbox the reader
+  // ticked is the one still there, so their place and focus are too.
+  it('keeps the screen, and the checkbox just ticked, while it asks again', async () => {
+    server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true }
+    const view = await start()
+    const box = view.find('input[value=N3]').element
+    const drawn: boolean[] = []
+    const watching = new MutationObserver(() => drawn.push(view.find('.start').exists()))
+    watching.observe(view.element, { childList: true, subtree: true })
+
+    await view.find('input[value=N3]').setValue(true)
+    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
+    await flushPromises()
+    watching.disconnect()
+
+    expect(drawn.every(Boolean), 'the start screen left the page during the re-ask').toBe(true)
+    expect(view.find('input[value=N3]').element).toBe(box)
+    expect((box as HTMLInputElement).checked).toBe(true)
+    expect(texts(view, '.cta button')).toEqual(['Start lesson · 5 new words'])
+  })
+
+  it('keeps the screen when the re-ask does not arrive', async () => {
+    server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true }
+    const view = await start()
+    const box = view.find('input[value=N3]').element
+
+    server.reachable = false
+    await view.find('input[value=N3]').setValue(true)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
+
+    expect(view.text()).not.toContain('That did not load')
+    expect(view.find('input[value=N3]').element).toBe(box)
+    expect(texts(view, '.cta button')).toEqual(['Start lesson · 5 new words'])
+  })
+
+  // The reader's own start still says so when it fails: nothing was held for it.
+  it('says a run the reader started did not load', async () => {
+    server.offer = { ...NOTHING_WAITING, dueCount: 2 }
+    const view = await start()
+
+    server.reachable = false
+    await view.find('.cta button').trigger('click')
+
+    await vi.waitFor(() => expect(view.text()).toContain('That did not load'))
+  })
 })
 
 describe('the summary\'s what next (ADR 0066 §7, ADR 0076 §8)', () => {
@@ -122,6 +169,31 @@ describe('the summary\'s what next (ADR 0066 §7, ADR 0076 §8)', () => {
 
     await vi.waitFor(() => expect(view.find('.next').text()).toContain('70 reviews are still waiting.'))
     expect(view.find('.next button').text()).toBe('Carry on with reviews')
+  })
+
+  // ⚠️ The summary's lesson is started through the filter the reader chose, so
+  // every answer carries it and the offer that ends the run is counted with it.
+  it('sends the chosen filter with every answer, and keeps it for the next run', async () => {
+    server.offer = { ...NOTHING_WAITING, dueCount: 1, lesson: 5, waiting: true }
+    server.finalOffer = { ...NOTHING_WAITING, lesson: 2, waiting: true }
+    server.cards = [server.cards[0]!]
+    const view = await start()
+
+    await view.find('input[value=N3]').setValue(true)
+    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
+    await view.find('.cta button').trigger('click')
+    await vi.waitFor(() => expect(view.find('.quizcard').exists()).toBe(true))
+
+    await word(view)
+    await vi.waitFor(() => expect(view.find('.next button').text()).toBe('Start lesson · 2 new words'))
+
+    expect(server.answers).toHaveLength(1)
+    expect(server.answers[0]).toMatchObject({ cardId: server.cards[0], grade: 3, levels: ['N3'], domains: [] })
+
+    server.live = false
+    server.graded = new Map()
+    await view.find('.next button').trigger('click')
+    await vi.waitFor(() => expect(server.starts.at(-1)).toMatchObject({ start: 'lesson', levels: ['N3'] }))
   })
 
   it('offers a lesson once the reviews are done', async () => {

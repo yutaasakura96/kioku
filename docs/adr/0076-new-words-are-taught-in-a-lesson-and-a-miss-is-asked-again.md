@@ -164,7 +164,14 @@ The lesson, the quiz and the summary are the prototype's. Three things are this 
 
 - **The screen before a run**, which the prototype puts on Home (#71). Until Home exists, `/review`
   opens on what is waiting — reviews and a lesson, each with its count — and the reader starts one.
-  The start block on each *place* links to each directly.
+  The start block on each *place* links to each directly. ⚠️ **A changed filter asks again without
+  taking the screen away**: the offer already drawn stays until the new count arrives, and stays if
+  it does not.
+- **The summary's lesson is counted through the reader's filter.** The filter stays in the page's
+  memory for the next run (ADR 0065 §5), so each *grade*, flag and finish carries it and the offer
+  that comes back with the answer that ends a run is counted through it. It is added when an entry
+  is sent and never stored with one; an answer with no filter, or one that is not legal, is counted
+  unfiltered and never refused.
 - **The example sentence is drawn when the *note* has one** (ADR 0075 §7's open point). A starter
   word has none and its lesson screen is shorter. No sentence source is added.
 - **Two colours**, `--k-right` and `--k-wrong`, with a tint each, as the prototype has them. Every

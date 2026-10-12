@@ -3177,6 +3177,11 @@ Nothing.
   being composed (ADR 0066 §3), so a run starts only from `start` in the request body, which only a
   control or the start block's `?start=` sets, and the page takes `start` out of the address once
   it has read it. A mount that composed would spend a reader's ten words on page loads.
+- ⚠️ **Every answer carries the page's filter, and the outbox stores none** (ADR 0076 §8). The
+  summary's lesson count is read through it (`offerIfFinished`), because the summary's control
+  starts the next lesson through it. `bodyOf` adds it at send time; stored in an entry it would be
+  a saved query (ADR 0065 §6). On an answer endpoint a missing or illegal filter is **no filter,
+  never a `400`**: a `400` there drops the *grade* with it.
 - ⚠️ **`finish` is an outbox entry and not an answer.** It answers no position, it is not counted
   in the summary's unsent line, and a refused one is dropped rather than kept. It must stay
   **behind** the Forgot *grades* it follows: the stream's order is the order the server learns them.

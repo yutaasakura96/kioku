@@ -795,7 +795,9 @@ the reader's synonyms (`04` §7.9).
   `start: 'lesson'`; without one it resumes a live run or composes nothing. It always answers
   `{ session, offer }`, and `offer` is what is waiting: the due count, the size of the next lesson,
   which brake is on, the reader's limits and the next due instant (`shared/review/offer.ts`). The
-  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run.
+  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run, counted
+  through the *session* filter the answer carries (`domains`, `levels`; absent or not legal is no
+  filter, never a refusal). The page adds its filter when an entry is sent and stores none.
 - **The three limits are the reader's** (`study_setting`, `04` §7.10): `POST /api/settings` takes
   the form on `/settings`, clamps, and answers `303`.
 

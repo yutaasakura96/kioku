@@ -203,18 +203,20 @@ export async function liveSession(db: IngestDatabase, ownerId: string): Promise<
  * and `null` otherwise.** The reading the run was composed with says *63 due*;
  * twenty answers later it is 43, and a sentence that still said 63 would be
  * telling the reader the gate is shut when the next lesson would open it. The
- * zone is the one the run stored, because an answer carries none.
+ * zone is the one the run stored, because an answer carries none; the filter is
+ * the one the answer carried, because the next lesson is composed through it.
  */
 export async function offerIfFinished(
   db: IngestDatabase,
   ownerId: string,
   snapshot: ReviewSnapshot | null,
+  filter: SessionFilter,
   finished = snapshot !== null && isFinished(snapshot),
 ): Promise<StudyOffer | null> {
   if (!finished)
     return null
 
-  return offerOf(db, ownerId, await readerZone(db, ownerId))
+  return offerOf(db, ownerId, await readerZone(db, ownerId), filter)
 }
 
 /**

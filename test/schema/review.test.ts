@@ -26,6 +26,7 @@ import { recordGrade } from '../../server/utils/review/grade'
 import { brakeReading, finishSession, offerIfFinished, offerOf, resumeOrStart } from '../../server/utils/review/session'
 import { readLimits, writeLimits } from '../../server/utils/review/settings'
 import { DEFAULT_LIMITS } from '../../shared/review/limits'
+import { NO_FILTER } from '../../shared/review/filter'
 import type { SessionFilter } from '../../shared/review/filter'
 import type { Grade } from '../../shared/review/scheduler'
 import type { SchemaDatabase } from './harness'
@@ -1085,13 +1086,31 @@ describe('the review-load brake (ADR 0066, #21, ADR 0076 §2)', () => {
     await newWords(1)
     const run = (await lesson())!
 
-    expect(await offerIfFinished(db, OWNER, run)).toBeNull()
+    expect(await offerIfFinished(db, OWNER, run, NO_FILTER)).toBeNull()
     expect(await offerIfFinished(db, OWNER, {
       ...run,
       positions: run.positions.map(position => ({ ...position, grade: 3 as Grade })),
-    })).toMatchObject({ introducedToday: 1, dueCount: 0, limits: DEFAULT_LIMITS })
+    }, NO_FILTER)).toMatchObject({ introducedToday: 1, dueCount: 0, limits: DEFAULT_LIMITS })
     // ADR 0076 §6: a run finished early is over, whatever is unanswered in it.
-    expect(await offerIfFinished(db, OWNER, run, true)).toMatchObject({ introducedToday: 1 })
+    expect(await offerIfFinished(db, OWNER, run, NO_FILTER, true)).toMatchObject({ introducedToday: 1 })
+  })
+
+  // ⚠️ The summary's control starts the next lesson through the reader's
+  // filter, so its count is read through the same one.
+  it('counts the summary\'s lesson through the filter the answer carried', async () => {
+    await starterWord('会う', 'N5')
+    await starterWord('食べる', 'N5')
+    await starterWord('経済', 'N3')
+    const run = (await lesson())!
+
+    // Left unfinished, so its three words are still new and still on offer.
+    expect(await offerIfFinished(db, OWNER, run, NO_FILTER, true)).toMatchObject({ lesson: 3, waiting: true })
+    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N3'] }, true))
+      .toMatchObject({ lesson: 1, waiting: true })
+    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N1'] }, true))
+      .toMatchObject({ lesson: 0, waiting: false })
+    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N5'] }, true))
+      .toMatchObject({ lesson: 2, waiting: true })
   })
 })
 

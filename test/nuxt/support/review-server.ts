@@ -56,6 +56,8 @@ export const server = {
   starts: [] as Record<string, unknown>[],
   /** ⚠️ The order entries arrived in — property 3's whole assertion. */
   seen: [] as string[],
+  /** Every body an answer endpoint was sent, in that order. */
+  answers: [] as Record<string, unknown>[],
   graded: new Map<string, number>(),
   flagged: new Set<string>(),
   finished: false,
@@ -76,6 +78,7 @@ export function resetServer() {
   server.finalOffer = NOTHING_WAITING
   server.starts = []
   server.seen = []
+  server.answers = []
   server.graded = new Map()
   server.flagged = new Set()
   server.finished = false
@@ -144,6 +147,7 @@ async function receive(kind: 'grade' | 'flag' | 'finish', event: Parameters<type
     await server.gate
 
   server.seen.push(kind === 'finish' ? 'finish' : `${kind}:${body.cardId}`)
+  server.answers.push(body as Record<string, unknown>)
 
   if (kind === 'grade' && server.answer !== 'ok')
     return { outcome: server.answer, session: snapshot(), offer: null }

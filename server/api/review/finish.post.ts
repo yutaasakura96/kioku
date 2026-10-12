@@ -15,6 +15,8 @@
  * ⚠️ **No stamp**, as a flag carries none: `completed_at` is the server's
  * `now()` and nothing is scheduled from it.
  */
+import { jlptVocab } from '../../../shared/subject/declaration'
+import { offerFilter } from '../../../shared/review/filter'
 import { parseFinish } from '../../../shared/review/request'
 import { finishSession, offerIfFinished } from '../../utils/review/session'
 import { requireOwnerId } from '../../utils/reader'
@@ -22,7 +24,8 @@ import { useDatabase } from '../../db'
 
 export default defineEventHandler(async (event) => {
   const ownerId = requireOwnerId(event)
-  const parsed = parseFinish(await readBody(event))
+  const body = await readBody(event)
+  const parsed = parseFinish(body)
 
   if (!parsed.ok)
     throw createError({ statusCode: 400, statusMessage: parsed.code })
@@ -33,6 +36,6 @@ export default defineEventHandler(async (event) => {
   return {
     outcome: session ? ('ok' as const) : ('not_in_session' as const),
     session,
-    offer: await offerIfFinished(db, ownerId, session, session !== null),
+    offer: await offerIfFinished(db, ownerId, session, offerFilter(body, jlptVocab), session !== null),
   }
 })

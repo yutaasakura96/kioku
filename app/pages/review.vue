@@ -438,15 +438,22 @@ async function send(entry: OutboxEntry): Promise<Landing> {
   }
 }
 
-/** What each entry type's endpoint reads — `shared/review/request.ts`. */
+/**
+ * What each entry type's endpoint reads — `shared/review/request.ts`.
+ *
+ * ⚠️ **The filter rides every answer and is never stored with one**: it is
+ * the page's, read when the entry is sent, so the offer that comes back with
+ * the answer that ends a run is counted the way the next lesson is composed
+ * (ADR 0076 §8) and the stream still holds no saved query (ADR 0065 §6).
+ */
 function bodyOf(entry: OutboxEntry) {
   switch (entry.kind) {
     case 'grade':
-      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt }
+      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt, ...filter.value }
     case 'flag':
-      return { sessionId: entry.sessionId, cardId: entry.cardId }
+      return { sessionId: entry.sessionId, cardId: entry.cardId, ...filter.value }
     case 'finish':
-      return { sessionId: entry.sessionId }
+      return { sessionId: entry.sessionId, ...filter.value }
   }
 }
 
@@ -486,7 +493,12 @@ async function flush(): Promise<void> {
  * resumes a live run or composes nothing (ADR 0076 §8).
  */
 async function start(begin: SessionKind | null = null) {
-  if (!snapshot.value)
+  // ⚠️ **A re-ask of what is waiting leaves the screen it was asked from
+  // standing.** The offer on it is still the last true answer, and unmounting
+  // it would take the filter checkbox the reader just ticked, and their focus.
+  const held = snapshot.value !== null || (begin === null && offer.value !== null)
+
+  if (!held)
     status.value = 'loading'
 
   try {
@@ -510,7 +522,7 @@ async function start(begin: SessionKind | null = null) {
     // is in the store and every answer goes to the stream, so a reader who
     // reloads underground carries on where they were; the error screen is for a
     // reader who has nothing.
-    if (!snapshot.value)
+    if (!held)
       status.value = 'error'
   }
 }
