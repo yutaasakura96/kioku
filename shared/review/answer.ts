@@ -174,23 +174,29 @@ export interface AcceptedMeanings {
   synonyms: readonly string[]
 }
 
+const DIGIT = /^\d$/
+
 /**
  * The gloss cut at `,`, `;` and `/` — ⚠️ **but not inside brackets.** JMdict
  * writes *to open (a door, etc.)*, and cut at every comma that is two answers,
- * one of which is *etc*.
+ * one of which is *etc*. ⚠️ **Nor at a comma between two digits**: 万 is
+ * *10,000; ten thousand*, and cut there it is taught as *10*.
  */
 export function glossPieces(gloss: string): string[] {
+  const characters = [...gloss]
   const pieces: string[] = []
   let depth = 0
   let piece = ''
 
-  for (const character of gloss) {
+  for (const [index, character] of characters.entries()) {
     if (character === '(')
       depth += 1
     else if (character === ')')
       depth = Math.max(0, depth - 1)
 
-    if (depth === 0 && (character === ',' || character === ';' || character === '/')) {
+    const inNumber = character === ',' && DIGIT.test(characters[index - 1] ?? '') && DIGIT.test(characters[index + 1] ?? '')
+
+    if (depth === 0 && !inNumber && (character === ',' || character === ';' || character === '/')) {
       pieces.push(piece)
       piece = ''
     }

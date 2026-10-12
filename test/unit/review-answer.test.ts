@@ -193,6 +193,23 @@ describe('the pieces of a gloss', () => {
     expect(glossPieces('to open (a door, etc.); to unlock')).toEqual(['to open (a door, etc.)', 'to unlock'])
   })
 
+  // The starter set's 万, 千 and 億: a thousands comma is part of the number.
+  it('does not cut a number at its thousands comma', () => {
+    expect(glossPieces('10,000; ten thousand')).toEqual(['10,000', 'ten thousand'])
+    expect(glossPieces('thousand; 1,000')).toEqual(['thousand', '1,000'])
+    expect(glossPieces('hundred million; 100,000,000; 10^8')).toEqual(['hundred million', '100,000,000', '10^8'])
+    expect(glossPieces('1, 2,three')).toEqual(['1', '2', 'three'])
+  })
+
+  it('checks 万 against the whole number and not the half before the comma', () => {
+    expect(meaningResult('10,000', '10,000; ten thousand')).toBe('exact')
+    expect(meaningResult('10000', '10,000; ten thousand')).toBe('exact')
+    expect(meaningResult('ten thousand', '10,000; ten thousand')).toBe('exact')
+    expect(meaningResult('10', '10,000; ten thousand')).toBe('wrong')
+    expect(meaningResult('000', '10,000; ten thousand')).toBe('wrong')
+    expect(otherMeanings('ten thousand', '10,000; ten thousand')).toEqual(['10,000'])
+  })
+
   it('drops an empty piece', () => {
     expect(glossPieces('library; ')).toEqual(['library'])
   })
