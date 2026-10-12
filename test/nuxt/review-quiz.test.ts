@@ -470,7 +470,31 @@ describe('a lesson (ADR 0076 §1)', () => {
     await press(view, 'Escape')
 
     await vi.waitFor(() => expect(server.seen).toEqual(['finish']))
+    // ⚠️ Let the answer land before the test ends, or it lands in the next test's store.
+    await flushPromises()
     expect(view.find('.summary .statement').text()).toBe('Lesson finished early.')
     expect(view.find('.left').text()).toBe('2 words were not finished and will be taught again in the next lesson.')
+  })
+
+  // ⚠️ A lesson's size is the lesson's, not the *session*-size knob: a lesson
+  // restored from the store must not cap the review run started after it.
+  it('leaves the session size alone when a held lesson is restored', async () => {
+    server.finalOffer = { ...NOTHING_WAITING, dueCount: 30 }
+    const first = await openLesson()
+    first.unmount()
+
+    const view = await open('.lesson .term')
+    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
+    await flushPromises()
+
+    await view.find('.rowbtns .btn:not(.ghost)').trigger('click')
+    await view.find('.rowbtns .btn:not(.ghost)').trigger('click')
+    await press(view, 'Escape')
+    await vi.waitFor(() => expect(view.find('.next button').text()).toBe('Start reviews · 30 due'))
+
+    await view.find('.next button').trigger('click')
+
+    await vi.waitFor(() => expect(server.starts.at(-1)).toMatchObject({ start: 'review', size: 20 }))
+    await flushPromises()
   })
 })

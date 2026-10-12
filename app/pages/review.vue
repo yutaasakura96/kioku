@@ -330,7 +330,8 @@ function restore() {
     return
 
   snapshot.value = held
-  size.value = held.size
+  if (held.kind === 'review')
+    size.value = held.size
   // ⚠️ **The stream re-answers the run.** The optimistic map is client memory
   // and the reload just lost it; without this the reader is asked a word they
   // have already finished and PRD §5's *the same card graded twice* stops being
