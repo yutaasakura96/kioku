@@ -375,6 +375,73 @@ describe('finishing early (ADR 0076 §6)', () => {
 
     expect(second.find('.quizcard').exists()).toBe(false)
   })
+
+  // ⚠️ The run ended by being answered. *Finish early* on the last result is
+  // *Next* by another key: no early summary, and no `finish` in the stream.
+  it.each([
+    ['Escape', (view: Awaited<ReturnType<typeof open>>) => press(view, 'Escape')],
+    ['the exit control', (view: Awaited<ReturnType<typeof open>>) => view.find('.modebar .exit').trigger('click')],
+  ])('shows the ordinary summary when every word is already answered (%s)', async (_name, finishEarly) => {
+    server.cards = [FIRST]
+    const view = await open()
+    server.reachable = false
+
+    await give(view, 'library')
+    await next(view)
+    await give(view, 'としょかん')
+    expect(view.find('.fb.ok').exists()).toBe(true)
+
+    await finishEarly(view)
+    await flushPromises()
+
+    expect(view.find('.summary .statement').text()).toBe('Reviews done.')
+    expect(view.find('.left').exists()).toBe(false)
+    expect(owed().map(entry => entry.kind)).toEqual(['grade'])
+  })
+})
+
+// ⚠️ The offer that came with the run was counted before it was answered. The
+// summary draws only the one that comes back with the answer that ends it.
+describe('the summary before its offer lands (ADR 0076 §8)', () => {
+  beforeEach(() => {
+    server.offer = { ...NOTHING_WAITING, dueCount: 2 }
+    server.finalOffer = { ...NOTHING_WAITING, dueCount: 7 }
+  })
+
+  it('draws no count and no start control while the last answer is unsent, then the fresh one', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await word(view)
+    await word(view)
+
+    expect(view.find('.summary .statement').text()).toBe('Reviews done.')
+    expect(view.find('.next').text()).not.toContain('waiting')
+    expect(texts(view, '.next .btn')).toEqual(['Back to Sources'])
+
+    server.reachable = true
+    window.dispatchEvent(new Event('online'))
+
+    await vi.waitFor(() => expect(view.find('.next').text()).toContain('7 reviews are still waiting.'))
+    expect(texts(view, '.next .btn')).toEqual(['Carry on with reviews', 'Back to Sources'])
+  })
+
+  it('does the same when the run is finished early', async () => {
+    const view = await open()
+    server.reachable = false
+
+    await press(view, 'Escape')
+
+    expect(view.find('.summary .statement').text()).toBe('Session finished early.')
+    expect(view.find('.next').text()).not.toContain('waiting')
+    expect(texts(view, '.next .btn')).toEqual(['Back to Sources'])
+
+    server.reachable = true
+    window.dispatchEvent(new Event('online'))
+
+    await vi.waitFor(() => expect(view.find('.next').text()).toContain('7 reviews are still waiting.'))
+    await flushPromises()
+  })
 })
 
 describe('a lesson (ADR 0076 §1)', () => {

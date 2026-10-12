@@ -544,7 +544,10 @@ function install(response: SessionResponse) {
   const held = snapshot.value
   const fresh = response.session
 
-  offer.value = response.offer
+  // ⚠️ **An offer read with a live run is not kept**: it was counted before
+  // the run was answered, and the summary draws only the one that comes back
+  // with the answer that ends it (`offerIfFinished`).
+  offer.value = fresh ? null : response.offer
 
   if (fresh && held && fresh.sessionId === held.sessionId) {
     apply(fresh)
@@ -739,6 +742,11 @@ function finish() {
   const state = quiz.value
   if (!session || !state || state.finished)
     return
+
+  // ⚠️ **Nothing is left to finish early** once the last answer's result is
+  // up: the run ended by being answered, and this is *Next* by another key.
+  if (!currentQuestion(state))
+    return resetQuestion()
 
   const { state: next, forgot } = finishEarly(state, kind.value)
   const reviewedAt = new Date().toISOString()

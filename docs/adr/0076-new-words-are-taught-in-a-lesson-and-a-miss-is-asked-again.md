@@ -173,6 +173,12 @@ The lesson, the quiz and the summary are the prototype's. Three things are this 
   is sent and never stored with one; an answer with no filter, or one that is not legal, is counted
   unfiltered and never refused. When that filter matches no new word the summary says so, in the
   start screen's words (`No new word matches the filter.`), not that no new words are left.
+- **The summary's *What next* waits for the offer that comes back with the answer that ends the
+  run.** The offer read when a run is composed or resumed was counted before it was answered and is
+  not kept, so a summary whose last answer has not landed draws the way out and no count.
+- **Finish early with nothing left is *Next*.** On the result of the run's last answer the exit
+  control and `Esc` show the ordinary summary: the run is not marked finished early and no `finish`
+  entry is queued.
 - **The example sentence is drawn when the *note* has one** (ADR 0075 §7's open point). A starter
   word has none and its lesson screen is shorter. No sentence source is added.
 - **Two colours**, `--k-right` and `--k-wrong`, with a tint each, as the prototype has them. Every
