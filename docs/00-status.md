@@ -126,7 +126,7 @@ quiz, and reviewed a prototype of it the same day (`docs/prototype/`).
 [#68](https://github.com/yutaasakura96/kioku/issues/68), the data under it, is built (§ Done):
 **a starter set of 8,273 JLPT words from JMdict and Jonathan Waller's lists, a *level* that comes
 from the list, derived *categories*, a dictionary lookup in front of the model, and a corpus that
-starts again under `jlpt-vocab-2` with nothing deleted.** ⚠️ **None of it is on production**: the
+starts again under `jlpt-vocab-2` with nothing deleted.** ~~⚠️ **None of it is on production**~~ (⚠️ **released 2026-10-14**, § Done): the
 migration, the load and the release are Yuta's (§ Next). ⚠️ **And nothing above this paragraph was
 rewritten for it** — where an earlier paragraph says what the app is for, ADR 0075 is the newer word.
 
@@ -135,16 +135,48 @@ lessons** (§ Done, [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-m
 A new word is taught in a lesson of five before it is asked, the quiz asks the meaning and then the
 reading, a miss comes back until it is right and still counts, a near miss in a meaning passes and
 nothing overrules the check, and the three limits are settings on a fourth *place*. **The starter
-words can now be studied**: a lesson accepts and mints the ones it teaches. ⚠️ **Migration `0013` is
-not on production, and neither is any of #68** (§ Next). The frontier is #69, then #71 and #72.
+words can now be studied**: a lesson accepts and mints the ones it teaches. ~~⚠️ **Migration `0013` is
+not on production, and neither is any of #68**~~ (§ Next). ⚠️ **Released 2026-10-14** (§ Done). The frontier is #69, then #71 and #72.
 
-**Updated:** 2026-10-12 (⚠️ this said 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
+⚠️ **2026-10-14: #73, #68 and #70 are on production** (§ Done). Migrations `0011`, `0012` and `0013`
+are applied to Neon, the starter set is loaded there, and `develop` at `aa3ea74` is merged into
+`main` and deployed. ⚠️ **From this deploy the earlier *cards* are out of every screen** (ADR 0075
+§1); nothing was deleted. **Still Yuta's**: the worker restart on the released code, and the
+signed-in look at the live site.
+
+**Updated:** 2026-10-14 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-12, latest — [#70](https://github.com/yutaasakura96/kioku/issues/70): the quiz with
+**2026-10-14, latest — the release of #73, #68 and #70: `develop` at `aa3ea74` into `main`**
+([PR #80](https://github.com/yutaasakura96/kioku/pull/80), merge commit `61df90e`). Yuta's go-ahead
+the same day. `03` §4.2's procedure, from a clean clone of `aa3ea74` with no root `.env`:
+- **A restore point first**: Neon branch `pre-release-2026-10-14` of `main`, taken before anything
+  was applied. It is Yuta's to delete once the release has settled.
+- **`drizzle.__drizzle_migrations` read before**: eleven rows, `0000` to `0010`, each hash the
+  SHA-256 of its file.
+- **Three migrations applied, not two**: `0011_starter_set`, `0012_keen_zuras` and `0013_lessons`.
+  ⚠️ **§ Next's release list named `0011` and `0013` only.** `0012` adds
+  `vetting_session.subject_id`, nullable, and is additive like the other two. Read back: fourteen
+  rows, and the column, table, checks and index each migration adds.
+- **The starter set loaded** with `npm run starter:load`: N5 684, N4 640, N3 1,730, N2 1,811,
+  N1 3,408; 8,273 *notes* created, none already there. ADR 0075 §4's table, row for row.
+- **The string came from the signed-in `neon` CLI**, the direct one, injected into each command and
+  written nowhere. ⚠️ **Not `op run`**, which `03` §4.2 names (amended there).
+- **Checked before the merge on a build with the Vercel preset**, because previews are off and
+  Vercel had never built `develop`: `server/stubs/not-installed.mjs` lands in its own chunk behind
+  one dynamic import inside a `.catch()`, and the built function answered `200` on every *place*
+  and both *modes* signed in against a local database. § Carrying's `nuxt dev` `500` is
+  local-only.
+- **Deployed and answering signed out**: `/auth` `200`, `/` and `/review` to the door,
+  `/favicon.ico` `200`.
+- ⚠️ **Not done, and Yuta's**: restarting the laptop worker on the released code before any new
+  run, and the signed-in look (a lesson of five, the quiz, `/settings`, the export). **And ADR 0022
+  § Amended 2026-10-10 still owes the cold-start measurement on the deployed site.**
+
+**2026-10-12 — [#70](https://github.com/yutaasakura96/kioku/issues/70): the quiz with
 lessons.** The second build step of #67's direction change
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)). *Review* is
 rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
@@ -186,7 +218,8 @@ rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
   44px as a link and 32px as a button, *Next reviews Tomorrow* had a capital mid-sentence, and a
   kana-only word drew its reading under itself. ADR 0076 § Settled by the build has what differs
   from the prototype on purpose. ⚠️ **Not on `dev:session`, which does not start** (§ Carrying).
-- ⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.
+- ~~⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.~~
+  ⚠️ **Done 2026-10-14** (the entry above).
 
 **2026-10-10 — [#68](https://github.com/yutaasakura96/kioku/issues/68): the starter set, and
 a *level* from a list.** The first build step of #67's direction change
@@ -217,7 +250,7 @@ data and no screen.
   The worker caches JMdict in `worker/.cache/` (ignored) and fetches it again after thirty days.
 - **Migration `0011`**, additive: `note_meaning.dictionary_version`, `model_id` and
   `prompt_version` nullable with a check that a list is attributed to one or the other, and a
-  partial index on `level_claim` for the category counts. **Not on Neon.**
+  partial index on `level_claim` for the category counts. ~~**Not on Neon.**~~ ⚠️ **Applied 2026-10-14.**
 - **The acknowledgement** is in the *shell*'s footer, in front of the KANJIDIC2 line, with a link
   to each source and licence (ADR 0075 §8). Read in a browser on `dev:session` at desktop and phone
   widths, with a kana-only starter word (テレビ: the meaning alone) and a kanji one (会う: the
@@ -2372,8 +2405,10 @@ Seven findings worth knowing without opening it:
   test.** [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
   [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
 
-⚠️ **Owed by Yuta before any of #68 reaches the deployed app**, in this order, by the release
-procedure in § Carrying. None of it was done or simulated by the build:
+⚠️ **Steps 1, 2 and 4 below were done on 2026-10-14** (§ Done), and step 1 was three migrations:
+`0012_keen_zuras` was pending too and this list never named it. **Step 3 is still owed, and step 5
+is still optional.** ⚠️ This said *owed by Yuta before any of #68 reaches the deployed app* until
+then, in this order, by the release procedure in § Carrying:
 
 1. **Apply the pending migrations to production**, `0011` among them, and since #70 `0013_lessons`.
    Both are additive: `0013` adds `review_session.kind` with a default and the `study_setting`

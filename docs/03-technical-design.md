@@ -372,9 +372,14 @@ repository and the tracker.
    the object the migration adds (a table, a column or a constraint) in the same way.
 6. **Only then merge `develop` into `main`.** Vercel deploys `main` on the merge.
 
-⚠️ **The procedure is written and has not been run yet.** Production had every migration when #45
-deployed, so the first release that carries a new migration is the first run of it. That includes
-the first `op run` against the 1Password item.
+⚠️ **The procedure has been run twice**: for `0009` and `0010` on 2026-10-06
+([PR #66](https://github.com/yutaasakura96/kioku/pull/66)) and for `0011` to `0013` on 2026-10-14
+([PR #80](https://github.com/yutaasakura96/kioku/pull/80)). ⚠️ **This said *written and has not been
+run yet* until 2026-10-14.** ⚠️ **On 2026-10-14 the string did not come through `op run`**: it was
+the direct string from the signed-in `neon` CLI (`neon connection-string`), substituted into each
+command's environment and written nowhere, with a Neon branch of production taken first as a
+restore point. The rule that matters held, since no file held the string, but the `op run` form
+above is not recorded as having been run against the 1Password item.
 
 **When a migration is not additive.** Migrating before merging is safe only while **the code still on
 `main` tolerates the new schema**, because between steps 4 and 6 production runs the old code against
@@ -409,8 +414,9 @@ DATABASE_URL='<ref>' op run -- npm run starter:load
 It reads no `.env`, names the host and database it is about to write to and never the string, writes
 shared rows only in batches that each commit or roll back whole, and prints the per-level counts. A
 second run writes nothing, so one that stopped half-way is finished by running it again. `<ref>` is
-the reference the migration used. ⚠️ **It is the owner's step and has not been run against
-production.**
+the reference the migration used. ~~⚠️ **It is the owner's step and has not been run against
+production.**~~ ⚠️ **Run against production 2026-10-14**, on the owner's go-ahead: 8,273 *notes*
+created, the per-level counts ADR 0075 §4's.
 
 ⚠️ Better Auth's `getMigrations` **does not work with the Drizzle adapter** (verification §2.3) —
 its schema is generated (`npx auth@latest generate --adapter … --dialect …`) and then lands in the
