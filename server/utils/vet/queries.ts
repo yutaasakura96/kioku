@@ -38,6 +38,8 @@ import { and, asc, count, eq, exists, inArray, isNotNull, isNull, sql } from 'dr
 import * as schema from '../../db/schema'
 import { openRunTally, sweepIdleRuns } from './run'
 import type { IngestDatabase } from '../ingest/record'
+import { noteInCurrentSubject } from '../subject'
+import { authorityKeys, jlptVocab } from '../../../shared/subject/declaration'
 
 /**
  * How many *notes* the client holds ahead of the reader.
@@ -48,6 +50,14 @@ import type { IngestDatabase } from '../ingest/record'
  * is a read-ahead and never a unit of work).
  */
 export const QUEUE_BATCH = 10
+
+/** The declaration's *authorities*, highest precedence first (ADR 0005, ADR 0075 §2). */
+const LEVEL_AUTHORITIES = authorityKeys(jlptVocab)
+
+function precedence(authorityKey: string | null): number {
+  const at = authorityKey === null ? -1 : LEVEL_AUTHORITIES.indexOf(authorityKey)
+  return at === -1 ? LEVEL_AUTHORITIES.length : at
+}
 
 /** One *note*'s provenance row — ADR 0004's honesty bit, per field. */
 export interface FieldProvenance {
@@ -141,6 +151,9 @@ function onTheQueue(db: IngestDatabase, ownerId: string) {
     eq(schema.noteVetting.ownerId, ownerId),
     eq(schema.noteVetting.state, 'accepted'),
     openFlagFor(db, ownerId),
+    // ADR 0075 §1: a flag left open on the corpus the reader left is not
+    // waiting for them.
+    noteInCurrentSubject(db, schema.noteVetting.noteId),
   )
 }
 
@@ -212,13 +225,16 @@ export async function queueBatch(
       level: schema.levelClaim.level,
     })
     .from(schema.levelClaim)
-    .where(inArray(schema.levelClaim.noteId, ids))
-    // ⚠️ **The named *authority* first, and the set is never collapsed**
-    // (ADR 0005). `authority_key IS NULL` is the model's estimate — the one the
-    // *provenance marker* draws hollow — and Postgres orders nulls last under a
-    // plain `ASC`, so the strip reads attributed-then-estimated for free rather
-    // than in insertion order.
-    .orderBy(asc(schema.levelClaim.authorityKey))
+    // ⚠️ **Declared *authorities* only** (ADR 0075 §2, #68): a *level* comes
+    // from a list, and a model's estimate (`authority_key IS NULL`) is no
+    // longer read as one. The rows are still there and still exported. ⚠️ This
+    // read every claim until #68, and showed the estimate when it was alone.
+    .where(
+      and(
+        inArray(schema.levelClaim.noteId, ids),
+        inArray(schema.levelClaim.authorityKey, LEVEL_AUTHORITIES),
+      ),
+    )
 
   const domains = await db
     .select({
@@ -228,7 +244,11 @@ export async function queueBatch(
     })
     .from(schema.domainClaim)
     .where(inArray(schema.domainClaim.noteId, ids))
-    // The same order as the *levels*, for the same reason.
+    // ⚠️ **The named *authority* first, and the set is never collapsed**
+    // (ADR 0005). `authority_key IS NULL` is the model's estimate — the one the
+    // *provenance marker* draws hollow — and Postgres orders nulls last under a
+    // plain `ASC`. Nothing with a name on it says a *domain* yet, so here the
+    // estimate is still what the strip shows.
     .orderBy(asc(schema.domainClaim.authorityKey))
 
   const byNote = <T extends { noteId: string }>(all: T[], id: string) => all.filter(row => row.noteId === id)
@@ -239,7 +259,11 @@ export async function queueBatch(
     flagged: Boolean(row.flagged),
     sourceTitle: row.sourceTitle ?? null,
     provenance: byNote(provenance, row.noteId).map(({ noteId: _, ...rest }) => rest),
-    levels: byNote(levels, row.noteId).map(({ noteId: _, ...rest }) => rest),
+    // ADR 0005: the whole set, in the declaration's precedence — the first is
+    // the one the strip shows and the rest are drawn as dissenting.
+    levels: byNote(levels, row.noteId)
+      .sort((a, b) => precedence(a.authorityKey) - precedence(b.authorityKey))
+      .map(({ noteId: _, ...rest }) => rest),
     domains: byNote(domains, row.noteId).map(({ noteId: _, ...rest }) => rest),
   }))
 }

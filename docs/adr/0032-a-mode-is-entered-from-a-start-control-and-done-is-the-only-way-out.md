@@ -5,6 +5,11 @@ entered from a start control that carries the number waiting inside it, present 
 never disabled. Done is the way out of every mode state, the empty queue included, and it returns to
 the place the reader came from.**
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §6 and §8 (#70).** There are four *places*, and the start block
+has a third control: *Lesson*, beside *Review*, each link naming the run it starts. *Review*'s way
+out is named for what it does: *Leave* during a lesson's teaching, which is still a pause, and
+*Finish early* in the quiz, which ends the run. It still returns to the *place* the reader came from.
+
 [ADR 0013](0013-three-screens-are-places-and-two-are-modes.md) decided that a mode carries no
 navigation *out*. Nothing decided the way *in*, and ADR 0013's own closing claim turns out to depend
 on the answer.

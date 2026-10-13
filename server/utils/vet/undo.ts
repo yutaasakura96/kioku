@@ -45,6 +45,7 @@ import { and, desc, eq, isNotNull, isNull, min } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import { findOpenRun } from './run'
+import { noteInCurrentSubject } from '../subject'
 import type { IngestDatabase } from '../ingest/record'
 
 export type UndoOutcome
@@ -114,6 +115,7 @@ export async function undoLastDecision(
           and(
             eq(schema.noteVetting.ownerId, ownerId),
             eq(schema.noteVetting.vettingSessionId, run),
+            noteInCurrentSubject(tx, schema.noteVetting.noteId),
           ),
         )
         .orderBy(desc(schema.noteVetting.vettedAt))

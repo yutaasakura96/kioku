@@ -40,6 +40,7 @@ import { freshEpoch, schedule } from '../../../shared/review/scheduler'
 import { nextOrdinal } from './epoch'
 import { isFinished } from '../../../shared/review/snapshot'
 import { snapshotOf } from './queries'
+import { cardInCurrentSubject } from '../subject'
 import type { EpochState, Grade } from '../../../shared/review/scheduler'
 import type { IngestDatabase } from '../ingest/record'
 import type { ReviewSnapshot } from './queries'
@@ -90,6 +91,7 @@ export async function recordGrade(
           eq(schema.reviewSessionCard.reviewSessionId, request.sessionId),
           eq(schema.reviewSessionCard.cardId, request.cardId),
           eq(schema.reviewSessionCard.ownerId, ownerId),
+          cardInCurrentSubject(tx, schema.reviewSessionCard.cardId),
         ),
       )
       .limit(1)
@@ -284,4 +286,3 @@ async function advanceEpoch(
 
   return { id: minted!.id, log }
 }
-

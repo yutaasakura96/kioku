@@ -64,6 +64,7 @@ const ownerId = () =>
 export const vettingSession = pgTable('vetting_session', {
   id: primaryId(),
   ownerId: ownerId(),
+  subjectId: text('subject_id'),
   startedAt: tstz('started_at').notNull().defaultNow(),
   /** Set on `Esc` or the **Done** control (ADR 0026), and by a 30-minute idle sweep. */
   endedAt: tstz('ended_at'),
@@ -261,15 +262,46 @@ export const reviewSession = pgTable(
      * one, and a laptop that crosses a timezone moves it with the next run.
      */
     zone: text('zone'),
+    /**
+     * ADR 0076 §1 — a review run of due *cards*, or a lesson of new words.
+     * ⚠️ **A run from before #70 is `'review'` by the default**, whatever it
+     * held: nothing told the two apart then.
+     */
+    kind: text('kind').notNull().default('review'),
   },
   t => [
     check('review_session_size', sql`${t.size} > 0 AND ${t.size} <= 200`),
     check('review_session_new_count', sql`${t.newCount} >= 0 AND ${t.newCount} <= ${t.size}`),
+    check('review_session_kind', sql`${t.kind} IN ('review','lesson')`),
   ],
 )
 
 /**
- * `04` §7.7 — the snapshot's membership, and the *progress rail*'s length.
+ * `04` §7.10 — the reader's three study settings (ADR 0076 §2). One row per
+ * reader, written by `/settings`; a reader with no row has the defaults.
+ *
+ * ⚠️ **The bounds are `shared/review/limits.ts`'s and the checks here are only
+ * the floor**: what a lesson of nothing or a negative day would break. The
+ * ceiling is a product choice and lives with the clamp.
+ */
+export const studySetting = pgTable(
+  'study_setting',
+  {
+    ownerId: ownerId().primaryKey(),
+    lessonSize: integer('lesson_size').notNull().default(5),
+    dailyNew: integer('daily_new').notNull().default(10),
+    pauseAbove: integer('pause_above').notNull().default(50),
+    updatedAt: tstz('updated_at').notNull().defaultNow(),
+  },
+  t => [
+    check('study_setting_lesson_size', sql`${t.lessonSize} > 0`),
+    check('study_setting_daily_new', sql`${t.dailyNew} >= 0`),
+    check('study_setting_pause_above', sql`${t.pauseAbove} > 0`),
+  ],
+)
+
+/**
+ * `04` §7.7 — the snapshot's membership, and the run's length.
  *
  * **This is what "the snapshot wins" means** (PRD §5): a note edited mid-session
  * does not change what this table already lists.

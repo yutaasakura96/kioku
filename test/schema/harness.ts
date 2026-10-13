@@ -50,6 +50,7 @@ export async function freshDatabase() {
  * `ACCESS EXCLUSIVE` lock, and no application path issues one.
  */
 const ALL_TABLES = [
+  'study_setting',
   'meaning_synonym',
   'note_meaning',
   'card_flag',
@@ -100,7 +101,7 @@ export async function seed(client: PGlite) {
 
   const source = await one<{ id: string }>(client, `
     INSERT INTO source (subject_id, title, content, content_hash, char_count)
-    VALUES ('jlpt-vocab', '朝日新聞 社説', '駅の近くに図書館があります。', 'a3f9', 14)
+    VALUES ('jlpt-vocab-2', '朝日新聞 社説', '駅の近くに図書館があります。', 'a3f9', 14)
     RETURNING id;
   `)
 
@@ -112,7 +113,7 @@ export async function seed(client: PGlite) {
 
   const note = await one<{ id: string }>(client, `
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '図書館␟としょかん', '{"term":"図書館","reading":"としょかん"}'::jsonb)
+    VALUES ('jlpt-vocab-2', '図書館␟としょかん', '{"term":"図書館","reading":"としょかん"}'::jsonb)
     RETURNING id;
   `)
 

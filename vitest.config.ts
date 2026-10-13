@@ -42,6 +42,11 @@ export default defineConfig({
           // `setup()` builds and boots the app; its own default is 120000.
           testTimeout: 120000,
           hookTimeout: 240000,
+          // Every file builds the bundled app; cap concurrent builds to avoid
+          // memory pressure and setup timeouts (#73, ADR 0022 § Amended 2026-10-10).
+          maxWorkers: 3,
+          // Vitest requires projects in a group to share `maxWorkers`.
+          sequence: { groupOrder: 1 },
         },
       },
     ],

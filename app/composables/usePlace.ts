@@ -1,9 +1,10 @@
+import { DEFAULT_LIMITS } from '#shared/review/limits'
 import { FALLBACK_ZONE } from '#shared/time/local-day'
 
 /**
  * What a *place* reads, in one call.
  *
- * ⚠️ **The three *places* read from the request event, not from a fetch** —
+ * ⚠️ **The four *places* read from the request event, not from a fetch** —
  * `server/middleware/shell-data.ts` carries that argument, and
  * `app/pages/auth/index.vue` set the idiom in #5. This is the shape of it, so
  * that four pages do not each repeat the same three lines and then disagree
@@ -35,4 +36,9 @@ export async function useStartBlockCounts() {
  */
 export async function useReaderZone() {
   return (await usePlace()?.zone()) ?? FALLBACK_ZONE
+}
+
+/** The reader's study settings (ADR 0076 §2) — the defaults when there is no *place*. */
+export async function useStudyLimits() {
+  return (await usePlace()?.limits()) ?? { ...DEFAULT_LIMITS }
 }

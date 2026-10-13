@@ -115,3 +115,15 @@ kind of manual work that stops a list from being compiled at all.
   (ADR 0063). `authority_key` is already in the table for it.
 - The closed set stops fitting. Five values is a guess, and the evidence will be a `general` bucket
   holding half the deck, or a reader who keeps wanting a split that does not exist.
+
+## Amended 2026-10-10: the model's level is no longer read
+
+§3 made `generate` the producer of a word's *level*.
+[ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §2 supersedes that half:
+a *level* is the claim of a declared *authority*, the starter set's list, and §5's filter reads
+that. `generate` still writes its estimate for a word the dictionary lacks, because taking it out of
+the prompt would change every cache key for nothing a reader sees; the row is unread and exported.
+
+**The *domain* half stands as written.** A word's *domain* is still the model's claim and the filter
+still reads it, until topic categories give it a named source (#69). A word written from the
+dictionary carries no *domain* at all, so it is in no domain filter's result.

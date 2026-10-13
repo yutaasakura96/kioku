@@ -42,7 +42,7 @@ const EXPORT_PATH = '/api/export'
  * them would put a database read behind every asset request.
  *
  * It is not a gap in `S1`. What is served here is static build output, identical
- * for every reader and carrying nothing about one — the three *places* ship no
+ * for every reader and carrying nothing about one — the four *places* ship no
  * JavaScript at all, and the two *modes* fetch their data over `/api/**`, which
  * is gated below. **A path that answers with reader data must not live here**,
  * which is why this predicate is a shape (`/_…`, or a file extension) rather

@@ -62,6 +62,7 @@ this document says which column it comes from and stops.
 ## 1. Every screen, and what it is made of
 
 Seven documents render. Five are the app (PRD §3); two are the boundary before it (`08` §2).
+⚠️ **Eight since 2026-10-12**: ADR 0076 §2 added Settings, and *Review*'s row below is amended.
 
 | Screen | Route | Is | New components it needs |
 | --- | --- | --- | --- |
@@ -70,8 +71,9 @@ Seven documents render. Five are the app (PRD §3); two are the boundary before 
 | One *source* | `/sources/:id` | *place* | Source header, prose block, occurrence row |
 | Delete confirmation | `/sources/:id/delete` | *place* | — reuses the empty-state block |
 | **Stats** | `/stats` | *place* | Figure grid (the *session tally*, parameterised), ledger row |
+| **Settings** | `/settings` | *place* | Number field (§8A, #70) |
 | ***Vet*** | `/vet` | *mode* | Done cluster, run-end confirmation, edit field |
-| ***Review*** | `/review` | *mode* | Done cluster, *session*-size knob, unsent-grades notice |
+| ***Review*** | `/review` | *mode* | ⚠️ Since #70 (§5.0): mode bar, lesson card, quiz card, word row, summary; *session*-size knob, unsent-answers notice. Until then: Done cluster, *session*-size knob, unsent-grades notice |
 | The door | `/auth` | neither | — reuses the empty-state block |
 | The refusal | `/auth/refused` | neither | — reuses the empty-state block, minus its rule |
 
@@ -83,6 +85,12 @@ components, and four screens that need none.**
 ## 2. The values this document adds to the system
 
 ### 2.1 No new colour tokens
+
+⚠️ **Six, since 2026-10-12** ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§8, #70): `--k-right` and `--k-wrong`, each with a tint and an ink for text on the tint (`05` §2,
+*Right and wrong*). They are the result of an answer on the quiz card and a missed word's line on
+the summary, always beside the word that says the same thing, and nothing else in this document
+uses them.
 
 Every value below is `05` §§1–3. The hover and active states borrow two existing tokens rather than
 adding any (ADR 0035), the focus ring is ADR 0025's single token, and the *progress rail*'s fourth
@@ -136,10 +144,12 @@ are still off the scale, so they are named rather than hidden:
 
 ## 3. The shell, and the start block
 
-The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete` and `/stats`, and nowhere
-else (ADR 0013, `09` §2).
+The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and (since #70)
+`/settings`, and nowhere else (ADR 0013, `09` §2).
 
 ### 3.1 The bar
+
+⚠️ **Since 2026-10-12 the nav is four**: `Ingest` · `Sources` · `Stats` · `Settings` (ADR 0076 §2).
 
 **56px tall**, matching *Vet*'s chrome bar so the two screens share a horizon, `--k-gutter`
 horizontal padding, `--k-rule` bottom border.
@@ -193,6 +203,18 @@ is read in the zone the newest *session* stored, as on `/stats` (#21), because a
 client to ask. It is a day's figure and not a run's, so it is not capped by the *session*'s size. The
 control is still never disabled.
 
+⚠️ **Amended 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70)
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)): three
+controls — `Vet · 2 flagged`, `Review · 12 due`, `Lesson · 5 new`.** A review run never holds a new
+word, so #33's second figure left the Review control and became a control of its own, in the same
+face and count treatment. `href` is `/review?start=review&from=<place>` and
+`/review?start=lesson&from=<place>`: each link says which run to start, and `/review` starts none
+without one (§5.0). The Lesson figure is `newOnOffer`'s, with the reader's own limits
+(§8A), and it counts what the next lesson would teach: at most the lesson size, capped by today's
+remaining allowance and the reader's own unscheduled *cards* plus starter words nobody has started;
+zero while the review backlog pauses lessons. The three wrap onto a second row
+when they do not fit, `12px` apart both ways, and none is ever disabled.
+
 ⚠️ **The accent `→` is dropped here, and it is the one departure from `05` §7's affordance.** `05` §2
 spends the accent on where you are and what costs you the decision. On empty *Vet* the affordance is
 the only thing on the screen and the arrow is the sentence; in a block of two, side by side, above a
@@ -214,6 +236,21 @@ used under its licence (CC BY-SA 4.0).`, 10px Plex Mono at 0.06em, `--k-ink-quie
 linked. EDRDG's licence §3 asks for it on the app's site (`docs/kanjidic-research.md` §2.1). It is in
 `PlaceShell.vue` and so on the three *places* only; a *mode* has no chrome (ADR 0013), and the one
 screen that uses the data shows none of it.
+
+⚠️ **Amended 2026-10-10 (#68, [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)
+§8): the acknowledgement is two lines, and the starter set's is the first.** Same face, size and
+colour, each line its own paragraph:
+
+- `Words and meanings from JMdict, the open Japanese dictionary, © EDRDG, used under its licence (CC
+  BY-SA 4.0). JLPT levels from Jonathan Waller's JLPT Resources (CC BY), by way of yomitan-jlpt-vocab
+  (CC BY-SA 4.0).` Six links, in reading order: the JMdict project, EDRDG's licence, CC BY-SA 4.0,
+  Waller's JLPT pages, his licence page, and the repository the lists were read from.
+- `Kanji readings from KANJIDIC2, © EDRDG, under the same licence.` One link, the KANJIDIC project;
+  the licence links are the line above's.
+
+The reviewed prototype puts the first sentence on the Welcome screen, which #71 builds. **Until
+then it is here, and wherever it goes it stays on the site with its links**: EDRDG's licence asks
+for that and Waller's asks that his site be credited. `subjects/starter/NOTICE.md` is the record.
 
 ### 3.3 The three interaction states a *place* has
 
@@ -516,6 +553,95 @@ screen whose whole thesis is that nothing moves between keystrokes.
 `/review`, `ssr: false`, a *mode*. Four states (`05` §5): front, back, session end, nothing due.
 **Review carries no screen label in any of them** — the *progress rail* is its header, and it is the
 only progress indicator in the app (`05` §5, §7, `CONTEXT.md`).
+
+### 5.0 *Review* since ADR 0076 ⚠️
+
+⚠️ **Added 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70)
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)). This
+subsection is *Review* as built. §5.1 to §5.7 describe the front-and-back card that was built until
+then and are history, except §5.8's knob and §5.9's loading and error states, which stand.** The
+reference is `docs/prototype/`; where this differs from it, ADR 0076 § Settled by the build says
+why.
+
+**Six screens, one at a time**: loading, error, the screen before a run, a lesson's teaching, the
+quiz, and the summary. Every one has the same frame: the **mode bar**, and under it one column in
+the 760px object measure, `34px` below the bar and `--k-gutter` from the edges.
+
+**The mode bar** (`ModeBar.vue`). `--k-bar-height` tall, `--k-rule` beneath it. Left to right, `16px`
+apart: the screen's name in 11px Plex Mono, uppercase at 0.2em, `--k-accent`; one track, `6px` tall,
+`--k-tick-empty` filled in `--k-ink`, with `role="progressbar"` and the count as its text; the count
+in 12.5px Plex Mono, `--k-ink-secondary`; and the exit, a bounded control with a `32px` minimum
+height. The exit is outside the mode container (§4.1's rule, unchanged).
+
+| Screen | Name | Track and count | Exit |
+| --- | --- | --- | --- |
+| Loading, error, before a run | `Study` | None | `Done`, a link out |
+| A lesson's teaching | `Lesson` | `word 2 of 5` | `Leave`, a link out. A pause |
+| The quiz | `Lesson quiz` or `Reviews` | Words finished: `3 of 12 words` | **`Finish early`, a button.** It ends the run (`09` §5.3) |
+| The summary | `Summary` | Full; `12 words` | The *place* it goes back to, by name |
+
+At widths below 360px, a bar with progress uses two rows: name and exit above the track and count.
+At 390px it keeps the prototype's single row.
+
+**The screen before a run.** An eyebrow, `TODAY`; a statement at 44px Newsreader 300 saying what is
+waiting; one line under it at 17px `--k-ink-secondary`; then a control for each run that has
+something in it, the first on the ink ground and a second as a ghost:
+`Start reviews · 12 due`, `Start lesson · 5 new words`. **No control is drawn for a run of nothing**,
+and the sentence above says why there is none. Under them, ADR 0066 §7's line naming the brake
+(15px, `--k-ink-secondary`), then the *session*-size knob (§5.8) and the filter.
+
+| What is waiting | Statement | Under it |
+| --- | --- | --- |
+| Reviews and new words | `12 words to review, then 5 new ones.` | `Reviews first, so nothing slips.` |
+| Reviews only | `12 words to review.` | Why no lesson: the pause, the day spent, new words switched off, or none left |
+| New words only, nothing ever scheduled | `Start with your first 5 words.` | `A short lesson, then a quiz on the same words.` |
+| New words only | `Reviews are done. 5 new words are ready.` | `Next reviews tomorrow, 08:40.` |
+| Nothing | `All done for now.` | When the next reviews are, and why no lesson |
+
+**A lesson's teaching.** A row of dots, one a word, `28 × 5px`: done in `--k-ink`, current in
+`--k-accent`, the rest `--k-tick-empty`. Then the **lesson card** (`LessonCard.vue`): raised, padding
+`44px 48px 36px`, centred. The *term* at 96px Mincho; its reading at 26px `--k-ink-secondary`; a
+`--k-rule-raised` line; the first meaning at 36px Newsreader 300; up to three more as
+`Also: …` at 16px; the part of speech and `JLPT N5` as pills; and the example pair **only when the
+*note* has one**. Under the card, `Back` (a ghost, from the second word) and `Next word`, or on the
+last word `Quiz me on these 5`. One italic line under them says the quiz comes after.
+
+**The quiz.** The **quiz card** (`QuizCard.vue`): raised, no padding of its own.
+- The *term* at 104px Mincho, centred, `46px` above and `40px` below. **Neither answer is on the
+  card while the question is open.**
+- **A band across the full width naming the question.** `MEANING` on `--k-key-face` with
+  `What does it mean? Answer in English.`; `READING` on `--k-ink-ground` with
+  `How is it read? Type in romaji, it turns into kana.` The band says which in words; the face is
+  the second signal, never the only one.
+- One field at 26px, centred, and one control beside it: `Check`, which becomes `Next` once the
+  result is shown. `Enter` does the same. The field keeps its focus ring (§4.2 as amended).
+- **The result, in one live region under the field.** Right: the field turns to the `--k-right`
+  tint and border, with `CORRECT` and, when there are any, `Also: …`. A near miss:
+  `CORRECT  Close enough. The answer is …`. Wrong: the `--k-wrong` tint and border, with
+  `NOT QUITE  The answer is …`. An entry that is not an answer leaves the field as it was and puts a
+  sentence where the result goes; the field shakes once, and not at all under
+  `prefers-reduced-motion`.
+- After the result, `Show the whole word` opens the word, its reading, its meaning and its example.
+
+Under the card: one italic line (what the quiz does with a miss), and on a result only, a quiet
+underlined control, `X  Something is wrong with this word` — `S9`'s flag.
+
+**The summary** (`SessionSummary.vue`). An accent eyebrow, `SESSION COMPLETE` or `LESSON COMPLETE`;
+a statement, `Reviews done.`, `5 new words learned.` or `Session finished early.`; three raised
+figures in a row — words, the percentage right first try, missed — each a 38px figure over an 11px
+mono label. A line for what a run that stopped short left. Then two lists, **Missed** first with its
+eyebrow in the accent, then **Right first try**: a row a word (`WordRow.vue`) with the *term* at
+23px, its first meaning over its reading, and at the right in 12px mono where the *grade* sent it —
+`up to Familiar · back in 9 days`. A missed word's is in `--k-wrong`. **An answer the database has
+not seen says `not sent yet`; one the server refused is listed as `refused · not recorded` and does
+not enter the three figures.** The unsent notice (§5.6's, unchanged: a rule and a sentence, never
+an alert). Last, a raised block, `WHAT NEXT`: a sentence, a control naming the run it starts when
+one is waiting, and `Back to Home`. **Nothing here starts a run by itself.**
+If every lesson grade was refused, the statement is `Lesson complete.` rather than claiming a word
+was learned or that the reader finished early.
+
+**Keys.** `Enter` is the field's and then *Next*'s. `X` flags, on a result only. `Esc` is *Finish
+early* in the quiz and the way out everywhere else. No digit, and no `S`.
 
 ### 5.1 The frame
 
@@ -1270,6 +1396,32 @@ reader already checks.
 
 ---
 
+## 8A. Settings
+
+⚠️ **Added 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70)
+([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §2).** The
+prototype has settings behind a sheet on Home; there is no Home until #71, and a sheet needs
+JavaScript a *place* does not ship.
+
+`/settings`, `noScripts: true`, a *place*, in the 760px measure. An eyebrow, `STUDY SETTINGS`; a
+statement at 26px, `How much is new each day.`; and one form of three number fields, `24px` apart,
+each a label at 17px, a field `7em` wide in 16px Plex Mono, and an italic aside at 13px saying what
+the number does, its range and its usual value.
+
+| Field | Default | Range |
+| --- | --- | --- |
+| New words per lesson | 5 | 1 to 20 |
+| New words a day | 10 | 0 to 100 |
+| No new words while this many reviews wait | 50 | 1 to 2,000 |
+
+One quiet control, `Save`. It posts to `/api/settings`, which answers `303` to `/settings?saved=1`,
+and that document says `Saved.` above the form (`role="status"`). **Nothing is refused**: a value
+out of range is clamped, a blank one is the default, and the fields show what was kept; the form is
+`novalidate`, so the browser does not hold back a value the server would clamp. The start
+block's Lesson figure follows from the next page load.
+
+---
+
 ## 9. The door and the refusal
 
 `08` §2: six routes, and `/auth` is neither a *place* nor a *mode*. Both screens use the
@@ -1343,6 +1495,27 @@ that varies — `05` §5 calls it "horizontal padding on every screen, without e
 375px viewport is 23% of the width spent on margin. 20px is a scale step.
 
 ### 10.2 *Review* on a phone
+
+⚠️ **Amended 2026-10-12 with #70 (ADR 0076): the table below it is the two-faced card's and is
+history. This is the phone layout as built**, under the same 720px breakpoint, with the prototype's
+values:
+
+| Element | Desktop | Phone |
+| --- | --- | --- |
+| Mode bar | `--k-gutter` padding, `16px` gaps, exit `32px` tall | `16px` padding, `10px` gaps, **exit `44px` tall** |
+| Column | `34px` above, `--k-gutter` at the sides | `18px` above, `16px` at the sides |
+| Statement | 44px | **30px** |
+| Start and summary controls | Inline | **Full width, stacked** |
+| Lesson card | Padding `44px 48px 36px`; *term* 96px; meaning 36px; example 22px | Padding `28px 18px 26px`; ***term* 68px**; meaning 28px; example 19px |
+| Quiz card *term* | 104px, `46px` above | **72px**, `30px` above |
+| Quiz field | 26px, padding `12px 14px` | 22px, padding `11px 8px`. ⚠️ Never under 16px: iOS zooms the page on focus below that |
+| Summary figures | 38px | 30px |
+| Word row | Three columns: *term*, meaning, where it went | **Two rows**: the *term*, then the meaning with where it went beside it |
+| The flag control | `32px` tall, with its `X` cap | **`44px` tall, no cap**: a phone has no `X` |
+
+A long *term* wraps before it clips (`overflow-wrap: anywhere`). The field and its control share one
+row at every width, and the control never shrinks. The on-screen keyboard's action key reads
+*done* on a question and *next* on a result (`enterkeyhint`).
 
 | Element | Desktop | Phone |
 | --- | --- | --- |
@@ -1423,6 +1596,9 @@ the empty-state block at full content width:
 | Rule + after | Nothing. Done is in the bar, and it goes back to the *place* the reader started from |
 
 ### 10.6 The three *places* on a phone
+
+⚠️ **Four since #70**, and Settings is a column of three fields that needs nothing. The start
+block's controls are three and stack the same way.
 
 Nothing bespoke (ADR 0026). They reflow: the 940px and 760px columns become full content width, the
 nav and the door stay on one 56px row, and **the start block's two controls stack** rather than

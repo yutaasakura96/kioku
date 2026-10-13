@@ -1,4 +1,4 @@
-// What the three *places* read — `server/utils/ingest/queries.ts`, against a
+// What the four *places* read — `server/utils/ingest/queries.ts`, against a
 // real database.
 //
 // ⚠️ **These read as trivial and two of them are not.** `startBlockCounts`'s due
@@ -46,7 +46,7 @@ beforeEach(async () => {
 
 function submission(overrides: Record<string, unknown> = {}) {
   return {
-    subjectId: 'jlpt-vocab',
+    subjectId: 'jlpt-vocab-2',
     kind: 'prose' as const,
     title: '朝日新聞 社説',
     content: '駅の近くに図書館があります。'.repeat(100),
@@ -130,7 +130,7 @@ describe('recentRuns', () => {
 
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-      VALUES ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb, '${second.ingestionId}');
+      VALUES ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb, '${second.ingestionId}');
     `)
 
     const runs = await recentRuns(db)
@@ -186,8 +186,8 @@ describe('allSources', () => {
 
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id) VALUES
-        ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb, '${first.ingestionId}'),
-        ('jlpt-vocab', '駅␟えき', '{}'::jsonb, '${second.ingestionId}');
+        ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb, '${first.ingestionId}'),
+        ('jlpt-vocab-2', '駅␟えき', '{}'::jsonb, '${second.ingestionId}');
     `)
 
     // Two *sources* here, because identical content creates a new one (PRD §5).
@@ -199,7 +199,7 @@ describe('allSources', () => {
     const written = await recordSource(db, submission())
     await client.exec(`
       INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_at)
-      VALUES ('${written.sourceId}', '朝日新聞 社説', 'jlpt-vocab', 'complete', now() + interval '1 minute');
+      VALUES ('${written.sourceId}', '朝日新聞 社説', 'jlpt-vocab-2', 'complete', now() + interval '1 minute');
     `)
 
     const [source] = await allSources(db)
@@ -316,15 +316,15 @@ describe('startBlockCounts', () => {
     expect((await startBlockCounts(db, OWNER)).due).toBe(0)
   })
 
-  // ⚠️ #33: `Review · 0 due · 10 new`. The arithmetic is `newOnOffer`'s and
+  // The arithmetic is `newOnOffer`'s and
   // unit-tested; these are the reads under it — which *cards* are new, and which
   // runs spent today.
-  it('counts a card with no epoch as new, up to the day\'s ten', async () => {
+  it('counts a card with no epoch as new, up to the lesson size', async () => {
     for (let n = 0; n < 12; n += 1)
       await seedNewCard(`語${n}␟ご`)
     await seedDueCard({ due: `now() - interval '1 hour'` })
 
-    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 10 })
+    expect(await startBlockCounts(db, OWNER)).toEqual({ flagged: 0, due: 1, newToday: 5 })
   })
 
   it('does not count a suspended card, or one with only a superseded epoch, as new', async () => {
@@ -342,11 +342,50 @@ describe('startBlockCounts', () => {
   it('subtracts what today\'s runs already introduced', async () => {
     for (let n = 0; n < 12; n += 1)
       await seedNewCard(`語${n}␟ご`)
+    // ⚠️ A run with a *card* in it, since #68: a *session* carries no
+    // `subject_id`, so its membership is what says it was this corpus's
+    // (`server/utils/subject.ts`). The *card* is a due one, so the twelve new
+    // ones are all still waiting.
+    const member = await seedDueCard({ due: `now() + interval '1 day'` })
     await client.exec(`
-      INSERT INTO review_session (owner_id, size, new_count, zone) VALUES ('${OWNER}', 7, 7, 'UTC');
+      WITH run AS (
+        INSERT INTO review_session (owner_id, size, new_count, zone)
+        VALUES ('${OWNER}', 7, 7, 'UTC') RETURNING id
+      )
+      INSERT INTO review_session_card (review_session_id, ordinal, card_id, owner_id)
+      SELECT id, 0, '${member.cardId}', '${OWNER}' FROM run;
     `)
 
     expect((await startBlockCounts(db, OWNER)).newToday).toBe(3)
+  })
+
+  // ADR 0076 §1: a starter word has no *card* until a lesson starts it, and it
+  // is new all the same — the control must not say `0 new` in front of the
+  // whole list.
+  it('counts the starter words nobody has started', async () => {
+    for (const term of ['会う', '青', '赤']) {
+      const noteId = await seedNote(`${term}␟よみ`)
+      await client.exec(`
+        INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'tanos-jlpt', 'N5');
+      `)
+    }
+    await seedNewCard('窓␟まど')
+
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(4)
+    // ⚠️ Counting is not starting: no *card* was minted for the three.
+    expect((await client.query(`SELECT 1 FROM card;`)).rows).toHaveLength(1)
+  })
+
+  // ADR 0076 §2: the lesson's number is the reader's own.
+  it('stops at the reader\'s own limit, and at nothing when they set none', async () => {
+    for (let n = 0; n < 6; n += 1)
+      await seedNewCard(`語${n}␟ご`)
+
+    await client.exec(`INSERT INTO study_setting (owner_id, daily_new) VALUES ('${OWNER}', 4);`)
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(4)
+
+    await client.exec(`UPDATE study_setting SET daily_new = 0;`)
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(0)
   })
 
   it('counts nothing for a different reader', async () => {
@@ -361,12 +400,17 @@ describe('startBlockCounts', () => {
   })
 })
 
-async function seedVetting(state: string, identityKey = '図書館␟としょかん') {
+async function seedNote(identityKey: string) {
   const note = await client.query<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${identityKey}', '{}'::jsonb) RETURNING id;
+    VALUES ('jlpt-vocab-2', '${identityKey}', '{}'::jsonb) RETURNING id;
   `)
-  const noteId = note.rows[0]!.id
+
+  return note.rows[0]!.id
+}
+
+async function seedVetting(state: string, identityKey = '図書館␟としょかん') {
+  const noteId = await seedNote(identityKey)
 
   await client.exec(`
     INSERT INTO note_vetting (note_id, owner_id, state) VALUES ('${noteId}', '${OWNER}', '${state}');

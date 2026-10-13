@@ -18,6 +18,7 @@ from subject import (
     DECLARATION_PATH,
     REPO_ROOT,
     UnknownSourceKind,
+    authority_keys,
     ValidationError,
     check_declaration,
     domain_values,
@@ -54,6 +55,7 @@ TWO_FIELDS = {
     "pipelines": {"word_list": ["one"], "prose": ["one", "two"], "anki": ["zero", "one"]},
     "levels": ["low", "high"],
     "domains": ["work", "other"],
+    "authorities": ["a-list"],
 }
 
 
@@ -86,6 +88,7 @@ class TestLoadDeclaration:
             "extract_candidates",
             "deduplicate",
             "filter_known",
+            "lookup",
             "generate",
             "write_notes",
         ]
@@ -94,6 +97,7 @@ class TestLoadDeclaration:
             "normalise",
             "deduplicate",
             "filter_known",
+            "lookup",
             "generate",
             "write_notes",
         ]
@@ -151,11 +155,21 @@ class TestLoadDeclaration:
     def test_the_declaration_in_the_repository_is_internally_consistent(self):
         assert check_declaration(load_declaration()).ok
 
-    def test_every_field_of_this_subject_is_required(self):
-        # Not a property of every subject — ADR 0003 makes later fields optional
-        # — but true of v1's six, and it is what makes the validator strict at
-        # `03` §7's boundary.
-        assert required_field_names(load_declaration()) == field_names(load_declaration())
+    def test_every_field_but_the_example_is_required(self):
+        # ⚠️ This said *every field* until #68. A *note* the dictionary wrote has
+        # no example sentence (ADR 0075 §7), so those two are optional; the four
+        # a dictionary supplies are what `03` §7's boundary still insists on.
+        assert required_field_names(load_declaration()) == [
+            "term",
+            "reading",
+            "part_of_speech",
+            "meaning",
+        ]
+
+    def test_declares_the_authorities_a_level_is_read_from(self):
+        """ADR 0075 §2 — a *level* is the first declared authority's, and the
+        list is the declaration's (ADR 0005)."""
+        assert authority_keys(load_declaration()) == ["tanos-jlpt"]
 
 
 class TestValidate:
@@ -258,6 +272,7 @@ class TestCheckDeclaration:
             ("pipelines", {"pipelines": ["prose"]}),
             ("levels", {"levels": "N5"}),
             ("domains", {"domains": ["tech", 3]}),
+            ("authorities", {"authorities": "tanos-jlpt"}),
         ],
     )
     def test_refuses_a_malformed_section_without_raising(self, section, patch):
@@ -338,9 +353,11 @@ class TestCheckDeclaration:
     def test_refuses_an_empty_level_or_domain_set(self):
         """ADR 0065 §2: a closed set with nothing in it gives the model no legal
         answer."""
-        assert errors(check_declaration(with_declaration(levels=[], domains=[]))) == [
+        patched = with_declaration(levels=[], domains=[], authorities=[])
+        assert errors(check_declaration(patched)) == [
             ValidationError("levels", "no_values"),
             ValidationError("domains", "no_values"),
+            ValidationError("authorities", "no_values"),
         ]
 
     def test_refuses_a_value_listed_twice(self):

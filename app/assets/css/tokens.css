@@ -53,6 +53,19 @@
   --k-on-ink: #f7f3ec; /* 15.67 on ink */
   --k-on-ink-quiet: #cdbfa9; /* 9.59 on ink */
 
+  /* ADR 0076 §8 — the quiz's two results, from the prototype. ⚠️ **The first
+     colours in the system that mean a state**, and each is only ever beside
+     the word that says the same thing (*Correct*, *Not quite*), so neither is
+     the sole signal (SC 1.4.1). The `-ink` pair is the answer's own text on
+     its tint. Not for anything else: a refusal, a brake and a validation
+     message are still sentences. */
+  --k-right: #2f6b3f; /* 6.27 on raised */
+  --k-right-tint: #e4eedf;
+  --k-right-ink: #1f4a2b; /* 8.49 on its tint */
+  --k-wrong: #b23a26; /* 5.86 on raised — the accent's value, and a different job */
+  --k-wrong-tint: #f7e2dc;
+  --k-wrong-ink: #7d2415; /* 7.90 on its tint */
+
   /* -- §3 Rules ---------------------------------------------------------- */
   /* Two line tokens, split by the surface they sit on rather than by whether
      they are chrome or content. The values are tuned to the same perceived

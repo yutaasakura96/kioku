@@ -3,7 +3,7 @@
  * never had.
  *
  * ⚠️ **This is the debt `11` §6.1 named and handed to #10, paid here instead.**
- * `08` §6.3 put the three *places* and the two *modes* behind a session, so from
+ * `08` §6.3 put the four *places* and the two *modes* behind a session, so from
  * #5 onwards an unauthenticated e2e request to any of them is a `302` to `/auth`
  * and there is no document to read. `11` §6.1: "That needs an authenticated
  * browser, which needs a session row, which needs a database in the e2e tier —

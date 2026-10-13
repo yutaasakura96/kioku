@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A hand-written sample in JMdict's shape, for the tests. Not JMdict: the
+     entry numbers are JMdict's own so the starter rows read true, and the
+     glosses are abridged. -->
+<!-- JMdict created: 2026-10-09 -->
+<JMdict>
+<entry>
+<ent_seq>1370290</ent_seq>
+<k_ele><keb>図書館</keb><ke_pri>ichi1</ke_pri><ke_pri>news1</ke_pri></k_ele>
+<k_ele><keb>圖書館</keb></k_ele>
+<r_ele><reb>としょかん</reb><re_pri>ichi1</re_pri></r_ele>
+<r_ele><reb>ずしょかん</reb><re_restr>圖書館</re_restr></r_ele>
+<sense><pos>&n;</pos><gloss>library</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1202440</ent_seq>
+<k_ele><keb>開く</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>ひらく</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&v5k;</pos><pos>&vi;</pos><pos>&vt;</pos><gloss>to open</gloss><gloss>to undo</gloss></sense>
+<sense><gloss>to bloom</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1586270</ent_seq>
+<k_ele><keb>開く</keb><ke_pri>ichi1</ke_pri></k_ele>
+<k_ele><keb>空く</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>あく</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><stagk>開く</stagk><pos>&v5k;</pos><pos>&vi;</pos><gloss>to open (e.g. doors)</gloss></sense>
+<sense><stagk>空く</stagk><gloss>to be empty</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1198180</ent_seq>
+<k_ele><keb>会う</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>あう</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&v5u;</pos><pos>&vi;</pos><gloss>to meet (someone)</gloss><gloss>to encounter</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1254650</ent_seq>
+<k_ele><keb>経験</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>けいけん</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&n;</pos><pos>&vs;</pos><pos>&vt;</pos><gloss>experience</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1073650</ent_seq>
+<r_ele><reb>スーパー</reb><re_pri>gai1</re_pri></r_ele>
+<sense><pos>&n;</pos><gloss>supermarket</gloss></sense>
+<sense><pos>&adj-f;</pos><gloss>super</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1559280</ent_seq>
+<k_ele><keb>林檎</keb></k_ele>
+<r_ele><reb>りんご</reb><re_pri>ichi1</re_pri></r_ele>
+<r_ele><reb>リンゴ</reb></r_ele>
+<sense><pos>&n;</pos><misc>&uk;</misc><gloss>apple</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1207610</ent_seq>
+<k_ele><keb>掛ける</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>かける</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&v1;</pos><pos>&vt;</pos><misc>&uk;</misc><gloss>to hang up</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1208000</ent_seq>
+<k_ele><keb>駆ける</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>かける</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&v1;</pos><pos>&vi;</pos><misc>&uk;</misc><gloss>to run</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1215240</ent_seq>
+<k_ele><keb>間</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>あいだ</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&n;</pos><misc>&arch;</misc><gloss>interval of old</gloss></sense>
+<sense><pos>&n;</pos><gloss>space (between)</gloss><gloss>gap</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1215250</ent_seq>
+<k_ele><keb>間</keb></k_ele>
+<r_ele><reb>ま</reb></r_ele>
+<sense><pos>&n;</pos><gloss>pause</gloss></sense>
+</entry>
+<entry>
+<ent_seq>1179470</ent_seq>
+<k_ele><keb>駅</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>えき</reb><re_pri>ichi1</re_pri></r_ele>
+<sense><pos>&n;</pos><gloss>railway station</gloss><gloss>train station</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000001</ent_seq>
+<k_ele><keb>駅</keb></k_ele>
+<r_ele><reb>えき</reb></r_ele>
+<sense><pos>&n;</pos><gloss>staging post on a highway</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000010</ent_seq>
+<k_ele><keb>綴り</keb></k_ele>
+<k_ele><keb>別綴り</keb><ke_pri>ichi1</ke_pri><ke_pri>news1</ke_pri></k_ele>
+<r_ele><reb>つづり</reb></r_ele>
+<sense><pos>&n;</pos><gloss>older spelling</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000011</ent_seq>
+<k_ele><keb>綴り</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>つづり</reb></r_ele>
+<sense><pos>&n;</pos><gloss>spelling</gloss></sense>
+</entry>
+<entry>
+<ent_seq>2000012</ent_seq>
+<k_ele><keb>重複</keb><ke_pri>ichi1</ke_pri></k_ele>
+<r_ele><reb>ちょうふく</reb><re_pri>ichi1</re_pri></r_ele>
+<r_ele><reb>じゅうふく</reb><re_pri>ichi1</re_pri><re_pri>news1</re_pri></r_ele>
+<sense><pos>&n;</pos><gloss>duplication</gloss></sense>
+</entry>
+</JMdict>

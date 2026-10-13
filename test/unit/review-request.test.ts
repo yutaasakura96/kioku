@@ -1,4 +1,4 @@
-// The request parser for the two *Review* endpoints — the same rule as
+// The request parser for *Review*'s endpoints — the same rule as
 // `shared/vet/decision.ts`: a *mode* has a client, the client is a file anybody
 // can read, and a typed column validates nothing at runtime (`03` §2.3).
 //
@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { SYNONYM_MAX_LENGTH, parseFlag, parseGrade, parseSessionSize, parseSynonym } from '../../shared/review/request'
+import { parseFinish, parseFlag, parseGrade, parseSessionSize, parseStart } from '../../shared/review/request'
 
 const SESSION = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
 const CARD = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c'
@@ -111,23 +111,38 @@ describe('the flag (`S9`, `04` §7.8)', () => {
   })
 })
 
-// ADR 0069 §2 — the outbox's third entry type.
-describe('the synonym', () => {
-  it('takes a session, a card and the text, trimmed', () => {
-    expect(parseSynonym({ sessionId: SESSION, cardId: CARD, text: '  look ' })).toEqual({
-      ok: true,
-      synonym: { sessionId: SESSION, cardId: CARD, text: 'look' },
-    })
+// ADR 0076 §6 — the outbox's third entry type.
+describe('the finish', () => {
+  it('takes a session and nothing else', () => {
+    expect(parseFinish({ sessionId: SESSION, cardId: CARD })).toEqual({ ok: true, finish: { sessionId: SESSION } })
   })
 
   it.each([
     ['not an object', 'x', 'not_an_object'],
-    ['a session id that is not one', { sessionId: 'run-1', cardId: CARD, text: 'look' }, 'bad_session_id'],
-    ['a card id that is not one', { sessionId: SESSION, cardId: 'card-1', text: 'look' }, 'bad_card_id'],
-    ['no text', { sessionId: SESSION, cardId: CARD }, 'bad_text'],
-    ['blank text', { sessionId: SESSION, cardId: CARD, text: '   ' }, 'bad_text'],
-    ['text past the cap', { sessionId: SESSION, cardId: CARD, text: 'a'.repeat(SYNONYM_MAX_LENGTH + 1) }, 'bad_text'],
+    ['a session id that is not one', { sessionId: 'run-1' }, 'bad_session_id'],
+    ['no session id', {}, 'bad_session_id'],
   ])('refuses %s', (_, body, code) => {
-    expect(parseSynonym(body)).toEqual({ ok: false, code })
+    expect(parseFinish(body)).toEqual({ ok: false, code })
+  })
+})
+
+// ADR 0076 §1 — which run the reader asked to start, if any.
+describe('the start', () => {
+  it.each(['lesson', 'review'] as const)('takes %s', (start) => {
+    expect(parseStart({ start })).toEqual({ ok: true, start })
+  })
+
+  // ⚠️ The mount asks what is waiting and composes nothing: opening the page
+  // is not the reader starting a lesson.
+  it.each([
+    ['no body', undefined],
+    ['a body with no start', { size: 20 }],
+    ['a null start', { start: null }],
+  ])('reads %s as start nothing', (_, body) => {
+    expect(parseStart(body)).toEqual({ ok: true, start: null })
+  })
+
+  it.each(['Lesson', 'both', '', 1, true])('refuses %j rather than reading it as a kind', (start) => {
+    expect(parseStart({ start })).toEqual({ ok: false, code: 'bad_start' })
   })
 })

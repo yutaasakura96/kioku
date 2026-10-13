@@ -45,12 +45,12 @@ async function one(sql: string): Promise<string> {
 async function source(title: string): Promise<{ sourceId: string, ingestionId: string }> {
   const sourceId = await one(`
     INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
-    VALUES ('jlpt-vocab', 'word_list', '${title}', '${title}の本文', '${title}', 4)
+    VALUES ('jlpt-vocab-2', 'word_list', '${title}', '${title}の本文', '${title}', 4)
     RETURNING id;
   `)
   const ingestionId = await one(`
     INSERT INTO ingestion (source_id, source_title, subject_id, status, worker_environment)
-    VALUES ('${sourceId}', '${title}', 'jlpt-vocab', 'complete', 'laptop')
+    VALUES ('${sourceId}', '${title}', 'jlpt-vocab-2', 'complete', 'laptop')
     RETURNING id;
   `)
   return { sourceId, ingestionId }
@@ -60,7 +60,7 @@ async function source(title: string): Promise<{ sourceId: string, ingestionId: s
 async function card(key: string, ingestionId: string): Promise<string> {
   const noteId = await one(`
     INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-    VALUES ('jlpt-vocab', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
+    VALUES ('jlpt-vocab-2', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
     RETURNING id;
   `)
   const cardId = await one(`
@@ -231,7 +231,7 @@ describe('mint_cards after the source is deleted', () => {
   async function note(key: string, ingestionId: string): Promise<string> {
     return one(`
       INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-      VALUES ('jlpt-vocab', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
+      VALUES ('jlpt-vocab-2', '${key}', '{"term":"${key}"}'::jsonb, '${ingestionId}')
       RETURNING id;
     `)
   }

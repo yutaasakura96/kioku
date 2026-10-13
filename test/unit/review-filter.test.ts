@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { NO_FILTER, isFiltered, parseSessionFilter } from '../../shared/review/filter'
+import { NO_FILTER, isFiltered, offerFilter, parseSessionFilter } from '../../shared/review/filter'
 import { jlptVocab } from '../../shared/subject/declaration'
 
 describe('parseSessionFilter', () => {
@@ -46,5 +46,24 @@ describe('isFiltered', () => {
     expect(isFiltered(NO_FILTER)).toBe(false)
     expect(isFiltered({ domains: ['tech'], levels: [] })).toBe(true)
     expect(isFiltered({ domains: [], levels: ['N1'] })).toBe(true)
+  })
+})
+
+// ADR 0076 §8 — the filter an answer carries narrows the offer that comes back
+// with it, and an answer is never turned away over one.
+describe('offerFilter', () => {
+  it('reads the filter beside an answer\'s own fields', () => {
+    expect(offerFilter({ sessionId: 's', cardId: 'c', grade: 3, levels: ['N3'], domains: [] }, jlptVocab))
+      .toEqual({ domains: [], levels: ['N3'] })
+  })
+
+  it('is no filter for an answer stored without one', () => {
+    expect(offerFilter({ sessionId: 's', cardId: 'c', grade: 3 }, jlptVocab)).toBe(NO_FILTER)
+    expect(offerFilter(undefined, jlptVocab)).toBe(NO_FILTER)
+  })
+
+  it('is no filter, and not a refusal, for one that is not legal', () => {
+    expect(offerFilter({ sessionId: 's', levels: ['N6'] }, jlptVocab)).toBe(NO_FILTER)
+    expect(offerFilter({ sessionId: 's', domains: 'tech' }, jlptVocab)).toBe(NO_FILTER)
   })
 })

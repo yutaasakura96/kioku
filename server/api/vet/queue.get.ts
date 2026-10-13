@@ -1,7 +1,7 @@
 /**
  * `04` §12's first query, as the only read *Vet* makes.
  *
- * ⚠️ **A *mode* fetches; the three *places* do not** (`03` §2.1, ADR 0013).
+ * ⚠️ **A *mode* fetches; the four *places* do not** (`03` §2.1, ADR 0013).
  * This is the first `/api/**` route in the application, and the reason it exists
  * here rather than as a `useAsyncData` against a *place* is the split itself:
  * `/vet` is `ssr: false`, so there is no request event to hang data off and no

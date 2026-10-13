@@ -1,5 +1,5 @@
 /**
- * What `POST /api/review/session` and `POST /api/review/grade` will accept.
+ * What `POST /api/review/session`, `/grade`, `/flag` and `/finish` will accept.
  *
  * ⚠️ **A *mode* has a client, and the client is a file anybody can read**
  * (`03` §2.3): a typed column validates nothing at runtime, so every value that
@@ -19,6 +19,7 @@
 import { clampSessionSize } from './compose'
 import { isUuid } from '../utils/uuid'
 import type { Grade } from './scheduler'
+import type { SessionKind } from './snapshot'
 
 /**
  * What both answer endpoints report back — ⚠️ **one union, because the outbox
@@ -138,43 +139,42 @@ export function parseFlag(body: unknown): FlagParseResult {
   return { ok: true, flag: { sessionId: body.sessionId, cardId: body.cardId } }
 }
 
-export interface SynonymBody {
+export interface FinishBody {
   sessionId: string
-  cardId: string
-  /** Trimmed. Normalised at match time, never here (`shared/review/answer.ts`). */
-  text: string
 }
 
-export type SynonymErrorCode = 'not_an_object' | 'bad_session_id' | 'bad_card_id' | 'bad_text'
+export type FinishParseResult
+  = | { ok: true, finish: FinishBody }
+    | { ok: false, code: 'not_an_object' | 'bad_session_id' }
 
-export type SynonymParseResult
-  = | { ok: true, synonym: SynonymBody }
-    | { ok: false, code: SynonymErrorCode }
-
-/**
- * ⚠️ **A meaning is a few words, so a long one is refused.** The field is free
- * text and the row is permanent; 200 code points is far past any gloss and short
- * of anything pasted by accident.
- */
-export const SYNONYM_MAX_LENGTH = 200
-
-/** ADR 0069 §2 — the outbox's third entry type. Like a flag, it carries no stamp. */
-export function parseSynonym(body: unknown): SynonymParseResult {
+/** ADR 0076 §6 — the outbox's third entry type. It names a run and nothing in it. */
+export function parseFinish(body: unknown): FinishParseResult {
   if (!isRecord(body))
     return { ok: false, code: 'not_an_object' }
 
   if (!isUuid(body.sessionId))
     return { ok: false, code: 'bad_session_id' }
 
-  if (!isUuid(body.cardId))
-    return { ok: false, code: 'bad_card_id' }
+  return { ok: true, finish: { sessionId: body.sessionId } }
+}
 
-  const text = typeof body.text === 'string' ? body.text.trim() : ''
+/**
+ * Which run `POST /api/review/session` is asked to start, if any (ADR 0076
+ * §1). ⚠️ **Absent is *start nothing***: the mount asks what is waiting and
+ * resumes a live run, and composes only on the reader's own action. A value
+ * that is neither kind is refused rather than read as one of them.
+ */
+export type StartParseResult
+  = | { ok: true, start: SessionKind | null }
+    | { ok: false, code: 'bad_start' }
 
-  if (text === '' || [...text].length > SYNONYM_MAX_LENGTH)
-    return { ok: false, code: 'bad_text' }
+export function parseStart(body: unknown): StartParseResult {
+  const start = isRecord(body) ? body.start : undefined
 
-  return { ok: true, synonym: { sessionId: body.sessionId, cardId: body.cardId, text } }
+  if (start === undefined || start === null)
+    return { ok: true, start: null }
+
+  return start === 'lesson' || start === 'review' ? { ok: true, start } : { ok: false, code: 'bad_start' }
 }
 
 /**

@@ -27,7 +27,7 @@
 
 import { BLANK } from '../subject/validate'
 import { isUuid } from '../utils/uuid'
-import { judgementFieldNames } from '../subject/declaration'
+import { judgementFieldNames, requiredFieldNames } from '../subject/declaration'
 import type { SubjectDeclaration } from '../subject/declaration'
 
 /** `numeric(6,2)`'s largest value — `04` §7.2. */
@@ -110,6 +110,7 @@ export function parseDecision(body: unknown, declaration: SubjectDeclaration): D
     return { ok: false, code: 'bad_edits' }
 
   const editable = new Set(judgementFieldNames(declaration))
+  const required = new Set(requiredFieldNames(declaration))
   const declared = new Set(declaration.fields.map(field => field.name))
 
   for (const [name, value] of Object.entries(edits)) {
@@ -119,11 +120,13 @@ export function parseDecision(body: unknown, declaration: SubjectDeclaration): D
     if (!editable.has(name))
       return { ok: false, code: 'not_editable' }
 
-    // Every *judgement field* in the declaration is required, and a required
-    // field that is blank is the `empty` the generation boundary already refuses
-    // (`shared/subject/validate.ts`). Blankness is spelled out there because
-    // `trim()` and `str.strip()` do not agree; this reads the same class.
-    if (typeof value !== 'string' || BLANK.test(value))
+    // A required field that is blank is the `empty` the generation boundary
+    // already refuses (`shared/subject/validate.ts`). Blankness is spelled out
+    // there because `trim()` and `str.strip()` do not agree; this reads the
+    // same class. ⚠️ **An optional one may be blank** (ADR 0075 §7): a word from
+    // the dictionary has no example sentence, and fixing its meaning must not
+    // demand one. This said *every judgement field is required* until #68.
+    if (typeof value !== 'string' || (required.has(name) && BLANK.test(value)))
       return { ok: false, code: 'bad_value' }
   }
 

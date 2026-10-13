@@ -1,3 +1,7 @@
+import { fileURLToPath } from 'node:url'
+
+const stub = (name: string) => fileURLToPath(new URL(`./server/stubs/${name}.mjs`, import.meta.url))
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-09',
@@ -56,6 +60,8 @@ export default defineNuxtConfig({
     // route without one is a default (`10` §3).
     '/sources/**': { noScripts: true },
     '/stats': { noScripts: true },
+    // The fourth *place*: three numbers in a form (ADR 0076 §2).
+    '/settings': { noScripts: true },
 
     // The refusal page: a message and nothing else (`08` §2.1).
     '/auth/refused': { noScripts: true },
@@ -77,4 +83,15 @@ export default defineNuxtConfig({
   // 'production' | 'all' | boolean, and applies to everything — *Vet* and
   // *Review* need JavaScript and stripping it globally breaks both (`03` §2.1).
   // The per-route rule above is the whole mechanism.
+
+  // Bundle server dependencies to shorten cold boot (#73, ADR 0022 § Amended
+  // 2026-10-10). Optional imports must resolve during the build; the aliases
+  // preserve the different import paths' boot behavior (`server/stubs/`).
+  nitro: {
+    noExternals: true,
+    alias: {
+      'pg-native': stub('pg-native'),
+      '@opentelemetry/api': stub('not-installed'),
+    },
+  },
 })

@@ -70,7 +70,7 @@ async function pending(
 ): Promise<string> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
@@ -96,7 +96,7 @@ async function flagged(
 ): Promise<{ noteId: string, cardId: string }> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
-    VALUES ('jlpt-vocab', '${key}', '${JSON.stringify(fields)}'::jsonb)
+    VALUES ('jlpt-vocab-2', '${key}', '${JSON.stringify(fields)}'::jsonb)
     RETURNING id;
   `)
 
@@ -222,7 +222,7 @@ describe('the queue — the flag queue, ADR 0064 §3', () => {
       VALUES ('${noteId}', 'reading', 'lookup', '20260723', false);
       INSERT INTO note_field_provenance (note_id, field_name, kind, model_id, prompt_version)
       VALUES ('${noteId}', 'meaning', 'generated', 'claude-sonnet-5', 'v3');
-      INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'jlpt-tango-n3', 'N3');
+      INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'tanos-jlpt', 'N3');
       INSERT INTO level_claim (note_id, authority_key, level, model_id, prompt_version)
       VALUES ('${noteId}', null, 'N4', 'claude-sonnet-5', 'v3');
     `)
@@ -231,12 +231,10 @@ describe('the queue — the flag queue, ADR 0064 §3', () => {
 
     expect(note!.fields).toEqual(FIELDS)
     expect(note!.provenance).toHaveLength(2)
-    // ⚠️ ADR 0005: the set is never collapsed, and the named *authority* reads
-    // first so the *provenance marker* draws filled-then-hollow.
-    expect(note!.levels).toEqual([
-      { authorityKey: 'jlpt-tango-n3', level: 'N3' },
-      { authorityKey: null, level: 'N4' },
-    ])
+    // ⚠️ ADR 0075 §2, #68: a *level* is a declared *authority*'s. The model's
+    // N4 is still a row and is no longer read as one — this expected both,
+    // attributed first, until then.
+    expect(note!.levels).toEqual([{ authorityKey: 'tanos-jlpt', level: 'N3' }])
   })
 
   // ⚠️ **A second flag orders by itself, not by the first.** `X` stamps

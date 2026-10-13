@@ -92,7 +92,7 @@ export const auth = betterAuth({
     // included, and Google's callback is a top-level cross-site GET redirect —
     // which a `Strict` cookie is not sent on. `Strict` here breaks sign-in.
     // Scoping `Strict` to the session token alone is rejected separately: the
-    // three *places* are server-rendered documents whose session is read on the
+    // four *places* are server-rendered documents whose session is read on the
     // server, so under `Strict` an external link would serve the signed-out
     // document on first arrival.
     //

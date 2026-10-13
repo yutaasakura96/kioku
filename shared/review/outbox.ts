@@ -1,6 +1,9 @@
 /**
  * The outbox — ⚠️ **three kinds of entry in one stream** (`03` §8.1 as amended
- * 2026-09-07, ADR 0039, and ADR 0069 §2's synonym since #28).
+ * 2026-09-07, ADR 0039): a *grade*, `S9`'s flag, and since #70 the `finish`
+ * that ends a run early (ADR 0076 §6). ⚠️ **The third was a synonym from #28
+ * until #70**, which removed the manual override; `parseOutbox` drops one left
+ * in a store, because an entry with no endpoint would block the stream.
  *
  * ⚠️ **Append-only, single-device, replays in order, never merges, resolves no
  * conflicts** (ADR 0007). Every one of those five words is a refusal: there is
@@ -57,16 +60,14 @@ export type OutboxDraft
     cardId: string
   }
   /**
-   * ADR 0069 §2 — a refused meaning the reader said was right. ⚠️ **Not an
-   * answer**: it moves nothing on the rail, and it is given *before* the *grade*
-   * it changed, so the stream's order is also the order the server learns them
-   * in. The server resolves the *note* from the *card*, inside the *session*.
+   * ADR 0076 §6 — *Finish early*. ⚠️ **Not an answer and about no *card***: it
+   * is given after the *grades* it follows, so the stream's order is also the
+   * order the server learns them in, and it carries no stamp because nothing is
+   * computed from when a run ended.
    */
   | {
-    kind: 'synonym'
+    kind: 'finish'
     sessionId: string
-    cardId: string
-    text: string
   }
 
 /**
@@ -123,9 +124,9 @@ export function unsentAnswers(entries: OutboxEntry[], sessionId: string): Map<st
   const answers = new Map<string, Answer>()
 
   for (const entry of entries) {
-    // ⚠️ **A synonym answers nothing.** Read as an answer it would mark its
-    // *card* flagged on a reload, and the *card* would be skipped unanswered.
-    if (entry.sessionId !== sessionId || entry.kind === 'synonym')
+    // ⚠️ **A `finish` answers nothing.** Read as an answer it would mark a
+    // *card* flagged on a reload — and it names no *card* to mark.
+    if (entry.sessionId !== sessionId || entry.kind === 'finish')
       continue
 
     answers.set(entry.cardId, entry.kind === 'grade' ? entry.grade : 'flagged')
@@ -159,15 +160,21 @@ function isEntry(value: unknown): value is OutboxEntry {
   if (typeof entry.seq !== 'number' || !Number.isFinite(entry.seq))
     return false
 
-  if (typeof entry.sessionId !== 'string' || typeof entry.cardId !== 'string')
+  if (typeof entry.sessionId !== 'string')
+    return false
+
+  if (entry.kind === 'finish')
+    return true
+
+  if (typeof entry.cardId !== 'string')
     return false
 
   if (entry.kind === 'flag')
     return true
 
-  if (entry.kind === 'synonym')
-    return typeof entry.text === 'string' && entry.text.trim() !== ''
-
+  // ⚠️ **Anything else is dropped, a `synonym` from before #70 included.** Its
+  // endpoint is gone, so held it would answer `404` forever at the head of the
+  // stream and take every *grade* behind it down with it (§ Carrying).
   if (entry.kind !== 'grade')
     return false
 

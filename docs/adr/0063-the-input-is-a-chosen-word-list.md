@@ -108,3 +108,12 @@ is lost by leaving it where it is until the chosen-word path has a reading on AD
   kind that skips `generate` rather than one that feeds it.
 - Sudachi's OOV rate on tech vocabulary turns out to be high enough that `normalise` is mostly
   passing lines through untouched, at which point the stage is doing less than the dependency costs.
+
+## Amended 2026-10-10: the chosen list is the second input, not the first
+
+[ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) puts a ready-made
+starter set in front of everything here. A word list, pasted prose and an Anki deck are still
+*source kinds* with the pipelines this ADR gave them, and each gains a `lookup` stage after
+`filter_known` (ADR 0075 §5), so a word the dictionary has costs nothing and only the rest reaches
+`generate`. What the reader types becomes the *My words* category, and what they import becomes a
+category of its own.

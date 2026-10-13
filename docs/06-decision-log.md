@@ -1651,6 +1651,49 @@ verifies the previews-off key before writing it~~ ⚠️ #45 verified it the sam
 because none of the four goes against ADR 0022.
 → [ADR 0022 § Amended 2026-09-28](adr/0022-the-first-deployment-is-deliberately-temporary.md)
 
+### [2026-10-10] Free fixes for the slow first load: the server is bundled, the database warm-up is dropped
+Bundle server dependencies and serve a static favicon (#73); drop database warm-up after measuring
+its small overlap and anonymous-visit cost. Re-measure after deployment before any hosting decision.
+→ [ADR 0022 § Amended 2026-10-10](adr/0022-the-first-deployment-is-deliberately-temporary.md)
+
+### [2026-10-10] The app is a ready-made flashcard quiz, a level comes from a list, and the corpus starts again
+Yuta reviewed the deployed app, found it was not the app he had meant, and decided the change on
+[#67](https://github.com/yutaasakura96/kioku/issues/67) with a reviewed prototype
+(`docs/prototype/`) and twelve answers: **open it, choose what to study, and be quizzed on words
+that are already there.** **The words come from a starter JLPT set built from open data** — JMdict
+for the word, reading, meanings and part of speech, Jonathan Waller's JLPT lists for the level —
+**8,273 words, N5 to N1**, with each source's licence checked and recorded before it was bundled
+(`subjects/starter/NOTICE.md`). **A *level* is the list's claim** (`authorities: ["tanos-jlpt"]`),
+and a model's estimate is no longer read as one. **A *category* is derived**, not stored: a JLPT
+level, an imported deck, or *My words*. **The corpus starts again under the *subject* id
+`jlpt-vocab-2` and nothing is deleted**; every reader-facing read is scoped to the current id, and
+the old rows stay exportable. **A word the reader brings is looked up in the dictionary before any
+model is asked.** The deciding reason is the owner's: the meanings and levels should come from a
+known source, and the deck should not be the reader's to build. Supersedes ADR 0065 §3's
+model-estimated *level* and the 2026-09-05 "no home screen" entry, and amends ADRs 0001, 0003, 0005,
+0063 and 0064 in place; `01`, `02`, `03`, `04`, `10` and `CONTEXT.md` are amended in the same
+commit. ⚠️ **#68 builds the data and no screen**: a starter word has no *card* until #70's lesson
+mints one, and the screens are #69 to #72.
+→ [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)
+
+### [2026-10-12] New words are taught in a lesson, and a miss is asked again
+*Review* becomes the quiz the prototype shows (#70; Yuta's answers 2, 3, 4, 5 and 10 on
+[#67](https://github.com/yutaasakura96/kioku/issues/67)). **A *session* is a lesson or a review
+run**: a lesson teaches up to five new words, one a screen, and then quizzes them; a review run holds
+due *cards* only. **Starting a starter word is its acceptance** — the lesson writes `note_vetting`
+and mints through `mint_cards`. **The quiz asks the meaning and then the reading; a wrong answer goes
+to the back of the queue and returns until it is right, and the word is graded once**, Good if
+nothing was missed and Forgot if anything was. **A near miss in a meaning is accepted** (one edit
+from five letters, two from nine, none under five), **a reading is exact, and nothing the reader can
+press changes a result**: the synonym key, its outbox entry and its endpoint are gone. **Finish
+early** ends a run. **Five a lesson, ten a day and none while fifty wait are settings**, on a fourth
+*place*, `/settings`. **A word's stage is read from the scheduler**: Learning, Familiar from 7 days
+of stability, Known from 21. The scheduler does not change. Overturns ADR 0060 §2 and §5's
+thresholds, ADR 0069 §2, ADR 0066 §1 and §2 as constants, and `S7`'s one kind of *session*; `02`,
+`03`, `04`, `05`, `09`, `10`, `11` and `CONTEXT.md` are amended in the same commit. ⚠️ **Migration
+`0013` is not applied to production.**
+→ [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

@@ -35,7 +35,7 @@ beforeEach(async () => {
 /** A run that stopped part-way, with its first job already finished. */
 async function incompleteRun(): Promise<string> {
   const written = await recordSource(db, {
-    subjectId: 'jlpt-vocab',
+    subjectId: 'jlpt-vocab-2',
     kind: 'prose' as const,
     title: '社説',
     content: '駅の近くに図書館があります。',

@@ -19,7 +19,7 @@
 // ⚠️ **No threshold is asserted here either** (ADR 0037). The seeded retention
 // is 75% because a fixture needs a number, and nothing below says 75 is good.
 //
-// ⚠️ **That the three *places* ship no `<script>` while signed in is
+// ⚠️ **That the four *places* ship no `<script>` while signed in is
 // `test/e2e/ingest.test.ts`'s** — #6 paid `11` §6.1's debt there and `/stats` is
 // in its list. It is not re-asserted here.
 
@@ -82,7 +82,7 @@ const epochs: string[] = []
 async function mint(key: string): Promise<{ noteId: string, cardId: string, epochId: string }> {
   const noteId = await one(`
     INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-    VALUES ('jlpt-vocab', '${key}', '{"term":"図書館"}'::jsonb, '${ingestionId}')
+    VALUES ('jlpt-vocab-2', '${key}', '{"term":"図書館"}'::jsonb, '${ingestionId}')
     RETURNING id;
   `)
 
@@ -110,7 +110,7 @@ async function mint(key: string): Promise<{ noteId: string, cardId: string, epoc
 beforeAll(async () => {
   const sourceId = await one(`
     INSERT INTO source (subject_id, kind, title, content, content_hash, char_count, submitted_at)
-    VALUES ('jlpt-vocab', 'word_list', '技術語彙', '図書館', 'hash', 3,
+    VALUES ('jlpt-vocab-2', 'word_list', '技術語彙', '図書館', 'hash', 3,
             now() - interval '25 days')
     RETURNING id;
   `)
@@ -119,7 +119,7 @@ beforeAll(async () => {
     INSERT INTO ingestion
       (source_id, source_title, subject_id, status, submitted_at, model_id, prompt_version,
        input_tokens, output_tokens, cost_micro_usd, worker_environment)
-    VALUES ('${sourceId}', '技術語彙', 'jlpt-vocab', 'complete',
+    VALUES ('${sourceId}', '技術語彙', 'jlpt-vocab-2', 'complete',
             now() - interval '25 days', 'claude-sonnet-5', 'v3', 4200, 900, 31400, 'laptop')
     RETURNING id;
   `)
@@ -302,7 +302,7 @@ describe('the start block — `10` §3.2, amended by #33', () => {
     for (let index = 0; index < 3; index++) {
       const noteId = await one(`
         INSERT INTO note (subject_id, identity_key, fields, origin_ingestion_id)
-        VALUES ('jlpt-vocab', 'fresh-${index}', '{"term":"窓"}'::jsonb, '${ingestionId}')
+        VALUES ('jlpt-vocab-2', 'fresh-${index}', '{"term":"窓"}'::jsonb, '${ingestionId}')
         RETURNING id;
       `)
       await database.client.exec(`
@@ -314,8 +314,9 @@ describe('the start block — `10` §3.2, amended by #33', () => {
     }
   })
 
-  it('reads Review · 0 due · 3 new', async () => {
+  it('reads Review · 0 due and Lesson · 3 new', async () => {
     const text = (await stats()).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
-    expect(text).toContain('Review · 0 due · 3 new')
+    expect(text).toContain('Review · 0 due')
+    expect(text).toContain('Lesson · 3 new')
   })
 })

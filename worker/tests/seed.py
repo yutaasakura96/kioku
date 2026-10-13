@@ -58,7 +58,7 @@ def make_run(
     source_id = connection.execute(
         """
         INSERT INTO source (subject_id, title, content, content_hash, char_count)
-        VALUES ('jlpt-vocab', '社説', %s, 'hash-ingest', %s) RETURNING id;
+        VALUES ('jlpt-vocab-2', '社説', %s, 'hash-ingest', %s) RETURNING id;
         """,
         (CONTENT, len(CONTENT)),
     ).fetchone()[0]
@@ -73,7 +73,7 @@ def make_run(
     ingestion_id = connection.execute(
         """
         INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_by)
-        VALUES (%s, '社説', 'jlpt-vocab', 'queued', %s) RETURNING id;
+        VALUES (%s, '社説', 'jlpt-vocab-2', 'queued', %s) RETURNING id;
         """,
         (source_id, owner),
     ).fetchone()[0]
@@ -91,7 +91,7 @@ def seed_note(connection: psycopg.Connection, identity_key: str, *, rejected_by=
     note_id = connection.execute(
         """
         INSERT INTO note (subject_id, identity_key, fields)
-        VALUES ('jlpt-vocab', %s, '{}'::jsonb) RETURNING id;
+        VALUES ('jlpt-vocab-2', %s, '{}'::jsonb) RETURNING id;
         """,
         (identity_key,),
     ).fetchone()[0]

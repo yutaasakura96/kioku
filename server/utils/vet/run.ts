@@ -14,6 +14,7 @@ import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import type { IngestDatabase } from '../ingest/record'
+import { CURRENT_SUBJECT_ID } from '../subject'
 
 /** ⚠️ `04` §7.1's third way a run ends, and the one that cannot be asked anything. */
 export const IDLE_HORIZON = '30 minutes'
@@ -51,6 +52,7 @@ export async function sweepIdleRuns(db: IngestDatabase, ownerId: string): Promis
     update vetting_session vs
        set ended_at = now()
      where vs.owner_id = ${ownerId}
+       and vs.subject_id = ${CURRENT_SUBJECT_ID}
        and vs.ended_at is null
        and coalesce(
              (select max(nv.vetted_at) from note_vetting nv where nv.vetting_session_id = vs.id),
@@ -71,7 +73,7 @@ export async function findOpenRun(db: IngestDatabase, ownerId: string): Promise<
   const [run] = await db
     .select({ id: schema.vettingSession.id })
     .from(schema.vettingSession)
-    .where(and(eq(schema.vettingSession.ownerId, ownerId), isNull(schema.vettingSession.endedAt)))
+    .where(and(eq(schema.vettingSession.ownerId, ownerId), eq(schema.vettingSession.subjectId, CURRENT_SUBJECT_ID), isNull(schema.vettingSession.endedAt)))
     .orderBy(desc(schema.vettingSession.startedAt))
     .limit(1)
 
@@ -98,7 +100,7 @@ export async function openRunTally(db: IngestDatabase, ownerId: string): Promise
         )})::int`,
     })
     .from(schema.vettingSession)
-    .where(and(eq(schema.vettingSession.ownerId, ownerId), isNull(schema.vettingSession.endedAt)))
+    .where(and(eq(schema.vettingSession.ownerId, ownerId), eq(schema.vettingSession.subjectId, CURRENT_SUBJECT_ID), isNull(schema.vettingSession.endedAt)))
     .orderBy(desc(schema.vettingSession.startedAt))
     .limit(1)
 
@@ -123,7 +125,7 @@ export async function openOrStartRun(tx: IngestDatabase, ownerId: string): Promi
 
   const [started] = await tx
     .insert(schema.vettingSession)
-    .values({ ownerId })
+    .values({ ownerId, subjectId: CURRENT_SUBJECT_ID })
     .returning({ id: schema.vettingSession.id })
 
   return started!.id
@@ -141,5 +143,5 @@ export async function endOpenRun(db: IngestDatabase, ownerId: string): Promise<v
   await db
     .update(schema.vettingSession)
     .set({ endedAt: sql`now()` })
-    .where(and(eq(schema.vettingSession.ownerId, ownerId), isNull(schema.vettingSession.endedAt)))
+    .where(and(eq(schema.vettingSession.ownerId, ownerId), eq(schema.vettingSession.subjectId, CURRENT_SUBJECT_ID), isNull(schema.vettingSession.endedAt)))
 }

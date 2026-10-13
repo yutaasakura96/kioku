@@ -33,3 +33,17 @@ derived from them. The set is never collapsed at ingestion.
   sneak in through a field the JLPT will not vouch for.
 
 Sources: https://www.jlpt.jp/e/faq/index.html · https://www.jlpt.jp/faq/
+
+## Amended 2026-10-10: there is an authority, and the declaration orders them
+
+This ADR left v1 with model estimates only and precedence as a thing to declare later.
+[ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §2 declares it:
+`authorities: ["tanos-jlpt"]` in `subjects/jlpt-vocab.json`, with Jonathan Waller's JLPT lists as
+the first *authority* and the starter set as what carries its claims.
+
+**A model's estimate is no longer read as a *level*.** The set is still not collapsed — the
+estimate's row stays where it is and is still exported — but the filter, the *Vet* strip and the
+JLPT *categories* read declared *authorities* only, so a word no list places has no level rather
+than a guessed one. That is stricter than "visually distinguishable", and it is what the owner asked
+for on [#67](https://github.com/yutaasakura96/kioku/issues/67): levels from a known list. The
+reader's own override, which this ADR says always wins, is still unbuilt.

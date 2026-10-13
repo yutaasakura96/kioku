@@ -6,6 +6,10 @@ A *note* written from a chosen word is `accepted` when it is written, and its *c
 same transaction. Nobody is asked. *Vet* keeps its screen, its keystrokes and its undo, and the only
 thing that arrives on it is a *card* the reader flagged during *review*.
 
+⚠️ **Amended 2026-10-12 by [ADR 0076](0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §1 (#70).** A starter word is not a chosen word and arrives with
+no *card* (ADR 0075 §4). It is accepted and minted by the lesson that first teaches it, with the
+same two writes this ADR gives the worker.
+
 ## Why the accept goes
 
 The 2026-09-15 handoff said vetting is the reader's judgement and worth his time. That was true when
@@ -118,3 +122,13 @@ earn their place; only the person clicking through them has gone.
   column rather than a promoted audit line.
 - An imported Anki deck lands with fields worth trusting less than the model's, which would make
   *vetting* an import-time step for one *source kind* rather than a retired one.
+
+## Amended 2026-10-10: a starter word is not minted on arrival
+
+§1 holds for a word a reader brought: it is theirs, it is `accepted`, and its *card* exists when the
+worker writes it — and that now includes a word the `lookup` stage wrote from the dictionary.
+**It does not hold for the starter set**
+([ADR 0075](0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §4). Those *notes* are
+loaded by a script on nobody's behalf, with no `note_vetting` row and no *card*, and the *card* is
+minted when a reader starts the word in a lesson (#70). A reader whose own list names a starter
+word is handed that *note* by the collision path, as before.

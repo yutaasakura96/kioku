@@ -1,0 +1,115 @@
+[
+  {
+    "id": "look",
+    "title": "Look and feel",
+    "ctx": "The prototype keeps today's paper-and-ink style (same fonts and colours) and changes the structure and the wording. Your review said the UI is bad, so this is the one to answer first.",
+    "options": [
+      { "label": "Keep this look; the structure was the problem", "why": "No redesign cost. Polish (#74) still comes last." },
+      { "label": "Keep the fonts, but add more colour and energy", "why": "For example a colour per stage, as WaniKani does." },
+      { "label": "Start the visual design over", "why": "A separate design pass before anything is built." }
+    ]
+  },
+  {
+    "id": "quiz-order",
+    "title": "Order of questions in the quiz",
+    "ctx": "The prototype asks a word's meaning and then its reading straight after. WaniKani shuffles them, so the reading of one word can come several questions after its meaning.",
+    "options": [
+      { "label": "Meaning then reading, back to back", "why": "Simpler to follow and quicker on a phone." },
+      { "label": "Shuffled, like WaniKani", "why": "Harder: seeing the meaning does not prime the reading." }
+    ]
+  },
+  {
+    "id": "wrong-answer",
+    "title": "What a wrong answer does",
+    "ctx": "In the prototype a missed question comes back before the session ends, and the word counts as missed for scheduling.",
+    "options": [
+      { "label": "Ask again in the same session until right", "why": "WaniKani's way. Sessions run a little longer." },
+      { "label": "Show the answer and move on", "why": "Shorter sessions; the word simply comes back sooner." }
+    ]
+  },
+  {
+    "id": "typos",
+    "title": "Typos in the meaning",
+    "ctx": "The prototype accepts a near miss (one letter off, two for long words) and several accepted meanings per word. Readings must be exact.",
+    "options": [
+      { "label": "Accept near misses automatically, no manual override", "why": "Keeps the level estimate honest." },
+      { "label": "Also add an \"I knew this\" button on a wrong answer", "why": "Less frustration; you can overrule the check." },
+      { "label": "Strict: exact answers only", "why": "" }
+    ]
+  },
+  {
+    "id": "stages",
+    "title": "Stages a word moves through",
+    "ctx": "The app already schedules each word individually (FSRS). WaniKani instead uses nine fixed stages with fixed gaps. The prototype keeps the existing scheduler and shows four plain stages.",
+    "options": [
+      { "label": "Keep the current scheduler; show Learning, Familiar, Known", "why": "Already built, adapts to each word." },
+      { "label": "Switch to WaniKani's fixed stages (Apprentice to Burned)", "why": "More game-like, but replaces the scheduler." }
+    ]
+  },
+  {
+    "id": "level-meaning",
+    "title": "What \"your level\" means",
+    "ctx": "The prototype shows the highest level you have proved (\"N5, working toward N4\"): at least 80% right first try across 50 or more of that level's words in the last 30 days. It is labelled a vocabulary estimate.",
+    "options": [
+      { "label": "The level you have proved, plus progress to the next", "why": "Matches how people say \"I am N4\"." },
+      { "label": "The level you are currently studying", "why": "Simpler, but it is a choice, not a measurement." }
+    ]
+  },
+  {
+    "id": "placed-out",
+    "title": "Words below your level after the placement test",
+    "ctx": "If the test puts you at N5, what happens to the N5 words?",
+    "options": [
+      { "label": "Mark them known, and spot-check a sample in reviews", "why": "No re-learning, but a wrong placement gets caught." },
+      { "label": "Mark them known and never show them", "why": "" },
+      { "label": "Teach them anyway, at a faster pace", "why": "Thorough, but weeks of words you already know." }
+    ]
+  },
+  {
+    "id": "placement-format",
+    "title": "Placement test format",
+    "ctx": "The prototype uses multiple choice with an \"I do not know\" button, about 25 words, stopping early.",
+    "options": [
+      { "label": "Multiple choice, about 3 minutes", "why": "Fast on a phone; guessing is discouraged, not prevented." },
+      { "label": "Typed answers, like the quiz", "why": "More accurate, roughly three times as long." }
+    ]
+  },
+  {
+    "id": "category-model",
+    "title": "How choosing a category works",
+    "ctx": "In the prototype one category feeds your new words, you change it whenever you like, and reviews always mix everything you have learned.",
+    "options": [
+      { "label": "One active category, changed from Home", "why": "Daily study stays one tap." },
+      { "label": "Choose a category every time you start a session", "why": "More control, one more step every day." },
+      { "label": "Several active categories at once", "why": "New words drawn from all of them." }
+    ]
+  },
+  {
+    "id": "daily-limit",
+    "title": "Lesson size and daily limit",
+    "ctx": "Five words per lesson, at most 10 new words a day, and no new words while 50 or more reviews are waiting. The limits are what the app already uses.",
+    "options": [
+      { "label": "5 per lesson, 10 a day, adjustable in settings", "why": "" },
+      { "label": "5 per lesson, no daily limit", "why": "Faster start; reviews pile up within weeks." }
+    ]
+  },
+  {
+    "id": "own-words",
+    "title": "Your own words and imported decks",
+    "ctx": "In the prototype they sit under \"My decks\" as their own categories. For your own words the app looks each one up in the dictionary instead of having AI write the meaning.",
+    "options": [
+      { "label": "Own categories; dictionary lookup, AI only for words the dictionary lacks", "why": "Meanings come from a known source." },
+      { "label": "Merge them into the JLPT levels by looked-up level", "why": "One pool, but imported decks lose their identity." }
+    ]
+  },
+  {
+    "id": "anything-else",
+    "title": "Anything missing or wrong on the dashboard?",
+    "ctx": "Home shows: today's reviews and lessons, your level, progress by level, weak words, what is coming up, and the last 14 days.",
+    "options": [
+      { "label": "It is about right", "why": "" },
+      { "label": "Too much; cut it down", "why": "Say what to cut in the note." },
+      { "label": "Something is missing", "why": "Say what in the note." }
+    ]
+  }
+]

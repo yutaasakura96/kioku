@@ -105,7 +105,7 @@ class FakeProvider:
 
 
 def run(
-    connection: psycopg.Connection, provider, *, environment: str = "laptop", log=None
+    connection: psycopg.Connection, dictionary, provider, *, environment: str = "laptop", log=None
 ) -> int:
     generate = make_generator(
         provider,
@@ -116,7 +116,7 @@ def run(
         connection,
         owner="w",
         handle=lambda conn, job: run_ingestion(
-            conn, job, process_chunk=make_chunk_processor(job, generate=generate)
+            conn, job, process_chunk=make_chunk_processor(job, generate=generate, dictionary=dictionary)
         ),
     )
 
@@ -154,7 +154,7 @@ def forget_the_corpus(connection: psycopg.Connection) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_generated_note_is_written_accepted_with_its_lookup_fields_intact(connection):
+def test_a_generated_note_is_written_accepted_with_its_lookup_fields_intact(connection, empty_dictionary):
     """`04` §5.3 and §7.2 — the *note*, and the row that says the reader has it.
 
     ⚠️ **`term`, `reading` and `part_of_speech` are the tokeniser's** (ADR 0004),
@@ -163,7 +163,7 @@ def test_a_generated_note_is_written_accepted_with_its_lookup_fields_intact(conn
     """
     ingestion_id = make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     written = notes(connection)
     assert LIBRARY in written
@@ -184,7 +184,7 @@ def test_a_generated_note_is_written_accepted_with_its_lookup_fields_intact(conn
     assert str(origin) == str(ingestion_id)
 
 
-def test_a_chosen_word_mints_its_card_in_the_write(connection):
+def test_a_chosen_word_mints_its_card_in_the_write(connection, empty_dictionary):
     """ADR 0064 §1: *the `note`, its provenance rows, its occurrences, a
     `note_vetting` row and the `card`* — and nobody is asked.
 
@@ -199,7 +199,7 @@ def test_a_chosen_word_mints_its_card_in_the_write(connection):
     """
     make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     vetting = connection.execute(
         """
@@ -222,7 +222,7 @@ def test_a_chosen_word_mints_its_card_in_the_write(connection):
     assert connection.execute("SELECT count(*) FROM scheduling_epoch;").fetchone()[0] == 0
 
 
-def test_the_card_belongs_to_whoever_asked_for_the_job(connection):
+def test_the_card_belongs_to_whoever_asked_for_the_job(connection, empty_dictionary):
     """ADR 0064 §2 amends `04` §4: `job.requested_by` owns what the run mints.
 
     ⚠️ **Not `ingestion.submitted_by`**, which stays an audit line. The two are
@@ -237,13 +237,13 @@ def test_the_card_belongs_to_whoever_asked_for_the_job(connection):
     )
     make_run(connection, requested_by="usr_requester")
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     owners = connection.execute("SELECT DISTINCT owner_id FROM card;").fetchall()
     assert owners == [("usr_requester",)]
 
 
-def test_provenance_is_recorded_per_field_and_says_who_produced_it(connection):
+def test_provenance_is_recorded_per_field_and_says_who_produced_it(connection, empty_dictionary):
     """ADR 0004 and `04` §5.4 — **trust is a property of where a value came
     from**, and `04` §12's eighth query is what reads it back.
 
@@ -254,7 +254,7 @@ def test_provenance_is_recorded_per_field_and_says_who_produced_it(connection):
     """
     make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     rows = connection.execute(
         """
@@ -294,7 +294,7 @@ def claims(connection: psycopg.Connection, table: str) -> list[tuple]:
     ).fetchall()
 
 
-def test_a_written_note_carries_one_model_estimated_level_and_domain(connection):
+def test_a_written_note_carries_one_model_estimated_level_and_domain(connection, empty_dictionary):
     """ADR 0065 §3: *nothing writes a level claim today, and that is the work.*
 
     One of each per *note*, authority-less, naming the model and the prompt —
@@ -302,7 +302,7 @@ def test_a_written_note_carries_one_model_estimated_level_and_domain(connection)
     """
     make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     levels = claims(connection, "level_claim")
     domains = claims(connection, "domain_claim")
@@ -318,12 +318,12 @@ def meanings(connection: psycopg.Connection) -> list[tuple]:
     ).fetchall()
 
 
-def test_a_written_note_carries_its_accepted_meanings_beside_its_fields(connection):
+def test_a_written_note_carries_its_accepted_meanings_beside_its_fields(connection, empty_dictionary):
     """ADR 0069 §3 — `note_meaning`, one row per *note*, attributed like a claim,
     and **never a key in `note.fields`** (ADR 0052's freeze)."""
     make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     rows = meanings(connection)
     assert len(rows) == len(notes(connection)) > 0
@@ -331,20 +331,20 @@ def test_a_written_note_carries_its_accepted_meanings_beside_its_fields(connecti
     assert all("meanings" not in fields for fields in notes(connection).values())
 
 
-def test_an_answer_without_meanings_still_writes_the_note_and_no_list(connection):
+def test_an_answer_without_meanings_still_writes_the_note_and_no_list(connection, empty_dictionary):
     """⚠️ A list the model left out costs the list and never the word: the check
     falls back to `meaning` and the backfill finds the *note* later."""
     make_run(connection)
     provider = FakeProvider()
     provider.meanings = None
 
-    run(connection, provider)
+    run(connection, empty_dictionary, provider)
 
     assert len(notes(connection)) > 0
     assert meanings(connection) == []
 
 
-def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_written(connection):
+def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_written(connection, empty_dictionary):
     """⚠️ #22: *rejected by the writer, with the note still written and the claim
     absent, rather than stored and silently unfilterable* (ADR 0065 §2). A
     `technology` row would match no filter anybody could ever tick.
@@ -357,7 +357,7 @@ def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_writt
     provider.domain = "technology"
     said: list[tuple[str, dict]] = []
 
-    run(connection, provider, log=lambda event, **fields: said.append((event, fields)))
+    run(connection, empty_dictionary, provider, log=lambda event, **fields: said.append((event, fields)))
 
     assert len(notes(connection)) > 0
     assert claims(connection, "domain_claim") == []
@@ -369,7 +369,7 @@ def test_a_claim_outside_the_declared_set_is_refused_and_the_note_is_still_writt
     assert sum(fields["notes"] for fields in refused) == len(notes(connection))
 
 
-def test_a_stray_note_is_dropped_and_the_chunk_keeps_what_matched(connection):
+def test_a_stray_note_is_dropped_and_the_chunk_keeps_what_matched(connection, empty_dictionary):
     """⚠️ **ADR 0071 and #36**: *the response carries a note for a word that was
     not asked for* used to fail the whole *chunk*. The N3 import lost 100 words
     that way in four chunks that were each ~24/25 right.
@@ -383,7 +383,7 @@ def test_a_stray_note_is_dropped_and_the_chunk_keeps_what_matched(connection):
     provider.stray = "新聞"
     said: list[tuple[str, dict]] = []
 
-    run(connection, provider, log=lambda event, **fields: said.append((event, fields)))
+    run(connection, empty_dictionary, provider, log=lambda event, **fields: said.append((event, fields)))
 
     written = notes(connection)
     assert len(written) > 0
@@ -396,7 +396,7 @@ def test_a_stray_note_is_dropped_and_the_chunk_keeps_what_matched(connection):
     assert all("新聞" not in str(fields.values()) for fields in dropped)
 
 
-def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection):
+def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection, empty_dictionary):
     """`04` §5.5 — one *occurrence* per position, from `group.sightings`.
 
     ⚠️ **The first sighting included.** `S11` reads this back as *open a source,
@@ -405,7 +405,7 @@ def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection):
     """
     make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     rows = connection.execute(
         """
@@ -421,7 +421,7 @@ def test_every_sighting_of_a_new_note_becomes_an_occurrence(connection):
     assert rows == [(5, 8, "図書館"), (14, 17, "図書館")]
 
 
-def test_a_run_nobody_owns_writes_notes_mints_nothing_and_says_so(connection):
+def test_a_run_nobody_owns_writes_notes_mints_nothing_and_says_so(connection, empty_dictionary):
     """ADR 0064 §2: *if `requested_by` is null, the run writes its notes and
     mints nothing, and says so in the log.*
 
@@ -433,7 +433,7 @@ def test_a_run_nobody_owns_writes_notes_mints_nothing_and_says_so(connection):
     make_run(connection, owner=None)
     said: list[tuple[str, dict]] = []
 
-    run(connection, FakeProvider(), log=lambda event, **fields: said.append((event, fields)))
+    run(connection, empty_dictionary, FakeProvider(), log=lambda event, **fields: said.append((event, fields)))
 
     assert LIBRARY in notes(connection)
     assert connection.execute("SELECT count(*) FROM note_vetting;").fetchone()[0] == 0
@@ -449,7 +449,7 @@ def test_a_run_nobody_owns_writes_notes_mints_nothing_and_says_so(connection):
 # ---------------------------------------------------------------------------
 
 
-def test_a_word_in_two_chunks_is_generated_once(connection):
+def test_a_word_in_two_chunks_is_generated_once(connection, empty_dictionary):
     """⚠️ **The streamed write is what closes the cross-chunk duplicate.**
 
     Tokenisation is per *chunk* (`03` §5.1), so stage 4 cannot see across one and
@@ -461,7 +461,7 @@ def test_a_word_in_two_chunks_is_generated_once(connection):
     ingestion_id = make_run(connection)
     provider = FakeProvider()
 
-    run(connection, provider)
+    run(connection, empty_dictionary, provider)
 
     assert len(provider.calls) == 2
     assert "term=図書館" in provider.calls[0]
@@ -476,7 +476,7 @@ def test_a_word_in_two_chunks_is_generated_once(connection):
     assert ledger(connection, ingestion_id)[4] == 1
 
 
-def test_a_chunk_that_cannot_be_generated_keeps_what_the_others_produced(connection):
+def test_a_chunk_that_cannot_be_generated_keeps_what_the_others_produced(connection, empty_dictionary):
     """`03` §5.4 and §11 — **partial results are kept**, and the run stays
     resumable. *Money already spent is not discarded.*
     """
@@ -484,7 +484,7 @@ def test_a_chunk_that_cannot_be_generated_keeps_what_the_others_produced(connect
     provider = FakeProvider()
     provider.refuse = {"開く"}
 
-    run(connection, provider)
+    run(connection, empty_dictionary, provider)
 
     assert LIBRARY in notes(connection)
     assert ledger(connection, ingestion_id)[0] == "incomplete"
@@ -499,21 +499,21 @@ def test_a_chunk_that_cannot_be_generated_keeps_what_the_others_produced(connect
     assert statuses == [(0, "complete"), (1, "failed")]
 
 
-def test_a_resume_re_runs_only_the_chunk_that_failed(connection):
+def test_a_resume_re_runs_only_the_chunk_that_failed(connection, empty_dictionary):
     """`04` §6.2's resume query, with generation behind it — PRD §5's ugliest
     ingestion case, and the reason ADR 0015 chose a durable per-chunk record.
     """
     ingestion_id = make_run(connection)
     refusing = FakeProvider()
     refusing.refuse = {"開く"}
-    run(connection, refusing)
+    run(connection, empty_dictionary, refusing)
 
     connection.execute(
         "INSERT INTO job (kind, ingestion_id, state) VALUES ('resume', %s, 'queued');",
         (ingestion_id,),
     )
     second = FakeProvider()
-    run(connection, second)
+    run(connection, empty_dictionary, second)
 
     # ⚠️ One call, for the one chunk that was not `complete` — chunk 0's notes
     # were not paid for twice.
@@ -538,7 +538,7 @@ def key(model_id: str = MODEL, **overrides) -> CacheKey:
     return CacheKey(**parts)
 
 
-def test_the_response_is_cached_under_all_four_parts_of_the_key(connection):
+def test_the_response_is_cached_under_all_four_parts_of_the_key(connection, empty_dictionary):
     """`03` §5.3's corrected key, and `11` §7's *all four parts*.
 
     ⚠️ **The dictionary version is the part that is easy to leave out**, and the
@@ -548,7 +548,7 @@ def test_the_response_is_cached_under_all_four_parts_of_the_key(connection):
     """
     make_run(connection)
 
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     assert read_generation_cache(connection, key()) is not None
     assert read_generation_cache(connection, key(content_hash="chunk-9")) is None
@@ -557,7 +557,7 @@ def test_the_response_is_cached_under_all_four_parts_of_the_key(connection):
     assert read_generation_cache(connection, key(model_id="claude-opus-5")) is None
 
 
-def test_re_ingesting_an_identical_source_asks_nothing_and_the_corpus_is_why(connection):
+def test_re_ingesting_an_identical_source_asks_nothing_and_the_corpus_is_why(connection, empty_dictionary):
     """`03` §11's *identical source resubmitted: no LLM spend*, and ⚠️ **the
     reason is stage 5 rather than `04` §6.3.**
 
@@ -568,18 +568,18 @@ def test_re_ingesting_an_identical_source_asks_nothing_and_the_corpus_is_why(con
     from the cache so that neither gets credit for the other's work.
     """
     make_run(connection)
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     second_id = make_run(connection)
     second = FakeProvider()
-    run(connection, second)
+    run(connection, empty_dictionary, second)
 
     assert second.calls == []
     assert ledger(connection, second_id)[4] == 7
     assert spend(connection, second_id)[2:5] == (None, None, None)
 
 
-def test_a_cached_answer_is_served_without_spending(connection):
+def test_a_cached_answer_is_served_without_spending(connection, empty_dictionary):
     """ADR 0010's replayable cache, on the path where it is the thing that saves
     the money — the corpus no longer has the *notes*, so there **are** survivors.
 
@@ -588,19 +588,19 @@ def test_a_cached_answer_is_served_without_spending(connection):
     record of one somebody already paid for.
     """
     make_run(connection)
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
     forget_the_corpus(connection)
 
     second_id = make_run(connection)
     second = FakeProvider()
-    run(connection, second)
+    run(connection, empty_dictionary, second)
 
     assert second.calls == []
     assert LIBRARY in notes(connection)
     assert spend(connection, second_id)[2:5] == (None, None, None)
 
 
-def test_a_cached_answer_that_misses_a_survivor_is_paid_for_again(connection):
+def test_a_cached_answer_that_misses_a_survivor_is_paid_for_again(connection, empty_dictionary):
     """⚠️ **The one cache case that would otherwise lose a *note* in silence.**
 
     The key is the *chunk*'s content, so a hit can answer more than this run
@@ -621,13 +621,13 @@ def test_a_cached_answer_that_misses_a_survivor_is_paid_for_again(connection):
     )
     provider = FakeProvider()
 
-    run(connection, provider)
+    run(connection, empty_dictionary, provider)
 
     assert len(provider.calls) == 2
     assert LIBRARY in notes(connection)
 
 
-def test_a_second_run_after_a_narrow_cached_answer_pays_nothing(connection):
+def test_a_second_run_after_a_narrow_cached_answer_pays_nothing(connection, empty_dictionary):
     """⚠️ **The re-pay-forever trap, and `ON CONFLICT DO NOTHING` was it.**
 
     A cached row that does not answer every survivor is a miss (`04` §6.3) — so
@@ -646,17 +646,17 @@ def test_a_second_run_after_a_narrow_cached_answer_pays_nothing(connection):
         """,
         (DICTIONARY_VERSION, PROMPT_VERSION, MODEL),
     )
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
     forget_the_corpus(connection)
 
     make_run(connection)
     third = FakeProvider()
-    run(connection, third)
+    run(connection, empty_dictionary, third)
 
     assert third.calls == []
 
 
-def test_a_refused_answer_is_still_paid_for(connection):
+def test_a_refused_answer_is_still_paid_for(connection, empty_dictionary):
     """⚠️ **A declined or truncated response is a 200 that was billed.**
 
     `04` §6.1's ledger is what `S10` reports from and it records what was
@@ -676,7 +676,7 @@ def test_a_refused_answer_is_still_paid_for(connection):
                 ),
             )
 
-    run(connection, Declining())
+    run(connection, empty_dictionary, Declining())
 
     _, _, input_tokens, output_tokens, cost, _, _ = spend(connection, ingestion_id)
     # Both *chunks* were asked and both were declined.
@@ -686,7 +686,7 @@ def test_a_refused_answer_is_still_paid_for(connection):
     assert ledger(connection, ingestion_id)[0] == "incomplete"
 
 
-def test_a_run_served_entirely_from_the_cache_still_names_its_model(connection):
+def test_a_run_served_entirely_from_the_cache_still_names_its_model(connection, empty_dictionary):
     """⚠️ **What made these *notes*, and what this run paid, are two questions.**
 
     A re-ingestion served from `04` §6.3 produces *notes* and pays nothing. The
@@ -695,11 +695,11 @@ def test_a_run_served_entirely_from_the_cache_still_names_its_model(connection):
     nothing had happened.
     """
     make_run(connection)
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
     forget_the_corpus(connection)
 
     second_id = make_run(connection)
-    run(connection, FakeProvider())
+    run(connection, empty_dictionary, FakeProvider())
 
     model_id, prompt_version, input_tokens, _, cost, _, _ = spend(connection, second_id)
     assert (model_id, prompt_version) == (MODEL, PROMPT_VERSION)
@@ -759,7 +759,7 @@ def write_one_note(
         note,
         to=Destination(
             declaration=load_declaration(),
-            subject_id="jlpt-vocab",
+            subject_id="jlpt-vocab-2",
             owner_id=OWNER,
             source_id=source_id,
             source_chunk_id=chunk_id,
@@ -773,7 +773,7 @@ def write_one_note(
     )
 
 
-def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
+def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection, empty_dictionary):
     """⚠️ **Gated on *created*, a crash between two writes lost six rows for
     ever.**
 
@@ -786,7 +786,7 @@ def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
     """
     make_run(connection)
     connection.execute(
-        "INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab', %s, '{}'::jsonb);",
+        "INSERT INTO note (subject_id, identity_key, fields) VALUES ('jlpt-vocab-2', %s, '{}'::jsonb);",
         (LIBRARY,),
     )
 
@@ -799,7 +799,7 @@ def test_a_note_whose_row_already_exists_still_gets_its_provenance(connection):
     assert rows == 6
 
 
-def test_an_accepted_notes_fields_survive_a_later_write(connection):
+def test_an_accepted_notes_fields_survive_a_later_write(connection, empty_dictionary):
     """`S6`'s freeze, from the **worker's** side of it — ADR 0006.
 
     ⚠️ **This is the half the application cannot guard.** `04` §4 makes `note`
@@ -844,7 +844,7 @@ def test_an_accepted_notes_fields_survive_a_later_write(connection):
     assert [position for (position,) in positions] == [5, 40]
 
 
-def test_a_note_left_pending_before_the_pivot_is_minted_when_it_is_chosen(connection):
+def test_a_note_left_pending_before_the_pivot_is_minted_when_it_is_chosen(connection, empty_dictionary):
     """⚠️ **The 474 *pending notes* are a cache, and a cache hit still mints.**
 
     ADR 0063 leaves them pending and unreachable from the loop; ADR 0064 says a
@@ -872,7 +872,7 @@ def test_a_note_left_pending_before_the_pivot_is_minted_when_it_is_chosen(connec
 
 
 def test_a_card_minted_for_a_live_source_is_studyable_though_its_note_came_from_a_deleted_one(
-    connection,
+    connection, empty_dictionary,
 ):
     """`S11`, `04` §9.1 as amended by `0010`: a *card* is born suspended only
     when both the run minting it and the *source* its *note* came from are
@@ -899,13 +899,13 @@ def test_a_card_minted_for_a_live_source_is_studyable_though_its_note_came_from_
     live_source = connection.execute(
         """
         INSERT INTO source (subject_id, title, content, content_hash, char_count)
-        VALUES ('jlpt-vocab', '二冊目', '図書館', 'hash-live', 3) RETURNING id;
+        VALUES ('jlpt-vocab-2', '二冊目', '図書館', 'hash-live', 3) RETURNING id;
         """
     ).fetchone()[0]
     live = connection.execute(
         """
         INSERT INTO ingestion (source_id, source_title, subject_id, status, submitted_by)
-        VALUES (%s, '二冊目', 'jlpt-vocab', 'queued', %s) RETURNING id;
+        VALUES (%s, '二冊目', 'jlpt-vocab-2', 'queued', %s) RETURNING id;
         """,
         (live_source, OWNER),
     ).fetchone()[0]
@@ -938,7 +938,7 @@ def test_a_card_minted_for_a_live_source_is_studyable_though_its_note_came_from_
     ).fetchall() == [("source_deleted",)]
 
 
-def test_a_rejected_note_stays_rejected_and_mints_nothing(connection):
+def test_a_rejected_note_stays_rejected_and_mints_nothing(connection, empty_dictionary):
     """`S5`, which ADR 0064 moves to *Vet*'s drop: *the reader still says no once
     and means it.* A write that reaches a rejected row — a resume, a concurrent
     run — must not turn the no into a *card*.
@@ -958,7 +958,7 @@ def test_a_rejected_note_stays_rejected_and_mints_nothing(connection):
     assert connection.execute("SELECT count(*) FROM card;").fetchone() == (0,)
 
 
-def test_writing_a_note_twice_mints_one_card(connection):
+def test_writing_a_note_twice_mints_one_card(connection, empty_dictionary):
     """`04` §7.3's `UNIQUE (owner_id, note_id, template_key)`, reached through
     `mint_cards`' `ON CONFLICT DO NOTHING` — a resumed *chunk* re-writes the
     *notes* that landed before it failed (`03` §5.4)."""
@@ -970,7 +970,7 @@ def test_writing_a_note_twice_mints_one_card(connection):
     assert connection.execute("SELECT count(*) FROM card;").fetchone() == (1,)
 
 
-def test_a_long_model_request_keeps_its_claim_alive(connection):
+def test_a_long_model_request_keeps_its_claim_alive(connection, empty_dictionary):
     """ADR 0061, #17: a 3–5 minute answer sent no query, the claim went stale
     under it, and the job was reclaimed. The keepalive the provider is handed
     heartbeats **this** job, on **this** connection, while the answer streams.
@@ -1000,14 +1000,14 @@ def test_a_long_model_request_keeps_its_claim_alive(connection):
         handle=lambda conn, job: run_ingestion(
             conn,
             job,
-            process_chunk=make_chunk_processor(job, generate=generate, keepalive_every=0.0),
+            process_chunk=make_chunk_processor(job, generate=generate, dictionary=empty_dictionary, keepalive_every=0.0),
         ),
     )
 
     assert fresh and all(fresh)
 
 
-def test_a_refused_answer_is_never_cached(connection):
+def test_a_refused_answer_is_never_cached(connection, empty_dictionary):
     """`03` §7: **a failure is an error rather than a stored row**, and the same
     sentence pointed at `generation_cache` — a stored answer that does not
     validate would be served back forever and the chunk could never succeed.
@@ -1020,7 +1020,7 @@ def test_a_refused_answer_is_never_cached(connection):
             generation.payload["notes"][0]["meaning"] = ""
             return generation
 
-    run(connection, Liar())
+    run(connection, empty_dictionary, Liar())
 
     assert read_generation_cache(connection, key()) is None
     assert notes(connection) == {}
@@ -1031,7 +1031,7 @@ def test_a_refused_answer_is_never_cached(connection):
 # ---------------------------------------------------------------------------
 
 
-def test_the_ledger_records_what_was_spent_and_under_which_price_table(connection):
+def test_the_ledger_records_what_was_spent_and_under_which_price_table(connection, empty_dictionary):
     """`04` §6.1's spend half, all seven columns of it.
 
     ⚠️ **Tokens come from the response and cost from a dated table** (`03` §7).
@@ -1041,7 +1041,7 @@ def test_the_ledger_records_what_was_spent_and_under_which_price_table(connectio
     ingestion_id = make_run(connection)
     table = prices.current_prices()
 
-    run(connection, FakeProvider(tokens=(1840, 620)))
+    run(connection, empty_dictionary, FakeProvider(tokens=(1840, 620)))
 
     model_id, prompt_version, input_tokens, output_tokens, cost, effective, environment = spend(
         connection, ingestion_id
@@ -1056,14 +1056,14 @@ def test_the_ledger_records_what_was_spent_and_under_which_price_table(connectio
     assert environment == "laptop"
 
 
-def test_the_worker_environment_is_recorded_on_the_number(connection):
+def test_the_worker_environment_is_recorded_on_the_number(connection, empty_dictionary):
     """`03` §12: early *time-to-first-review* figures are **not comparable across
     ADR 0022's move**, and that is recorded on the row rather than only in a
     paragraph — the run is the thing that knows which side of the move it was.
     """
     ingestion_id = make_run(connection)
 
-    run(connection, FakeProvider(), environment="server")
+    run(connection, empty_dictionary, FakeProvider(), environment="server")
 
     assert spend(connection, ingestion_id)[6] == "server"
 
@@ -1079,7 +1079,7 @@ def test_an_unknown_worker_environment_is_refused() -> None:
         ingest.resolve_worker_environment({ingest.WORKER_ENVIRONMENT_ENV: "sever"})
 
 
-def test_an_ingestion_that_produces_no_new_notes_is_a_success(connection):
+def test_an_ingestion_that_produces_no_new_notes_is_a_success(connection, empty_dictionary):
     """PRD §5 and `03` §11 — **a success, not an error**, and the expected steady
     state as the corpus grows (`S5`).
 
@@ -1110,7 +1110,7 @@ def test_an_ingestion_that_produces_no_new_notes_is_a_success(connection):
         seed_note(connection, identity_key)
     provider = FakeProvider()
 
-    run(connection, provider)
+    run(connection, empty_dictionary, provider)
 
     status, _, extracted, deduplicated, known, rejected = ledger(connection, ingestion_id)
     assert status == "complete"
@@ -1119,7 +1119,7 @@ def test_an_ingestion_that_produces_no_new_notes_is_a_success(connection):
     assert spend(connection, ingestion_id)[4] is None
 
 
-def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(connection):
+def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(connection, empty_dictionary):
     """⚠️ ADR 0063, #19: *the reading later written with provenance `generated`
     rather than `lookup`.*
 
@@ -1181,7 +1181,7 @@ def test_a_reading_the_dictionary_could_not_supply_is_recorded_as_generated(conn
         ),
         to=Destination(
             declaration=declaration,
-            subject_id="jlpt-vocab",
+            subject_id="jlpt-vocab-2",
             owner_id=OWNER,
             source_id=source_id,
             source_chunk_id=chunk_id,

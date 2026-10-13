@@ -1,10 +1,10 @@
-// What the three *places* read, attached to the request the *place* renders on.
+// What the four *places* read, attached to the request the *place* renders on.
 //
 // ⚠️ **This is #5's idiom, not a new one.** `app/pages/auth/index.vue` already
 // reads `useRequestEvent()?.context.session` rather than calling a client
 // library, and `08` §6.1 gives the reason: a *place* has no client, so anything
 // that would fetch on the client is either dead code or a script tag that
-// `noScripts` will strip and leave behind a page with no data. The three *places*
+// `noScripts` will strip and leave behind a page with no data. The four *places*
 // render **only** on the server, so the request event is where their data
 // belongs.
 //
@@ -31,10 +31,11 @@ import { sourceDeletion } from '../utils/ingest/delete'
 import { openSeed } from '../utils/ingest/seed'
 import { statsData } from '../utils/stats/queries'
 import { readerZone } from '../utils/review/queries'
+import { readLimits } from '../utils/review/settings'
 import { useDatabase } from '../db'
 
-/** The three *places* — `10` §3, ADR 0013. */
-const SHELL_PATHS = new Set(['/', '/sources', '/stats'])
+/** The *places* — `10` §3, ADR 0013; `/settings` is the fourth (ADR 0076 §2). */
+const SHELL_PATHS = new Set(['/', '/sources', '/stats', '/settings'])
 
 /** `/sources/:id` carries the *shell* too — ADR 0013, `09` §2. */
 const SHELL_PREFIX = '/sources/'
@@ -76,6 +77,7 @@ export default defineEventHandler((event) => {
     sourceTitle: (id: string) => sourceTitle(db, id),
     sourceDetail: (id: string) => sourceDetail(db, id),
     zone: () => readerZone(db, ownerId),
+    limits: () => readLimits(db, ownerId),
     sourceDeletion: (id: string) => sourceDeletion(db, id),
     // ⚠️ **The zone is the one the newest *session* stored** (#21). `/stats`
     // ships no JavaScript (ADR 0020), so it cannot ask; the *session* request

@@ -9,7 +9,7 @@ repo yet". **Both halves are now spent**: #4 built the schema, and it lives in `
 with its migrations in `server/db/migrations/`. Drizzle owns every one of them and the worker issues
 no DDL (`03` §4.2). **What changed is the direction of authority, not the content** — where this
 document and the code disagree, this document is the argument and the code is the bug, except where a
-section carries a dated amendment saying otherwise. §11's twenty-two indexes (twenty-one until #25), §9's delete rules and
+section carries a dated amendment saying otherwise. §11's twenty-three indexes (twenty-two until #68 added `level_claim (authority_key, level)`, twenty-one until #25), §9's delete rules and
 §14's one trigger are each asserted by `test/schema/schema.test.ts`.
 
 Vocabulary is [`../CONTEXT.md`](../CONTEXT.md). Requirements are
@@ -150,6 +150,7 @@ of who is asking. *Personal* is a statement about one reader.
 | `review_session` | **personal** | `owner_id` | One reader's bounded run |
 | `review_session_card` | **personal** | `owner_id` | The snapshot's membership |
 | `card_flag` | **personal** | `owner_id` | A judgement that a card is wrong |
+| `study_setting` | **personal** | `owner_id` | How much one reader wants to be new each day (ADR 0076 §2, §7.10) |
 
 ⚠️ **A column that references a user does not make an entity personal.** `ingestion.submitted_by` and
 `job.requested_by` exist for the audit line and are nullable; the label asks what the row *asserts*,
@@ -319,6 +320,27 @@ fields         {"term":"図書館","reading":"としょかん","part_of_speech":
 `fields` carries **no index**. No v1 query reads inside it: the card browser is cut (`PRD §6`) and
 there is no field search. §11.
 
+⚠️ **Amended 2026-10-10 with [#68](https://github.com/yutaasakura96/kioku/issues/68) — [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md). Three
+things about this table changed and no column did.**
+
+- **`subject_id` is `'jlpt-vocab-2'` on everything written from now on** (ADR 0075 §1). The example
+  above is a row of the corpus before that, which is still in the table and which no screen reads:
+  every reader-facing query carries `subject_id = <the declaration's>` through
+  `server/utils/subject.ts`. `UNIQUE (subject_id, identity_key)` is what lets the same word exist
+  once in each corpus without either knowing about the other.
+- **A *note* can exist that no *ingestion* made and no reader has.** A starter word is written by
+  `scripts/starter/load.ts` with `origin_ingestion_id` null, no `occurrence`, no `note_vetting` row
+  and no *card* (ADR 0075 §4). It is neither *pending* nor *accepted* for anyone until a reader
+  starts it.
+- **`fields` may lack `example_sentence` and `example_gloss`** (ADR 0075 §7). A *note* a dictionary
+  wrote carries four keys, not six, and §5.4 has a row for each key the *note* carries and none
+  for the two it does not.
+
+⚠️ **`fields` is rewritten in one case, and it is not ADR 0052's.** When a newer starter bundle is
+loaded, a *note* **no reader has accepted** and **whose every provenance row is `lookup`** is
+brought up to the current dictionary entry. A *note* anyone has accepted is frozen as before, and so
+is one any field of which a model or a person wrote.
+
 ### 5.4 `note_field_provenance`
 
 ADR 0004: trust is a property of where a value came from, recorded per field. ADR 0029 makes this
@@ -331,7 +353,7 @@ relational, and this is the table its argument is about.
 | `kind` | `text` | no | — | `CHECK (kind IN ('lookup','judgement','generated','human'))` |
 | `model_id` | `text` | **yes** | — | Null for `lookup` and `human` |
 | `prompt_version` | `text` | **yes** | — | Null for `lookup` and `human` |
-| `dictionary_version` | `text` | **yes** | — | `SudachiDict-core` release, e.g. `20260723`. Null where the tokeniser was not involved |
+| `dictionary_version` | `text` | **yes** | — | `SudachiDict-core` release, e.g. `20260723`. Null where the tokeniser was not involved. ⚠️ **Since #68 also `JMdict 2026-10-09`**, on a `part_of_speech` or `meaning` a dictionary entry supplied: the column names whichever dictionary the value came from, and the two are told apart by the string |
 | `is_oov` | `boolean` | **yes** | — | The raw signal `kind` was derived from, kept because `03` §5.2 reads it for two different reasons |
 | `created_at` | `timestamptz` | no | `now()` | |
 
@@ -425,6 +447,22 @@ producer.** Stage 7 writes the model's estimate for every *note* it generates, a
 outside the *subject*'s declared `levels` set rather than storing it (`03` §5.1, ADR 0065). The set
 is **not** a `CHECK` here, for §13's reason: it lives in `subjects/`, and a copy would drift.
 
+⚠️ **Amended 2026-10-10 with [#68](https://github.com/yutaasakura96/kioku/issues/68) — [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §2.
+The table has its first named *authority*, and it is the one that is read.** The declaration's
+`authorities` list holds `tanos-jlpt`, and the starter loader writes one row per starter word:
+`(…, note 019c…, 'tanos-jlpt', 'N5', null, null)`. **`authority_key` is a key into that list and is
+not checked against it here**, for §13's reason again; the loader writes only the key the bundle
+names and refuses a bundle whose *authority* the declaration does not declare.
+
+**A word's *level* is the claim of the first declared *authority* that has one.** The *session*
+filter, the *Vet* strip and the JLPT *categories* read `authority_key IN (the declared list)` and
+nothing else. A model's row (`authority_key IS NULL`) is still written by stage 7 for a word the
+dictionary lacks, is still exported, and is read by one query only, `worker/seeding.py`'s
+exclusion list, which asks what a model would propose and not what a word's level is. **The set is
+still not collapsed; what changed is which member is displayed.**
+
+`level_claim (authority_key, level) WHERE authority_key IS NOT NULL` is the *category* read (§11).
+
 ### 5.7 `domain_claim`
 
 ⚠️ **Added 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22).**
@@ -465,8 +503,9 @@ if its *note* has a claim in the requested set (`server/utils/review/queries.ts`
 | --- | --- | --- | --- | --- |
 | `note_id` | `uuid` | no | — | PK, → `note`, `CASCADE` |
 | `meanings` | `text[]` | no | — | `CHECK (cardinality(meanings) > 0)` — an empty list would accept nothing, which is worse than no row |
-| `model_id` | `text` | no | — | Who wrote it |
-| `prompt_version` | `text` | no | — | `generate`'s (`v5` on) or the backfill's (`backfill-v1`) |
+| `model_id` | `text` | **yes** | — | Who wrote it, when a model did. ⚠️ `NOT NULL` until `0011` |
+| `prompt_version` | `text` | **yes** | — | `generate`'s (`v5` on) or the backfill's (`backfill-v1`). Null with `model_id`. ⚠️ `NOT NULL` until `0011` |
+| `dictionary_version` | `text` | **yes** | — | ⚠️ **Added with `0011`.** `JMdict 2026-10-09`, when a dictionary wrote the list and no model did |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 ⚠️ **Not in `note.fields`, and that is what keeps ADR 0052's freeze whole.** The list is check data,
@@ -475,6 +514,23 @@ not the *note*'s content. ⚠️ **No row means no list yet**: the check falls b
 run again. Both writers use `ON CONFLICT DO NOTHING` — the first list stands.
 
 **Example:** `(note 019bd3…, {see,look,watch,view}, 'claude-sonnet-5', 'v5', …)`.
+
+⚠️ **Amended 2026-10-10 with [#68](https://github.com/yutaasakura96/kioku/issues/68), migration
+`0011` — [ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md) §5. A list is attributed to a dictionary or to a model, and never both.**
+`CHECK ((dictionary_version IS NULL) = (model_id IS NOT NULL) AND (model_id IS NULL) =
+(prompt_version IS NULL))`, the same shape as §5.6's attribution check and for the same reason.
+Every row that existed carried a model and a prompt, so the check held for all of them as they
+stood and the migration rewrote nothing.
+
+A starter word's list, and an own word's when JMdict has it, is the glosses of the entry's senses
+that apply to that spelling, each added again with its bracketed part removed:
+`(note 019c…, {to meet,to encounter,to see}, null, null, 'JMdict 2026-10-09', …)`.
+
+⚠️ **The first list no longer always stands.** The worker's two writers still use `ON CONFLICT DO
+NOTHING`. The starter loader adds to a list **a dictionary wrote** when a newer bundle is loaded,
+because a refreshed entry can add a gloss the check should accept, **and removes nothing from
+it**: a phrase the check accepted yesterday is not refused today because the entry was reworded.
+**It never touches a list a model wrote**, and it never touches a reader's own *synonyms* (§7.9), which are a different table.
 
 ---
 
@@ -1012,6 +1068,15 @@ Drizzle, which is still one migration owner (`03` §4.2).
 | `completed_at` | `timestamptz` | yes | — | Null means abandoned; the end screen's numbers only exist for a completed run |
 | `new_count` | `integer` | no | `0` | `CHECK (new_count >= 0 AND new_count <= size)`. New *cards* this run put in front of the reader, **written by the composition** — the day's allowance is `10 - sum(new_count)` over today's runs (ADR 0066 §3) |
 | `zone` | `text` | yes | — | The IANA zone the client sent, canonicalised, or null when it sent none. `/stats` reads the newest (ADR 0066, amended by #21) |
+| `kind` | `text` | no | `'review'` | `CHECK (kind IN ('review','lesson'))`. A review run is due *cards* only; a lesson is new words only (ADR 0076 §1) |
+
+⚠️ **`kind` added 2026-10-12 with #70** ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)),
+migration `0013_lessons`, additive: a run composed before it is `'review'` by the default, which is
+what every one of them was closest to. ⚠️ **Since then `new_count` is the whole of a lesson and `0`
+for a review run**, and the allowance is the reader's `daily_new` (§7.10) less the day's sum, where
+this table's note above says ten. ⚠️ **`completed_at` is also stamped by *Finish early***
+(`POST /api/review/finish`), with positions still unanswered: *null means abandoned* still holds,
+and *completed* no longer means every position has an answer.
 
 ⚠️ **Added 2026-09-18 with #21** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md)), migration
 `0005_review_brake`. ⚠️ **`new_count` is not derivable from first *scheduling epochs*** — an epoch is
@@ -1144,6 +1209,35 @@ reader added as their own synonym with `S` on the back of the *card*.
 a second signal, and a second identical synonym is the same fact. **There is no synonym for a
 reading.** `count(*)` here is ADR 0069's revisit signal (`synonymCount`,
 `server/utils/review/synonym.ts`); it is not on `/stats`.
+
+⚠️ **Nothing writes this table since 2026-10-12** ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§5, #70): there is no manual override, and `S`, the outbox entry, `/api/review/synonym` and
+`server/utils/review/synonym.ts` are deleted. **The table and its rows stay, and `snapshotOf` still
+reads them**, so a meaning that was accepted before is still accepted. `S12`'s export still carries
+them.
+
+### 7.10 `study_setting`
+
+⚠️ **Added 2026-10-12 with [#70](https://github.com/yutaasakura96/kioku/issues/70), migration
+`0013_lessons`.** [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
+§2: the three numbers ADR 0066 made constants, as one reader's settings.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `owner_id` | `text` | no | — | PK. → `auth."user".id`, `RESTRICT` |
+| `lesson_size` | `integer` | no | `5` | `CHECK (lesson_size > 0)`. New words a lesson teaches |
+| `daily_new` | `integer` | no | `10` | `CHECK (daily_new >= 0)`. New words a local day; `0` stops them |
+| `pause_above` | `integer` | no | `50` | `CHECK (pause_above > 0)`. No new words while this many or more are due |
+| `updated_at` | `timestamptz` | no | `now()` | |
+
+**One row a reader, and none until they save.** A reader with no row has the defaults, which are
+ADR 0066's numbers, so nothing is written on a read. ⚠️ **The checks are a floor and the ceiling is
+the clamp's** (`shared/review/limits.ts`: 1 to 20, 0 to 100, 1 to 2,000): the floor is what a lesson
+of nothing or a negative day would break, and the ceiling is a product choice. `readLimits` clamps on
+the way out as well, so every reader of this table goes through it
+(`server/utils/review/settings.ts`).
+
+**Example:** `('usr_7f…', 5, 10, 50, 2026-10-12T07:00:00Z)` is a reader who saved the defaults.
 
 ---
 
@@ -1285,6 +1379,7 @@ reconciles counts — an untested export is a belief.
 | `occurrence (note_id)` | `S11` — a note links to its occurrences |
 | `level_claim (note_id)` | Rendering one note on *Vet*. The set is never collapsed, so it is always a fetch of several. Since #22, also *Review*'s filtered new half |
 | `domain_claim (note_id)` | The same two reads, for a *domain* (§5.7) |
+| `level_claim (authority_key, level) WHERE authority_key IS NOT NULL` | ⚠️ **Added with `0011`, #68.** A *category*'s words and its count: everything one *authority* puts at one *level* (ADR 0075 §3). Partial, because a model's estimate is in no *category* |
 | `source (content_hash)` | PRD §5 — identical content offers to open the existing source |
 | `source (subject_id, submitted_at DESC) WHERE deleted_at IS NULL` | The *Sources* list |
 | `ingestion_chunk (ingestion_id) WHERE status <> 'complete'` | **The resume query** (§6.2). Partial, because the interesting rows are the minority |
@@ -1385,6 +1480,12 @@ argued somewhere else.
   rate from `card_flag`, *time-to-first-review* from `source.submitted_at` to the first
   `review_log.received_at`, tokens and cost from `ingestion`. **Nothing durable depends on a log**,
   which is what makes the numbers survive ADR 0022's move.
+- ⚠️ **A `category` table, or a column for one** (added 2026-10-10, ADR 0075 §3). A *category* is
+  derived: a JLPT level is `level_claim` under a declared *authority*, an imported deck is the
+  `occurrence` rows of one live `anki` *source*, and *My words* is those of every other live
+  *source*. A stored value would be a second copy of those rows, could hold one where a word is in
+  several, and would have to be rewritten whenever the list is refreshed. ⚠️ **The reader's one
+  active *category* is a fact about the reader and will need a row somewhere; that is #69's.**
 - **A queue table separate from `job`.** `ingestion_chunk` is the per-chunk queue and `job` is the
   per-run one; a third would be a queue service with extra steps (ADR 0015).
 - **A sessions table for auth.** Better Auth owns it (§8).

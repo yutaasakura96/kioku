@@ -31,7 +31,7 @@ decoding, and not trusted because Drizzle typed the column.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
 from subject import (
@@ -196,6 +196,12 @@ class GeneratedNote:
     #: no `note_meaning` row is written, the check falls back to `meaning`, and
     #: the backfill finds the *note* later.
     meanings: tuple[str, ...] = ()
+    #: ADR 0075 §5 — the fields a second dictionary supplied, each with the
+    #: version *provenance* records for it (`JMdict 2026-10-09`). ⚠️ **Non-empty
+    #: means no model wrote this *note***: `pipeline/lookup.py` built it, its
+    #: accepted meanings are the dictionary's, and it makes no claim about
+    #: *level* or *domain* at all.
+    looked_up: Mapping[str, str] = field(default_factory=dict)
 
 
 def needs_a_reading(group: Group) -> bool:
@@ -656,4 +662,10 @@ def _assemble(
             "a generated note does not satisfy the declaration: "
             + ", ".join(f"{error.field}:{error.code}" for error in result.errors)
         )
-    return {name: fields[name] for name in (field["name"] for field in declaration["fields"])}
+    # ⚠️ An optional field the model left out stays out (ADR 0075 §7): the
+    # declaration's order, and only what arrived.
+    return {
+        name: fields[name]
+        for name in (field["name"] for field in declaration["fields"])
+        if name in fields
+    }

@@ -45,7 +45,7 @@ describe('the shape the migrations actually build', () => {
     expect(generated.rows[0]!.id).toMatch(/^[0-9a-f-]{36}$/)
   })
 
-  it('has the twenty-three tables of 04 plus the auth library\'s four', async () => {
+  it('has the twenty-four tables of 04 plus the auth library\'s four', async () => {
     const ours = await client.query<{ table_name: string }>(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
@@ -75,6 +75,7 @@ describe('the shape the migrations actually build', () => {
       'seed',
       'source',
       'source_chunk',
+      'study_setting',
       'vetting_session',
     ])
 
@@ -303,7 +304,7 @@ describe('the CHECKs refuse what the handler also refuses', () => {
   it('refuses a character count above the cap', async () => {
     await expect(client.exec(`
       INSERT INTO source (subject_id, title, content, content_hash, char_count)
-      VALUES ('jlpt-vocab', 'too long', 'x', 'deadbeef', 100001);
+      VALUES ('jlpt-vocab-2', 'too long', 'x', 'deadbeef', 100001);
     `)).rejects.toThrow(/source_char_count_cap/)
   })
 
@@ -349,7 +350,7 @@ describe('content_hash detects, it does not prevent', () => {
   it('allows the same content_hash twice', async () => {
     const insert = `
       INSERT INTO source (subject_id, title, content, content_hash, char_count)
-      VALUES ('jlpt-vocab', '社説', '同じ本文', 'same-hash', 4);
+      VALUES ('jlpt-vocab-2', '社説', '同じ本文', 'same-hash', 4);
     `
     await client.exec(insert)
     await client.exec(insert)
@@ -368,18 +369,18 @@ describe('the note\'s identity is a constraint, not a convention', () => {
   it('refuses a second note with the same (subject_id, identity_key)', async () => {
     await client.exec(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '開く␟ひらく', '{}'::jsonb);
+      VALUES ('jlpt-vocab-2', '開く␟ひらく', '{}'::jsonb);
     `)
 
     await expect(client.exec(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '開く␟ひらく', '{}'::jsonb);
+      VALUES ('jlpt-vocab-2', '開く␟ひらく', '{}'::jsonb);
     `)).rejects.toThrow(/note_subject_identity_key/)
 
     // The other reading of the same key is a different note.
     await expect(client.exec(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '開く␟あく', '{}'::jsonb);
+      VALUES ('jlpt-vocab-2', '開く␟あく', '{}'::jsonb);
     `)).resolves.toBeDefined()
   })
 
@@ -390,7 +391,7 @@ describe('the note\'s identity is a constraint, not a convention', () => {
   it('allows one claim per authority and exactly one model estimate', async () => {
     const note = await client.query<{ id: string }>(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', '図書館␟としょかん', '{}'::jsonb) RETURNING id;
+      VALUES ('jlpt-vocab-2', '図書館␟としょかん', '{}'::jsonb) RETURNING id;
     `)
     const noteId = note.rows[0]!.id
 
@@ -420,7 +421,7 @@ describe('the note\'s identity is a constraint, not a convention', () => {
   it('allows one domain claim per authority and exactly one model estimate', async () => {
     const note = await client.query<{ id: string }>(`
       INSERT INTO note (subject_id, identity_key, fields)
-      VALUES ('jlpt-vocab', 'デプロイ␟でぷろい', '{}'::jsonb) RETURNING id;
+      VALUES ('jlpt-vocab-2', 'デプロイ␟でぷろい', '{}'::jsonb) RETURNING id;
     `)
     const noteId = note.rows[0]!.id
 
@@ -448,5 +449,52 @@ describe('the note\'s identity is a constraint, not a convention', () => {
       INSERT INTO domain_claim (note_id, domain)
       VALUES ('${noteId}', 'daily');
     `)).rejects.toThrow(/domain_claim_attribution/)
+  })
+
+  // `04` §5.8 as amended by #68 (ADR 0075 §5) — a list of accepted meanings was
+  // written by a dictionary or by a model, and the row says which. Without the
+  // check a row can name both, and "who wrote this" has two answers; or name
+  // neither, and has none.
+  it('attributes a list of accepted meanings to a dictionary or to a model, never both', async () => {
+    const note = (identity: string) => client.query<{ id: string }>(`
+      INSERT INTO note (subject_id, identity_key, fields)
+      VALUES ('jlpt-vocab-2', '${identity}', '{}'::jsonb) RETURNING id;
+    `).then(result => result.rows[0]!.id)
+
+    await client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, dictionary_version)
+      VALUES ('${await note('会う␟あう')}', '{meet}', 'JMdict 2026-10-09');
+    `)
+    await client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, model_id, prompt_version)
+      VALUES ('${await note('見る␟みる')}', '{see}', 'claude-sonnet-5', 'v5');
+    `)
+
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, dictionary_version, model_id, prompt_version)
+      VALUES ('${await note('聞く␟きく')}', '{hear}', 'JMdict 2026-10-09', 'claude-sonnet-5', 'v5');
+    `)).rejects.toThrow(/note_meaning_attribution/)
+
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings)
+      VALUES ('${await note('話す␟はなす')}', '{speak}');
+    `)).rejects.toThrow(/note_meaning_attribution/)
+
+    // A model with no prompt version is half an attribution.
+    await expect(client.exec(`
+      INSERT INTO note_meaning (note_id, meanings, model_id)
+      VALUES ('${await note('読む␟よむ')}', '{read}', 'claude-sonnet-5');
+    `)).rejects.toThrow(/note_meaning_attribution/)
+  })
+
+  // `04` §11 — the category read: the words one *authority* puts at one
+  // *level*. Partial, because a model's estimate is in no category.
+  it('indexes level claims by authority and level, named claims only', async () => {
+    const index = await client.query<{ indexdef: string }>(`
+      SELECT indexdef FROM pg_indexes WHERE indexname = 'level_claim_authority_level_idx';
+    `)
+
+    expect(index.rows).toHaveLength(1)
+    expect(index.rows[0]!.indexdef).toMatch(/\(authority_key, level\) WHERE \(authority_key IS NOT NULL\)/)
   })
 })

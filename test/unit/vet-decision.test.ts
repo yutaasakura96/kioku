@@ -105,6 +105,16 @@ describe('an edit reaches the judgement fields and nothing else', () => {
     expect(parse({ edits: { meaning: value } })).toEqual({ ok: false, code: 'bad_value' })
   })
 
+  // ADR 0075 §7, #68: a word from the dictionary has no example sentence, and
+  // *Vet* sends every judgement field when one is fixed. Blank is refused for a
+  // required field and allowed for an optional one — but it is still a string.
+  it('lets an optional field stay blank, and still refuses anything that is not a string', () => {
+    const edits = { meaning: 'library', example_sentence: '', example_gloss: ' ' }
+
+    expect(parse({ edits })).toMatchObject({ ok: true, decision: { edits } })
+    expect(parse({ edits: { example_sentence: 42 } })).toEqual({ ok: false, code: 'bad_value' })
+  })
+
   it.each(['', 42, [], 'meaning'])('refuses %s as the edits themselves', (edits) => {
     expect(parse({ edits })).toEqual({ ok: false, code: 'bad_edits' })
   })

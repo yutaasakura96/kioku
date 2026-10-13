@@ -11,7 +11,7 @@
  * schedules all four grades in *days*, and `next_interval` clamps at
  * `Math.max(1, …)` before fuzz — so the soonest a graded *card* comes back is
  * **tomorrow** (verification §13.1). That is what makes a *session* a fixed
- * size, what lets the *progress rail* know its own length, and what retired the
+ * size, what lets the bar's count know its own total, and what retired the
  * word "Again" (ADR 0034). Turn it back on and none of that fails loudly; it
  * surfaces months later as a worse retention curve.
  *

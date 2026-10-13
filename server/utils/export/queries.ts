@@ -4,8 +4,9 @@
  *
  * ⚠️ **Four collections, and the scope is `02` `S12`'s, not the schema's.**
  * *Notes*, *cards*, *grades* and every *scheduling epoch*. `card_flag`,
- * *sessions*, *sources* and the spend ledger are out by name — adding one here
- * is a scope change, not a completion.
+ * *sessions*, *sources*, the study settings (`study_setting`, ADR 0076 §2) and
+ * the spend ledger are out by name — adding one here is a scope change, not a
+ * completion.
  *
  * ⚠️ **A *note* carries what the pivot moved off its row** (#32): the model's
  * meaning list (`meaningList`, the `note_meaning` row), the reader's synonyms,
