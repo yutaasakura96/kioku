@@ -67,6 +67,9 @@ const FIELDS = {
  * ⚠️ **And every run leaves its words graded or flagged**, because a new word
  * that was not got right is taught again (ADR 0076 §1) and would join the next
  * describe's lesson.
+ *
+ * ⚠️ **The list places it at N5**, the *category* a reader who has chosen none
+ * studies (ADR 0077 §2): a word in no *category* is in no lesson.
  */
 async function acceptedCard(key: string, fields: Record<string, string> = FIELDS): Promise<string> {
   const note = await database.client.query<{ id: string }>(`
@@ -78,6 +81,8 @@ async function acceptedCard(key: string, fields: Record<string, string> = FIELDS
   await database.client.exec(`
     INSERT INTO note_vetting (note_id, owner_id, state, vetted_at)
     VALUES ('${note.rows[0]!.id}', '${reader.userId}', 'accepted', now());
+    INSERT INTO level_claim (note_id, authority_key, level)
+    VALUES ('${note.rows[0]!.id}', 'tanos-jlpt', 'N5');
   `)
 
   const card = await database.client.query<{ id: string }>(`
@@ -342,16 +347,84 @@ describe('one lesson, from the teaching to the summary', () => {
 
     expect(await page.locator('.start .statement').textContent()).toContain('All done for now.')
 
-    // ⚠️ **ADR 0065 §5's filter sits inside the mode container**, so `space` on
-    // one of its checkboxes bubbles to the container's handler. It ticks the
-    // box and starts nothing.
-    const tech = page.getByRole('checkbox', { name: 'tech' })
-    await tech.focus()
+    // ⚠️ **The *session*-size knob sits inside the mode container**, so a key
+    // on it bubbles to the container's handler. It moves the knob and starts
+    // nothing.
+    await page.locator('.start input').first().focus()
     await page.keyboard.press(' ')
-    expect(await tech.isChecked()).toBe(true)
     await page.keyboard.press('Enter')
     await page.waitForTimeout(250)
     expect(await sessions(), 'opening Review, or a key on it, started a run').toBe(runs)
+
+    await page.close()
+  })
+})
+
+// #69, ADR 0077 — the issue's first criterion, end to end and in a browser,
+// because the choice crosses a *mode*, a *place* and a form post: the screen
+// before a run names the *category*, *Change category* is a document load onto
+// a page with no script, and choosing lands back where the lesson is counted.
+describe('choosing a category (ADR 0077 §3)', () => {
+  beforeAll(async () => {
+    for (const [term, level] of [['映画', 'N4'], ['経験', 'N3']] as const) {
+      await database.client.exec(`
+        WITH word AS (
+          INSERT INTO note (subject_id, identity_key, fields)
+          VALUES ('jlpt-vocab-2', '${term}␟よみ', '{"term":"${term}","reading":"よみ","meaning":"m"}'::jsonb)
+          RETURNING id
+        )
+        INSERT INTO level_claim (note_id, authority_key, level) SELECT id, 'tanos-jlpt', '${level}' FROM word;
+      `)
+    }
+  })
+
+  // The files' other describes study N5, the *category* of a reader who has
+  // chosen none.
+  afterAll(async () => {
+    await database.client.exec('DELETE FROM active_category;')
+  })
+
+  it('names the category on the screen before a run, changes it from the shelf, and comes back', async () => {
+    const page = await openReview(null, '.start .statement')
+
+    expect(await page.locator('.studying').textContent()).toContain('New words come from')
+    expect(await page.locator('.studying .tag').textContent()).toBe('JLPT N5')
+
+    await page.getByRole('link', { name: 'Change category' }).click()
+    await page.waitForURL(/\/categories$/)
+
+    // A *place*: the document, and no script on it.
+    expect(await page.locator('script').count()).toBe(0)
+    expect(await page.locator('.cat.on .code').textContent()).toBe('N5')
+    expect(await page.locator('.cat.on .tag').textContent()).toBe('New words come from here')
+
+    const runs = await sessions()
+    await page.getByRole('button', { name: 'Study N4' }).click()
+    await page.locator('.start .statement').waitFor()
+
+    expect(new URL(page.url()).pathname).toBe('/review')
+    expect(await page.locator('.studying .tag').textContent()).toBe('JLPT N4')
+    // ⚠️ The one N4 word, and not the N3 one: the lesson is counted in the
+    // *category* just chosen.
+    expect(await page.locator('.cta').textContent()).toContain('Start lesson · 1 new word')
+    // ⚠️ Choosing is not starting: nothing was composed.
+    expect(await sessions(), 'choosing a category started a run').toBe(runs)
+    expect((await database.client.query<{ key: string }>(
+      `SELECT category_key AS key FROM active_category WHERE owner_id = '${reader.userId}';`,
+    )).rows).toEqual([{ key: 'jlpt:N4' }])
+
+    // And the lesson it starts holds that word alone.
+    await page.getByRole('button', { name: /Start lesson/ }).click()
+    await page.locator('.lesson .term').waitFor()
+    expect(await page.locator('.lesson .term').textContent()).toBe('映画')
+
+    // Left graded, so it joins no later describe's lesson.
+    await throughTeaching(page, 1)
+    await answer(page, 'm')
+    await next(page)
+    await answer(page, 'よみ')
+    await next(page)
+    await page.locator('.summary').waitFor()
 
     await page.close()
   })

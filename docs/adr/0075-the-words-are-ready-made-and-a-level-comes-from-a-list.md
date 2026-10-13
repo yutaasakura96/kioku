@@ -108,7 +108,9 @@ place has no level.
 A word can be in several, and nothing picks one: 会う is `jlpt:N5` from the list and is also in the
 deck that taught it. The prototype's two shelves are *JLPT levels* and *My decks*. #69 builds the
 screen and the reader's one active category; #68 supplies the keys, the counts and the membership
-predicate.
+predicate. ⚠️ **#69 is built (2026-10-14, [ADR 0077](0077-the-reader-has-one-active-category.md))**: the
+screen is `/categories` and the choice is one row in `active_category`. A *category* is still
+derived.
 
 ⚠️ **The word was on two `_Avoid_` lists and comes off both.** `CONTEXT.md` refused *category* as a
 name for a *subject* and for a *deck*, and it is neither: a *subject* is declared and a *category* is

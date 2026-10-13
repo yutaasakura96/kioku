@@ -301,6 +301,26 @@ export const studySetting = pgTable(
 )
 
 /**
+ * `04` §7.11 — the one *category* the reader's new words come from (ADR 0077).
+ * One row per reader, written by `/categories`; a reader with no row studies
+ * the first declared *level*.
+ *
+ * ⚠️ **A key and not a reference.** A *category* is derived and has no table
+ * (ADR 0075 §3), so there is nothing to point at: `jlpt:N4`, `deck:<source
+ * id>` or `my-words`, as `shared/category/category.ts` writes them. A key that
+ * no longer names one — its deck was deleted — is read as no row.
+ *
+ * ⚠️ **Not a column on `study_setting`**: that table writes nothing until the
+ * reader saves the form, so that the defaults live in one place, and a row
+ * inserted here to hold a category would freeze three of them.
+ */
+export const activeCategory = pgTable('active_category', {
+  ownerId: ownerId().primaryKey(),
+  categoryKey: text('category_key').notNull(),
+  chosenAt: tstz('chosen_at').notNull().defaultNow(),
+})
+
+/**
  * `04` §7.7 — the snapshot's membership, and the run's length.
  *
  * **This is what "the snapshot wins" means** (PRD §5): a note edited mid-session

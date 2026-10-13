@@ -24,7 +24,7 @@ describe('the zone the day is counted in (ADR 0066 §4)', () => {
   it('rides the mount\'s request, before anything has been chosen', async () => {
     await start()
 
-    expect(server.starts).toEqual([{ size: 20, domains: [], levels: [], zone: Intl.DateTimeFormat().resolvedOptions().timeZone }])
+    expect(server.starts).toEqual([{ size: 20, zone: Intl.DateTimeFormat().resolvedOptions().timeZone }])
   })
 })
 
@@ -93,53 +93,19 @@ describe('the screen before a run (ADR 0076 §8)', () => {
     expect(view.find('.brake').text()).toBe('4 of 4 new words today.')
   })
 
-  // ⚠️ A changed filter asks again and starts nothing: the count on the lesson
-  // control is the server's.
-  it('asks again through a changed filter, and starts nothing', async () => {
-    server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true }
+  // ADR 0077 §3 — the prototype's line under Home's two heroes. ⚠️ The
+  // *category* is the server's, named beside the count it was counted in, and
+  // the way to change it is a document load: `/categories` is a *place*.
+  it('names the category new words come from, and links to where it is changed', async () => {
+    server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true, category: { key: 'jlpt:N4', name: 'JLPT N4' } }
     const view = await start()
 
-    await view.find('input[value=N3]').setValue(true)
-    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
-
-    expect(server.starts[1]).toMatchObject({ levels: ['N3'], domains: [] })
-    expect(server.starts[1]!.start).toBeUndefined()
-  })
-
-  // ⚠️ The re-ask must not take the screen away: the checkbox the reader
-  // ticked is the one still there, so their place and focus are too.
-  it('keeps the screen, and the checkbox just ticked, while it asks again', async () => {
-    server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true }
-    const view = await start()
-    const box = view.find('input[value=N3]').element
-    const drawn: boolean[] = []
-    const watching = new MutationObserver(() => drawn.push(view.find('.start').exists()))
-    watching.observe(view.element, { childList: true, subtree: true })
-
-    await view.find('input[value=N3]').setValue(true)
-    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
-    await flushPromises()
-    watching.disconnect()
-
-    expect(drawn.every(Boolean), 'the start screen left the page during the re-ask').toBe(true)
-    expect(view.find('input[value=N3]').element).toBe(box)
-    expect((box as HTMLInputElement).checked).toBe(true)
-    expect(texts(view, '.cta button')).toEqual(['Start lesson · 5 new words'])
-  })
-
-  it('keeps the screen when the re-ask does not arrive', async () => {
-    server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true }
-    const view = await start()
-    const box = view.find('input[value=N3]').element
-
-    server.reachable = false
-    await view.find('input[value=N3]').setValue(true)
-    await new Promise(resolve => setTimeout(resolve, 50))
-    await flushPromises()
-
-    expect(view.text()).not.toContain('That did not load')
-    expect(view.find('input[value=N3]').element).toBe(box)
-    expect(texts(view, '.cta button')).toEqual(['Start lesson · 5 new words'])
+    expect(view.find('.studying').text()).toContain('New words come from')
+    expect(view.find('.studying .tag').text()).toBe('JLPT N4')
+    expect(view.find('.studying a').text()).toBe('Change category')
+    expect(view.find('.studying a').attributes('href')).toBe('/categories')
+    // ⚠️ ADR 0065 §5's checkboxes are gone: one *category*, chosen elsewhere.
+    expect(view.find('input[type=checkbox]').exists()).toBe(false)
   })
 
   // The reader's own start still says so when it fails: nothing was held for it.
@@ -171,16 +137,14 @@ describe('the summary\'s what next (ADR 0066 §7, ADR 0076 §8)', () => {
     expect(view.find('.next button').text()).toBe('Carry on with reviews')
   })
 
-  // ⚠️ The summary's lesson is started through the filter the reader chose, so
-  // every answer carries it and the offer that ends the run is counted with it.
-  it('sends the chosen filter with every answer, and keeps it for the next run', async () => {
+  // ⚠️ No answer says which words come next: the *category* is the server's
+  // (ADR 0077 §1), so an answer is its own fields and nothing else.
+  it('sends each answer with nothing about the next lesson in it', async () => {
     server.offer = { ...NOTHING_WAITING, dueCount: 1, lesson: 5, waiting: true }
     server.finalOffer = { ...NOTHING_WAITING, lesson: 2, waiting: true }
     server.cards = [server.cards[0]!]
     const view = await start()
 
-    await view.find('input[value=N3]').setValue(true)
-    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
     await view.find('.cta button').trigger('click')
     await vi.waitFor(() => expect(view.find('.quizcard').exists()).toBe(true))
 
@@ -188,40 +152,27 @@ describe('the summary\'s what next (ADR 0066 §7, ADR 0076 §8)', () => {
     await vi.waitFor(() => expect(view.find('.next button').text()).toBe('Start lesson · 2 new words'))
 
     expect(server.answers).toHaveLength(1)
-    expect(server.answers[0]).toMatchObject({ cardId: server.cards[0], grade: 3, levels: ['N3'], domains: [] })
+    expect(Object.keys(server.answers[0]!).sort()).toEqual(['cardId', 'grade', 'reviewedAt', 'sessionId'])
 
     server.live = false
     server.graded = new Map()
     await view.find('.next button').trigger('click')
-    await vi.waitFor(() => expect(server.starts.at(-1)).toMatchObject({ start: 'lesson', levels: ['N3'] }))
+    await vi.waitFor(() => expect(Object.keys(server.starts.at(-1)!).sort()).toEqual(['size', 'start', 'zone']))
+    // ⚠️ Let that answer land here, and not in the next test's store.
+    await flushPromises()
+    await new Promise(resolve => setTimeout(resolve, 50))
+    await flushPromises()
   })
 
-  // ⚠️ The summary's offer was counted through the filter, so its sentence is
-  // the start screen's: nothing matches, not nothing is left.
-  it('says the filter matched no new word, as the screen before a run does', async () => {
-    server.offer = { ...NOTHING_WAITING, dueCount: 1 }
-    server.cards = [server.cards[0]!]
-    const view = await start()
-
-    await view.find('input[value=N3]').setValue(true)
-    await vi.waitFor(() => expect(server.starts).toHaveLength(2))
-    await view.find('.cta button').trigger('click')
-    await vi.waitFor(() => expect(view.find('.quizcard').exists()).toBe(true))
-
-    await word(view)
-
-    await vi.waitFor(() => expect(view.find('.next').text()).toContain('No new word matches the filter.'))
-    expect(view.find('.next').text()).not.toContain('no new words left')
-  })
-
-  it('says no new words are left when no filter was set', async () => {
+  // ⚠️ Of the *category*, not of the app: the next one is a screen away.
+  it('says no new words are left in the active category', async () => {
     server.live = true
     server.cards = [server.cards[0]!]
     const view = await open()
 
     await word(view)
 
-    await vi.waitFor(() => expect(view.find('.next').text()).toContain('There are no new words left to learn.'))
+    await vi.waitFor(() => expect(view.find('.next').text()).toContain('There are no new words left in JLPT N5.'))
   })
 
   it('offers a lesson once the reviews are done', async () => {

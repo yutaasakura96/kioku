@@ -49,6 +49,7 @@ import * as schema from '../../db/schema'
 import { flaggedCount } from '../vet/queries'
 import { newCards, readerZone, recentlyComposed, unstartedNotes } from '../review/queries'
 import { readLimits } from '../review/settings'
+import { readActiveCategory } from '../category/active'
 import { introducedToday, newOnOffer } from '../../../shared/review/brake'
 import type { RunStatus } from '../../../shared/ingest/run-detail'
 import type { IngestDatabase } from './record'
@@ -285,8 +286,12 @@ export async function startBlockCounts(
   const recent = await recentlyComposed(db, ownerId, now)
   // ⚠️ Read up to the day's limit and no further: nothing past it changes the
   // answer, and the starter set is eight thousand rows.
-  const own = await newCards(db, ownerId, limits.dailyNew)
-  const unstarted = await unstartedNotes(db, ownerId, limits.dailyNew - own.length)
+  // ⚠️ In the reader's active *category*, as the lesson is (ADR 0077 §1): a
+  // control that counted every *level* would promise words the lesson behind
+  // it does not hold.
+  const category = (await readActiveCategory(db, ownerId)).ref
+  const own = await newCards(db, ownerId, limits.dailyNew, category)
+  const unstarted = await unstartedNotes(db, ownerId, limits.dailyNew - own.length, category)
   const newToday = newOnOffer(
     { introducedToday: introducedToday(recent, now, zone), dueCount: dueNow },
     own.length + unstarted.length,

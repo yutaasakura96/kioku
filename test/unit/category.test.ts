@@ -7,10 +7,13 @@ import {
   MY_WORDS_KEY,
   categoryGroup,
   categoryKey,
+  defaultCategory,
   levelAuthority,
   levelCategories,
+  levelCategoryName,
   parseCategoryKey,
 } from '../../shared/category/category'
+import { learned, noProgress } from '../../shared/category/shelf'
 import { jlptVocab } from '../../shared/subject/declaration'
 
 const DECK = '0199c3f0-7b1e-7c3a-9d2e-4f5a6b7c8d9e'
@@ -69,5 +72,28 @@ describe('the authority a level is read from', () => {
 
   it('is an error where the declaration names none, rather than every claim', () => {
     expect(() => levelAuthority({ ...jlptVocab, authorities: [] })).toThrow(/authority/)
+  })
+})
+
+// ADR 0077 §2 — the *category* a reader who has chosen none studies.
+describe('the default category', () => {
+  it('is the first declared level, which is the easiest', () => {
+    expect(defaultCategory()).toEqual({ kind: 'level', level: jlptVocab.levels[0] })
+    expect(categoryKey(defaultCategory())).toBe('jlpt:N5')
+  })
+
+  it('is refused for a subject that declares no level to start from', () => {
+    expect(() => defaultCategory({ ...jlptVocab, levels: [] })).toThrow(/no level/)
+  })
+
+  it('is called by the name the screens use for a level', () => {
+    expect(levelCategoryName('N4')).toBe('JLPT N4')
+  })
+})
+
+describe('a category\'s progress', () => {
+  it('counts a word as learned at any of the three stages', () => {
+    expect(learned(noProgress())).toBe(0)
+    expect(learned({ learning: 5, familiar: 4, known: 3 })).toBe(12)
   })
 })

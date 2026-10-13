@@ -8,10 +8,8 @@ import PlaceShell from '../../app/components/PlaceShell.vue'
 import QuizCard from '../../app/components/QuizCard.vue'
 import SessionSummary from '../../app/components/SessionSummary.vue'
 import SessionTally from '../../app/components/SessionTally.vue'
-import SessionFilterControls from '../../app/components/SessionFilterControls.vue'
 import StartBlock from '../../app/components/StartBlock.vue'
 import { DEFAULT_LIMITS } from '../../shared/review/limits'
-import { jlptVocab } from '../../shared/subject/declaration'
 import type { QuizFeedback } from '../../app/components/QuizCard.vue'
 import type { StudyOffer } from '../../shared/review/offer'
 import type { ReviewPosition } from '../../shared/review/snapshot'
@@ -222,6 +220,7 @@ const OFFER: StudyOffer = {
   dueCount: 0,
   lesson: 0,
   waiting: false,
+  category: { key: 'jlpt:N5', name: 'JLPT N5' },
   limits: DEFAULT_LIMITS,
   nextDue: null,
 }
@@ -259,7 +258,6 @@ describe('the summary (ADR 0076 §7, §8)', () => {
         early: false,
         positions: [],
         offer: OFFER,
-        filtered: false,
         unsent: 0,
         refused: [],
         sessionExpired: false,
@@ -433,34 +431,6 @@ describe('the session tally (`05` §7, `10` §11)', () => {
 
     expect(five.findAll('.column')).toHaveLength(5)
     expect(five.text()).toContain('5 / 7')
-  })
-})
-
-// ADR 0065 §5 — the *session* filter. ⚠️ **Its values are the declaration's**,
-// so a second *domain* in `subjects/jlpt-vocab.json` is a second checkbox and
-// nothing here; and **it says it touches new words only**, because a reader who
-// believed their reviews were filtered would be reading the screen wrong.
-describe('the session filter (ADR 0065 §5)', () => {
-  const controls = (filter = { domains: [] as string[], levels: [] as string[] }) =>
-    mountSuspended(SessionFilterControls, { props: { modelValue: filter, declaration: jlptVocab } })
-
-  it('offers every declared domain and level, and says it filters new words only', async () => {
-    const view = await controls()
-
-    expect(view.findAll('input[type=checkbox]').map(box => box.attributes('value'))).toEqual([
-      ...jlptVocab.domains,
-      ...jlptVocab.levels,
-    ])
-    expect(view.text()).toContain('New words only')
-    expect(view.text()).toContain('reviews are never filtered')
-  })
-
-  it('keeps the declaration order whatever order the boxes are ticked in', async () => {
-    const view = await controls({ domains: ['business'], levels: [] })
-
-    await view.find('input[value=tech]').setValue(true)
-
-    expect(view.emitted('update:modelValue')).toEqual([[{ domains: ['tech', 'business'], levels: [] }]])
   })
 })
 

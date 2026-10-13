@@ -29,6 +29,11 @@ export interface StudyOffer extends BrakeReading {
    * §7): a brake that is silent is a bug report.
    */
   waiting: boolean
+  /**
+   * The reader's active *category*, which `lesson` and `waiting` are counted
+   * in (ADR 0077 §1) — so the screen names the *category* the number is of.
+   */
+  category: { key: string, name: string }
   /** The reader's settings, so the sentence can name the limit it met. */
   limits: StudyLimits
   /** The next instant a word is due — past, when reviews are waiting. Null with nothing scheduled. */
@@ -62,12 +67,14 @@ function nextReviews(offer: StudyOffer, now: Date): string {
  * reader deciding: read as *nothing new*, any of them would be the brake
  * looking like a bug.
  */
-export function noLessonLine(offer: StudyOffer, filtered = false): string {
+export function noLessonLine(offer: StudyOffer): string {
   if (offer.lesson > 0)
     return ''
 
+  // ⚠️ **Of the *category*, never of the app**: with N5 finished there are
+  // seven thousand words left, one screen away (ADR 0077 §4).
   if (!offer.waiting)
-    return filtered ? 'No new word matches the filter.' : 'There are no new words left to learn.'
+    return `There are no new words left in ${offer.category.name}.`
 
   if (offer.limits.dailyNew === 0)
     return 'New words are switched off in settings.'
@@ -83,7 +90,7 @@ export function noLessonLine(offer: StudyOffer, filtered = false): string {
 }
 
 /** The screen before a run: what is waiting, as the prototype's Home says it. */
-export function startLines(offer: StudyOffer, now: Date = new Date(), filtered = false): StartLines {
+export function startLines(offer: StudyOffer, now: Date = new Date()): StartLines {
   const due = offer.dueCount
   const lesson = offer.lesson
 
@@ -95,7 +102,7 @@ export function startLines(offer: StudyOffer, now: Date = new Date(), filtered =
   }
 
   if (due > 0)
-    return { statement: `${words(due, 'word', 'words')} to review.`, body: noLessonLine(offer, filtered) }
+    return { statement: `${words(due, 'word', 'words')} to review.`, body: noLessonLine(offer) }
 
   if (lesson > 0) {
     // Nothing scheduled yet is the first visit: the prototype's day one.
@@ -106,7 +113,7 @@ export function startLines(offer: StudyOffer, now: Date = new Date(), filtered =
 
   return {
     statement: 'All done for now.',
-    body: [nextReviews(offer, now), noLessonLine(offer, filtered)].filter(line => line !== '').join(' '),
+    body: [nextReviews(offer, now), noLessonLine(offer)].filter(line => line !== '').join(' '),
   }
 }
 
@@ -120,7 +127,7 @@ export interface NextStep {
  * The summary's *What next* (prototype `vSummary`): reviews still waiting come
  * first, then a lesson, then nothing.
  */
-export function whatNext(offer: StudyOffer, now: Date = new Date(), filtered = false): NextStep {
+export function whatNext(offer: StudyOffer, now: Date = new Date()): NextStep {
   if (offer.dueCount > 0) {
     return {
       body: `${words(offer.dueCount, 'review is', 'reviews are')} still waiting.`,
@@ -137,5 +144,5 @@ export function whatNext(offer: StudyOffer, now: Date = new Date(), filtered = f
     }
   }
 
-  return { body: ['Nothing else due.', next, noLessonLine(offer, filtered)].filter(line => line !== '').join(' '), start: null }
+  return { body: ['Nothing else due.', next, noLessonLine(offer)].filter(line => line !== '').join(' '), start: null }
 }

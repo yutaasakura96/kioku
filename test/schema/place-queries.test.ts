@@ -376,6 +376,19 @@ describe('startBlockCounts', () => {
     expect((await client.query(`SELECT 1 FROM card;`)).rows).toHaveLength(1)
   })
 
+  // ADR 0077 §1: the control counts what the lesson behind it would hold, and
+  // that is the active *category*'s words and no other's.
+  it('counts new words in the reader\'s active category only', async () => {
+    await seedNewCard('会う␟あう')
+    await seedNewCard('経験␟けいけん', 'N3')
+    await seedNewCard('経済␟けいざい', 'N3')
+
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(1)
+
+    await client.exec(`INSERT INTO active_category (owner_id, category_key) VALUES ('${OWNER}', 'jlpt:N3');`)
+    expect((await startBlockCounts(db, OWNER)).newToday).toBe(2)
+  })
+
   // ADR 0076 §2: the lesson's number is the reader's own.
   it('stops at the reader\'s own limit, and at nothing when they set none', async () => {
     for (let n = 0; n < 6; n += 1)
@@ -419,8 +432,16 @@ async function seedVetting(state: string, identityKey = '図書館␟としょ�
   return noteId
 }
 
-async function seedNewCard(identityKey: string) {
+/**
+ * ⚠️ **The list places it at `level`**, N5 unless said: the figure is counted
+ * in the reader's active *category* (ADR 0077 §1), and one who has chosen none
+ * is at N5.
+ */
+async function seedNewCard(identityKey: string, level = 'N5') {
   const noteId = await seedVetting('accepted', identityKey)
+  await client.exec(`
+    INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'tanos-jlpt', '${level}');
+  `)
   const card = await client.query<{ id: string }>(`
     INSERT INTO card (note_id, owner_id, template_key)
     VALUES ('${noteId}', '${OWNER}', 'recognition') RETURNING id;

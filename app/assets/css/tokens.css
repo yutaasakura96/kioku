@@ -66,6 +66,17 @@
   --k-wrong-tint: #f7e2dc;
   --k-wrong-ink: #7d2415; /* 7.90 on its tint */
 
+  /* ADR 0077 §3 — the stage ramp of the prototype's progress bar: how much of
+     a *category* is Known, Familiar and Learning, over what is not started.
+     ⚠️ **A ramp of the ink, darker for further along, and never the only
+     signal**: the bar sits under a line that says how many words are learned,
+     and it carries each count as its label. ADR 0076 left these out until
+     something drew a stage in colour; `/categories` is the first. */
+  --k-st-known: #1d1a16;
+  --k-st-familiar: #776d5f;
+  --k-st-learning: #c2b29b;
+  --k-st-none: #e6ddd2;
+
   /* -- §3 Rules ---------------------------------------------------------- */
   /* Two line tokens, split by the surface they sit on rather than by whether
      they are chrome or content. The values are tuned to the same perceived

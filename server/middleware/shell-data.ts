@@ -1,4 +1,4 @@
-// What the four *places* read, attached to the request the *place* renders on.
+// What the five *places* read, attached to the request the *place* renders on.
 //
 // ⚠️ **This is #5's idiom, not a new one.** `app/pages/auth/index.vue` already
 // reads `useRequestEvent()?.context.session` rather than calling a client
@@ -32,10 +32,14 @@ import { openSeed } from '../utils/ingest/seed'
 import { statsData } from '../utils/stats/queries'
 import { readerZone } from '../utils/review/queries'
 import { readLimits } from '../utils/review/settings'
+import { categoryShelf } from '../utils/category/queries'
 import { useDatabase } from '../db'
 
-/** The *places* — `10` §3, ADR 0013; `/settings` is the fourth (ADR 0076 §2). */
-const SHELL_PATHS = new Set(['/', '/sources', '/stats', '/settings'])
+/**
+ * The *places* — `10` §3, ADR 0013; `/settings` is the fourth (ADR 0076 §2) and
+ * `/categories` the fifth (ADR 0077 §3).
+ */
+const SHELL_PATHS = new Set(['/', '/categories', '/sources', '/stats', '/settings'])
 
 /** `/sources/:id` carries the *shell* too — ADR 0013, `09` §2. */
 const SHELL_PREFIX = '/sources/'
@@ -78,6 +82,7 @@ export default defineEventHandler((event) => {
     sourceDetail: (id: string) => sourceDetail(db, id),
     zone: () => readerZone(db, ownerId),
     limits: () => readLimits(db, ownerId),
+    categories: () => categoryShelf(db, ownerId),
     sourceDeletion: (id: string) => sourceDeletion(db, id),
     // ⚠️ **The zone is the one the newest *session* stored** (#21). `/stats`
     // ships no JavaScript (ADR 0020), so it cannot ask; the *session* request

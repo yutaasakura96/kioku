@@ -63,6 +63,8 @@ and two *modes*; those are the five screens of the app. The door is not a screen
 is added here rather than by amending ADR 0013. ⚠️ **Seven routes and six screens since 2026-10-12**:
 #70 added `/settings`, a fourth *place* behind the same gate
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §2).
+⚠️ **Eight routes and seven screens since 2026-10-14**: #69 added `/categories`, a fifth *place*
+behind it ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §3).
 
 | Route | Rendering | Public? |
 | --- | --- | --- |

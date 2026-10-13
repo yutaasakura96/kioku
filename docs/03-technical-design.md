@@ -801,9 +801,14 @@ the reader's synonyms (`04` §7.9).
   `start: 'lesson'`; without one it resumes a live run or composes nothing. It always answers
   `{ session, offer }`, and `offer` is what is waiting: the due count, the size of the next lesson,
   which brake is on, the reader's limits and the next due instant (`shared/review/offer.ts`). The
-  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run, counted
-  through the *session* filter the answer carries (`domains`, `levels`; absent or not legal is no
-  filter, never a refusal). The page adds its filter when an entry is sent and stores none.
+  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run.
+  ⚠️ **Since #69 the lesson in an `offer` is counted in the reader's active *category***
+  ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), which the server reads from `active_category` (`04` §7.11) and
+  names in `offer.category`. No request carries it: until then each answer carried the page's
+  *session* filter (`domains`, `levels`) for that count.
+- **The active *category* is the reader's** (`04` §7.11): `POST /api/category` takes a row's form on
+  `/categories`, checks the key names a *category*, and answers `303` to `/review`; a key that names
+  none answers `303` back to `/categories` and writes nothing.
 - **The three limits are the reader's** (`study_setting`, `04` §7.10): `POST /api/settings` takes
   the form on `/settings`, clamps, and answers `303`.
 

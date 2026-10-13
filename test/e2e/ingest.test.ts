@@ -106,7 +106,7 @@ beforeAll(async () => {
 describe('the gate is still the gate', () => {
   // ⚠️ Asserting the forgery *works* would pass on an application that had
   // stopped checking. This is the other half: the same routes, no cookie.
-  it.each(['/', '/sources', '/stats', '/settings'])('%s without a session is a 302 to /auth', async (path) => {
+  it.each(['/', '/categories', '/sources', '/stats', '/settings'])('%s without a session is a 302 to /auth', async (path) => {
     const response = await nuxtFetch(path, { redirect: 'manual' })
 
     expect(response.status).toBe(302)
@@ -115,7 +115,7 @@ describe('the gate is still the gate', () => {
 })
 
 describe('assertion 1, signed in — the places ship no JavaScript', () => {
-  it.each(['/', '/sources', '/stats', '/settings'])('%s contains no <script', async (path) => {
+  it.each(['/', '/categories', '/sources', '/stats', '/settings'])('%s contains no <script', async (path) => {
     const response = await asReader(path)
 
     expect(response.status).toBe(200)
@@ -160,6 +160,98 @@ describe('ADR 0031 — signing in lands on Ingest', () => {
   })
 })
 
+// ADR 0077 §3 — the fifth *place*. A shelf of forms with one button each: no
+// JavaScript, a POST, and a `303` to the screen before a run.
+describe('Categories — ADR 0077 §3', () => {
+  const text = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+  const shelf = () => asReader('/categories').then(response => response.text())
+  /** The keys the shelf offers to study: every row but the active one. */
+  const offered = (html: string) => [...html.matchAll(/name="category" value="([^"]+)"/g)].map(match => match[1])
+
+  it('lists the five levels, marks N5 for a reader who has chosen none, and writes no row to do it', async () => {
+    const html = await shelf()
+
+    expect(text(html)).toContain('Choose what to study.')
+    expect(text(html)).toContain('Reviews always cover everything you have learned')
+    expect(offered(html)).toEqual(['jlpt:N4', 'jlpt:N3', 'jlpt:N2', 'jlpt:N1'])
+    expect(html.match(/New words come from here/g)).toHaveLength(1)
+    expect(html).toContain('action="/api/category"')
+    expect(await count('active_category')).toBe(0)
+  })
+
+  it('is in the nav of every place', async () => {
+    for (const path of ['/', '/categories', '/sources', '/stats', '/settings'])
+      expect(await asReader(path).then(response => response.text())).toContain('href="/categories"')
+  })
+
+  it('stores the choice, answers 303 to the screen before a run, and marks it on the shelf', async () => {
+    const response = await asReader('/api/category', form({ category: 'jlpt:N3' }))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/review?from=%2Fcategories')
+    expect(offered(await shelf())).toEqual(['jlpt:N5', 'jlpt:N4', 'jlpt:N2', 'jlpt:N1'])
+
+    await asReader('/api/category', form({ category: 'jlpt:N2' }))
+    expect(await count('active_category'), 'a second choice wrote a second row').toBe(1)
+  })
+
+  // ⚠️ The way a reader sends such a key is a page drawn before a deck was
+  // deleted, so the answer is the shelf as it is now and not an error page.
+  it('changes nothing for a key that names no category, and lands back on the shelf', async () => {
+    for (const category of ['jlpt:N6', 'deck:0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b', 'my-words', '']) {
+      const response = await asReader('/api/category', form({ category }))
+
+      expect(response.status, category).toBe(303)
+      expect(response.headers.get('location'), category).toBe('/categories')
+    }
+
+    expect(offered(await shelf())).toEqual(['jlpt:N5', 'jlpt:N4', 'jlpt:N3', 'jlpt:N1'])
+  })
+
+  it('puts an imported deck and the reader\'s own words under My decks', async () => {
+    await database.client.exec(`
+      WITH deck AS (
+        INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
+        VALUES ('jlpt-vocab-2', 'anki', 'Core 2k', '会う', 'hash-core-2k', 2) RETURNING id
+      ), list AS (
+        INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
+        VALUES ('jlpt-vocab-2', 'word_list', '今週の単語', '沼', 'hash-own-list', 1) RETURNING id
+      ), piece AS (
+        INSERT INTO source_chunk (source_id, ordinal, char_start, char_end, content_hash)
+        SELECT id, 0, 0, 1, 'c' FROM list RETURNING id, source_id
+      ), word AS (
+        INSERT INTO note (subject_id, identity_key, fields)
+        VALUES ('jlpt-vocab-2', '沼␟ぬま', '{"term":"沼","reading":"ぬま"}'::jsonb) RETURNING id
+      )
+      INSERT INTO occurrence (note_id, source_id, source_chunk_id, char_start, char_end, surface_form)
+      SELECT word.id, piece.source_id, piece.id, 0, 1, '沼' FROM word, piece;
+    `)
+
+    const html = await shelf()
+    const [deck, own] = offered(html).slice(-2)
+
+    expect(deck).toMatch(/^deck:/)
+    expect(own).toBe('my-words')
+    expect(text(html)).toContain('Core 2k 0 words · 0 learned · imported')
+    expect(text(html)).toContain('My words 1 word · 0 learned')
+
+    const response = await asReader('/api/category', form({ category: 'my-words' }))
+    expect(response.headers.get('location')).toBe('/review?from=%2Fcategories')
+    expect(offered(await shelf())).not.toContain('my-words')
+  })
+
+  it('is the reader\'s alone: no session, no write', async () => {
+    const response = await nuxtFetch('/api/category', { ...form({ category: 'jlpt:N1' }), redirect: 'manual' })
+
+    expect(response.status).toBe(401)
+    expect(offered(await shelf())).not.toContain('my-words')
+
+    // Back to no choice and no sources, for the files' other tests.
+    await database.client.exec('DELETE FROM active_category; TRUNCATE occurrence, source_chunk, source CASCADE;')
+    await database.client.exec(`DELETE FROM note WHERE identity_key = '沼␟ぬま';`)
+  })
+})
+
 // ADR 0076 §2 — the fourth *place*. A form and nothing else: no JavaScript, a
 // POST, and a `303` back to the document that shows what was stored.
 describe('Settings — ADR 0076 §2', () => {
@@ -176,7 +268,7 @@ describe('Settings — ADR 0076 §2', () => {
   })
 
   it('is in the nav of every place', async () => {
-    for (const path of ['/', '/sources', '/stats', '/settings'])
+    for (const path of ['/', '/categories', '/sources', '/stats', '/settings'])
       expect(await asReader(path).then(response => response.text())).toContain('href="/settings"')
   })
 

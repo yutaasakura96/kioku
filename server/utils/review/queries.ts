@@ -17,8 +17,7 @@
  * `IN` read rather than an `EXISTS` beside the membership.
  */
 
-import { and, asc, count, desc, eq, exists, gt, gte, inArray, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm'
-import type { AnyPgColumn } from 'drizzle-orm/pg-core'
+import { and, asc, count, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm'
 
 import * as schema from '../../db/schema'
 import { DUE_READ_CEILING } from '../../../shared/review/compose'
@@ -26,12 +25,11 @@ import type { DueCard, NewCard } from '../../../shared/review/compose'
 import type { ComposedSession } from '../../../shared/review/brake'
 import { retrievability } from '../../../shared/review/scheduler'
 import { resolveZone } from '../../../shared/time/local-day'
-import type { SessionFilter } from '../../../shared/review/filter'
 import { levelAuthority } from '../../../shared/category/category'
-import { NO_FILTER } from '../../../shared/review/filter'
+import type { CategoryRef } from '../../../shared/category/category'
 import type { Grade } from '../../../shared/review/scheduler'
 import { stageOfEpoch } from '../../../shared/review/stage'
-import { jlptVocab, levelValues } from '../../../shared/subject/declaration'
+import { noteInCategory } from '../category/queries'
 import type { IngestDatabase } from '../ingest/record'
 import { CURRENT_SUBJECT_ID, noteInCurrentSubject, sessionInCurrentSubject } from '../subject'
 import { kanjiReadingsOf } from './kanji'
@@ -182,26 +180,24 @@ export async function readerZone(db: IngestDatabase, ownerId: string): Promise<s
 }
 
 /**
- * The *cards* that have never been scheduled — minted by an acceptance and
- * carrying no *scheduling epoch* at all.
+ * The *cards* of one *category* that have never been scheduled — minted by an
+ * acceptance and carrying no *scheduling epoch* at all.
  *
  * ⚠️ **`NOT EXISTS` over every epoch, not over the live one.** A *card* whose
  * only epoch was superseded has a history; it is not new, it is due or it is
  * not, and asking for the absence of a *live* epoch would put a reset *card*
  * back among the ones the reader has never seen.
  *
- * ⚠️ **The *session* filter lives here and only here** (ADR 0065 §5). It
- * narrows the new half, in SQL rather than in `compose`, because this read has a
- * `LIMIT` on it: filtering twenty unfiltered rows afterwards would answer *no
- * `tech` cards* to a reader with a hundred of them behind the first twenty.
+ * ⚠️ **The active *category* lives here and in `unstartedNotes`, and nowhere
+ * near the due read** (ADR 0077 §1). It narrows new words, in SQL rather than
+ * in `compose`, because this read has a `LIMIT` on it: narrowing twenty rows
+ * afterwards would answer *no N4 words* to a reader with a hundred of them
+ * behind the first twenty. ⚠️ **Until #69 this took ADR 0065 §5's *session*
+ * filter**, a set of *levels* and a set of *domains*; the *category* replaced
+ * it.
  *
- * ⚠️ **The *level* is the list's, and a model's estimate is not one** (ADR 0075
- * §2, #68). The declaration's `authorities` is the precedence ADR 0005 left
- * open, and the level filter reads the first declared authority's claim and no
- * other: a *note* that authority does not place matches no level. ⚠️ **This
- * said *a claim in the set, any claim* until #68**, when every claim was a
- * model's. The *domain* filter still reads any claim — nothing with a name on
- * it says a *domain* yet.
+ * ⚠️ **A *level* is the list's, and a model's estimate is not one** (ADR 0075
+ * §2, `noteInCategory`).
  *
  * ⚠️ **The current *subject* only** (ADR 0075 §1).
  */
@@ -209,7 +205,7 @@ export async function newCards(
   db: IngestDatabase,
   ownerId: string,
   limit: number,
-  filter: SessionFilter = NO_FILTER,
+  category: CategoryRef,
 ): Promise<NewCard[]> {
   const epoch = schema.schedulingEpoch
 
@@ -224,7 +220,7 @@ export async function newCards(
         notExists(
           db.select({ one: sql`1` }).from(epoch).where(eq(epoch.cardId, schema.card.id)),
         ),
-        noteInFilter(db, filter, schema.card.noteId),
+        noteInCategory(db, category, schema.card.noteId),
       ),
     )
     .orderBy(asc(schema.card.createdAt), asc(schema.card.id))
@@ -233,90 +229,53 @@ export async function newCards(
   return rows
 }
 
-/** The *session* filter as a predicate on a *note* id — `undefined` for no filter. */
-function noteInFilter(db: IngestDatabase, filter: SessionFilter, noteId: AnyPgColumn) {
-  const domain = schema.domainClaim
-  const level = schema.levelClaim
-
-  return and(
-    filter.domains.length === 0
-      ? undefined
-      : exists(
-          db.select({ one: sql`1` }).from(domain).where(
-            and(eq(domain.noteId, noteId), inArray(domain.domain, filter.domains)),
-          ),
-        ),
-    filter.levels.length === 0
-      ? undefined
-      : exists(
-          db.select({ one: sql`1` }).from(level).where(
-            and(
-              eq(level.noteId, noteId),
-              eq(level.authorityKey, LEVEL_AUTHORITY),
-              inArray(level.level, filter.levels),
-            ),
-          ),
-        ),
-  )
-}
-
-/** The declaration's *levels*, easiest first — the order a lesson walks them in. */
-const LEVEL_ORDER = levelValues(jlptVocab)
-
 /**
- * The words a lesson can start: *notes* the list places at a *level* that this
- * reader has no *card* for (ADR 0076 §1, ADR 0075 §4).
+ * The words of one *category* a lesson can start: its *notes* that this reader
+ * has no *card* for (ADR 0076 §1, ADR 0075 §4, ADR 0077 §1).
  *
- * ⚠️ **Easiest *level* first, and inside a *level* a fixed shuffle** — `md5` of
- * the *note* id. The starter set was loaded in the list's order, which is
- * alphabetical by reading, and a lesson of 会う, 青, 青い, 赤, 赤い is five
- * words chosen to be confused. The shuffle is the same on every call, so a
- * lesson composed twice offers the same words.
+ * ⚠️ **A fixed shuffle** — `md5` of the *note* id. The starter set was loaded
+ * in the list's order, which is alphabetical by reading, and a lesson of 会う,
+ * 青, 青い, 赤, 赤い is five words chosen to be confused. The shuffle is the
+ * same on every call, so a lesson composed twice offers the same words.
+ * ⚠️ **Until #69 it walked every *level*, easiest first**; a *category* is one
+ * *level*, or one shelf under *My decks*.
  *
  * ⚠️ **A word the reader rejected is never offered** (`S5`: say no once and
  * mean it), and one they have a *card* for — suspended or not — is not new.
  *
- * ⚠️ **From `level_claim`, so only the declared *authority*'s words** (ADR 0075
- * §2). A *note* no list places is somebody's own word, and it reaches a lesson
- * as the *card* its *ingestion* minted (`newCards`).
+ * ⚠️ **Mostly a *level*'s words.** A word the reader brought was minted when
+ * it arrived (ADR 0064) and reaches a lesson as that *card* (`newCards`); one
+ * of theirs with no *card* is started here like any other.
  *
- * ⚠️ **The two `sql` fragments name `level_claim`'s columns, and that is safe
- * here only because the query is not a subquery**: an interpolated column is
- * emitted bare (§ Carrying), and neither `level` nor `note_id` is a column of
- * `note`, the one table joined.
+ * ⚠️ **The `sql` fragment names `note.id`, and that is safe here only because
+ * it is the outer query's `ORDER BY`**: an interpolated column is emitted bare
+ * (§ Carrying), and `note` is the one table in this `FROM`.
  */
 export async function unstartedNotes(
   db: IngestDatabase,
   ownerId: string,
   limit: number,
-  filter: SessionFilter = NO_FILTER,
+  category: CategoryRef,
 ): Promise<string[]> {
   if (limit <= 0)
     return []
 
-  const level = schema.levelClaim
-  const order = sql.join(LEVEL_ORDER.map(value => sql`${value}`), sql`, `)
-
   const rows = await db
-    .select({ noteId: level.noteId })
-    .from(level)
-    .innerJoin(schema.note, eq(schema.note.id, level.noteId))
+    .select({ noteId: schema.note.id })
+    .from(schema.note)
     .where(
       and(
-        eq(level.authorityKey, LEVEL_AUTHORITY),
         eq(schema.note.subjectId, CURRENT_SUBJECT_ID),
-        filter.levels.length === 0 ? undefined : inArray(level.level, filter.levels),
-        // The level half is the line above; this is the domain half.
-        noteInFilter(db, { domains: filter.domains, levels: [] }, level.noteId),
+        noteInCategory(db, category, schema.note.id),
         notExists(
           db.select({ one: sql`1` }).from(schema.card).where(
-            and(eq(schema.card.noteId, level.noteId), eq(schema.card.ownerId, ownerId)),
+            and(eq(schema.card.noteId, schema.note.id), eq(schema.card.ownerId, ownerId)),
           ),
         ),
         notExists(
           db.select({ one: sql`1` }).from(schema.noteVetting).where(
             and(
-              eq(schema.noteVetting.noteId, level.noteId),
+              eq(schema.noteVetting.noteId, schema.note.id),
               eq(schema.noteVetting.ownerId, ownerId),
               eq(schema.noteVetting.state, 'rejected'),
             ),
@@ -324,7 +283,7 @@ export async function unstartedNotes(
         ),
       ),
     )
-    .orderBy(sql`array_position(ARRAY[${order}]::text[], ${level.level})`, sql`md5(${level.noteId}::text)`)
+    .orderBy(sql`md5(${schema.note.id}::text)`)
     .limit(limit)
 
   return rows.map(row => row.noteId)

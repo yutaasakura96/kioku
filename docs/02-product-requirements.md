@@ -52,9 +52,9 @@ dashboard half of answer 5 is still #71's:
 | 6 | *Your level* is the level you have proved, with progress to the next | #72 |
 | 7 | After the placement test, words below your level are marked known and spot-checked | #72 |
 | 8 | The placement test is multiple choice, about three minutes | #72 |
-| 9 | One active *category*, changed from Home | #69 |
+| 9 | One active *category*, changed from Home | #69, built 2026-10-14 ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). ⚠️ Changed from `/categories`, reached from the screen before a run until #71 builds Home |
 | 10 | Five words a lesson and ten a day, adjustable in settings | #70 |
-| 11 | Own words and imported decks are their own *categories*, looked up in the dictionary first | #68 (the lookup), #69 |
+| 11 | Own words and imported decks are their own *categories*, looked up in the dictionary first | #68 (the lookup), #69 (built 2026-10-14) |
 | 12 | The dashboard is about right as prototyped | #71 |
 
 ⚠️ **Three of these go against a story below, and the story is the one that gives way when its
@@ -331,7 +331,8 @@ because a browser without a query language is a list, and the query language is 
 ⚠️ **Overturned 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)).** The missing home screen is what the owner's review named
 first. Welcome and Home (#71), the *category* screen (#69), lessons (#70), a word list and the
 placement test (#72) are coming, and answer 10 in §0 asks for a settings screen. **The five above
-are still the five that exist** until those tickets land.
+are still the five that exist** until those tickets land. ⚠️ **Seven since 2026-10-14**: #70 added
+Settings and #69 added Categories.
 
 ---
 

@@ -34,8 +34,8 @@ import type { IngestDatabase } from '../ingest/record'
 import { mint } from '../vet/decide'
 import { readLimits } from './settings'
 import { sessionInCurrentSubject } from '../subject'
-import type { SessionFilter } from '../../../shared/review/filter'
-import { NO_FILTER } from '../../../shared/review/filter'
+import { readActiveCategory } from '../category/active'
+import type { CategoryRef } from '../../../shared/category/category'
 import type { ReviewSnapshot } from './queries'
 
 export interface StartRequest {
@@ -47,8 +47,6 @@ export interface StartRequest {
   start: SessionKind | null
   /** The *session*-size knob. A cap on a review run; a lesson has its own. */
   size: number
-  /** ADR 0065 §5 — narrows a lesson's words and never a review run's. */
-  filter?: SessionFilter
   /** The reader's, already validated (`canonicalZone`); `null` composes in UTC and stores nothing. */
   zone?: string | null
 }
@@ -56,8 +54,8 @@ export interface StartRequest {
 /**
  * Resume the run the reader is in, or start the one they asked for.
  *
- * ⚠️ **Resume comes first and `start`, the knob and the filter are ignored
- * while it does.** `09` §4.7: *session* size is never set mid-session — the
+ * ⚠️ **Resume comes first and `start` and the knob are ignored while it
+ * does.** `09` §4.7: *session* size is never set mid-session — the
  * current one is snapshotted, and a control that appeared to change it would be
  * lying. Leaving a lesson's teaching screens is a pause (ADR 0076 §6), so the
  * live run is what `/review` answers with until it is finished.
@@ -97,7 +95,7 @@ export async function resumeOrStart(
     return composeReviewRun(db, ownerId, request.size, request.zone ?? null, now)
 
   if (request.start === 'lesson')
-    return composeLessonRun(db, ownerId, request.filter ?? NO_FILTER, request.zone ?? null, now)
+    return composeLessonRun(db, ownerId, request.zone ?? null, now)
 
   return null
 }
@@ -137,12 +135,15 @@ export async function brakeReading(
  * ⚠️ **`waiting` is the same question with the brake taken out of it**, and
  * it is asked only when the brake left no room: with room, the lesson's own
  * count has already answered it.
+ *
+ * ⚠️ **Both are counted in the reader's active *category*, read here** (ADR
+ * 0077 §1) and sent back with the count, so the screen names the *category*
+ * the number is of. Until #69 the request carried a filter to count through.
  */
 export async function offerOf(
   db: IngestDatabase,
   ownerId: string,
   zone: string,
-  filter: SessionFilter = NO_FILTER,
   now: Date = new Date(),
 ): Promise<StudyOffer> {
   // Sequential — see `server/utils/review/queries.ts` on why `Promise.all` here
@@ -150,15 +151,17 @@ export async function offerOf(
   const limits = await readLimits(db, ownerId)
   const reading = await brakeReading(db, ownerId, zone, now)
   const room = lessonRoom(reading, limits)
+  const category = await readActiveCategory(db, ownerId)
 
-  const lesson = room > 0 ? await lessonWords(db, ownerId, room, filter) : 0
-  const waiting = room > 0 ? lesson > 0 : await lessonWords(db, ownerId, 1, filter) > 0
+  const lesson = room > 0 ? await lessonWords(db, ownerId, room, category.ref) : 0
+  const waiting = room > 0 ? lesson > 0 : await lessonWords(db, ownerId, 1, category.ref) > 0
   const next = await nextDueAt(db, ownerId)
 
   return {
     ...reading,
     lesson,
     waiting,
+    category: { key: category.key, name: category.name },
     limits,
     nextDue: next ? next.toISOString() : null,
   }
@@ -169,10 +172,10 @@ async function lessonWords(
   db: IngestDatabase,
   ownerId: string,
   room: number,
-  filter: SessionFilter,
+  category: CategoryRef,
 ): Promise<number> {
-  const own = await newCards(db, ownerId, room, filter)
-  const unstarted = own.length >= room ? [] : await unstartedNotes(db, ownerId, room - own.length, filter)
+  const own = await newCards(db, ownerId, room, category)
+  const unstarted = own.length >= room ? [] : await unstartedNotes(db, ownerId, room - own.length, category)
   const plan = composeLesson(own, unstarted, room)
 
   return plan.cardIds.length + plan.noteIds.length
@@ -203,20 +206,18 @@ export async function liveSession(db: IngestDatabase, ownerId: string): Promise<
  * and `null` otherwise.** The reading the run was composed with says *63 due*;
  * twenty answers later it is 43, and a sentence that still said 63 would be
  * telling the reader the gate is shut when the next lesson would open it. The
- * zone is the one the run stored, because an answer carries none; the filter is
- * the one the answer carried, because the next lesson is composed through it.
+ * zone is the one the run stored, because an answer carries none.
  */
 export async function offerIfFinished(
   db: IngestDatabase,
   ownerId: string,
   snapshot: ReviewSnapshot | null,
-  filter: SessionFilter,
   finished = snapshot !== null && isFinished(snapshot),
 ): Promise<StudyOffer | null> {
   if (!finished)
     return null
 
-  return offerOf(db, ownerId, await readerZone(db, ownerId), filter)
+  return offerOf(db, ownerId, await readerZone(db, ownerId))
 }
 
 /**
@@ -246,8 +247,9 @@ async function composeReviewRun(
 }
 
 /**
- * A lesson, written whole: up to the lesson size of new words, as far as the
- * brake allows (ADR 0076 §1, ADR 0066).
+ * A lesson, written whole: up to the lesson size of new words from the
+ * reader's active *category*, as far as the brake allows (ADR 0076 §1, ADR
+ * 0066, ADR 0077 §1).
  *
  * ⚠️ **Starting a starter word is its acceptance, in this transaction.** A
  * word from the list has no *card* until somebody starts it (ADR 0075 §4), so
@@ -266,7 +268,6 @@ async function composeReviewRun(
 async function composeLessonRun(
   db: IngestDatabase,
   ownerId: string,
-  filter: SessionFilter,
   zone: string | null,
   now: Date,
 ): Promise<ReviewSnapshot | null> {
@@ -276,8 +277,9 @@ async function composeLessonRun(
   if (room <= 0)
     return null
 
-  const own = await newCards(db, ownerId, room, filter)
-  const unstarted = own.length >= room ? [] : await unstartedNotes(db, ownerId, room - own.length, filter)
+  const category = (await readActiveCategory(db, ownerId)).ref
+  const own = await newCards(db, ownerId, room, category)
+  const unstarted = own.length >= room ? [] : await unstartedNotes(db, ownerId, room - own.length, category)
   const plan = composeLesson(own, unstarted, room)
 
   if (plan.cardIds.length + plan.noteIds.length === 0)

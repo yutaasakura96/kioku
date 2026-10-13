@@ -19,7 +19,7 @@
  * decks* by where it came from.
  *
  * This module is the vocabulary and the keys. `server/utils/category/queries.ts`
- * is what asks the database; #69 builds the screen.
+ * is what asks the database, and `/categories` is the screen (#69, ADR 0077).
  */
 
 import { authorityKeys, jlptVocab, levelValues } from '../subject/declaration'
@@ -35,6 +35,12 @@ export type CategoryRef
 
 export const MY_WORDS_KEY = 'my-words'
 export const MY_WORDS_LABEL = 'My words'
+
+/**
+ * What the screens call a *level*'s category: *JLPT N5* (prototype `vHome`).
+ * A deck is called by its title and *My words* by its label.
+ */
+export const levelCategoryName = (level: string) => `JLPT ${level}`
 
 const LEVEL_PREFIX = 'jlpt:'
 const DECK_PREFIX = 'deck:'
@@ -101,4 +107,20 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** The JLPT shelf, in the declaration's order — easiest first. */
 export function levelCategories(declaration: SubjectDeclaration = jlptVocab): CategoryRef[] {
   return levelValues(declaration).map(level => ({ kind: 'level', level }))
+}
+
+/**
+ * The *category* a reader who has chosen none studies: the first declared
+ * *level*, which is the easiest (ADR 0077 §2).
+ *
+ * ⚠️ **Until #72 there is no placement test to choose one**, and a reader with
+ * no active *category* would have new words from everywhere, which is the thing
+ * the screen says does not happen.
+ */
+export function defaultCategory(declaration: SubjectDeclaration = jlptVocab): CategoryRef {
+  const [first] = levelCategories(declaration)
+  if (first === undefined)
+    throw new Error('the declaration names no level to start from')
+
+  return first
 }
