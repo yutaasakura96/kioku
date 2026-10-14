@@ -71,6 +71,7 @@ what happens and in what order; that one says what it is made of.
 | `/categories` | **Categories** — the *place* (ADR 0077 §3, #69): choose new words | `noScripts: true` | No |
 | `/vet` | ***Vet*** — the *mode* | `ssr: false` | No |
 | `/review` | ***Review*** — the *mode* | `ssr: false` | No |
+| `/placement` | ***Placement*** — the *mode* (ADR 0079 §1, #72) | `ssr: false` | No |
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
 | `/auth/refused` | The refusal (`08` §2.1) | `noScripts: true` | Yes |
 | `/api/auth/**` | Better Auth's catch-all | Nitro | Yes |
@@ -78,6 +79,8 @@ what happens and in what order; that one says what it is made of.
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
 | `/api/settings` | `POST` — store the three study settings, clamped (ADR 0076 §2) | Nitro | No |
 | `/api/category` | `POST` — choose the active *category* (ADR 0077 §3) | Nitro | No |
+| `/api/placement` | `GET` — fetch test questions; `POST` — score and accept the result (ADR 0079 §1) | Nitro | No |
+| `/api/placement/declare` | `POST` — start at a chosen level from Welcome (ADR 0079 §1) | Nitro | No |
 | `/api/export` | `GET` — `S12`'s export (§4.12) | Nitro | No |
 | `/api/vetting/**`, `/api/review/**` | The two *modes*' data and outbox endpoints | Nitro | No |
 
@@ -100,7 +103,7 @@ reader cannot get back (§4.2).
 ⚠️ **Since #71 there are seven** (ADR 0078): `/` is Home, Ingest is `/add`, and `/more` is new.
 **Every `POST /` and `303` to `/` below that means Ingest is `/add`** — the *source* submission, the
 seed request and the resume all post to `/add` and answer `303` there. Welcome's forms post to
-`/api/category`.
+`/api/placement/declare` (ADR 0079 §1).
 
 ⚠️ **Amended 2026-09-11, while building #6 — the submission is `POST /`, not `POST /api/source`.**
 The row above said the latter, and the paragraph it sits under is why it could not be: a validation
@@ -704,7 +707,8 @@ untested export a belief, and `11-testing-plan.md` owns it (`04` §14).
 
 ## 5. Entering and leaving a mode
 
-The mechanism, once, for both.
+The shared entry and exit mechanism for *modes*. Placement's question flow and result are in
+[ADR 0079 §1](adr/0079-a-level-is-proved-and-placement-is-checked.md).
 
 ### 5.1 In
 
@@ -712,8 +716,8 @@ A start control in the shell (§2) is an `<a href="/vet?from=/stats">`. The *pla
 JavaScript, so nothing can intercept it and the full document load happens for free.
 
 **The `from` parameter is the origin, and it is validated on the way out**, not on the way in: it is
-matched against the three place paths and anything else falls back to `/` (ADR 0032). It is a
-redirect target arriving in a URL. The allowlist is three strings long.
+matched against the seven *place* paths and anything else falls back to `/` (ADR 0032,
+ADR 0078 §3). It is a redirect target arriving in a URL.
 
 A *mode* reached without the parameter — a bookmark, a typed URL — returns to `/`.
 
@@ -723,7 +727,9 @@ open vetting run cannot be in a *review session*, because getting to one would h
 
 ### 5.2 Out
 
-Done, or `Esc`. Both do the same thing, and ADR 0026 exists because a phone has no `Esc`.
+For *Vet* and *Review*, Done or `Esc` do the same thing, and ADR 0026 exists because a phone has no
+`Esc`. Placement has a Leave link to its origin and writes nothing until the result is accepted
+(ADR 0079 §1).
 
 ⚠️ **The Done control is `<NuxtLink :to="origin" external>`, or `navigateTo(origin, { external: true })`.**
 A bare `<NuxtLink>` inside a *mode* does a client-side navigation: Nuxt renders the Stats route

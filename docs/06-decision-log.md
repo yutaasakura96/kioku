@@ -1722,16 +1722,8 @@ redirect. No migration.
 → [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)
 
 ### [2026-10-15] A level is proved, and a placement is checked
-#72. **The reader's level is the hardest they have proved**: 80 % right first try across 50 or more
-of a level's words in the last 30 days, with progress to the next, labelled a vocabulary estimate. A
-**placement test** at `/placement` — multiple choice, five words a level, four of five to pass,
-stopping early — gives the first estimate; Welcome's *Start at N3* is a placement too. **Words below
-the start level are marked known** without a row each, and **ten a level are spot-checked**: minted
-with a *Known* epoch the placement writes, two due a day, and five answered under 80 % withdraws the
-placement for that level. Results outrank the placement, level by level. Every threshold is a
-proposal, in `shared/level/thresholds.ts`. Migration `0015`, additive: `placement` and
-`placement_check`.
-→ [ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)
+#72. [ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md) owns the estimate,
+placement and spot-check rules.
 
 ## Adding an entry
 
