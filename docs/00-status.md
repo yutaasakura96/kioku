@@ -165,7 +165,28 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-14, latest — [#71](https://github.com/yutaasakura96/kioku/issues/71): Welcome and the
+**2026-10-15, latest — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
+and the placement test** ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)). Built
+on `fm/kioku-72` from `develop` at `d220529`. **Migration `0015_placement`, additive**: two tables,
+`placement` and `placement_check`, nothing dropped; to be applied to production before the release
+that carries it, by `03` §4.2's procedure.
+- **`/placement` is a third *mode***: the prototype's introduction, one word at a time with four
+  meanings and *I do not know this one*, and the result. Five words a level, four of five to pass,
+  and it stops early both ways (`shared/level/placement.ts`). *Start at N3* writes the placement, the
+  active *category* and the spot-check in one transaction; the server scores the answers again.
+- **Entered from Welcome's *Find my level · 3 minute test*, More's *Retake the placement test* and
+  the level card's link.** Welcome's *Start at N3* is a placement too (`kind = 'declared'`), posted to
+  `/api/placement/declare`; *start at N5* only chooses the *category*.
+- **The level card is the estimate** (`shared/level/estimate.ts`): 80 % right first try across 50 or
+  more of a level's words in 30 days proves it, results outrank the placement level by level, and
+  progress toward the next is the less complete of the two conditions. *Progress by level* reads
+  *placed out* for a level the placement marks known.
+- **Ten words of each level marked known are spot-checked**: minted with a *Known* epoch the placement
+  writes (`knownEpoch`, the one epoch no *grade* wrote), two due a day from tomorrow, and asked in
+  review runs like any due word. Five answered under 80 % withdraws the placement for that level.
+- **Every threshold is in `shared/level/thresholds.ts`** and every one is a proposal (#67).
+
+**2026-10-14 — [#71](https://github.com/yutaasakura96/kioku/issues/71): Welcome and the
 dashboard** ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). Built on
 `fm/kioku-71` from `develop` at `8867f7e`. No migration.
 - **`/` is Home, and Ingest moved to `/add`**, with its three `POST` middlewares and their `303`s.
@@ -2481,8 +2502,11 @@ Seven findings worth knowing without opening it:
   ⚠️ **Built 2026-10-14** (§ Done, ADR 0078). The acknowledgement is on Welcome and still in the
   *shell*'s footer. ⚠️ **It leaves #72 three places to fill**: *Find my level* on Welcome, *Retake
   the placement test* under More, and the level card's estimate.
-- [#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
-  test.** [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
+- ~~[#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
+  test.**~~ ⚠️ **Built 2026-10-15** (§ Done, ADR 0079). ⚠️ **It leaves one thing for Yuta**:
+  migration `0015_placement` is to be applied to production before the release that carries it
+  (additive: two tables, nothing dropped), by `03` §4.2's procedure.
+  [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
   [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
 
 ⚠️ **Steps 1, 2 and 4 below were done on 2026-10-14** (§ Done), and step 1 was three migrations:

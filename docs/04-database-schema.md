@@ -152,6 +152,8 @@ of who is asking. *Personal* is a statement about one reader.
 | `card_flag` | **personal** | `owner_id` | A judgement that a card is wrong |
 | `study_setting` | **personal** | `owner_id` | How much one reader wants to be new each day (ADR 0076 §2, §7.10) |
 | `active_category` | **personal** | `owner_id` | Which *category* one reader's new words come from (ADR 0077 §2, §7.11) |
+| `placement` | **personal** | `owner_id` | Where one reader was placed (ADR 0079 §1, §7.12) |
+| `placement_check` | **personal** | `owner_id` | Which words a placement spot-checks (ADR 0079 §4, §7.13) |
 
 ⚠️ **A column that references a user does not make an entity personal.** `ingestion.submitted_by` and
 `job.requested_by` exist for the audit line and are nullable; the label asks what the row *asserts*,
@@ -993,7 +995,8 @@ a *memory-bearing field* (`reading` or `meaning` for `jlpt-vocab`) supersedes th
 *card* of the *note*, with `superseded_reason = 'memory_bearing_field_changed'`, and inserts ordinal
 n+1 in `ts-fsrs`'s new state, due now (`server/utils/review/epoch.ts`). An edit to any other field,
 or a commit that changes no value, leaves the epoch alone. A *card* with no live epoch gets none,
-because its first epoch belongs to the *grade*. ⚠️ **Every reader's *card* is reset, not only the
+because its first epoch belongs to the *grade*. ⚠️ **One exception since #72**: a word a placement
+spot-checks gets its first epoch from the placement (§7.13, ADR 0079 §4). ⚠️ **Every reader's *card* is reset, not only the
 editor's**, because `note.fields` is shared. That is unreachable while ADR 0012 invites one reader.
 ⚠️ **Only `meaning` is reachable from the screen today**: `10` §4.4's edit reaches the *judgement
 fields*, and `reading` is a *lookup* field.
@@ -1269,6 +1272,41 @@ only its words. The due read does not join it.
 
 **Example:** `('usr_7f…', 'jlpt:N4', 2026-10-14T07:00:00Z)`.
 
+### 7.12 `placement`
+
+⚠️ **Added 2026-10-15 with [#72](https://github.com/yutaasakura96/kioku/issues/72), migration
+`0015_placement`.** [ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md) §1: where the
+reader was placed, by the test or by Welcome's *Start at*.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `uuidv7()` | PK |
+| `owner_id` | `text` | no | — | → `auth."user".id`, `RESTRICT` |
+| `subject_id` | `text` | no | — | The *subject* placed in. No foreign key, as `note.subject_id` has none |
+| `kind` | `text` | no | — | `CHECK (kind IN ('test','declared'))` |
+| `level` | `text` | yes | — | The level placed at. **Null is a test that placed at none**, which is still a placement |
+| `placed_at` | `timestamptz` | no | `now()` | |
+
+**One row per placement, and the newest in the current *subject* stands.** A retake adds a row.
+Index `(owner_id, placed_at)` serves that read.
+
+### 7.13 `placement_check`
+
+⚠️ **Added 2026-10-15 with #72, migration `0015_placement`.** ADR 0079 §4: the words a placement
+chose to spot-check.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `placement_id` | `uuid` | no | — | → `placement`, `CASCADE`. PK with `note_id` |
+| `note_id` | `uuid` | no | — | → `note`, `RESTRICT` |
+| `owner_id` | `text` | no | — | → `auth."user".id`, `RESTRICT` |
+| `level` | `text` | no | — | The *level* the word was checked as |
+
+⚠️ **A *note*, not a *card*.** The reader's *card* for it is found by owner and *note*, and a
+`RESTRICT` reference to `card` would be one more thing in `S11`'s way for a row that is a label.
+⚠️ **The *card*'s first `scheduling_epoch` is written by the placement**, not by a *grade*: Review
+state, stability 21 days, due on its check day (§7.4's one exception, `knownEpoch`).
+
 ---
 
 ## 8. The four tables Better Auth owns
@@ -1343,6 +1381,8 @@ default.** Each one below was chosen.
 | `card_flag` → `card`, `note` | `RESTRICT` | |
 | `card_flag` → `source` | `SET NULL` | The actionable half — prompt version and model id — is denormalised and survives |
 | `card_flag` → `review_session` | `SET NULL` | |
+| `placement_check` → `placement` | `CASCADE` | Which words a placement checks means nothing without it |
+| `placement_check` → `note` | `RESTRICT` | |
 | **every** `owner_id` → `auth."user".id` | **`RESTRICT`** | §3. The user row cannot be deleted while any history references it |
 | `ingestion.submitted_by`, `job.requested_by`, `seed.requested_by` → `auth."user".id` | `SET NULL` | Audit lines. ⚠️ `job.requested_by` also owns what its run mints (§4, amended), and a null one mints nothing |
 

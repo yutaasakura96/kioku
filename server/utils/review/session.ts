@@ -304,8 +304,12 @@ async function composeLessonRun(
  * reader said no to stays said no to (`S5`) even if a racing read offered it.
  * The *cards* are then read back **through the vetting row**, so a *note* the
  * upsert declined contributes none.
+ *
+ * ⚠️ **A placement's spot-check starts its words here too** (ADR 0079 §4),
+ * so that a word the placement marks known is accepted the way a lesson
+ * accepts one.
  */
-async function startNotes(tx: IngestDatabase, ownerId: string, noteIds: string[]): Promise<string[]> {
+export async function startNotes(tx: IngestDatabase, ownerId: string, noteIds: string[]): Promise<string[]> {
   if (noteIds.length === 0)
     return []
 

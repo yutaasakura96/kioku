@@ -268,9 +268,13 @@ describe('Home — ADR 0078', () => {
 
     expect(text(html)).toContain('Learn the Japanese words you need for the JLPT.')
     expect(text(html)).toContain('I am new to Japanese · start at N5')
-    expect([...html.matchAll(/name="category" value="([^"]+)"/g)].map(match => match[1]))
-      .toEqual(['jlpt:N5', 'jlpt:N5', 'jlpt:N4', 'jlpt:N3', 'jlpt:N2', 'jlpt:N1'])
-    expect(html).toContain('action="/api/category"')
+    // ADR 0079 §1: *Find my level* enters the test, and each *Start at* is a
+    // form; starting above N5 is a placement.
+    expect(html).toContain('href="/placement?from=%2F"')
+    expect(text(html)).toContain('Find my level · 3 minute test')
+    expect([...html.matchAll(/name="start" value="([^"]+)"/g)].map(match => match[1]))
+      .toEqual(['N5', 'N5', 'N4', 'N3', 'N2', 'N1'])
+    expect(html).toContain('action="/api/placement/declare"')
     // ADR 0075 §8: the sources, with their links, on the screen the prototype puts them on.
     expect(html).toContain('href="https://www.tanos.co.uk/jlpt/"')
     // No *shell*: one decision, and no way around it.
@@ -303,6 +307,32 @@ describe('Home — ADR 0078', () => {
     expect(html).not.toContain('start=review')
     expect(html).not.toContain('disabled')
     expect(html).not.toContain('<script')
+    // ADR 0079 §3: with no placement and no level, the card offers the test.
+    expect(html).toContain('href="/placement?from=%2F"')
+    expect(page).toContain('How is this worked out?')
+
+    await database.client.exec('DELETE FROM active_category;')
+  })
+
+  it('places a reader who starts at N3 at N4, with N5 and N4 placed out', async () => {
+    const response = await asReader('/api/placement/declare', form({ start: 'N3' }))
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+
+    const page = text(await home())
+    expect(page).toContain('N4 working toward N3')
+    expect(page).toContain('From the level you chose to start at.')
+    expect(page).toContain('New words come from JLPT N3')
+    expect(page.match(/placed out/g)).toHaveLength(2)
+
+    await database.client.exec('DELETE FROM placement; DELETE FROM active_category;')
+  })
+
+  it('only chooses the category for a reader who starts at N5', async () => {
+    await asReader('/api/placement/declare', form({ start: 'N5' }))
+
+    expect(text(await home())).toContain('New words come from JLPT N5')
+    expect(await count('placement')).toBe(0)
 
     await database.client.exec('DELETE FROM active_category;')
   })
@@ -313,7 +343,7 @@ describe('More — ADR 0078', () => {
   it('reaches Add, Settings, Vet, Sources, Stats, the export and the door', async () => {
     const html = await asReader('/more').then(response => response.text())
 
-    for (const href of ['/add', '/settings', '/vet?from=%2Fmore', '/sources', '/stats', '/api/export', '/auth'])
+    for (const href of ['/add', '/placement?from=%2Fmore', '/settings', '/vet?from=%2Fmore', '/sources', '/stats', '/api/export', '/auth'])
       expect(html, href).toContain(`href="${href}"`)
     expect(html).not.toContain('<script')
   })

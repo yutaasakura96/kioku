@@ -72,11 +72,13 @@ export default defineNuxtConfig({
     // The refusal page: a message and nothing else (`08` §2.1).
     '/auth/refused': { noScripts: true },
 
-    // The two *modes* — client-owned state: a session snapshot, an outbox, a
+    // The *modes* — client-owned state: a session snapshot, an outbox, a
     // keystroke budget. `ssr: false` is a build-time optimisation only; the
     // server still returns a real document (verification §5.5).
     '/vet': { ssr: false },
     '/review': { ssr: false },
+    // The placement test (ADR 0079 §1): a third, walked one question at a time.
+    '/placement': { ssr: false },
 
     // The door. Universal, and deliberately so: `authClient` is a client
     // library, and it is the one route that ships JavaScript while being

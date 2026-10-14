@@ -49,9 +49,9 @@ dashboard half of answer 5 is still #71's:
 | 3 | A wrong answer is asked again in the same session until it is right | #70 |
 | 4 | A near miss in a meaning is accepted automatically; there is no manual override | #70 |
 | 5 | The scheduler stays (FSRS); a word shows as *Learning*, *Familiar* or *Known* | #70, #71 (built 2026-10-14: Home's progress by level) |
-| 6 | *Your level* is the level you have proved, with progress to the next | #72 |
-| 7 | After the placement test, words below your level are marked known and spot-checked | #72 |
-| 8 | The placement test is multiple choice, about three minutes | #72 |
+| 6 | *Your level* is the level you have proved, with progress to the next | #72, built 2026-10-15 ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)) |
+| 7 | After the placement test, words below your level are marked known and spot-checked | #72, built 2026-10-15 ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)) |
+| 8 | The placement test is multiple choice, about three minutes | #72, built 2026-10-15 ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)) |
 | 9 | One active *category*, changed from Home | #69, built 2026-10-14 ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Changed on `/categories`, reached from Home's *Change category* since #71 ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)) |
 | 10 | Five words a lesson and ten a day, adjustable in settings | #70 |
 | 11 | Own words and imported decks are their own *categories*, looked up in the dictionary first | #68 (the lookup), #69 (built 2026-10-14) |

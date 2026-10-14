@@ -8,8 +8,8 @@
 // *Vet* is the flag queue a flagged word goes to, *Sources* is where an import
 // is read and deleted, and *Stats* is the numbers ADR 0062 asks for.
 //
-// ⚠️ ***Retake the placement test* is not drawn**: the test is #72's, and a
-// row that led nowhere would be a disabled control in disguise (ADR 0035).
+// ⚠️ ***Retake the placement test* enters a *mode*** (ADR 0079 §1), with
+// `from=/more` like *Vet*, so its way out comes back here.
 //
 // ⚠️ **Every row is a link.** This route ships no JavaScript (`03` §2.1).
 // *Vet* is a *mode* and is entered with `from=/more`, so its Done comes back
@@ -20,6 +20,11 @@ const counts = await useStartBlockCounts()
 const rows = computed(() => [
   { to: '/add', title: 'Add my own words', sub: 'Paste a word list or any Japanese text. Kioku finds the words.' },
   { to: '/add', title: 'Import an Anki deck', sub: 'Bring in any .apkg deck and study it here.' },
+  {
+    to: `/placement?from=${encodeURIComponent('/more')}`,
+    title: 'Retake the placement test',
+    sub: 'About 3 minutes. Updates your level and where lessons start.',
+  },
   { to: '/settings', title: 'Study settings', sub: 'New words per lesson and per day, and when reviews pause them.' },
   {
     to: `/vet?from=${encodeURIComponent('/more')}`,
