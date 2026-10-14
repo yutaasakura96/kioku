@@ -150,7 +150,7 @@ function barLabel(row: ShelfRow) {
           </div>
         </div>
 
-        <!-- Both live on Ingest today (`/`); #71 gives them a screen of their own. -->
+        <!-- Both live on Ingest, `/add` since #71 (ADR 0078); one form serves both. -->
         <div class="dashed">
           <span>Nothing here fits?</span>
           <NuxtLink to="/add" class="link">

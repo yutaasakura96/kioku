@@ -65,13 +65,17 @@ is added here rather than by amending ADR 0013. ⚠️ **Seven routes and six sc
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §2).
 ⚠️ **Eight routes and seven screens since 2026-10-14**: #69 added `/categories`, a fifth *place*
 behind it ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §3).
+⚠️ **Ten routes and nine screens since #71 (2026-10-14)**: `/` is Home, Ingest moved to `/add`, and
+`/more` is a seventh *place*, all behind the same gate
+([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). `callbackURL: "/"` now
+lands on Home.
 
 | Route | Rendering | Public? |
 | --- | --- | --- |
 | `/auth` — **the door**: sign in, and sign out | Universal. **The one route that ships JavaScript and is neither a *place* nor a *mode*** | Yes |
 | `/auth/refused` | `noScripts: true` | Yes |
 | `/api/auth/**` — Better Auth's catch-all | Nitro | Yes, and §3.3 is why that is safe |
-| Ingest, Sources, Stats, and Settings since 2026-10-12 | `noScripts: true` (`03` §2.1) | No |
+| Home, Categories, More, Ingest, Sources, Stats and Settings | `noScripts: true` (`03` §2.1) | No |
 | *Vet*, *Review* | `ssr: false` (`03` §2.1) | No |
 
 **The flow:**

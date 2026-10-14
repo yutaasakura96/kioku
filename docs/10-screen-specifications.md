@@ -64,10 +64,16 @@ this document says which column it comes from and stops.
 Seven documents render. Five are the app (PRD §3); two are the boundary before it (`08` §2).
 ⚠️ **Eight since 2026-10-12**: ADR 0076 §2 added Settings, and *Review*'s row below is amended.
 ⚠️ **Nine since 2026-10-14**: ADR 0077 §3 added Categories.
+⚠️ **Eleven since #71 (2026-10-14)**: `/` is Home and Ingest moved to `/add`, and More is new
+([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). ⚠️ **Home and More have
+no section here yet**: ADR 0078 §1–§3 and `docs/prototype/` (`vWelcome`, `vHome`, `vMore`) are how
+they read.
 
 | Screen | Route | Is | New components it needs |
 | --- | --- | --- | --- |
-| **Ingest** | `/` | *place* | Text field, run row, filter tally |
+| **Home** | `/` | *place* | Welcome on a first visit; the dashboard after it (ADR 0078 §1, §2) |
+| **Ingest** | `/add` (`/` until #71) | *place* | Text field, run row, filter tally |
+| **More** | `/more` | *place* | One row per destination (ADR 0078 §3) |
 | **Sources** | `/sources` | *place* | List row |
 | One *source* | `/sources/:id` | *place* | Source header, prose block, occurrence row |
 | Delete confirmation | `/sources/:id/delete` | *place* | — reuses the empty-state block |
@@ -147,13 +153,20 @@ are still off the scale, so they are named rather than hidden:
 ## 3. The shell, and the start block
 
 The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats`, (since #70)
-`/settings` and (since #69) `/categories`, and nowhere else (ADR 0013, `09` §2).
+`/settings`, (since #69) `/categories` and (since #71) `/add` and `/more`, and nowhere else
+(ADR 0013, `09` §2). Welcome, on `/`, draws none (ADR 0078 §1).
+⚠️ **The start block is not drawn on Home or More** since #71: Home's two cards are the entrances
+(ADR 0078 §2, §3).
 
 ### 3.1 The bar
 
 ⚠️ **Since 2026-10-12 the nav is four**: `Ingest` · `Sources` · `Stats` · `Settings` (ADR 0076 §2).
 ⚠️ **Since 2026-10-14 it is five**: `Ingest` · `Categories` · `Sources` · `Stats` · `Settings`
-(ADR 0077 §3).
+(ADR 0077 §3). ⚠️ **Since #71 it is three**: `Home` · `Categories` · `More`, with every other *place*
+a row under More, More marked while the reader is on one of them, the current item under the
+prototype's accent rule, and a bar of tabs at the foot of the screen below 720px (ADR 0078 §3). **The
+table and the paragraph below are as built until #71**; the rule supersedes their *no underline* and
+*marked by ink alone*.
 
 **56px tall**, matching *Vet*'s chrome bar so the two screens share a horizon, `--k-gutter`
 horizontal padding, `--k-rule` bottom border.
@@ -600,8 +613,9 @@ Home's two heroes). `20px` under the brake's line, 15.5px, `--k-ink-secondary`, 
 `New words come from`, then the *category*'s name in a pill (11px Plex Mono, 0.06em,
 `--k-on-ink` on `--k-ink-ground`, `2px 7px`, fully rounded), then `Change category`, a link in
 `--k-accent` to `/categories`. The name is the server's, sent with the count it was made in. The
-link is a document load, like every way out of a *mode*. **When #71 builds Home this line moves
-there with the rest of this screen.**
+link is a document load, like every way out of a *mode*. ~~**When #71 builds Home this line moves
+there with the rest of this screen.**~~ ⚠️ **#71 moved the line to Home** (ADR 0078 §2), and this
+screen no longer draws it; the screen itself stays, as what `/review` opened bare shows.
 
 | What is waiting | Statement | Under it |
 | --- | --- | --- |
@@ -945,7 +959,9 @@ mid-run.
 
 ## 6. Ingest
 
-`/`, `noScripts: true`, a *place* (ADR 0031). **The only screen that works with nothing ingested**
+`/add` (`/` until #71, ADR 0078; ADR 0031 before it), `noScripts: true`, a *place*. ⚠️ **Since #71
+every `/` in this section that means Ingest — the form's `action`, the resume's `POST`, each `303` —
+is `/add`.** **The only screen that works with nothing ingested**
 (PRD §4). The shell (§3), then the page body in a **760px** column — one object of attention that the
 reader acts on, which is what 760 means in `05` §5.
 
@@ -1422,7 +1438,7 @@ whichever category it came from.` Then three shelves, `40px` apart, each under a
 | --- | --- |
 | `JLPT LEVELS` | One row per declared *level*, easiest first. A *level* with no words is still a row |
 | `TOPICS · COMING LATER` | Five dashed pills, as the prototype drew them. Not controls |
-| `MY DECKS` | One row per imported deck, then *My words* once it holds a word, then a dashed box: `Nothing here fits?` with `Import an Anki deck` and `Add my own words`, both links to `/` |
+| `MY DECKS` | One row per imported deck, then *My words* once it holds a word, then a dashed box: `Nothing here fits?` with `Import an Anki deck` and `Add my own words`, both links to `/add` (`/` until #71) |
 
 **The category row.** `--k-raised`, `1px --k-rule-raised`, `--k-radius-card`, `16px 20px`, `10px`
 between rows; a grid of three columns, `70px`, the rest, and the action.
@@ -1440,7 +1456,7 @@ between rows; a grid of three columns, `70px`, the rest, and the action.
 
 **Learned** is a word graded at least once and still studied; the three stages are ADR 0076 §7's.
 
-Choosing answers `303` to `/review?from=/categories`, the screen before a run (§5.0). A key that
+Choosing answers `303` to `/`, Home (ADR 0078; `/review?from=/categories`, the screen before a run, until #71). A key that
 names no *category* answers `303` back here and changes nothing.
 
 **Below 720px** the row is two columns, `52px` and the rest; the code is 28px (18px under *My
