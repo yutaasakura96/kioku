@@ -159,13 +159,20 @@ Home**, Welcome on a first visit and the prototype's dashboard after it; **Inges
 is Home, Categories and More, and *Vet*, *Sources*, *Stats* and *Settings* are under More. No
 migration. The frontier is #72.
 
-**Updated:** 2026-10-14 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
+**Updated:** 2026-10-15 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-15, latest — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
+**2026-10-15, latest — `npm run dev:session` serves pages again.** Built on `fm/kioku-dev-500` from
+`develop` at `c8af2a1`. ADR 0022 § Amended 2026-10-10 owns the production and dev bundling
+distinction. `test/e2e/dev-server.test.ts` checks the door signed out and ten routes signed in under
+`nuxt dev`; all eleven failed before the fix and passed after. The production build was compared
+before and after the fix. In a browser on `dev:session`, Home, a lesson's first word,
+`/categories` and `/placement` rendered without a console error.
+
+**2026-10-15 — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
 and the placement test** ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)). Built
 on `fm/kioku-72` from `develop` at `d220529`. **Migration `0015_placement`, additive**: two tables,
 `placement` and `placement_check`, nothing dropped; to be applied to production before the release
@@ -196,7 +203,7 @@ dashboard** ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-re
 - ⚠️ **Not drawn, because their screens do not exist**: *Words* in the bar and the links to it, and
   *Practise these*.
 - **Checked in a browser** on a production build against a throwaway PGlite database with the
-  starter set loaded (`npm run dev:session` still does not start, § Carrying): Welcome, *start at N5*
+  starter set loaded (`npm run dev:session` did not start at the time): Welcome, *start at N5*
   landing on Home's day one, a lesson of five through the quiz with a miss asked again, Home with
   seeded history (two due, *Coming up*, the fourteen days, two weak words), choosing N4 on
   `/categories` landing on Home naming it, More, `/add`, and Welcome and Home at phone width with no
@@ -227,7 +234,7 @@ by category** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Buil
   not move the reader on.
 - **Four tokens**, the prototype's stage ramp, which ADR 0076 had left out (`05` §2).
 - **Checked in a browser** on a production build against a throwaway PGlite database with the
-  starter set loaded, because `npm run dev:session` does not start (§ Carrying): the shelf with the
+  starter set loaded, because `npm run dev:session` did not start at the time: the shelf with the
   real counts, choosing N4, the screen before a run naming it, a lesson of five words all N4, three
   reviews still due with a deck active and that deck's one word as the lesson, the shelf's bar after
   three *grades*, and both screens at phone width. No console message.
@@ -251,7 +258,7 @@ the same day. `03` §4.2's procedure, from a clean clone of `aa3ea74` with no ro
 - **Checked before the merge on a build with the Vercel preset**, because previews are off and
   Vercel had never built `develop`: `server/stubs/not-installed.mjs` lands in its own chunk behind
   one dynamic import inside a `.catch()`, and the built function answered `200` on every *place*
-  and both *modes* signed in against a local database. § Carrying's `nuxt dev` `500` is
+  and both *modes* signed in against a local database. The `nuxt dev` `500` at the time was
   local-only.
 - **Deployed and answering signed out**: `/auth` `200`, `/` and `/review` to the door,
   `/favicon.ico` `200`.
@@ -300,7 +307,7 @@ rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
   Forgot, three left due. It turned up three things, fixed in the same commit: the bar's exit was
   44px as a link and 32px as a button, *Next reviews Tomorrow* had a capital mid-sentence, and a
   kana-only word drew its reading under itself. ADR 0076 § Settled by the build has what differs
-  from the prototype on purpose. ⚠️ **Not on `dev:session`, which does not start** (§ Carrying).
+  from the prototype on purpose. ⚠️ **Not on `dev:session`, which did not start at the time.**
 - ~~⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.~~
   ⚠️ **Done 2026-10-14** (the entry above).
 
@@ -3293,15 +3300,9 @@ Nothing.
   which is the `from` allowlist and `shell-data.ts`'s list in one, and in `nuxt.config.ts`'s
   `noScripts` rules.
 
-- ⚠️ **`nuxt dev` answers `500` to every page, so `npm run dev:session` shows nothing** (found
-  2026-10-12 during #70, present on `develop` at `8974f3f` without #70). #73's `nitro.alias` points
-  `@opentelemetry/api` at `server/stubs/not-installed.mjs`, which throws when it is evaluated. A
-  production build keeps that module in a chunk loaded on demand, inside the `.catch()`
-  `better-auth` wraps it in; the dev bundle is one file, so the stub runs at boot, the bundle stops
-  there, and every request ends in `Cannot access 'renderer' before initialization`. **Not fixed
-  here and not ticketed.** Until it is, look at screens on `npm run build` and
-  `node .output/server/index.mjs` with `.data/dev-session/app.env`'s values, which is what #70 did
-  and what the e2e tier does.
+- **`npm run dev:session` serves pages under `nuxt dev`** (fixed 2026-10-15). Keep the
+  dev-only `nitro:config` hook in `nuxt.config.ts` when changing bundling; ADR 0022 § Amended
+  2026-10-10 explains why. `test/e2e/dev-server.test.ts` covers the dev server's routes.
 - ⚠️ **The database never sees a question** (ADR 0076 §4, #70). It holds positions and *grades*.
   Which question is next and which words were missed is `shared/review/quiz.ts`'s, kept in
   `localStorage` under `kioku:review:quiz`. **A word is graded once, by the answer that completes

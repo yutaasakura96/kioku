@@ -128,11 +128,10 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1621 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-15, after #72)
+npm run test        # unit, schema, nuxt, e2e
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
-npm run dev:session # ⚠️ does not start since #73 (`docs/00-status.md` § Carrying, 2026-10-12).
-                    # The app on localhost:3000, signed in: open the "Sign in" URL it prints (or load
+npm run dev:session # The app on localhost:3000, signed in: open the "Sign in" URL it prints (or load
                     # its Playwright storageState). Local PGlite + fixture secret only; the app
                     # itself is unchanged (decision log, 2026-09-25). THE path for UI work: no local
                     # command reaches production except the worker and 03 §4.2's release step
