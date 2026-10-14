@@ -76,7 +76,9 @@ reader-facing read is scoped to the current id.
 A set of words the reader chooses to study, derived and never stored: a JLPT *level*
 (`jlpt:N5` … `jlpt:N1`), one imported Anki deck (`deck:<source id>`), or *My words* (`my-words`),
 which is everything from the reader's own lists and pasted text. A word can be in several. Two
-groups, *JLPT levels* and *My decks*.
+groups, *JLPT levels* and *My decks*. ⚠️ **One is *active* for each reader (ADR 0077)**: new words
+come from it and from nowhere else, and reviews never read it. The choice is stored; the *category*
+still is not.
 _Avoid_: deck, shelf, collection, tag, subject
 
 **Domain**:
@@ -267,9 +269,9 @@ estimate. The one visible honesty bit, and it is never placed behind a hover.
 _Avoid_: badge, indicator, icon, dot, confidence marker
 
 **Shell**:
-The persistent frame carrying navigation, present on Ingest, Sources, Stats and Settings and absent
-from *Vet* and *Review*. What makes those four *places* rather than *modes* (⚠️ three until ADR 0076
-added Settings).
+The persistent frame carrying navigation, present on Ingest, Categories, Sources, Stats and Settings
+and absent from *Vet* and *Review*. What makes those five *places* rather than *modes* (⚠️ four
+until ADR 0077 added Categories, three until ADR 0076 added Settings).
 _Avoid_: chrome, layout, frame, nav
 
 **Mode**:

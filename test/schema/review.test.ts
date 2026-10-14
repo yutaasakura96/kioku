@@ -26,8 +26,8 @@ import { recordGrade } from '../../server/utils/review/grade'
 import { brakeReading, finishSession, offerIfFinished, offerOf, resumeOrStart } from '../../server/utils/review/session'
 import { readLimits, writeLimits } from '../../server/utils/review/settings'
 import { DEFAULT_LIMITS } from '../../shared/review/limits'
-import { NO_FILTER } from '../../shared/review/filter'
-import type { SessionFilter } from '../../shared/review/filter'
+import { chooseCategory, readActiveCategory } from '../../server/utils/category/active'
+import type { CategoryRef } from '../../shared/category/category'
 import type { Grade } from '../../shared/review/scheduler'
 import type { SchemaDatabase } from './harness'
 
@@ -38,6 +38,9 @@ const OWNER = 'usr_test'
 const OTHER = 'usr_other'
 
 const DAY = 24 * 60 * 60 * 1000
+
+/** The *category* a reader who has chosen none studies (ADR 0077 §2). */
+const N5: CategoryRef = { kind: 'level', level: 'N5' }
 
 beforeAll(async () => {
   ({ client, db } = await freshDatabase())
@@ -64,10 +67,15 @@ const FIELDS = {
 /**
  * An accepted *note* and the *card* it minted — ⚠️ **and no *scheduling epoch***,
  * because that is what acceptance actually leaves behind (`server/utils/vet/decide.ts`).
+ *
+ * ⚠️ **The list places it at N5 unless `level` says otherwise**, so it is in
+ * the *category* a reader who has chosen none studies (ADR 0077 §2). `null` is
+ * a word no list carries: in no *level*, and in a lesson only through the
+ * *source* it was seen in.
  */
 async function acceptedCard(
   key: string,
-  { owner = OWNER, minutesAgo = 0, fields = FIELDS, suspended = false } = {},
+  { owner = OWNER, minutesAgo = 0, fields = FIELDS, suspended = false, level = 'N5' as string | null } = {},
 ): Promise<string> {
   const note = await one<{ id: string }>(`
     INSERT INTO note (subject_id, identity_key, fields)
@@ -86,6 +94,12 @@ async function acceptedCard(
             ${suspended ? 'now()' : 'null'}, ${suspended ? `'flagged'` : 'null'})
     RETURNING id;
   `)
+
+  if (level !== null) {
+    await client.exec(`
+      INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${note.id}', 'tanos-jlpt', '${level}');
+    `)
+  }
 
   return card.id
 }
@@ -123,8 +137,29 @@ function review(size = 20, owner = OWNER, zone: string | null = null) {
 }
 
 /** A lesson: new words only, as far as the brake and the settings allow. */
-function lesson(filter?: SessionFilter, owner = OWNER, zone: string | null = null) {
-  return resumeOrStart(db, owner, { start: 'lesson', size: 20, filter, zone })
+function lesson(owner = OWNER, zone: string | null = null) {
+  return resumeOrStart(db, owner, { start: 'lesson', size: 20, zone })
+}
+
+/** A live *source* of one kind, and its one chunk, for a word to be seen in. */
+async function source(kind: 'anki' | 'word_list', title: string) {
+  const { id } = await one<{ id: string }>(`
+    INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
+    VALUES ('jlpt-vocab-2', '${kind}', '${title}', '会う', 'hash-${title}', 2) RETURNING id;
+  `)
+  const chunk = await one<{ id: string }>(`
+    INSERT INTO source_chunk (source_id, ordinal, char_start, char_end, content_hash)
+    VALUES ('${id}', 0, 0, 2, 'c') RETURNING id;
+  `)
+
+  return { id, chunkId: chunk.id }
+}
+
+async function seenIn(cardId: string, from: { id: string, chunkId: string }) {
+  await client.exec(`
+    INSERT INTO occurrence (note_id, source_id, source_chunk_id, char_start, char_end, surface_form)
+    VALUES ('${await noteOf(cardId)}', '${from.id}', '${from.chunkId}', 0, 2, '会う');
+  `)
 }
 
 /** An accepted *card* that is due — `daysAgo` since it came due. */
@@ -177,14 +212,14 @@ describe('the two reads the composer is built from (`04` §11)', () => {
     await scheduled(suspended, -1)
 
     expect(await dueCards(db, OWNER)).toEqual([])
-    expect(await newCards(db, OWNER, 20)).toEqual([])
+    expect(await newCards(db, OWNER, 20, N5)).toEqual([])
   })
 
   it('offers a card with no epoch as new, oldest acceptance first', async () => {
     const second = await acceptedCard('二␟に', { minutesAgo: 5 })
     const first = await acceptedCard('一␟いち', { minutesAgo: 9 })
 
-    expect((await newCards(db, OWNER, 20)).map(card => card.cardId)).toEqual([first, second])
+    expect((await newCards(db, OWNER, 20, N5)).map(card => card.cardId)).toEqual([first, second])
   })
 
   // ⚠️ **A *card* whose only epoch was superseded is not new.** It has a
@@ -200,7 +235,7 @@ describe('the two reads the composer is built from (`04` §11)', () => {
       VALUES ('${reset}', '${OWNER}', 1, now(), 61.4, 5.2, 63, 2, now(), 'manual_reset');
     `)
 
-    expect(await newCards(db, OWNER, 20)).toEqual([])
+    expect(await newCards(db, OWNER, 20, N5)).toEqual([])
   })
 
   it('offers nothing belonging to another reader', async () => {
@@ -208,7 +243,7 @@ describe('the two reads the composer is built from (`04` §11)', () => {
     await scheduled(theirs, -1, OTHER)
 
     expect(await dueCards(db, OWNER)).toEqual([])
-    expect(await newCards(db, OWNER, 20)).toEqual([])
+    expect(await newCards(db, OWNER, 20, N5)).toEqual([])
   })
 })
 
@@ -366,9 +401,9 @@ describe('composing a lesson (ADR 0076 §1)', () => {
     expect(run.positions).toHaveLength(2)
   })
 
-  // ⚠️ The list is alphabetical by reading, and the lesson is not: easiest
-  // *level* first, whatever order the words were loaded in.
-  it('takes the easiest level first', async () => {
+  // ⚠️ Until #69 a lesson walked every *level*, easiest first. It is one
+  // *category* now (ADR 0077 §1), and a reader who has chosen none is at N5.
+  it('takes one level and not the next when the first runs out', async () => {
     await starterWord('概念', 'N1')
     await starterWord('経験', 'N3')
     await starterWord('会う', 'N5')
@@ -376,7 +411,7 @@ describe('composing a lesson (ADR 0076 §1)', () => {
 
     const run = (await lesson())!
 
-    expect(run.positions.map(p => p.level)).toEqual(['N5', 'N4', 'N3', 'N1'])
+    expect(run.positions.map(p => p.level)).toEqual(['N5'])
   })
 
   // ⚠️ A fixed shuffle: the same words whichever request asks, so the count on
@@ -385,8 +420,8 @@ describe('composing a lesson (ADR 0076 §1)', () => {
     for (let index = 0; index < 12; index += 1)
       await starterWord(`語${index}`, 'N5')
 
-    const once = await unstartedNotes(db, OWNER, 5)
-    const twice = await unstartedNotes(db, OWNER, 5)
+    const once = await unstartedNotes(db, OWNER, 5, N5)
+    const twice = await unstartedNotes(db, OWNER, 5, N5)
 
     expect(once).toHaveLength(5)
     expect(twice).toEqual(once)
@@ -403,7 +438,7 @@ describe('composing a lesson (ADR 0076 §1)', () => {
       VALUES ('${started}', '${OWNER}', 'recognition', now(), 'flagged');
     `)
 
-    expect(await unstartedNotes(db, OWNER, 5)).toEqual([open])
+    expect(await unstartedNotes(db, OWNER, 5, N5)).toEqual([open])
     expect(await one(`SELECT state FROM note_vetting WHERE note_id = '${rejected}';`)).toEqual({ state: 'rejected' })
   })
 
@@ -418,7 +453,7 @@ describe('composing a lesson (ADR 0076 §1)', () => {
     `)
     await client.exec(`INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${old.id}', 'tanos-jlpt', 'N5');`)
 
-    expect(await unstartedNotes(db, OWNER, 5)).toEqual([])
+    expect(await unstartedNotes(db, OWNER, 5, N5)).toEqual([])
   })
 
   it('upgrades a pending vetting row rather than refusing the word', async () => {
@@ -433,7 +468,7 @@ describe('composing a lesson (ADR 0076 §1)', () => {
     await starterWord('会う', 'N5')
 
     await lesson()
-    await lesson(undefined, OTHER)
+    await lesson(OTHER)
 
     expect(await rows(`SELECT owner_id FROM card ORDER BY owner_id;`)).toEqual([{ owner_id: OTHER }, { owner_id: OWNER }])
   })
@@ -456,9 +491,15 @@ describe('composing a lesson (ADR 0076 §1)', () => {
 
   it('carries the level the list gives a word, and none for a word no list places', async () => {
     await starterWord('会う', 'N5')
-    await acceptedCard('経験␟けいけん')
+    const list = await source('word_list', '今週の単語')
+    await seenIn(await acceptedCard('推し活␟おしかつ', { level: null }), list)
 
-    expect((await lesson())!.positions.map(p => p.level)).toEqual([null, 'N5'])
+    const listed = (await lesson())!
+    expect(listed.positions.map(p => p.level)).toEqual(['N5'])
+    await finishSession(db, OWNER, listed.sessionId)
+
+    await chooseCategory(db, OWNER, 'my-words')
+    expect((await lesson())!.positions.map(p => p.level)).toEqual([null])
   })
 })
 
@@ -501,85 +542,153 @@ describe('a word\'s stage, in the snapshot (ADR 0076 §7)', () => {
   })
 })
 
-/** ADR 0065's two claims, the model's, as `write_notes` writes them. */
-async function claimed(cardId: string, { domain, level }: { domain?: string, level?: string }) {
-  const { note_id: noteId } = await one<{ note_id: string }>(`SELECT note_id FROM card WHERE id = '${cardId}';`)
+describe('the active category (ADR 0077)', () => {
+  it('is the first declared level for a reader who has chosen none, and writes nothing to say so', async () => {
+    expect(await readActiveCategory(db, OWNER)).toEqual({ key: 'jlpt:N5', ref: N5, name: 'JLPT N5' })
+    expect(await count('active_category')).toBe(0)
+  })
 
-  if (domain) {
-    await client.exec(`
-      INSERT INTO domain_claim (note_id, domain, model_id, prompt_version)
-      VALUES ('${noteId}', '${domain}', 'claude-sonnet-5', 'v3');
-    `)
-  }
-  // ⚠️ The list's claim, since #68: the level filter reads the declared
-  // *authority* and a model's estimate matches no level (ADR 0075 §2;
-  // `test/schema/starter.test.ts` has that case).
-  if (level) {
-    await client.exec(`
-      INSERT INTO level_claim (note_id, authority_key, level)
-      VALUES ('${noteId}', 'tanos-jlpt', '${level}');
-    `)
-  }
-}
+  it('is one row per reader, and a second choice replaces the first', async () => {
+    expect(await chooseCategory(db, OWNER, 'jlpt:N3')).toMatchObject({ key: 'jlpt:N3', name: 'JLPT N3' })
+    expect(await chooseCategory(db, OWNER, 'jlpt:N4')).toMatchObject({ key: 'jlpt:N4' })
 
-describe('a filtered lesson (ADR 0065 §5)', () => {
-  // ⚠️ **#22's criterion in its own words: a due card outside the filter is
-  // still composed.** What is owed is owed; a filter over the due half lets
-  // `business` rot for a fortnight while the reader studies `tech`.
+    expect(await rows(`SELECT owner_id, category_key FROM active_category;`))
+      .toEqual([{ owner_id: OWNER, category_key: 'jlpt:N4' }])
+    expect((await readActiveCategory(db, OWNER)).key).toBe('jlpt:N4')
+    // ⚠️ One reader's choice is not another's.
+    expect((await readActiveCategory(db, OTHER)).key).toBe('jlpt:N5')
+  })
+
+  // ⚠️ The key arrives from a form. One that names no *category* — a level
+  // nobody declared, a deck that is not there, *My words* with nothing in it —
+  // changes nothing.
+  it('refuses a key that names no category, and keeps the one before it', async () => {
+    await chooseCategory(db, OWNER, 'jlpt:N3')
+
+    for (const key of ['jlpt:N6', 'deck:0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b', 'my-words', 'tech', '', undefined, 3])
+      expect(await chooseCategory(db, OWNER, key), String(key)).toBeNull()
+
+    expect((await readActiveCategory(db, OWNER)).key).toBe('jlpt:N3')
+  })
+
+  // ⚠️ **The issue's criterion in its own words: reviews are unaffected by
+  // it.** What is owed is owed; a *category* over the due half would let N3
+  // rot while the reader studies N5.
   it('leaves a review run alone', async () => {
-    const owed = await acceptedCard('会議␟かいぎ', { minutesAgo: 10 })
-    await claimed(owed, { domain: 'business', level: 'N3' })
+    const owed = await acceptedCard('会議␟かいぎ', { minutesAgo: 10, level: 'N3' })
     await scheduled(owed, -1)
+    const unlisted = await acceptedCard('推し活␟おしかつ', { level: null })
+    await scheduled(unlisted, -1)
 
-    const session = await resumeOrStart(db, OWNER, { start: 'review', size: 20, filter: { domains: ['tech'], levels: [] } })
+    const session = await review()
 
-    expect(session!.positions.map(p => p.cardId)).toEqual([owed])
+    expect(session!.positions.map(p => p.cardId).sort()).toEqual([owed, unlisted].sort())
   })
 
-  it('teaches only the new words inside it', async () => {
-    const deploy = await acceptedCard('デプロイ␟でぷろい', { minutesAgo: 3 })
-    await claimed(deploy, { domain: 'tech', level: 'N2' })
-    const meeting = await acceptedCard('打ち合わせ␟うちあわせ', { minutesAgo: 2 })
-    await claimed(meeting, { domain: 'business', level: 'N2' })
-
-    const session = await lesson({ domains: ['tech'], levels: [] })
-
-    expect(session!.positions.map(p => p.cardId)).toEqual([deploy])
-  })
-
-  // Both sets restrict at once: a `tech` word at `N1` is not a `tech` word at
-  // `N2`, and a set left empty restricts nothing.
-  it('asks for both sets when both are sent', async () => {
-    const hard = await acceptedCard('冗長化␟じょうちょうか', { minutesAgo: 3 })
-    await claimed(hard, { domain: 'tech', level: 'N1' })
-    const easy = await acceptedCard('画面␟がめん', { minutesAgo: 2 })
-    await claimed(easy, { domain: 'tech', level: 'N4' })
-
-    const filtered = await lesson({ domains: ['tech'], levels: ['N4', 'N5'] })
-    expect(filtered!.positions.map(p => p.cardId)).toEqual([easy])
-  })
-
-  it('narrows the starter words by level', async () => {
+  // ⚠️ **And its other criterion: new words come only from the active
+  // category.**
+  it('teaches only the starter words of the active category', async () => {
     await starterWord('会う', 'N5')
     await starterWord('経験', 'N3')
+    await chooseCategory(db, OWNER, 'jlpt:N3')
 
-    const filtered = await lesson({ domains: [], levels: ['N3'] })
+    const run = await lesson()
 
-    expect(filtered!.positions.map(p => p.level)).toEqual(['N3'])
+    expect(run!.positions.map(p => p.level)).toEqual(['N3'])
     // ⚠️ And only the word the lesson holds was started: the N5 one has no card.
     expect(await count('card')).toBe(1)
   })
 
-  // ⚠️ **A *note* with no claim at all matches no filter.** It is studied
-  // unfiltered or not at all, never guessed into a bucket.
-  it('leaves out a new card with no claim when a filter is set, and keeps it when none is', async () => {
-    const unclaimed = await acceptedCard('一␟いち')
+  it('teaches the reader\'s own unscheduled cards only when they are in it', async () => {
+    const atN5 = await acceptedCard('会う␟あう', { minutesAgo: 3 })
+    const atN3 = await acceptedCard('経験␟けいけん', { minutesAgo: 2, level: 'N3' })
+    const unlisted = await acceptedCard('推し活␟おしかつ', { minutesAgo: 1, level: null })
 
-    expect(await lesson({ domains: ['daily'], levels: [] })).toBeNull()
-    expect(await count('review_session')).toBe(0)
+    expect((await lesson())!.positions.map(p => p.cardId)).toEqual([atN5])
+    expect(atN3).toBeDefined()
+    expect(unlisted).toBeDefined()
+  })
 
-    const session = await lesson()
-    expect(session!.positions.map(p => p.cardId)).toEqual([unclaimed])
+  it('teaches the words of an imported deck, and of no other source', async () => {
+    const deck = await source('anki', 'Core 2k')
+    const list = await source('word_list', '今週の単語')
+    const fromDeck = await acceptedCard('推し活␟おしかつ', { minutesAgo: 3, level: null })
+    const fromList = await acceptedCard('沼␟ぬま', { minutesAgo: 2, level: null })
+    // A word the list also carries is in the deck that taught it too.
+    const both = await acceptedCard('会う␟あう', { minutesAgo: 1 })
+    await seenIn(fromDeck, deck)
+    await seenIn(both, deck)
+    await seenIn(fromList, list)
+    await starterWord('青', 'N5')
+
+    expect(await chooseCategory(db, OWNER, `deck:${deck.id}`)).toMatchObject({ name: 'Core 2k' })
+
+    expect((await lesson())!.positions.map(p => p.cardId)).toEqual([fromDeck, both])
+  })
+
+  it('teaches the reader\'s own words under My words', async () => {
+    const deck = await source('anki', 'Core 2k')
+    const list = await source('word_list', '今週の単語')
+    const fromDeck = await acceptedCard('推し活␟おしかつ', { minutesAgo: 3, level: null })
+    const fromList = await acceptedCard('沼␟ぬま', { minutesAgo: 2, level: null })
+    await seenIn(fromDeck, deck)
+    await seenIn(fromList, list)
+
+    expect(await chooseCategory(db, OWNER, 'my-words')).toMatchObject({ key: 'my-words', name: 'My words' })
+
+    expect((await lesson())!.positions.map(p => p.cardId)).toEqual([fromList])
+  })
+
+  // ⚠️ A word of the reader's with no *card* is started like a starter word:
+  // the lesson accepts it and mints it (ADR 0076 §1).
+  it('starts a word of the category that has no card yet', async () => {
+    const list = await source('word_list', '今週の単語')
+    const minted = await acceptedCard('沼␟ぬま', { level: null })
+    await seenIn(minted, list)
+    const bare = await one<{ id: string }>(`
+      INSERT INTO note (subject_id, identity_key, fields)
+      VALUES ('jlpt-vocab-2', '推し活␟おしかつ', '{"term":"推し活","reading":"おしかつ","meaning":"fan activities"}'::jsonb)
+      RETURNING id;
+    `)
+    await client.exec(`
+      INSERT INTO occurrence (note_id, source_id, source_chunk_id, char_start, char_end, surface_form)
+      VALUES ('${bare.id}', '${list.id}', '${list.chunkId}', 0, 2, '推し活');
+    `)
+    await chooseCategory(db, OWNER, 'my-words')
+
+    const run = (await lesson())!
+
+    expect(run.positions).toHaveLength(2)
+    expect(run.positions[0]!.cardId).toBe(minted)
+    expect(await count('card', `note_id = '${bare.id}' AND owner_id = '${OWNER}'`)).toBe(1)
+  })
+
+  // ⚠️ `S11`: a deleted *source* is no longer a *category*, so the reader is
+  // back at the default rather than in a lesson that can never hold a word.
+  it('falls back to the first level once its deck is deleted', async () => {
+    const deck = await source('anki', 'Core 2k')
+    await chooseCategory(db, OWNER, `deck:${deck.id}`)
+    await starterWord('会う', 'N5')
+
+    await client.exec(`UPDATE source SET deleted_at = now() WHERE id = '${deck.id}';`)
+
+    expect((await readActiveCategory(db, OWNER)).key).toBe('jlpt:N5')
+    expect((await lesson())!.positions.map(p => p.level)).toEqual(['N5'])
+    // ⚠️ Nothing is written on a read: the row still names the deck.
+    expect(await rows(`SELECT category_key FROM active_category;`)).toEqual([{ category_key: `deck:${deck.id}` }])
+  })
+
+  // PRD §5: the snapshot wins. A lesson already composed keeps its words.
+  it('leaves a lesson already composed as it was', async () => {
+    await starterWord('会う', 'N5')
+    await starterWord('経験', 'N3')
+    const before = (await lesson())!
+
+    await chooseCategory(db, OWNER, 'jlpt:N3')
+    const resumed = (await lesson())!
+
+    expect(resumed.sessionId).toBe(before.sessionId)
+    expect(resumed.positions.map(p => p.level)).toEqual(['N5'])
   })
 })
 
@@ -978,11 +1087,18 @@ describe('the review-load brake (ADR 0066, #21, ADR 0076 §2)', () => {
     expect(await count('card')).toBe(1)
   })
 
-  it('counts through the filter, and says so when it matches nothing', async () => {
+  // ADR 0077 §1: the count is of the active *category*, and the offer names
+  // it so the screen can.
+  it('counts in the active category, names it, and says when it has nothing left', async () => {
     await starterWord('会う', 'N5')
 
-    expect(await offerOf(db, OWNER, 'UTC', { domains: [], levels: ['N5'] })).toMatchObject({ lesson: 1, waiting: true })
-    expect(await offerOf(db, OWNER, 'UTC', { domains: [], levels: ['N1'] })).toMatchObject({ lesson: 0, waiting: false })
+    expect(await offerOf(db, OWNER, 'UTC'))
+      .toMatchObject({ lesson: 1, waiting: true, category: { key: 'jlpt:N5', name: 'JLPT N5' } })
+
+    await chooseCategory(db, OWNER, 'jlpt:N1')
+
+    expect(await offerOf(db, OWNER, 'UTC'))
+      .toMatchObject({ lesson: 0, waiting: false, category: { key: 'jlpt:N1', name: 'JLPT N1' } })
   })
 
   // ⚠️ **A run composed yesterday does not spend today.** The window the query
@@ -1073,7 +1189,7 @@ describe('the review-load brake (ADR 0066, #21, ADR 0076 §2)', () => {
 
     expect(await readerZone(db, OWNER)).toBe('UTC')
 
-    await lesson(undefined, OWNER, 'Asia/Tokyo')
+    await lesson(OWNER, 'Asia/Tokyo')
     await finish()
     await lesson()
 
@@ -1086,35 +1202,36 @@ describe('the review-load brake (ADR 0066, #21, ADR 0076 §2)', () => {
     await newWords(1)
     const run = (await lesson())!
 
-    expect(await offerIfFinished(db, OWNER, run, NO_FILTER)).toBeNull()
+    expect(await offerIfFinished(db, OWNER, run)).toBeNull()
     expect(await offerIfFinished(db, OWNER, {
       ...run,
       positions: run.positions.map(position => ({ ...position, grade: 3 as Grade })),
-    }, NO_FILTER)).toMatchObject({ introducedToday: 1, dueCount: 0, limits: DEFAULT_LIMITS })
+    })).toMatchObject({ introducedToday: 1, dueCount: 0, limits: DEFAULT_LIMITS })
     // ADR 0076 §6: a run finished early is over, whatever is unanswered in it.
-    expect(await offerIfFinished(db, OWNER, run, NO_FILTER, true)).toMatchObject({ introducedToday: 1 })
+    expect(await offerIfFinished(db, OWNER, run, true)).toMatchObject({ introducedToday: 1 })
   })
 
-  // ⚠️ The summary's control starts the next lesson through the reader's
-  // filter, so its count is read through the same one.
-  it('counts the summary\'s lesson through the filter the answer carried', async () => {
+  // ⚠️ The summary's control starts the next lesson from the reader's active
+  // *category*, so its count is read in the same one — as it stands when the
+  // run ends, and not as it stood when the run was composed.
+  it('counts the summary\'s lesson in the category that is active when the run ends', async () => {
     await starterWord('会う', 'N5')
     await starterWord('食べる', 'N5')
     await starterWord('経済', 'N3')
     const run = (await lesson())!
 
-    // Left unfinished, so its three words are still new and still on offer.
-    expect(await offerIfFinished(db, OWNER, run, NO_FILTER, true)).toMatchObject({ lesson: 3, waiting: true })
-    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N3'] }, true))
-      .toMatchObject({ lesson: 1, waiting: true })
-    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N1'] }, true))
-      .toMatchObject({ lesson: 0, waiting: false })
-    expect(await offerIfFinished(db, OWNER, run, { domains: [], levels: ['N5'] }, true))
-      .toMatchObject({ lesson: 2, waiting: true })
+    // Left unfinished, so its two words are still new and still on offer.
+    expect(await offerIfFinished(db, OWNER, run, true)).toMatchObject({ lesson: 2, waiting: true })
+
+    await chooseCategory(db, OWNER, 'jlpt:N3')
+    expect(await offerIfFinished(db, OWNER, run, true))
+      .toMatchObject({ lesson: 1, waiting: true, category: { name: 'JLPT N3' } })
+
+    await chooseCategory(db, OWNER, 'jlpt:N1')
+    expect(await offerIfFinished(db, OWNER, run, true)).toMatchObject({ lesson: 0, waiting: false })
   })
 })
 
-// ADR 0076 §2 — `study_setting`, one row per reader and none until they save.
 describe('the study settings (ADR 0076 §2, `04` §7.10)', () => {
   it('is the defaults for a reader with no row, and reading writes none', async () => {
     expect(await readLimits(db, OWNER)).toEqual(DEFAULT_LIMITS)

@@ -36,8 +36,6 @@ import { fieldAction, isHeldActivation, restingAction, reviewAction } from '#sha
 import { foldReading, meaningEntry, meaningResult, otherMeanings, readingEntry, readingResult } from '#shared/review/answer'
 import { DEFAULT_SESSION_SIZE } from '#shared/review/compose'
 import { brakeSentence } from '#shared/review/brake'
-import { NO_FILTER, isFiltered } from '#shared/review/filter'
-import type { SessionFilter } from '#shared/review/filter'
 import { startLines } from '#shared/review/offer'
 import type { StudyOffer } from '#shared/review/offer'
 import { append, head, parseOutbox, settle, unsentAnswers } from '#shared/review/outbox'
@@ -45,7 +43,6 @@ import { answerQuestion, currentQuestion, dropWord, finishEarly, parseQuiz, reco
 import type { Question, QuizState } from '#shared/review/quiz'
 import { isRefused } from '#shared/review/request'
 import { isAnswered, mergeGrades, parseSnapshot } from '#shared/review/snapshot'
-import { jlptVocab } from '#shared/subject/declaration'
 import { resolveOrigin } from '#shared/utils/origin'
 import type { Grade } from '#shared/review/scheduler'
 import type { ReviewPosition, ReviewSnapshot, SessionKind } from '#shared/review/snapshot'
@@ -70,6 +67,7 @@ const origin = computed(() => resolveOrigin(route.query.from))
  */
 const PLACE_NAMES: Record<string, string> = {
   '/': 'Home',
+  '/categories': 'Categories',
   '/sources': 'Sources',
   '/stats': 'Stats',
   '/settings': 'Settings',
@@ -114,18 +112,6 @@ const offer = ref<StudyOffer | null>(null)
 const status = ref<'loading' | 'ready' | 'error'>('loading')
 const slow = ref(false)
 const size = ref(DEFAULT_SESSION_SIZE)
-
-/**
- * ADR 0065 §5 — which new words the next lesson teaches.
- *
- * ⚠️ **Page memory and nothing else.** Not in the outbox's store and not in a
- * query string: a filter that outlived a reload would be a saved query, and a
- * saved query is a *deck* (ADR 0009, ADR 0065 §6).
- */
-const filter = ref<SessionFilter>(NO_FILTER)
-
-/** Whether the offer in front of the reader was counted through a filter. */
-const askedFiltered = ref(false)
 
 /**
  * ADR 0076 §4 — the questions still owed and the words missed. ⚠️ **Durable**:
@@ -236,7 +222,7 @@ const teachingIndex = computed(() => quiz.value?.teaching ?? 0)
 const teaching = computed(() => positions.value[teachingIndex.value] ?? null)
 const lastTaught = computed(() => teachingIndex.value >= positions.value.length - 1)
 
-const lines = computed(() => (offer.value ? startLines(offer.value, new Date(), askedFiltered.value) : null))
+const lines = computed(() => (offer.value ? startLines(offer.value) : null))
 const brakeLine = computed(() => (offer.value ? brakeSentence(offer.value, offer.value.limits) : null))
 
 const quizFoot = computed(() => {
@@ -399,12 +385,10 @@ type Landing = 'landed' | 'refused' | 'held'
  * memory arguing with the database.
  */
 async function send(entry: OutboxEntry): Promise<Landing> {
-  const narrowed = filter.value
-
   try {
     const response = await $fetch<AnswerResponse>(`/api/review/${entry.kind}`, {
       method: 'POST',
-      body: bodyOf(entry, narrowed),
+      body: bodyOf(entry),
     })
 
     if (response.session)
@@ -412,10 +396,8 @@ async function send(entry: OutboxEntry): Promise<Landing> {
 
     // ⚠️ Only for the run on screen: a replay of yesterday's stream must not
     // put yesterday's run's *What next* under today's.
-    if (response.offer && entry.sessionId === snapshot.value?.sessionId) {
+    if (response.offer && entry.sessionId === snapshot.value?.sessionId)
       offer.value = response.offer
-      askedFiltered.value = isFiltered(narrowed)
-    }
 
     return isRefused(response.outcome) ? 'refused' : 'landed'
   }
@@ -446,19 +428,19 @@ async function send(entry: OutboxEntry): Promise<Landing> {
 /**
  * What each entry type's endpoint reads — `shared/review/request.ts`.
  *
- * ⚠️ **The filter rides every answer and is never stored with one**: it is
- * the page's, read when the entry is sent, so the offer that comes back with
- * the answer that ends a run is counted the way the next lesson is composed
- * (ADR 0076 §8) and the stream still holds no saved query (ADR 0065 §6).
+ * ⚠️ **No answer says which words come next.** The offer that comes back with
+ * the answer that ends a run is counted in the reader's active *category*,
+ * which the server reads (ADR 0077 §1). Until #69 every answer carried the
+ * page's filter for that count.
  */
-function bodyOf(entry: OutboxEntry, narrowed: SessionFilter) {
+function bodyOf(entry: OutboxEntry) {
   switch (entry.kind) {
     case 'grade':
-      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt, ...narrowed }
+      return { sessionId: entry.sessionId, cardId: entry.cardId, grade: entry.grade, reviewedAt: entry.reviewedAt }
     case 'flag':
-      return { sessionId: entry.sessionId, cardId: entry.cardId, ...narrowed }
+      return { sessionId: entry.sessionId, cardId: entry.cardId }
     case 'finish':
-      return { sessionId: entry.sessionId, ...narrowed }
+      return { sessionId: entry.sessionId }
   }
 }
 
@@ -498,10 +480,7 @@ async function flush(): Promise<void> {
  * resumes a live run or composes nothing (ADR 0076 §8).
  */
 async function start(begin: SessionKind | null = null) {
-  // ⚠️ **A re-ask of what is waiting leaves the screen it was asked from
-  // standing.** The offer on it is still the last true answer, and unmounting
-  // it would take the filter checkbox the reader just ticked, and their focus.
-  const held = snapshot.value !== null || (begin === null && offer.value !== null)
+  const held = snapshot.value !== null
 
   if (!held)
     status.value = 'loading'
@@ -511,13 +490,10 @@ async function start(begin: SessionKind | null = null) {
     // the day's allowance is counted in it, and it is the only way `/stats`,
     // which ships no JavaScript, ever learns where the reader is.
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
-    const narrowed = filter.value
     const response = await $fetch<SessionResponse>('/api/review/session', {
       method: 'POST',
-      body: { size: size.value, ...narrowed, zone, ...(begin ? { start: begin } : {}) },
+      body: { size: size.value, zone, ...(begin ? { start: begin } : {}) },
     })
-
-    askedFiltered.value = isFiltered(narrowed)
 
     install(response)
     status.value = 'ready'
@@ -829,16 +805,6 @@ watch(view, () => void focusView())
 watch(teachingIndex, () => void focusView())
 
 /**
- * ⚠️ **A changed filter asks again and starts nothing.** The count on the
- * lesson control is the server's (`offerOf`), so a filter that only moved a
- * checkbox would leave the control promising words the lesson will not hold.
- */
-watch(filter, () => {
-  if (view.value === 'start')
-    void enqueue(() => start())
-})
-
-/**
  * ⚠️ **The one listener on `window`, and it is not a keystroke.** ADR 0025 binds
  * the key handlers to the mode container because `X` is a printable character
  * and SC 2.1.4 Character Key Shortcuts is Level A — a criterion about
@@ -1009,10 +975,20 @@ onBeforeUnmount(() => {
             {{ brakeLine }}
           </p>
 
-          <!-- `10` §5.8: never mid-run, so they live on the screen before one.
-               The knob caps a review run; the filter narrows a lesson. -->
+          <!-- ADR 0077 §3 — the prototype's line under Home's two heroes: which
+               *category* the lesson above is counted in, and the way to change
+               it. ⚠️ **`external`**, like every way out of a *mode*:
+               `/categories` is a *place* and ships no JavaScript. Until #69
+               this was ADR 0065 §5's filter, two rows of checkboxes. -->
+          <p class="studying">
+            <span>New words come from</span>
+            <span class="tag">{{ offer.category.name }}</span>
+            <NuxtLink to="/categories" external class="link">Change category</NuxtLink>
+          </p>
+
+          <!-- `10` §5.8: never mid-run, so it lives on the screen before one.
+               The knob caps a review run. -->
           <SessionSizeKnob v-model="size" class="knob" />
-          <SessionFilterControls v-model="filter" :declaration="jlptVocab" class="knob" />
         </section>
 
         <!-- ADR 0076 §1 — a lesson's teaching, one word a screen. -->
@@ -1081,7 +1057,6 @@ onBeforeUnmount(() => {
           :early="quiz?.finished ?? false"
           :positions="positions"
           :offer="offer"
-          :filtered="askedFiltered"
           :unsent="unsent"
           :refused="refused"
           :session-expired="sessionExpired"
@@ -1182,6 +1157,37 @@ onBeforeUnmount(() => {
   margin: var(--k-space-5) 0 0;
   font-size: 15px;
   color: var(--k-ink-secondary);
+}
+
+/* The prototype's `.studying`, its solid `.tag` and its `.link`. */
+.studying {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: var(--k-space-5) 0 0;
+  font-size: 15.5px;
+  color: var(--k-ink-secondary);
+}
+
+.tag {
+  padding: 2px 7px;
+  background: var(--k-ink-ground);
+  border: 1px solid var(--k-ink-ground);
+  border-radius: 999px;
+  font-family: var(--k-face-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--k-on-ink);
+}
+
+.link {
+  color: var(--k-accent);
+  text-underline-offset: 3px;
+}
+
+.link:hover {
+  color: var(--k-accent-hover);
 }
 
 .knob {

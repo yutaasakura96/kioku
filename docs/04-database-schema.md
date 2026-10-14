@@ -151,6 +151,7 @@ of who is asking. *Personal* is a statement about one reader.
 | `review_session_card` | **personal** | `owner_id` | The snapshot's membership |
 | `card_flag` | **personal** | `owner_id` | A judgement that a card is wrong |
 | `study_setting` | **personal** | `owner_id` | How much one reader wants to be new each day (ADR 0076 §2, §7.10) |
+| `active_category` | **personal** | `owner_id` | Which *category* one reader's new words come from (ADR 0077 §2, §7.11) |
 
 ⚠️ **A column that references a user does not make an entity personal.** `ingestion.submitted_by` and
 `job.requested_by` exist for the audit line and are nullable; the label asks what the row *asserts*,
@@ -487,9 +488,11 @@ authority_key)` and an index on `note_id` — §5.6's three, word for word.
 the *session* filter is that query. ⚠️ **Not merged with `level_claim` into one table either**:
 ADR 0065 names the third attribute as the moment to generalise.
 
-**The query it serves** is *Review*'s new half: a *card* is introduced by a filtered *session* only
-if its *note* has a claim in the requested set (`server/utils/review/queries.ts`, ADR 0065 §5). A
-*note* with no claim matches no filter.
+**The query it served** was *Review*'s new half: a *card* was introduced by a filtered *session* only
+if its *note* had a claim in the requested set (ADR 0065 §5). ⚠️ **Nothing asks that since
+2026-10-14** (#69, [ADR 0077](adr/0077-the-reader-has-one-active-category.md)): the active *category* replaced the filter, and a *category* reads
+`level_claim` and `occurrence`. The claims are still written and *Vet*'s strip still shows them; the
+query comes back with topic *categories*.
 
 **Example:** `(…, note 019bd3…, null, 'tech', 'claude-sonnet-5', 'v3')`.
 
@@ -1239,6 +1242,33 @@ the way out as well, so every reader of this table goes through it
 
 **Example:** `('usr_7f…', 5, 10, 50, 2026-10-12T07:00:00Z)` is a reader who saved the defaults.
 
+### 7.11 `active_category`
+
+⚠️ **Added 2026-10-14 with [#69](https://github.com/yutaasakura96/kioku/issues/69), migration
+`0014_active_category`.** [ADR 0077](adr/0077-the-reader-has-one-active-category.md) §2: the one *category* a reader's new words come from.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `owner_id` | `text` | no | — | PK. → `auth."user".id`, `RESTRICT` |
+| `category_key` | `text` | no | — | `jlpt:N4`, `deck:<source id>` or `my-words` (`shared/category/category.ts`) |
+| `chosen_at` | `timestamptz` | no | `now()` | Moved by each choice |
+
+**One row a reader, and none until they choose.** A reader with no row studies the first declared
+*level*, and nothing is written on a read. ⚠️ **A key and not a foreign key**: a *category* is
+derived and has no table (§13), and `deck:<source id>` must outlive the deck — a deleted *source* is
+soft-deleted (§10), and its key is then read as no row, so the reader is back at the first *level*.
+The key is checked against the database when it is written (`server/utils/category/active.ts`), and
+no `CHECK` restates the declaration's levels, for §13's reason.
+
+⚠️ **Not a column on `study_setting`.** That table writes nothing until the reader saves the
+settings form, so its defaults live in one place; a row inserted to hold a *category* would freeze
+three of them.
+
+**The query it serves** is a lesson's: `newCards` and `unstartedNotes` read the *category* and take
+only its words. The due read does not join it.
+
+**Example:** `('usr_7f…', 'jlpt:N4', 2026-10-14T07:00:00Z)`.
+
 ---
 
 ## 8. The four tables Better Auth owns
@@ -1485,7 +1515,7 @@ argued somewhere else.
   `occurrence` rows of one live `anki` *source*, and *My words* is those of every other live
   *source*. A stored value would be a second copy of those rows, could hold one where a word is in
   several, and would have to be rewritten whenever the list is refreshed. ⚠️ **The reader's one
-  active *category* is a fact about the reader and will need a row somewhere; that is #69's.**
+  active *category* is a fact about the reader and is a row**: `active_category`, §7.11 (#69).
 - **A queue table separate from `job`.** `ingestion_chunk` is the per-chunk queue and `job` is the
   per-run one; a third would be a queue service with extra steps (ADR 0015).
 - **A sessions table for auth.** Better Auth owns it (§8).

@@ -63,6 +63,8 @@ and two *modes*; those are the five screens of the app. The door is not a screen
 is added here rather than by amending ADR 0013. ⚠️ **Seven routes and six screens since 2026-10-12**:
 #70 added `/settings`, a fourth *place* behind the same gate
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md) §2).
+⚠️ **Eight routes and seven screens since 2026-10-14**: #69 added `/categories`, a fifth *place*
+behind it ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §3).
 
 | Route | Rendering | Public? |
 | --- | --- | --- |
@@ -396,8 +398,8 @@ about who is calling, and this route's caller is a reader. Every other `/api/**`
 `401`, and must: §5.6's outbox depends on it.
 
 `S1` says refused at **every** route including the ingest endpoint, and `03` §13.2 says route
-protection is Nitro server middleware with no client guard anywhere to bypass. Three of the five
-screens have no client to guard on, which makes the usual mistake structurally impossible rather
+protection is Nitro server middleware with no client guard anywhere to bypass. The *places* have
+no client to guard on, which makes the usual mistake structurally impossible rather
 than merely avoided.
 
 ### 6.4 ⚠️ Three route rules are now forbidden on the *places*

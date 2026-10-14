@@ -801,9 +801,14 @@ the reader's synonyms (`04` §7.9).
   `start: 'lesson'`; without one it resumes a live run or composes nothing. It always answers
   `{ session, offer }`, and `offer` is what is waiting: the due count, the size of the next lesson,
   which brake is on, the reader's limits and the next due instant (`shared/review/offer.ts`). The
-  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run, counted
-  through the *session* filter the answer carries (`domains`, `levels`; absent or not legal is no
-  filter, never a refusal). The page adds its filter when an entry is sent and stores none.
+  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run.
+  ⚠️ **Since #69 the lesson in an `offer` is counted in the reader's active *category***
+  ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), which the server reads from `active_category` (`04` §7.11) and
+  names in `offer.category`. No request carries it: until then each answer carried the page's
+  *session* filter (`domains`, `levels`) for that count.
+- **The active *category* is the reader's** (`04` §7.11): `POST /api/category` takes a row's form on
+  `/categories`, checks the key names a *category*, and answers `303` to `/review`; a key that names
+  none answers `303` back to `/categories` and writes nothing.
 - **The three limits are the reader's** (`study_setting`, `04` §7.10): `POST /api/settings` takes
   the form on `/settings`, clamps, and answers `303`.
 
@@ -898,10 +903,9 @@ would widen it by whatever Vercel and Neon disagree by. The rule itself is a pur
 | Auth session | Postgres + cookie | Postgres | Database sessions, 7 days, sliding |
 | The current *session* snapshot | `localStorage` | Postgres | A bounded cache, not a replica |
 | The *grade* outbox | `localStorage` | Postgres, after replay | Append-only, in order, never merges |
-| Ingest / Sources / Stats client state | — | — | **There is none.** They ship no JavaScript |
+| *Places*' client state | — | — | **There is none.** Ingest, Sources, Stats, Settings and Categories ship no JavaScript |
 
-The last row is the point of ADR 0013 and §2.1. Three of the five screens have no client state to
-manage because they have no client.
+The last row is the point of ADR 0013 and §2.1: *places* have no client state to manage.
 
 ---
 
@@ -1084,7 +1088,7 @@ Node **24.x**, built with the **`vercel`** Nitro preset, and the address is
 
 ### 13.2 How input is validated, and where
 
-**Server-side, always. Three of the five screens have no client to validate on** (§2.1), which
+**Server-side, always. The *places* have no client to validate on** (§2.1), which
 makes the usual mistake structurally impossible.
 
 - **Route protection is Nitro server middleware.** Every route, including every API route, resolves

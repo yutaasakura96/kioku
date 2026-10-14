@@ -15,8 +15,6 @@
  * ⚠️ **No stamp**, as a flag carries none: `completed_at` is the server's
  * `now()` and nothing is scheduled from it.
  */
-import { jlptVocab } from '../../../shared/subject/declaration'
-import { offerFilter } from '../../../shared/review/filter'
 import { parseFinish } from '../../../shared/review/request'
 import { finishSession, offerIfFinished } from '../../utils/review/session'
 import { requireOwnerId } from '../../utils/reader'
@@ -36,6 +34,6 @@ export default defineEventHandler(async (event) => {
   return {
     outcome: session ? ('ok' as const) : ('not_in_session' as const),
     session,
-    offer: await offerIfFinished(db, ownerId, session, offerFilter(body, jlptVocab), session !== null),
+    offer: await offerIfFinished(db, ownerId, session, session !== null),
   }
 })

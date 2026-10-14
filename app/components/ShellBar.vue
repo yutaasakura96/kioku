@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// `10` §3.1 — the *shell*'s bar. On `/`, `/sources`, `/sources/:id`,
-// `/sources/:id/delete`, `/stats` and `/settings`, and nowhere else (ADR 0013,
-// `09` §2).
+// `10` §3.1 — the *shell*'s bar. On `/`, `/categories`, `/sources`,
+// `/sources/:id`, `/sources/:id/delete`, `/stats` and `/settings`, and nowhere
+// else (ADR 0013, `09` §2).
 //
 // ⚠️ **The nav names the *places* and never a *mode*** (ADR 0032). A
 // *mode* is entered from the start block, which is a different component for a
@@ -19,6 +19,7 @@ const route = useRoute()
 
 const NAMES: Record<string, string> = {
   '/': 'Ingest',
+  '/categories': 'Categories',
   '/sources': 'Sources',
   '/stats': 'Stats',
   '/settings': 'Settings',

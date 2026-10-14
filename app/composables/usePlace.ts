@@ -1,3 +1,4 @@
+import type { ShelfRow } from '#shared/category/shelf'
 import { DEFAULT_LIMITS } from '#shared/review/limits'
 import { FALLBACK_ZONE } from '#shared/time/local-day'
 
@@ -36,6 +37,14 @@ export async function useStartBlockCounts() {
  */
 export async function useReaderZone() {
   return (await usePlace()?.zone()) ?? FALLBACK_ZONE
+}
+
+/**
+ * The shelf of *categories* (ADR 0077 §3) — empty when there is no *place*,
+ * which `/categories` draws as its two shelves with nothing on them.
+ */
+export async function useCategoryShelf(): Promise<ShelfRow[]> {
+  return (await usePlace()?.categories()) ?? []
 }
 
 /** The reader's study settings (ADR 0076 §2) — the defaults when there is no *place*. */

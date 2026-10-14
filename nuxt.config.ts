@@ -62,6 +62,8 @@ export default defineNuxtConfig({
     '/stats': { noScripts: true },
     // The fourth *place*: three numbers in a form (ADR 0076 §2).
     '/settings': { noScripts: true },
+    // The fifth: a shelf of forms, one button each (ADR 0077 §3).
+    '/categories': { noScripts: true },
 
     // The refusal page: a message and nothing else (`08` §2.1).
     '/auth/refused': { noScripts: true },

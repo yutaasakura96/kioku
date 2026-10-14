@@ -19,6 +19,7 @@ const offer = (over: Partial<StudyOffer> = {}): StudyOffer => ({
   dueCount: 0,
   lesson: 0,
   waiting: false,
+  category: { key: 'jlpt:N5', name: 'JLPT N5' },
   limits: DEFAULT_LIMITS,
   nextDue: null,
   ...over,
@@ -93,9 +94,12 @@ describe('why no lesson is on offer', () => {
       .toBe('New words are switched off in settings.')
   })
 
-  it('tells nothing left from nothing matching', () => {
-    expect(noLessonLine(offer())).toBe('There are no new words left to learn.')
-    expect(noLessonLine(offer(), true)).toBe('No new word matches the filter.')
+  // ⚠️ ADR 0077 §4: of the *category*, never of the app. With N5 finished
+  // there are thousands of words left, one screen away.
+  it('says nothing is left in the active category, by its name', () => {
+    expect(noLessonLine(offer())).toBe('There are no new words left in JLPT N5.')
+    expect(noLessonLine(offer({ category: { key: 'my-words', name: 'My words' } })))
+      .toBe('There are no new words left in My words.')
   })
 })
 
@@ -122,10 +126,7 @@ describe('the summary\'s *What next*', () => {
     })
   })
 
-  // ⚠️ An offer counted through a filter says so: *none left* would be untrue
-  // of the pool.
-  it('says the filter matched nothing rather than that nothing is left', () => {
-    expect(whatNext(offer(), now).body).toBe('Nothing else due. There are no new words left to learn.')
-    expect(whatNext(offer(), now, true).body).toBe('Nothing else due. No new word matches the filter.')
+  it('says the active category has nothing left', () => {
+    expect(whatNext(offer(), now).body).toBe('Nothing else due. There are no new words left in JLPT N5.')
   })
 })

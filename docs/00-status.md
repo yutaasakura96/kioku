@@ -136,7 +136,7 @@ A new word is taught in a lesson of five before it is asked, the quiz asks the m
 reading, a miss comes back until it is right and still counts, a near miss in a meaning passes and
 nothing overrules the check, and the three limits are settings on a fourth *place*. **The starter
 words can now be studied**: a lesson accepts and mints the ones it teaches. ~~⚠️ **Migration `0013` is
-not on production, and neither is any of #68**~~ (§ Next). ⚠️ **Released 2026-10-14** (§ Done). The frontier is #69, then #71 and #72.
+not on production, and neither is any of #68**~~ (§ Next). ⚠️ **Released 2026-10-14** (§ Done). ~~The frontier is #69, then #71 and #72.~~
 
 ⚠️ **2026-10-14: #73, #68 and #70 are on production** (§ Done). Migrations `0011`, `0012` and `0013`
 are applied to Neon, the starter set is loaded there, and `develop` at `aa3ea74` is merged into
@@ -144,11 +144,49 @@ are applied to Neon, the starter set is loaded there, and `develop` at `aa3ea74`
 §1); nothing was deleted. **Still Yuta's**: the worker restart on the released code, and the
 signed-in look at the live site.
 
+⚠️ **2026-10-14: [#69](https://github.com/yutaasakura96/kioku/issues/69) is built — one active
+*category*** (§ Done, [ADR 0077](adr/0077-the-reader-has-one-active-category.md)). New words come from the
+*category* the reader chose and from nowhere else, reviews mix everything, and the choice is made on
+`/categories`, a fifth *place*, reached from the screen before a run. **The *session* filter is
+gone.** ⚠️ **Migration `0014_active_category` is additive and is not on production**; it is Yuta's
+to apply before this is released (§ Next). The frontier is #71, then #72.
+
 **Updated:** 2026-10-14 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
+
+**2026-10-14, latest — [#69](https://github.com/yutaasakura96/kioku/issues/69): choose what to study
+by category** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Built on `fm/kioku-69` from
+`develop` at `27bc8d7`.
+- **A lesson draws from the reader's active *category* and from nowhere else.** `newCards` and
+  `unstartedNotes` take a *category* and apply #68's `noteInCategory`; the due read takes none, so a
+  review run is every due *card* whichever *category* its word is in.
+- **The choice is one row**, `active_category (owner_id, category_key, chosen_at)`, migration
+  `0014_active_category`, additive. No row is the first declared *level*, and so is a row whose deck
+  was deleted. ⚠️ **Not a column on `study_setting`**, which writes nothing until the settings form
+  is saved.
+- **`/categories` is a fifth *place***, the prototype's screen: the five JLPT *levels*, *Topics ·
+  coming later* as it was reviewed, and *My decks* with a row per imported deck and one for *My
+  words*. Each row has its words, how many are learned and a bar of the three stages; the active one
+  says *New words come from here* and every other has one control. It is second in the nav.
+- **Choosing posts a form** to `POST /api/category` and lands on `/review`'s screen before a run,
+  which now says *New words come from JLPT N4 · Change category*. ⚠️ **The prototype puts that line
+  on Home.** Home is #71's, and that screen is where ADR 0076 §8 already put Home's two controls
+  until then; the line moves with it.
+- **The *session* filter is removed** (ADR 0065 §5): its checkboxes, `shared/review/filter.ts`, the
+  filter on the *session* request and the one every answer carried. `domain_claim` is still written
+  and now read only by *Vet*'s strip.
+- **A finished *category* says so by name**: *There are no new words left in JLPT N5.* The app does
+  not move the reader on.
+- **Four tokens**, the prototype's stage ramp, which ADR 0076 had left out (`05` §2).
+- **Checked in a browser** on a production build against a throwaway PGlite database with the
+  starter set loaded, because `npm run dev:session` does not start (§ Carrying): the shelf with the
+  real counts, choosing N4, the screen before a run naming it, a lesson of five words all N4, three
+  reviews still due with a deck active and that deck's one word as the lesson, the shelf's bar after
+  three *grades*, and both screens at phone width. No console message.
+- ⚠️ **Not done, and Yuta's**: applying `0014` to production before this is released (§ Next).
 
 **2026-10-14, latest — the release of #73, #68 and #70: `develop` at `aa3ea74` into `main`**
 ([PR #80](https://github.com/yutaasakura96/kioku/pull/80), merge commit `61df90e`). Yuta's go-ahead
@@ -240,7 +278,8 @@ data and no screen.
   filter, the *Vet* strip and the JLPT *categories* read declared *authorities* only. A model's
   estimate is still written for a word the dictionary lacks, and nothing reads it as a level.
 - ***Categories*, derived** (`shared/category/category.ts`, `server/utils/category/queries.ts`):
-  `jlpt:<level>`, `deck:<source id>`, `my-words`. No screen reads them yet; #69 does.
+  `jlpt:<level>`, `deck:<source id>`, `my-words`. No screen reads them yet; #69 does (⚠️ built
+  2026-10-14, above).
 - **Start fresh, without deleting.** `subject_id` is `jlpt-vocab-2`, and every reader-facing read
   goes through `server/utils/subject.ts`. `test/schema/start-fresh.test.ts` seeds a whole history
   under the old id and asserts that no screen read returns it, and that the export, the ledger and
@@ -2389,9 +2428,13 @@ Seven findings worth knowing without opening it:
 ⚠️ **2026-10-10: the frontier is the direction change, [#67](https://github.com/yutaasakura96/kioku/issues/67).**
 #68 and #70 are built (§ Done; ⚠️ this said *#68 is built* until 2026-10-12) and the rest are filed:
 
-- [#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
+- ~~[#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
   Reads `categories()` and `noteInCategory()`, which #68 left unread. The reader's one active
-  category is its to store.
+  category is its to store.~~ ⚠️ **Built 2026-10-14** (§ Done, ADR 0077). ⚠️ **It leaves one thing
+  for Yuta and one for #71**: migration `0014_active_category` is to be applied to production
+  before the release that carries it (additive: one table, nothing dropped), by `03` §4.2's
+  procedure; and the line naming the *category* lives on `/review`'s screen before a run until #71
+  builds Home.
 - ~~[#70](https://github.com/yutaasakura96/kioku/issues/70): **the quiz with lessons.**~~ ⚠️ **Built
   2026-10-12** (§ Done, ADR 0076). It paid the mint — a lesson accepts and mints the starter words
   it teaches — and settled the example sentence: it is drawn when the *note* has one, and a starter
@@ -3212,11 +3255,25 @@ Nothing.
   being composed (ADR 0066 §3), so a run starts only from `start` in the request body, which only a
   control or the start block's `?start=` sets, and the page takes `start` out of the address once
   it has read it. A mount that composed would spend a reader's ten words on page loads.
-- ⚠️ **Every answer carries the page's filter, and the outbox stores none** (ADR 0076 §8). The
-  summary's lesson count is read through it (`offerIfFinished`), because the summary's control
-  starts the next lesson through it. `bodyOf` adds it at send time; stored in an entry it would be
-  a saved query (ADR 0065 §6). On an answer endpoint a missing or illegal filter is **no filter,
-  never a `400`**: a `400` there drops the *grade* with it.
+- ⚠️ ~~**Every answer carries the page's filter, and the outbox stores none** (ADR 0076 §8).~~
+  **Removed with #69 (2026-10-14)**: there is no filter. An answer carries its own fields and
+  nothing about the next lesson.
+- ⚠️ **No request says which *category* a lesson is drawn from, except the one that chooses it**
+  (ADR 0077 §1, #69). `composeLessonRun`, `offerOf` and `startBlockCounts` each read
+  `active_category` through `readActiveCategory`, so the lesson, the count on the screen before a
+  run, the summary's count and the start block's *Lesson · n new* cannot disagree. **Do not add a
+  `category` to the *session* request or to an answer**: it would be page memory again, and a
+  *place* has no page to keep it in. And **`newCards` and `unstartedNotes` take a *category* as a
+  required argument on purpose**: a call without one would be new words from everywhere.
+- ⚠️ **The due read takes no *category*, and must not gain one** (ADR 0077 §1). Reviews mix
+  everything the reader has learned; `test/schema/review.test.ts` holds a due *card* outside the
+  active *category* in a review run.
+- ⚠️ **A stored key that names nothing is read as the first *level*, and the row is left alone**
+  (ADR 0077 §2). A deleted deck is soft-deleted and its `deck:<id>` key stays in the row. Do not
+  "clean it up" on read: a *place* render would then write.
+- ⚠️ **A *place*'s page must not import from `server/`.** `/categories` ships no script, but its
+  component is still in the client build; the shelf's shape and `learned` live in
+  `shared/category/shelf.ts` for that reason.
 - ⚠️ **`finish` is an outbox entry and not an answer.** It answers no position, it is not counted
   in the summary's unsent line, and a refused one is dropped rather than kept. It must stay
   **behind** the Forgot *grades* it follows: the stream's order is the order the server learns them.

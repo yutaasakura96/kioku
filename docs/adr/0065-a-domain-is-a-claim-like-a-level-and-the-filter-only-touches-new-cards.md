@@ -127,3 +127,18 @@ the prompt would change every cache key for nothing a reader sees; the row is un
 **The *domain* half stands as written.** A word's *domain* is still the model's claim and the filter
 still reads it, until topic categories give it a named source (#69). A word written from the
 dictionary carries no *domain* at all, so it is in no domain filter's result.
+
+## Amended 2026-10-14: the filter is gone, and the active category has its rule
+
+§5's *session* filter is removed ([#69](https://github.com/yutaasakura96/kioku/issues/69),
+[ADR 0077](0077-the-reader-has-one-active-category.md)). The reader has one active *category*, stored, chosen on
+`/categories`, and a lesson draws from it. **§5's rule is kept and is the *category*'s now**: it
+decides which new words are taught and never which due *cards* are owed.
+
+§6 said nothing about what to study next is saved. The choice is saved, as a key; it is still not a
+*deck*.
+
+**The *domain* half is now written and not read by any lesson.** `domain_claim` is still filled for
+a word the model writes and still shown on *Vet*'s strip. The paragraph above said the filter reads
+it *until topic categories give it a named source (#69)*; #69 left topic *categories* to a later
+ticket, so until that one a *domain* chooses nothing.

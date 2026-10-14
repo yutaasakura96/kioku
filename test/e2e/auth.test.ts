@@ -28,7 +28,7 @@ await setup({
  * still runs on it (`03` §2.1 — an app shell, not a blank page). A mode that was
  * not gated would hand out its shell and then 401 on every fetch inside it.
  */
-const GATED_DOCUMENTS = ['/', '/sources', '/stats', '/settings', '/vet', '/review']
+const GATED_DOCUMENTS = ['/', '/categories', '/sources', '/stats', '/settings', '/vet', '/review']
 
 const PUBLIC_DOCUMENTS = ['/auth', '/auth/refused']
 

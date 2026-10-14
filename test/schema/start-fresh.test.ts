@@ -40,6 +40,9 @@ const OWNER = 'usr_test'
 const OLD_SUBJECT_ID = 'jlpt-vocab'
 const NOW = new Date()
 
+/** The *category* a reader who has chosen none studies (ADR 0077 §2). */
+const N5 = { kind: 'level', level: 'N5' } as const
+
 beforeAll(async () => {
   ({ client, db } = await freshDatabase())
 }, 30_000)
@@ -80,9 +83,13 @@ async function history(subjectId: string, tag: string) {
       VALUES ('${subjectId}', '${tag}-${which}', '{"term":"図書館","reading":"としょかん","meaning":"library"}'::jsonb, '${ingestionId}')
       RETURNING id;
     `)
+    // ⚠️ The list places both corpora's words at N5, so the *category* a
+    // reader who has chosen none studies (ADR 0077 §2) would hold the old ones
+    // too if the *subject* predicate were not there.
     await client.exec(`
       INSERT INTO note_vetting (note_id, owner_id, state, vetted_at)
       VALUES ('${notes[which]}', '${OWNER}', 'accepted', now());
+      INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${notes[which]}', 'tanos-jlpt', 'N5');
     `)
     cards[which] = await one(`
       INSERT INTO card (note_id, owner_id, template_key)
@@ -130,9 +137,9 @@ describe('a reader whose whole history is under the old subject', () => {
 
     expect(await dueCards(db, OWNER, NOW)).toEqual([])
     expect(await dueCount(db, OWNER, NOW)).toBe(0)
-    expect(await newCards(db, OWNER, 20)).toEqual([])
+    expect(await newCards(db, OWNER, 20, N5)).toEqual([])
     expect(await nextDueAt(db, OWNER)).toBeNull()
-    expect(await unstartedNotes(db, OWNER, 20)).toEqual([])
+    expect(await unstartedNotes(db, OWNER, 20, N5)).toEqual([])
     expect(await offerOf(db, OWNER, 'UTC')).toMatchObject({
       lesson: 0, waiting: false, nextDue: null, dueCount: 0, introducedToday: 0,
     })
@@ -236,7 +243,7 @@ describe('the same reader, once they have a history under the new subject too', 
 
     expect((await dueCards(db, OWNER, NOW)).map(card => card.cardId)).toEqual([now.cards.studied])
     expect(await dueCount(db, OWNER, NOW)).toBe(1)
-    expect((await newCards(db, OWNER, 20)).map(card => card.cardId)).toEqual([now.cards.fresh])
+    expect((await newCards(db, OWNER, 20, N5)).map(card => card.cardId)).toEqual([now.cards.fresh])
     expect(await liveSession(db, OWNER)).toBe(now.sessionId)
     expect(await recentlyComposed(db, OWNER, NOW)).toHaveLength(1)
     expect(await flaggedCount(db, OWNER)).toBe(1)

@@ -63,6 +63,7 @@ what happens and in what order; that one says what it is made of.
 | `/sources/:id/delete` | The delete confirmation (§4.11) | `noScripts: true` | No |
 | `/stats` | **Stats** — the *place* | `noScripts: true` | No |
 | `/settings` | **Settings** — the *place* (ADR 0076 §2, #70): three study settings | `noScripts: true` | No |
+| `/categories` | **Categories** — the *place* (ADR 0077 §3, #69): choose new words | `noScripts: true` | No |
 | `/vet` | ***Vet*** — the *mode* | `ssr: false` | No |
 | `/review` | ***Review*** — the *mode* | `ssr: false` | No |
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
@@ -71,6 +72,7 @@ what happens and in what order; that one says what it is made of.
 | ⚠️ `/` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`** — see below | Nitro middleware, then the *place* | No |
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
 | `/api/settings` | `POST` — store the three study settings, clamped (ADR 0076 §2) | Nitro | No |
+| `/api/category` | `POST` — choose the active *category* (ADR 0077 §3) | Nitro | No |
 | `/api/export` | `GET` — `S12`'s export (§4.12) | Nitro | No |
 | `/api/vetting/**`, `/api/review/**` | The two *modes*' data and outbox endpoints | Nitro | No |
 
@@ -86,6 +88,9 @@ validation failure to re-render, because nothing is refused: a value out of rang
 page shows what was kept. On a validation failure they answer `200` with the form
 re-rendered and the submitted text still in it, because a redirect would throw away a paste the
 reader cannot get back (§4.2).
+
+⚠️ **Since #69 there are five *places***: `/categories` also posts a form to choose the active
+*category*. Its `303` destination and invalid-key case are in §4.7.
 
 ⚠️ **Amended 2026-09-11, while building #6 — the submission is `POST /`, not `POST /api/source`.**
 The row above said the latter, and the paragraph it sits under is why it could not be: a validation
@@ -116,12 +121,12 @@ requests, and cross-site only for top-level navigations using a safe method — 
 
 ## 2. The shell, and the two controls that leave it
 
-The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and (since #70)
-`/settings`, and nowhere else (ADR 0013). It carries three things:
+The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats`, (since #70)
+`/settings` and (since #69) `/categories`, and nowhere else (ADR 0013). It carries three things:
 
 | | What | Goes to |
 | --- | --- | --- |
-| **Navigation** | Ingest · Sources · Stats · Settings | The four *places*. Never a *mode* (ADR 0032) |
+| **Navigation** | Ingest · Categories · Sources · Stats · Settings | The five *places* (four until #69 added Categories). Never a *mode* (ADR 0032) |
 | **The start block** | Vet, with the flagged count · Review, with the number due now · Lesson, with the new words the brake allows today | `/vet?from=…` · `/review?start=review&from=…` · `/review?start=lesson&from=…` |
 | **The door** | A quiet link, for signing out | `/auth` (`08` §2) |
 
@@ -415,12 +420,14 @@ the summary's way back.
    asked for (§6). Otherwise the server composes the run that was asked for, or none.
 3. **A review run** is the due *cards*, least remembered first when they do not all fit, up to the
    *session* size. **A lesson** is new words up to the lesson size, as far as the brake allows: the
-   reader's own unscheduled *cards* first, then starter words not yet started, easiest *level*
-   first. **The lesson accepts and mints the starter words it holds, in the transaction that writes
+   reader's own unscheduled *cards* first, then words not yet started in a fixed shuffle.
+   ⚠️ **Since #69 both are of the reader's active *category* only** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), and
+   a *category* is one *level* or one shelf under *My decks*. **The lesson accepts and mints the starter words it holds, in the transaction that writes
    the run** (`04` §7.6, §7.7). `snapshot_taken_at` is stamped server-side as before.
 4. **With no run, the screen says what is waiting**: how many reviews, how many new words a lesson
    would teach, which brake is on, and a control for each run that has something in it. The
-   *session*-size knob and the filter live here.
+   *session*-size knob lives here, and since #69 the line naming the active *category* with the
+   way to change it (it was the filter until then).
 5. **A lesson teaches first**: one word a screen with its reading, meaning, part of speech, *level*
    and its example when it has one, *Back* and *Next word*, and then *Quiz me on these 5*. The
    teaching does not come back once the quiz has begun.
@@ -441,8 +448,22 @@ the summary's way back.
    is set. **Starting another is one deliberate action, never automatic** (`S7`): a control that
    names the run it starts.
 
-***Session* size and the filter are set on the screen before a run**, never mid-session. The knob
-caps a review run; the lesson's size, the day's new words and the pause are on `/settings`.
+***Session* size is set on the screen before a run**, never mid-session. The knob caps a review
+run; the lesson's size, the day's new words and the pause are on `/settings`.
+
+#### Choosing a *category* (#69, [ADR 0077](adr/0077-the-reader-has-one-active-category.md))
+
+1. **The screen before a run names the active *category*** and links to `/categories`:
+   *New words come from JLPT N5 · Change category*. The link is a document load, as every way out
+   of a *mode* is.
+2. **`/categories` lists every *category***: the five JLPT *levels*, then under *My decks* each
+   imported deck and *My words*. Each row says how many words it has and how many the reader has
+   learned. The active one says *New words come from here*; every other has one control, *Study*.
+3. **Choosing posts the row's form** to `/api/category`, which stores the key and answers `303` to
+   `/review?from=/categories`: the screen before a run, now counting the lesson in the *category*
+   just chosen. Nothing is composed.
+4. **Reviews are not touched.** A review run holds every due *card*, whichever *category* its word
+   is in. A lesson already composed keeps its words.
 
 #### As built until 2026-10-12
 
