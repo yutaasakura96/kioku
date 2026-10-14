@@ -150,8 +150,8 @@ signed-in look at the live site.
 *category*** (§ Done, [ADR 0077](adr/0077-the-reader-has-one-active-category.md)). New words come from the
 *category* the reader chose and from nowhere else, reviews mix everything, and the choice is made on
 `/categories`, a fifth *place*, reached from the screen before a run. **The *session* filter is
-gone.** ⚠️ **Migration `0014_active_category` is additive and is not on production**; it is Yuta's
-to apply before this is released (§ Next). The frontier is #71, then #72.
+gone.** ~~⚠️ **Migration `0014_active_category` is additive and is not on production**; it is Yuta's
+to apply before this is released (§ Next).~~ ⚠️ **Released 2026-10-15** (§ Done). The frontier is #71, then #72.
 
 ⚠️ **2026-10-14: [#71](https://github.com/yutaasakura96/kioku/issues/71) is built — Welcome and
 Home** (§ Done, [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). **`/` is
@@ -159,13 +159,36 @@ Home**, Welcome on a first visit and the prototype's dashboard after it; **Inges
 is Home, Categories and More, and *Vet*, *Sources*, *Stats* and *Settings* are under More. No
 migration. The frontier is #72.
 
+⚠️ **2026-10-15: #69, #71 and #72 are on production** (§ Done). Migrations `0014_active_category`
+and `0015_placement` are applied to Neon, and `develop` at `1ce644c` is merged into `main` and
+deployed. **Still Yuta's**: the signed-in look at the live site.
+
 **Updated:** 2026-10-15 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-15, latest — `npm run dev:session` serves pages again.** Built on `fm/kioku-dev-500` from
+**2026-10-15, latest — the release of #69, #71 and #72: `develop` at `1ce644c` into `main`**
+([PR #86](https://github.com/yutaasakura96/kioku/pull/86), merge commit `ef2dc3d`). Yuta's go-ahead
+the same day. `03` §4.2's procedure, from a clean clone of `1ce644c` with no root `.env`, as on
+2026-10-14:
+- **A restore point first**: Neon branch `pre-release-2026-10-15` of `main`, taken before anything
+  was applied. It is Yuta's to delete once the release has settled, with `pre-release-2026-10-14`.
+- **`drizzle.__drizzle_migrations` read before**: fourteen rows, `0000` to `0013`, each hash the
+  SHA-256 of its file.
+- **Two migrations applied**: `0014_active_category` and `0015_placement`, both new tables and
+  nothing else. Read back: sixteen rows, and the tables `active_category`, `placement` and
+  `placement_check` with their keys, checks, foreign keys and `placement_owner_placed_idx`.
+- **No starter data to load**: neither ticket adds any.
+- **The string came from the signed-in `neon` CLI**, the direct one, injected into each command and
+  written nowhere.
+- **Deployed and answering signed out**: `/auth` `200`, `/` and `/review` to the door,
+  `/favicon.ico` `200`.
+- ⚠️ **Not done, and Yuta's**: the signed-in look at the live site (Welcome or Home, `/categories`,
+  `/placement`, More), and the two items the 2026-10-14 release left open below.
+
+**2026-10-15 — `npm run dev:session` serves pages again.** Built on `fm/kioku-dev-500` from
 `develop` at `c8af2a1`. ADR 0022 § Amended 2026-10-10 owns the production and dev bundling
 distinction. `test/e2e/dev-server.test.ts` checks the door signed out and ten routes signed in under
 `nuxt dev`; all eleven failed before the fix and passed after. The production build was compared
@@ -238,7 +261,8 @@ by category** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Buil
   real counts, choosing N4, the screen before a run naming it, a lesson of five words all N4, three
   reviews still due with a deck active and that deck's one word as the lesson, the shelf's bar after
   three *grades*, and both screens at phone width. No console message.
-- ⚠️ **Not done, and Yuta's**: applying `0014` to production before this is released (§ Next).
+- ~~⚠️ **Not done, and Yuta's**: applying `0014` to production before this is released (§ Next).~~
+  ⚠️ **Applied and released 2026-10-15** (§ Done).
 
 **2026-10-14, latest — the release of #73, #68 and #70: `develop` at `aa3ea74` into `main`**
 ([PR #80](https://github.com/yutaasakura96/kioku/pull/80), merge commit `61df90e`). Yuta's go-ahead
@@ -2483,9 +2507,9 @@ Seven findings worth knowing without opening it:
 - ~~[#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
   Reads `categories()` and `noteInCategory()`, which #68 left unread. The reader's one active
   category is its to store.~~ ⚠️ **Built 2026-10-14** (§ Done, ADR 0077). ⚠️ **It leaves one thing
-  for Yuta and one for #71**: migration `0014_active_category` is to be applied to production
+  for Yuta and one for #71**: ~~migration `0014_active_category` is to be applied to production
   before the release that carries it (additive: one table, nothing dropped), by `03` §4.2's
-  procedure; and the line naming the *category* lives on `/review`'s screen before a run until #71
+  procedure~~ (⚠️ **applied and released 2026-10-15**, § Done); and the line naming the *category* lives on `/review`'s screen before a run until #71
   builds Home.
 - ~~[#70](https://github.com/yutaasakura96/kioku/issues/70): **the quiz with lessons.**~~ ⚠️ **Built
   2026-10-12** (§ Done, ADR 0076). It paid the mint — a lesson accepts and mints the starter words
@@ -2498,9 +2522,10 @@ Seven findings worth knowing without opening it:
   *shell*'s footer. #72 filled the three planned placement entrances and the level card
   (ADR 0079 §1, §3).
 - ~~[#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
-  test.**~~ ⚠️ **Built 2026-10-15** (§ Done, ADR 0079). ⚠️ **It leaves one thing for Yuta**:
+  test.**~~ ⚠️ **Built 2026-10-15** (§ Done, ADR 0079). ~~⚠️ **It leaves one thing for Yuta**:
   migration `0015_placement` is to be applied to production before the release that carries it
-  (additive: two tables, nothing dropped), by `03` §4.2's procedure.
+  (additive: two tables, nothing dropped), by `03` §4.2's procedure.~~ ⚠️ **Applied and released
+  2026-10-15** (§ Done).
   [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
   [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
 
