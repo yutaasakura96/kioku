@@ -84,7 +84,8 @@ through `POST /api/category`.
   *Study N4* or *Study this*.
 - **Learned is graded at least once**: a *card* with a live *scheduling epoch* that has left New,
   not suspended. The bar's shares are of the *category*'s words.
-- **Choosing answers `303` to `/review`**, with `from=/categories`. The prototype lands on Home,
+- **Choosing answers `303` to `/review`**, with `from=/categories`. ⚠️ **To `/` since #71**
+  ([ADR 0078](0078-home-is-the-landing-place-and-more-holds-the-rest.md)), where the line now is. The prototype lands on Home,
   where the lesson is counted and the *category* is named. That screen is `/review`'s screen before
   a run until #71 builds Home (ADR 0076 §8), so the line is there:
   *New words come from **JLPT N4** · Change category*. It replaces the filter's two rows of
@@ -92,9 +93,11 @@ through `POST /api/category`.
   redirect follows it.
 - **A key that names no *category* answers `303` back to the shelf** and writes nothing. The way a
   reader sends one is a page drawn before a deck was deleted.
-- **`/categories` is in the nav**, second, and in the `from` allowlist. The start block is on it as
+- **`/categories` is in the nav**, second, and in the `from` allowlist. (Still second since #71, of
+  three: Home, Categories, More — ADR 0078.) The start block is on it as
   on every *place*.
-- ***Import an Anki deck* and *Add my own words* link to `/`**, where both are today.
+- ***Import an Anki deck* and *Add my own words* link to `/`**, where both are today. ⚠️ **To `/add`
+  since #71**, where Ingest moved (ADR 0078).
 - **Four tokens**, `--k-st-known`, `--k-st-familiar`, `--k-st-learning` and `--k-st-none`, the
   prototype's stage ramp, which ADR 0076 left out until something drew a stage in colour. The bar is
   never the only signal: the line above it says how many are learned and the bar's label says how
@@ -126,7 +129,9 @@ be false. The app does not move the reader to the next *category*: the choice is
 
 ## Revisit if
 
-- **#71 builds Home.** The line and the redirect move there.
+- ~~**#71 builds Home.** The line and the redirect move there.~~ ⚠️ **Done 2026-10-14**
+  ([ADR 0078](0078-home-is-the-landing-place-and-more-holds-the-rest.md)): choosing answers `303` to
+  `/`, and the line is on Home under its two cards. `/review`'s screen before a run no longer draws it.
 - **#72 builds the placement test.** It writes this row, and the default of N5 is then only for a
   reader who skipped it.
 - **Topic *categories* are built.** They are a fourth kind of key, and `domain_claim` or a named

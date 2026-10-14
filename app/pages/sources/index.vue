@@ -51,7 +51,7 @@ const zone = await useReaderZone()
       <h1>Nothing ingested.</h1>
       <p>Paste two pages of Japanese into Ingest and the notes come back on their own.</p>
       <hr>
-      <NuxtLink to="/" class="affordance">
+      <NuxtLink to="/add" class="affordance">
         <span>Go to Ingest</span>
         <span class="arrow" aria-hidden="true">→</span>
       </NuxtLink>

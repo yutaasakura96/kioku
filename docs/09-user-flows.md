@@ -26,7 +26,10 @@ story it protects.
 
 1. **What `/` is.** `08` §2 set `callbackURL: "/"` and never said which screen that names.
    [ADR 0031](adr/0031-the-landing-route-is-ingest-and-never-a-decision-about-data.md): it is Ingest,
-   permanently, and it inspects nothing.
+   permanently, and it inspects nothing. ⚠️ **Superseded by
+   [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md) (#71, 2026-10-14)**: `/`
+   is Home, Welcome on a first visit and the dashboard after it, and it never redirects; Ingest is
+   `/add`.
 2. **How a *mode* is entered, and what the affordance is.** ADR 0013 decided a mode has no navigation
    out; nothing decided the way in.
    [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md): a
@@ -57,7 +60,9 @@ what happens and in what order; that one says what it is made of.
 
 | Path | Is | Rendering | Public |
 | --- | --- | --- | --- |
-| `/` | **Ingest** — the *place* (ADR 0031) | `noScripts: true` | No |
+| `/` | **Home** — the *place* (ADR 0078 §1, #71): Welcome on a first visit, the dashboard after it. **Ingest until #71** (ADR 0031) | `noScripts: true` | No |
+| `/add` | **Ingest** — the *place* (ADR 0078, #71; `/` until then) | `noScripts: true` | No |
+| `/more` | **More** — the *place* (ADR 0078 §3, #71): Add, Settings, Vet, Sources, Stats, the export, the door | `noScripts: true` | No |
 | `/sources` | **Sources** — the *place* | `noScripts: true` | No |
 | `/sources/:id` | One *source*, readable, with its *notes* and *occurrences* | `noScripts: true` | No |
 | `/sources/:id/delete` | The delete confirmation (§4.11) | `noScripts: true` | No |
@@ -69,7 +74,7 @@ what happens and in what order; that one says what it is made of.
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
 | `/auth/refused` | The refusal (`08` §2.1) | `noScripts: true` | Yes |
 | `/api/auth/**` | Better Auth's catch-all | Nitro | Yes |
-| ⚠️ `/` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`** — see below | Nitro middleware, then the *place* | No |
+| ⚠️ `/add` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`**, then `POST /` until #71 — see below | Nitro middleware, then the *place* | No |
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
 | `/api/settings` | `POST` — store the three study settings, clamped (ADR 0076 §2) | Nitro | No |
 | `/api/category` | `POST` — choose the active *category* (ADR 0077 §3) | Nitro | No |
@@ -91,6 +96,11 @@ reader cannot get back (§4.2).
 
 ⚠️ **Since #69 there are five *places***: `/categories` also posts a form to choose the active
 *category*. Its `303` destination and invalid-key case are in §4.7.
+
+⚠️ **Since #71 there are seven** (ADR 0078): `/` is Home, Ingest is `/add`, and `/more` is new.
+**Every `POST /` and `303` to `/` below that means Ingest is `/add`** — the *source* submission, the
+seed request and the resume all post to `/add` and answer `303` there. Welcome's forms post to
+`/api/category`.
 
 ⚠️ **Amended 2026-09-11, while building #6 — the submission is `POST /`, not `POST /api/source`.**
 The row above said the latter, and the paragraph it sits under is why it could not be: a validation
@@ -122,12 +132,13 @@ requests, and cross-site only for top-level navigations using a safe method — 
 ## 2. The shell, and the two controls that leave it
 
 The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats`, (since #70)
-`/settings` and (since #69) `/categories`, and nowhere else (ADR 0013). It carries three things:
+`/settings`, (since #69) `/categories` and (since #71) `/add` and `/more`, and nowhere else
+(ADR 0013). ⚠️ **`/` draws Welcome without it** on a first visit (ADR 0078 §1). It carries three things:
 
 | | What | Goes to |
 | --- | --- | --- |
-| **Navigation** | Ingest · Categories · Sources · Stats · Settings | The five *places* (four until #69 added Categories). Never a *mode* (ADR 0032) |
-| **The start block** | Vet, with the flagged count · Review, with the number due now · Lesson, with the new words the brake allows today | `/vet?from=…` · `/review?start=review&from=…` · `/review?start=lesson&from=…` |
+| **Navigation** | Home · Categories · More | ⚠️ Three since #71 (ADR 0078 §3); every other *place* is a row under More. Five until then, Ingest · Categories · Sources · Stats · Settings. Never a *mode* (ADR 0032) |
+| **The start block** (⚠️ not on Home or More since #71, ADR 0078) | Vet, with the flagged count · Review, with the number due now · Lesson, with the new words the brake allows today | `/vet?from=…` · `/review?start=review&from=…` · `/review?start=lesson&from=…` |
 | **The door** | A quiet link, for signing out | `/auth` (`08` §2) |
 
 Neither start control is ever disabled. A zero on Review is how the reader reaches the empty state
@@ -453,15 +464,15 @@ run; the lesson's size, the day's new words and the pause are on `/settings`.
 
 #### Choosing a *category* (#69, [ADR 0077](adr/0077-the-reader-has-one-active-category.md))
 
-1. **The screen before a run names the active *category*** and links to `/categories`:
-   *New words come from JLPT N5 · Change category*. The link is a document load, as every way out
-   of a *mode* is.
+1. **Home names the active *category*** and links to `/categories`: *New words come from JLPT N5 ·
+   Change category*. ⚠️ **The screen before a run carried it until #71** (ADR 0078), when it was a
+   *mode*'s link and a document load; `/review` opened bare no longer shows it.
 2. **`/categories` lists every *category***: the five JLPT *levels*, then under *My decks* each
    imported deck and *My words*. Each row says how many words it has and how many the reader has
    learned. The active one says *New words come from here*; every other has one control, *Study*.
 3. **Choosing posts the row's form** to `/api/category`, which stores the key and answers `303` to
-   `/review?from=/categories`: the screen before a run, now counting the lesson in the *category*
-   just chosen. Nothing is composed.
+   `/`: Home, now counting the lesson in the *category* just chosen. Nothing is composed. ⚠️ **It
+   answered `/review?from=/categories` until #71** (ADR 0078), and step 1's line moved to Home then.
 4. **Reviews are not touched.** A review run holds every due *card*, whichever *category* its word
    is in. A lesson already composed keeps its words.
 

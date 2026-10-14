@@ -64,6 +64,10 @@ export default defineNuxtConfig({
     '/settings': { noScripts: true },
     // The fifth: a shelf of forms, one button each (ADR 0077 §3).
     '/categories': { noScripts: true },
+    // ⚠️ Since #71 (ADR 0078) `/` is Home, Ingest is here, and More is the
+    // menu that reaches it, Sources, Stats and Settings.
+    '/add': { noScripts: true },
+    '/more': { noScripts: true },
 
     // The refusal page: a message and nothing else (`08` §2.1).
     '/auth/refused': { noScripts: true },

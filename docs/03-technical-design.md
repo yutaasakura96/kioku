@@ -84,11 +84,12 @@ ADR 0020, verification §5.5. Node 20 is out.
 
 ADR 0013 made three screens *places* and two of them *modes*. That split is the reason Nuxt was
 chosen at all, and it is expressed per route. ⚠️ **Four *places* since 2026-10-12**: ADR 0076 §2
-added Settings, which is a form and nothing else.
+added Settings, which is a form and nothing else. ⚠️ **Seven since #71** (ADR 0078): Categories,
+then Home at `/`, More at `/more`, and Ingest at `/add`.
 
 | Route | Rule | Why |
 | --- | --- | --- |
-| Ingest, Sources, Stats, Settings | `routeRules: { noScripts: true }` | A form, a list, five numbers and three settings. They ship no JavaScript at all |
+| Home, Categories, More, Ingest, Sources, Stats, Settings | `routeRules: { noScripts: true }` | A dashboard, forms, a list, five numbers and three settings. They ship no JavaScript at all |
 | *Vet*, *Review* | `routeRules: { ssr: false }` | Client-owned state — a *session* snapshot, an outbox, a keystroke budget |
 
 **Write `routeRules.noScripts` and `features.noScripts`.** `experimental.noScripts` and the route
@@ -322,7 +323,7 @@ integration. So the release step comes first: apply the pending migrations to th
 database, check `drizzle.__drizzle_migrations` to confirm they landed, and only then merge. The
 check is not optional. `0003` to `0005` were once written up as missing from Neon while `0003` was
 already there (`00-status.md` § Done, 2026-09-19). And code that runs ahead of its schema breaks
-*Ingest*, because `/` reads `seed` on every render. The rule does not put migrations in Vercel's build
+*Ingest*, because `/add` (`/` until #71) reads `seed` on every render. The rule does not put migrations in Vercel's build
 command, because that would give the build a database string. It does not put them in a GitHub Actions
 job either, because the Actions secrets belong to a public repository. **Revisit if a migration is ever
 forgotten.** Two things about the step were settled on 2026-09-28 as well:

@@ -269,9 +269,10 @@ estimate. The one visible honesty bit, and it is never placed behind a hover.
 _Avoid_: badge, indicator, icon, dot, confidence marker
 
 **Shell**:
-The persistent frame carrying navigation, present on Ingest, Categories, Sources, Stats and Settings
-and absent from *Vet* and *Review*. What makes those five *places* rather than *modes* (⚠️ four
-until ADR 0077 added Categories, three until ADR 0076 added Settings).
+The persistent frame carrying navigation, present on Home, Categories, More, Ingest, Sources, Stats
+and Settings and absent from *Vet* and *Review*. What makes those seven *places* rather than *modes*
+(⚠️ five until ADR 0078 added Home and More and moved Ingest to `/add`, four until ADR 0077 added
+Categories, three until ADR 0076 added Settings). Welcome, Home's first-visit screen, draws none.
 _Avoid_: chrome, layout, frame, nav
 
 **Mode**:

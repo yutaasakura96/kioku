@@ -87,7 +87,7 @@ const tally = computed(() => {
 
     <!-- `10` §6.2: *what completed, and a resume control*. The line above says
       what completed; this is the rest of the row. -->
-    <form v-if="run.status === 'incomplete'" method="post" action="/" class="resume">
+    <form v-if="run.status === 'incomplete'" method="post" action="/add" class="resume">
       <input type="hidden" name="resume" :value="run.ingestionId">
       <button type="submit" class="affordance">
         <span>Resume</span>

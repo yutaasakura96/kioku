@@ -1,4 +1,4 @@
-// `POST /` carrying a `seed_action` field — *Ingest*'s seed controls, ADR 0070.
+// `POST /add` (`POST /` until #71, ADR 0078) carrying a `seed_action` field — *Ingest*'s seed controls, ADR 0070.
 //
 // ⚠️ **The same path as the submission and the resume, for the resume's
 // reason**: one write surface, one CSRF story (`SameSite=Lax`, `09` §1), and the
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   if (event.method !== 'POST')
     return
 
-  if ((event.path.split('?')[0] ?? '/') !== '/')
+  if ((event.path.split('?')[0] ?? '/') !== '/add')
     return
 
   const session = event.context.session
@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
         requestedBy: session.user.id,
       })
     }
-    return sendRedirect(event, '/', 303)
+    return sendRedirect(event, '/add', 303)
   }
 
   if (action === 'discard') {
@@ -58,6 +58,6 @@ export default defineEventHandler(async (event) => {
       seedId: typeof body?.seed_id === 'string' ? body.seed_id.trim() : '',
       requestedBy: session.user.id,
     })
-    return sendRedirect(event, '/', 303)
+    return sendRedirect(event, '/add', 303)
   }
 })

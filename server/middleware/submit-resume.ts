@@ -1,4 +1,4 @@
-// `POST /` carrying a `resume` field — `10` §6.2's resume control.
+// `POST /add` (`POST /` until #71, ADR 0078) carrying a `resume` field — `10` §6.2's resume control.
 //
 // ⚠️ **The same path as the submission, and on purpose.** ADR 0042 moved the
 // *source* submission to `POST /` because the over-cap refusal has to be
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   if (event.method !== 'POST')
     return
 
-  if ((event.path.split('?')[0] ?? '/') !== '/')
+  if ((event.path.split('?')[0] ?? '/') !== '/add')
     return
 
   const session = event.context.session
@@ -68,5 +68,5 @@ export default defineEventHandler(async (event) => {
     requestedBy: session.user.id,
   })
 
-  return sendRedirect(event, '/', 303)
+  return sendRedirect(event, '/add', 303)
 })

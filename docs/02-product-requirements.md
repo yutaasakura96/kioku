@@ -48,14 +48,14 @@ dashboard half of answer 5 is still #71's:
 | 2 | The quiz asks the meaning, then the reading, back to back | #70 |
 | 3 | A wrong answer is asked again in the same session until it is right | #70 |
 | 4 | A near miss in a meaning is accepted automatically; there is no manual override | #70 |
-| 5 | The scheduler stays (FSRS); a word shows as *Learning*, *Familiar* or *Known* | #70, #71 |
+| 5 | The scheduler stays (FSRS); a word shows as *Learning*, *Familiar* or *Known* | #70, #71 (built 2026-10-14: Home's progress by level) |
 | 6 | *Your level* is the level you have proved, with progress to the next | #72 |
 | 7 | After the placement test, words below your level are marked known and spot-checked | #72 |
 | 8 | The placement test is multiple choice, about three minutes | #72 |
-| 9 | One active *category*, changed from Home | #69, built 2026-10-14 ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). ⚠️ Changed from `/categories`, reached from the screen before a run until #71 builds Home |
+| 9 | One active *category*, changed from Home | #69, built 2026-10-14 ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Changed on `/categories`, reached from Home's *Change category* since #71 ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)) |
 | 10 | Five words a lesson and ten a day, adjustable in settings | #70 |
 | 11 | Own words and imported decks are their own *categories*, looked up in the dictionary first | #68 (the lookup), #69 (built 2026-10-14) |
-| 12 | The dashboard is about right as prototyped | #71 |
+| 12 | The dashboard is about right as prototyped | #71, built 2026-10-14 ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)) |
 
 ⚠️ **Three of these go against a story below, and the story is the one that gives way when its
 ticket is built**: answer 2 reverses the order ADR 0060 set (reading first), answer 3 changes what
@@ -63,8 +63,10 @@ a wrong answer does in a *session* (`S7`), and answer 4 removes the synonym a re
 (ADR 0069 §2). Until #70 they are as built. ⚠️ **#70 is built (2026-10-12) and all three gave
 way**: `S7` below carries the amended acceptance.
 
-⚠️ **Not settled:** where *Vet*, *Sources* and *Stats* live once there is a Home. The prototype has
-no place for them and #67 lists it as to be discussed.
+~~⚠️ **Not settled:** where *Vet*, *Sources* and *Stats* live once there is a Home. The prototype has
+no place for them and #67 lists it as to be discussed.~~ ⚠️ **Proposed by #71 (2026-10-14,
+[ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md) §3): under More**, with
+Ingest, *Settings* and the export. None is removed. **Home is `/` and Ingest is `/add`.**
 
 ---
 

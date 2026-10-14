@@ -1,5 +1,10 @@
 # The landing route is Ingest, and never a decision about data
 
+⚠️ **Superseded 2026-10-14 by [ADR 0078](0078-home-is-the-landing-place-and-more-holds-the-rest.md)
+(#71).** The revisit condition below came true with ADR 0075: the words are already there and the
+reader signs in to study. `/` is Home, and Ingest is `/add`. The chooser this ADR refused stays
+refused: Home is one *place* drawing Welcome or the dashboard, and redirects nowhere.
+
 **`/` is Ingest.** `08` §2's `callbackURL: "/"` puts the reader on the paste box, on the first
 sign-in and on every one after it. The landing route inspects nothing — not the *pending* count, not
 what is due, not whether a *source* exists — and there is no redirect chooser behind it.

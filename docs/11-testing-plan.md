@@ -261,7 +261,8 @@ grep for `<script`. **It stops being an experiment**, because the tool makes it 
 Three assertions, in `test/e2e/`, and it was always three rather than one:
 
 1. **A *place* ships no JavaScript.** `expect(await $fetch('/')).not.toContain('<script')`, for `/`,
-   `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and `/auth/refused`.
+   `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and `/auth/refused` — ⚠️ and, as
+   built, every entry of `PLACES` (`shared/utils/origin.ts`), seven since #71 (ADR 0078).
 2. ⚠️ **A *mode*'s Done control is a real anchor.** The rendered `/vet` contains an `<a href>` to the
    origin, and following it lands on a *place* that itself contains no `<script>`. This is the
    `external` prop (ADR 0032, verification §12.1) — **a bare `<NuxtLink>` fails this test and
@@ -674,7 +675,8 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   zero composes due-only, a short due half is not backfilled past the allowance, fifty due shuts the
   gate and forty-nine does not, and a backlog larger than the run is taken least-retrievable first.
   Removing the gate or the retrievability order reddens both the unit and the schema tier.
-- **The `from` allowlist.** Three strings; anything else falls back to `/` (ADR 0032). ⚠️ Test the
+- **The `from` allowlist.** Three strings (⚠️ seven since #71, ADR 0078: `PLACES` in
+  `shared/utils/origin.ts`); anything else falls back to `/` (ADR 0032). ⚠️ Test the
   attacks: `//evil.com`, `https://evil.com`, `/vet`, `/stats/../../x`, empty, absent.
 - **The grade validator** — `03` §8.2's future-skew and before-snapshot rules, as a pure function.
   ⚠️ **Built 2026-09-12 with #13** — `shared/review/stamp.ts` and `test/unit/review-stamp.test.ts`.

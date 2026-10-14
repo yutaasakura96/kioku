@@ -33,13 +33,16 @@ import { statsData } from '../utils/stats/queries'
 import { readerZone } from '../utils/review/queries'
 import { readLimits } from '../utils/review/settings'
 import { categoryShelf } from '../utils/category/queries'
+import { homeData } from '../utils/home/queries'
 import { useDatabase } from '../db'
+import { PLACES } from '../../shared/utils/origin'
 
 /**
- * The *places* — `10` §3, ADR 0013; `/settings` is the fourth (ADR 0076 §2) and
- * `/categories` the fifth (ADR 0077 §3).
+ * The *places* — `10` §3, ADR 0013; `/settings` is the fourth (ADR 0076 §2),
+ * `/categories` the fifth (ADR 0077 §3), and since #71 (ADR 0078) `/` is Home,
+ * Ingest is `/add` and `/more` is the menu.
  */
-const SHELL_PATHS = new Set(['/', '/categories', '/sources', '/stats', '/settings'])
+const SHELL_PATHS = new Set<string>(PLACES)
 
 /** `/sources/:id` carries the *shell* too — ADR 0013, `09` §2. */
 const SHELL_PREFIX = '/sources/'
@@ -83,6 +86,7 @@ export default defineEventHandler((event) => {
     zone: () => readerZone(db, ownerId),
     limits: () => readLimits(db, ownerId),
     categories: () => categoryShelf(db, ownerId),
+    home: () => homeData(db, ownerId, new Date()),
     sourceDeletion: (id: string) => sourceDeletion(db, id),
     // ⚠️ **The zone is the one the newest *session* stored** (#21). `/stats`
     // ships no JavaScript (ADR 0020), so it cannot ask; the *session* request
