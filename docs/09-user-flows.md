@@ -63,6 +63,7 @@ what happens and in what order; that one says what it is made of.
 | `/sources/:id/delete` | The delete confirmation (§4.11) | `noScripts: true` | No |
 | `/stats` | **Stats** — the *place* | `noScripts: true` | No |
 | `/settings` | **Settings** — the *place* (ADR 0076 §2, #70): three study settings | `noScripts: true` | No |
+| `/categories` | **Categories** — the *place* (ADR 0077 §3, #69): choose new words | `noScripts: true` | No |
 | `/vet` | ***Vet*** — the *mode* | `ssr: false` | No |
 | `/review` | ***Review*** — the *mode* | `ssr: false` | No |
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
@@ -71,6 +72,7 @@ what happens and in what order; that one says what it is made of.
 | ⚠️ `/` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`** — see below | Nitro middleware, then the *place* | No |
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
 | `/api/settings` | `POST` — store the three study settings, clamped (ADR 0076 §2) | Nitro | No |
+| `/api/category` | `POST` — choose the active *category* (ADR 0077 §3) | Nitro | No |
 | `/api/export` | `GET` — `S12`'s export (§4.12) | Nitro | No |
 | `/api/vetting/**`, `/api/review/**` | The two *modes*' data and outbox endpoints | Nitro | No |
 
@@ -86,6 +88,9 @@ validation failure to re-render, because nothing is refused: a value out of rang
 page shows what was kept. On a validation failure they answer `200` with the form
 re-rendered and the submitted text still in it, because a redirect would throw away a paste the
 reader cannot get back (§4.2).
+
+⚠️ **Since #69 there are five *places***: `/categories` also posts a form to choose the active
+*category*. Its `303` destination and invalid-key case are in §4.7.
 
 ⚠️ **Amended 2026-09-11, while building #6 — the submission is `POST /`, not `POST /api/source`.**
 The row above said the latter, and the paragraph it sits under is why it could not be: a validation
@@ -415,8 +420,8 @@ the summary's way back.
    asked for (§6). Otherwise the server composes the run that was asked for, or none.
 3. **A review run** is the due *cards*, least remembered first when they do not all fit, up to the
    *session* size. **A lesson** is new words up to the lesson size, as far as the brake allows: the
-   reader's own unscheduled *cards* first, then starter words not yet started, easiest *level*
-   first. ⚠️ **Since #69 both are of the reader's active *category* only** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), and
+   reader's own unscheduled *cards* first, then words not yet started in a fixed shuffle.
+   ⚠️ **Since #69 both are of the reader's active *category* only** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), and
    a *category* is one *level* or one shelf under *My decks*. **The lesson accepts and mints the starter words it holds, in the transaction that writes
    the run** (`04` §7.6, §7.7). `snapshot_taken_at` is stamped server-side as before.
 4. **With no run, the screen says what is waiting**: how many reviews, how many new words a lesson

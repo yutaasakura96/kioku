@@ -903,10 +903,9 @@ would widen it by whatever Vercel and Neon disagree by. The rule itself is a pur
 | Auth session | Postgres + cookie | Postgres | Database sessions, 7 days, sliding |
 | The current *session* snapshot | `localStorage` | Postgres | A bounded cache, not a replica |
 | The *grade* outbox | `localStorage` | Postgres, after replay | Append-only, in order, never merges |
-| Ingest / Sources / Stats client state | — | — | **There is none.** They ship no JavaScript |
+| *Places*' client state | — | — | **There is none.** Ingest, Sources, Stats, Settings and Categories ship no JavaScript |
 
-The last row is the point of ADR 0013 and §2.1. Three of the five screens have no client state to
-manage because they have no client.
+The last row is the point of ADR 0013 and §2.1: *places* have no client state to manage.
 
 ---
 
@@ -1089,7 +1088,7 @@ Node **24.x**, built with the **`vercel`** Nitro preset, and the address is
 
 ### 13.2 How input is validated, and where
 
-**Server-side, always. Three of the five screens have no client to validate on** (§2.1), which
+**Server-side, always. The *places* have no client to validate on** (§2.1), which
 makes the usual mistake structurally impossible.
 
 - **Route protection is Nitro server middleware.** Every route, including every API route, resolves

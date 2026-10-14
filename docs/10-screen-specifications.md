@@ -891,15 +891,11 @@ due"). The Done cluster is in the header in both.
 
 There is no ahead-of-schedule study in v1 (PRD §5), so neither state offers a way to start one.
 
-⚠️ **Amended 2026-09-17 with #22:** when the request that produced *Nothing due* carried a filter,
-the body reads `There is no ahead-of-schedule study, and no new card matches the filter.` — because
-it is then true of the filter and may not be true of the pool.
-
 ⚠️ **Amended 2026-09-18 with #21: the two states are three** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md) §7).
 
 | | Statement | Body | After the rule |
 | --- | --- | --- | --- |
-| **The brake held words back** | `No new words today.` | `10 of 10 new words today. Nothing is due, and the next ones arrive after 04:00.` | The next-due datum when there is one, then the knob and the filter |
+| **The brake held words back** | `No new words today.` | `10 of 10 new words today. Nothing is due, and the next ones arrive after 04:00.` | The next-due datum when there is one, then the knob |
 
 It is shown when new *cards* are waiting, nothing is due and the day's ten are spent. **Read as
 *Nothing due* it would be true, and it is the one sentence that makes the brake look like a bug.** It
@@ -927,34 +923,8 @@ knob has nowhere to live before a *session* exists. Twenty is the default and th
 at the end of the first run. This is a stated cost, not a gap to patch with a knob on Ingest — the
 knob belongs to *Review* and a *place* would have to reach into a mode's state to carry it.
 
-⚠️ **Everything below in this section was removed on 2026-10-14 with
-[#69](https://github.com/yutaasakura96/kioku/issues/69)**: the active *category* replaced the
-*session* filter ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), and its line is in §5.0. Kept as the record of what
-the filter was.
-
-⚠️ **Amended 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22): the *session*
-filter shares the knob's three homes and sits directly beneath it**
-([ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md) §5).
-This is what #22 calls *Review*'s start: the three screens a *session* is started from.
-
-| | Value |
-| --- | --- |
-| Groups | `DOMAIN`, then `LEVEL`, each a `fieldset` whose legend is the knob's eyebrow (10px Plex Mono, 0.14em, `--k-ink-secondary`) |
-| Options | One checkbox per value of the *subject*'s `domains` and `levels`, in declaration order — **nothing names a value here**. 12px Plex Mono, `--k-ink-value`, `8px` between box and word |
-| Aside | 13px italic, `--k-ink-secondary`: `New cards only. Every card that is due is still in the session, and nothing ticked means everything.` |
-| Gap | `32px` below the knob, as the knob is below what precedes it |
-
-⚠️ **It filters the new half only** and says so, because the due half is never filtered: what is owed
-is owed. ⚠️ **Nothing ticked is no filter**, and within a group the values are alternatives — `tech`
-and `business` is either — while the two groups restrict together.
-
-⚠️ **Not persisted.** It lives in the page's memory; a reload is an unfiltered start. A filter that
-survived would be a saved query, which is a *deck* (ADR 0009). The first-ever *session* carries no
-filter for the knob's own reason.
-
-⚠️ **`space` on a checkbox ticks it.** The controls are inside the mode container, so their key events
-reach the handler that starts a *session*; that handler ignores `space` from a form control
-(`test/e2e/review.test.ts`).
+⚠️ **The *session* filter was removed with #69.** ADR 0065 §5 records its earlier design;
+[ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1 owns the active *category* rule.
 
 ### 5.9 *Review*'s loading and error states
 

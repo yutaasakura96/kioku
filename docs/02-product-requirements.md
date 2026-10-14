@@ -329,10 +329,8 @@ Deliberately absent: a home screen, a settings screen, and a *card* browser. The
 because a browser without a query language is a list, and the query language is L2.
 
 ⚠️ **Overturned 2026-10-10 ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-comes-from-a-list.md)).** The missing home screen is what the owner's review named
-first. Welcome and Home (#71), the *category* screen (#69), lessons (#70), a word list and the
-placement test (#72) are coming, and answer 10 in §0 asks for a settings screen. **The five above
-are still the five that exist** until those tickets land. ⚠️ **Seven since 2026-10-14**: #70 added
-Settings and #69 added Categories.
+first. Welcome and Home (#71), a word list and the placement test (#72) are coming. Lessons and
+Settings (#70), and Categories (#69) have since arrived; `10` §1 owns the current screen inventory.
 
 ---
 

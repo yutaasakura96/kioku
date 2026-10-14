@@ -398,8 +398,8 @@ about who is calling, and this route's caller is a reader. Every other `/api/**`
 `401`, and must: §5.6's outbox depends on it.
 
 `S1` says refused at **every** route including the ingest endpoint, and `03` §13.2 says route
-protection is Nitro server middleware with no client guard anywhere to bypass. Three of the five
-screens have no client to guard on, which makes the usual mistake structurally impossible rather
+protection is Nitro server middleware with no client guard anywhere to bypass. The *places* have
+no client to guard on, which makes the usual mistake structurally impossible rather
 than merely avoided.
 
 ### 6.4 ⚠️ Three route rules are now forbidden on the *places*
