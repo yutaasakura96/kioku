@@ -125,6 +125,12 @@ describe('estimateLevel', () => {
     expect(estimate).toMatchObject({ level: 'N5', next: 'N4', source: 'placement' })
   })
 
+  it('stops placed-out levels below a disproved N4 after placing at N3', () => {
+    const estimate = estimateLevel([evidence('N4', 50, 0.6)], { kind: 'test', level: 'N3' })
+
+    expect(estimate.placedOut).toEqual(['N5'])
+  })
+
   it('does not hold an unanswered easier level against a proved harder one', () => {
     expect(estimateLevel([evidence('N4', 60, 0.9)], null)).toMatchObject({ level: 'N4', next: 'N3' })
   })

@@ -164,7 +164,7 @@ export function estimateLevel(
 
   const placedOut = placement
     ? knownLevels(placement.level, levels).filter(known =>
-        covered.includes(known) && rows.find(row => row.level === known)?.status !== 'disproved')
+        covered.includes(known) && levels.indexOf(known) <= index)
     : []
 
   return {
