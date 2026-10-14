@@ -31,9 +31,12 @@ const PUBLIC_ROUTES = ['/auth', '/auth/refused', '/api/auth/**']
 // not arrive as a default when `S11` builds it.
 // ⚠️ `/settings` added 2026-10-12 by #70 (ADR 0076 §2): a form of three numbers,
 // posted and redirected, with no client.
-const SCRIPT_FREE_ROUTES = ['/', '/sources', '/sources/**', '/stats', '/settings', '/auth/refused']
+// ⚠️ `/categories` added 2026-10-14 by #69 (ADR 0077 §3): a shelf of forms with
+// one button each, posted and redirected the same way.
+const SCRIPT_FREE_ROUTES = ['/', '/categories', '/more', '/add', '/sources', '/sources/**', '/stats', '/settings', '/auth/refused']
 
-const MODES = ['/vet', '/review']
+// ⚠️ `/placement` added by #72 (ADR 0079 §1): the placement test, a third *mode*.
+const MODES = ['/vet', '/review', '/placement']
 
 let config: Awaited<ReturnType<typeof loadNuxtConfig>>
 let routeRules: Record<string, Record<string, unknown>>
@@ -52,7 +55,7 @@ describe('route rules', () => {
     // A subset assertion, not an exact one: #6 adds `/sources/:id` and
     // `/sources/:id/delete` with rules of their own, and a test that counts
     // route rules would fail on a correct addition.
-    for (const route of ['/', '/sources', '/sources/**', '/stats', '/settings', '/vet', '/review', '/auth', '/auth/refused'])
+    for (const route of ['/', '/categories', '/more', '/add', '/sources', '/sources/**', '/stats', '/settings', '/vet', '/review', '/placement', '/auth', '/auth/refused'])
       expect(routeRules, `${route} has no route rule`).toHaveProperty([route])
   })
 
@@ -73,7 +76,7 @@ describe('route rules', () => {
       expect(routeRules[route]).toMatchObject({ noScripts: true })
   })
 
-  it('renders both modes client-side', () => {
+  it('renders every mode client-side', () => {
     for (const mode of MODES)
       expect(routeRules[mode]).toMatchObject({ ssr: false })
   })

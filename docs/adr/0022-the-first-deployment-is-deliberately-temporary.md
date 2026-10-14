@@ -313,6 +313,9 @@ re-measure: no hosting change and no paid plan.** Two fixes were built and one w
   `.catch()`, so its stub throws like a missing package. `pg` requires `pg-native` lazily, the
   bundler hoists that require to the top of the server, and a stub that throws there is a server
   that does not start, so that one is an empty module. Nothing reads `pg.native`.
+  ⚠️ **Not under `nuxt dev`** (2026-10-15): the dev server is one file with every dynamic import
+  inlined, so the `@opentelemetry/api` stub ran at boot and every page answered `500`. A
+  `nitro:config` hook keeps `nuxt dev` on externals without that alias; a build is untouched.
 - **`public/favicon.ico` exists.** Without it the framework answered every favicon request with a
   78-byte placeholder, invoking the function for each such request. Under the `vercel` preset the file
   lands in the static output, ahead of the function. It is 記 in Shippori Mincho, ink on ground,

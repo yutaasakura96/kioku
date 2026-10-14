@@ -151,6 +151,9 @@ of who is asking. *Personal* is a statement about one reader.
 | `review_session_card` | **personal** | `owner_id` | The snapshot's membership |
 | `card_flag` | **personal** | `owner_id` | A judgement that a card is wrong |
 | `study_setting` | **personal** | `owner_id` | How much one reader wants to be new each day (ADR 0076 §2, §7.10) |
+| `active_category` | **personal** | `owner_id` | Which *category* one reader's new words come from (ADR 0077 §2, §7.11) |
+| `placement` | **personal** | `owner_id` | Where one reader was placed (ADR 0079 §1, §7.12) |
+| `placement_check` | **personal** | `owner_id` | Which words a placement spot-checks (ADR 0079 §4, §7.13) |
 
 ⚠️ **A column that references a user does not make an entity personal.** `ingestion.submitted_by` and
 `job.requested_by` exist for the audit line and are nullable; the label asks what the row *asserts*,
@@ -487,9 +490,11 @@ authority_key)` and an index on `note_id` — §5.6's three, word for word.
 the *session* filter is that query. ⚠️ **Not merged with `level_claim` into one table either**:
 ADR 0065 names the third attribute as the moment to generalise.
 
-**The query it serves** is *Review*'s new half: a *card* is introduced by a filtered *session* only
-if its *note* has a claim in the requested set (`server/utils/review/queries.ts`, ADR 0065 §5). A
-*note* with no claim matches no filter.
+**The query it served** was *Review*'s new half: a *card* was introduced by a filtered *session* only
+if its *note* had a claim in the requested set (ADR 0065 §5). ⚠️ **Nothing asks that since
+2026-10-14** (#69, [ADR 0077](adr/0077-the-reader-has-one-active-category.md)): the active *category* replaced the filter, and a *category* reads
+`level_claim` and `occurrence`. The claims are still written and *Vet*'s strip still shows them; the
+query comes back with topic *categories*.
 
 **Example:** `(…, note 019bd3…, null, 'tech', 'claude-sonnet-5', 'v3')`.
 
@@ -990,7 +995,8 @@ a *memory-bearing field* (`reading` or `meaning` for `jlpt-vocab`) supersedes th
 *card* of the *note*, with `superseded_reason = 'memory_bearing_field_changed'`, and inserts ordinal
 n+1 in `ts-fsrs`'s new state, due now (`server/utils/review/epoch.ts`). An edit to any other field,
 or a commit that changes no value, leaves the epoch alone. A *card* with no live epoch gets none,
-because its first epoch belongs to the *grade*. ⚠️ **Every reader's *card* is reset, not only the
+because its first epoch belongs to the *grade*. ⚠️ **One exception since #72**: a word a placement
+spot-checks gets its first epoch from the placement (§7.13, ADR 0079 §4). ⚠️ **Every reader's *card* is reset, not only the
 editor's**, because `note.fields` is shared. That is unreachable while ADR 0012 invites one reader.
 ⚠️ **Only `meaning` is reachable from the screen today**: `10` §4.4's edit reaches the *judgement
 fields*, and `reading` is a *lookup* field.
@@ -1239,6 +1245,68 @@ the way out as well, so every reader of this table goes through it
 
 **Example:** `('usr_7f…', 5, 10, 50, 2026-10-12T07:00:00Z)` is a reader who saved the defaults.
 
+### 7.11 `active_category`
+
+⚠️ **Added 2026-10-14 with [#69](https://github.com/yutaasakura96/kioku/issues/69), migration
+`0014_active_category`.** [ADR 0077](adr/0077-the-reader-has-one-active-category.md) §2: the one *category* a reader's new words come from.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `owner_id` | `text` | no | — | PK. → `auth."user".id`, `RESTRICT` |
+| `category_key` | `text` | no | — | `jlpt:N4`, `deck:<source id>` or `my-words` (`shared/category/category.ts`) |
+| `chosen_at` | `timestamptz` | no | `now()` | Moved by each choice |
+
+**One row a reader, and none until they choose.** A reader with no row studies the first declared
+*level*, and nothing is written on a read. ⚠️ **A key and not a foreign key**: a *category* is
+derived and has no table (§13), and `deck:<source id>` must outlive the deck — a deleted *source* is
+soft-deleted (§10), and its key is then read as no row, so the reader is back at the first *level*.
+The key is checked against the database when it is written (`server/utils/category/active.ts`), and
+no `CHECK` restates the declaration's levels, for §13's reason.
+
+⚠️ **Not a column on `study_setting`.** That table writes nothing until the reader saves the
+settings form, so its defaults live in one place; a row inserted to hold a *category* would freeze
+three of them.
+
+**The query it serves** is a lesson's: `newCards` and `unstartedNotes` read the *category* and take
+only its words. The due read does not join it.
+
+**Example:** `('usr_7f…', 'jlpt:N4', 2026-10-14T07:00:00Z)`.
+
+### 7.12 `placement`
+
+⚠️ **Added 2026-10-15 with [#72](https://github.com/yutaasakura96/kioku/issues/72), migration
+`0015_placement`.** [ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md) §1: where the
+reader was placed, by the test or by Welcome's *Start at*.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `uuid` | no | `uuidv7()` | PK |
+| `owner_id` | `text` | no | — | → `auth."user".id`, `RESTRICT` |
+| `subject_id` | `text` | no | — | The *subject* placed in. No foreign key, as `note.subject_id` has none |
+| `kind` | `text` | no | — | `CHECK (kind IN ('test','declared'))` |
+| `level` | `text` | yes | — | The level placed at. **Null is a test that placed at none**, which is still a placement |
+| `placed_at` | `timestamptz` | no | `now()` | |
+
+**One row per placement, and the newest in the current *subject* stands.** A retake adds a row.
+Index `(owner_id, placed_at)` serves that read.
+
+### 7.13 `placement_check`
+
+⚠️ **Added 2026-10-15 with #72, migration `0015_placement`.** ADR 0079 §4: the words a placement
+chose to spot-check.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `placement_id` | `uuid` | no | — | → `placement`, `CASCADE`. PK with `note_id` |
+| `note_id` | `uuid` | no | — | → `note`, `RESTRICT` |
+| `owner_id` | `text` | no | — | → `auth."user".id`, `RESTRICT` |
+| `level` | `text` | no | — | The *level* the word was checked as |
+
+⚠️ **A *note*, not a *card*.** The reader's *card* for it is found by owner and *note*, and a
+`RESTRICT` reference to `card` would be one more thing in `S11`'s way for a row that is a label.
+⚠️ **The *card*'s first `scheduling_epoch` is written by the placement**, not by a *grade*: Review
+state, stability 21 days, due on its check day (§7.4's one exception, `knownEpoch`).
+
 ---
 
 ## 8. The four tables Better Auth owns
@@ -1313,6 +1381,8 @@ default.** Each one below was chosen.
 | `card_flag` → `card`, `note` | `RESTRICT` | |
 | `card_flag` → `source` | `SET NULL` | The actionable half — prompt version and model id — is denormalised and survives |
 | `card_flag` → `review_session` | `SET NULL` | |
+| `placement_check` → `placement` | `CASCADE` | Which words a placement checks means nothing without it |
+| `placement_check` → `note` | `RESTRICT` | |
 | **every** `owner_id` → `auth."user".id` | **`RESTRICT`** | §3. The user row cannot be deleted while any history references it |
 | `ingestion.submitted_by`, `job.requested_by`, `seed.requested_by` → `auth."user".id` | `SET NULL` | Audit lines. ⚠️ `job.requested_by` also owns what its run mints (§4, amended), and a null one mints nothing |
 
@@ -1485,7 +1555,7 @@ argued somewhere else.
   `occurrence` rows of one live `anki` *source*, and *My words* is those of every other live
   *source*. A stored value would be a second copy of those rows, could hold one where a word is in
   several, and would have to be rewritten whenever the list is refreshed. ⚠️ **The reader's one
-  active *category* is a fact about the reader and will need a row somewhere; that is #69's.**
+  active *category* is a fact about the reader and is a row**: `active_category`, §7.11 (#69).
 - **A queue table separate from `job`.** `ingestion_chunk` is the per-chunk queue and `job` is the
   per-run one; a third would be a queue service with extra steps (ADR 0015).
 - **A sessions table for auth.** Better Auth owns it (§8).

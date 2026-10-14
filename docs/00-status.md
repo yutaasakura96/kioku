@@ -7,7 +7,9 @@ sentence is history** ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-
 whose words are already there, from open data, and building a deck from your own material is a
 tucked-away option.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**76 ADRs** — ⚠️ **ADR 0076, new words are taught in a lesson and a miss is asked again, added
+**78 ADRs** — ⚠️ **ADR 0078, Home is the landing place and More holds the rest, added 2026-10-14**
+with #71, and ADR 0077, one active *category*, the same day with #69 (this said *76* until then,
+one behind the directory from #69). ⚠️ **ADR 0076, new words are taught in a lesson and a miss is asked again, added
 2026-10-12** with #70 (this said *75* until then). ⚠️ **ADR 0075, the words are ready-made and a level comes from a list, added
 2026-10-10** with #68 (this said *74* until then). ⚠️ **ADR 0074, the app ships its own faces, added 2026-09-25** (this said *70* from
 2026-09-21 until then, three ADRs behind the directory). ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
@@ -126,7 +128,7 @@ quiz, and reviewed a prototype of it the same day (`docs/prototype/`).
 [#68](https://github.com/yutaasakura96/kioku/issues/68), the data under it, is built (§ Done):
 **a starter set of 8,273 JLPT words from JMdict and Jonathan Waller's lists, a *level* that comes
 from the list, derived *categories*, a dictionary lookup in front of the model, and a corpus that
-starts again under `jlpt-vocab-2` with nothing deleted.** ⚠️ **None of it is on production**: the
+starts again under `jlpt-vocab-2` with nothing deleted.** ~~⚠️ **None of it is on production**~~ (⚠️ **released 2026-10-14**, § Done): the
 migration, the load and the release are Yuta's (§ Next). ⚠️ **And nothing above this paragraph was
 rewritten for it** — where an earlier paragraph says what the app is for, ADR 0075 is the newer word.
 
@@ -135,16 +137,136 @@ lessons** (§ Done, [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-m
 A new word is taught in a lesson of five before it is asked, the quiz asks the meaning and then the
 reading, a miss comes back until it is right and still counts, a near miss in a meaning passes and
 nothing overrules the check, and the three limits are settings on a fourth *place*. **The starter
-words can now be studied**: a lesson accepts and mints the ones it teaches. ⚠️ **Migration `0013` is
-not on production, and neither is any of #68** (§ Next). The frontier is #69, then #71 and #72.
+words can now be studied**: a lesson accepts and mints the ones it teaches. ~~⚠️ **Migration `0013` is
+not on production, and neither is any of #68**~~ (§ Next). ⚠️ **Released 2026-10-14** (§ Done). ~~The frontier is #69, then #71 and #72.~~
 
-**Updated:** 2026-10-12 (⚠️ this said 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
+⚠️ **2026-10-14: #73, #68 and #70 are on production** (§ Done). Migrations `0011`, `0012` and `0013`
+are applied to Neon, the starter set is loaded there, and `develop` at `aa3ea74` is merged into
+`main` and deployed. ⚠️ **From this deploy the earlier *cards* are out of every screen** (ADR 0075
+§1); nothing was deleted. **Still Yuta's**: the worker restart on the released code, and the
+signed-in look at the live site.
+
+⚠️ **2026-10-14: [#69](https://github.com/yutaasakura96/kioku/issues/69) is built — one active
+*category*** (§ Done, [ADR 0077](adr/0077-the-reader-has-one-active-category.md)). New words come from the
+*category* the reader chose and from nowhere else, reviews mix everything, and the choice is made on
+`/categories`, a fifth *place*, reached from the screen before a run. **The *session* filter is
+gone.** ⚠️ **Migration `0014_active_category` is additive and is not on production**; it is Yuta's
+to apply before this is released (§ Next). The frontier is #71, then #72.
+
+⚠️ **2026-10-14: [#71](https://github.com/yutaasakura96/kioku/issues/71) is built — Welcome and
+Home** (§ Done, [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). **`/` is
+Home**, Welcome on a first visit and the prototype's dashboard after it; **Ingest is `/add`**; the bar
+is Home, Categories and More, and *Vet*, *Sources*, *Stats* and *Settings* are under More. No
+migration. The frontier is #72.
+
+**Updated:** 2026-10-15 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-12, latest — [#70](https://github.com/yutaasakura96/kioku/issues/70): the quiz with
+**2026-10-15, latest — `npm run dev:session` serves pages again.** Built on `fm/kioku-dev-500` from
+`develop` at `c8af2a1`. ADR 0022 § Amended 2026-10-10 owns the production and dev bundling
+distinction. `test/e2e/dev-server.test.ts` checks the door signed out and ten routes signed in under
+`nuxt dev`; all eleven failed before the fix and passed after. The production build was compared
+before and after the fix. In a browser on `dev:session`, Home, a lesson's first word,
+`/categories` and `/placement` rendered without a console error.
+
+**2026-10-15 — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
+and the placement test** ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)). Built
+on `fm/kioku-72` from `develop` at `d220529`. **Migration `0015_placement`, additive**: two tables,
+`placement` and `placement_check`, nothing dropped; to be applied to production before the release
+that carries it, by `03` §4.2's procedure.
+The test, estimate and spot-check rules are in ADR 0079; `09` §1 owns their routes and `10` §1
+owns the screen inventory.
+
+**2026-10-14 — [#71](https://github.com/yutaasakura96/kioku/issues/71): Welcome and the
+dashboard** ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). Built on
+`fm/kioku-71` from `develop` at `8867f7e`. No migration.
+- **`/` is Home, and Ingest moved to `/add`**, with its three `POST` middlewares and their `303`s.
+  ⚠️ **ADR 0031 is superseded**: the words are already there, so the landing is what is waiting
+  today. Home reads one thing to choose between two screens and redirects nowhere.
+- **Welcome** (`WelcomeScreen.vue`) is drawn when the reader has no `active_category` row and has
+  never composed a run in this *subject*: what Kioku is, the three steps, and one form a *level*
+  posting to `/api/category`, which answered `303` to `/` at #71. **#72 replaced that form with
+  `/api/placement/declare` and added *Find my level*** (ADR 0079 §1). No *shell*; the sources'
+  acknowledgement is its fine print, and stays in the *shell*'s footer.
+- **The dashboard is the prototype's `vHome`**: *Today*, the *Reviews* and *Lessons* cards (links with
+  `?start=`, so no start block on Home), the *category* line moved here from `/review`, the level card
+  with no estimate at #71 (filled by #72, ADR 0079 §3), *Coming up*, *Last 14 days*, *Progress by
+  level* and *Weak words*. The arithmetic is `shared/home/dashboard.ts`; the read is
+  `server/utils/home/queries.ts`. ⚠️ **The
+  weak-word rule (missed twice, still *Learning*) is this ticket's and is not measured.**
+- **More, a seventh *place*** (`/more`), holds Add, *Settings*, *Vet* with its flagged count,
+  *Sources*, *Stats*, the export and the door. ⚠️ **#71's open question, answered: under More, none
+  removed** (ADR 0078 §3). The bar is Home, Categories and More, with tabs at the foot below 720px.
+- ⚠️ **Not drawn, because their screens do not exist**: *Words* in the bar and the links to it, and
+  *Practise these*.
+- **Checked in a browser** on a production build against a throwaway PGlite database with the
+  starter set loaded (`npm run dev:session` did not start at the time): Welcome, *start at N5*
+  landing on Home's day one, a lesson of five through the quiz with a miss asked again, Home with
+  seeded history (two due, *Coming up*, the fourteen days, two weak words), choosing N4 on
+  `/categories` landing on Home naming it, More, `/add`, and Welcome and Home at phone width with no
+  horizontal scroll. No `<script>` on any of them and no console message.
+
+**2026-10-14, latest — [#69](https://github.com/yutaasakura96/kioku/issues/69): choose what to study
+by category** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Built on `fm/kioku-69` from
+`develop` at `27bc8d7`.
+- **A lesson draws from the reader's active *category* and from nowhere else.** `newCards` and
+  `unstartedNotes` take a *category* and apply #68's `noteInCategory`; the due read takes none, so a
+  review run is every due *card* whichever *category* its word is in.
+- **The choice is one row**, `active_category (owner_id, category_key, chosen_at)`, migration
+  `0014_active_category`, additive. No row is the first declared *level*, and so is a row whose deck
+  was deleted. ⚠️ **Not a column on `study_setting`**, which writes nothing until the settings form
+  is saved.
+- **`/categories` is a fifth *place***, the prototype's screen: the five JLPT *levels*, *Topics ·
+  coming later* as it was reviewed, and *My decks* with a row per imported deck and one for *My
+  words*. Each row has its words, how many are learned and a bar of the three stages; the active one
+  says *New words come from here* and every other has one control. It is second in the nav.
+- **Choosing posts a form** to `POST /api/category` and lands on `/review`'s screen before a run,
+  which now says *New words come from JLPT N4 · Change category*. ⚠️ **The prototype puts that line
+  on Home.** Home is #71's, and that screen is where ADR 0076 §8 already put Home's two controls
+  until then; the line moves with it.
+- **The *session* filter is removed** (ADR 0065 §5): its checkboxes, `shared/review/filter.ts`, the
+  filter on the *session* request and the one every answer carried. `domain_claim` is still written
+  and now read only by *Vet*'s strip.
+- **A finished *category* says so by name**: *There are no new words left in JLPT N5.* The app does
+  not move the reader on.
+- **Four tokens**, the prototype's stage ramp, which ADR 0076 had left out (`05` §2).
+- **Checked in a browser** on a production build against a throwaway PGlite database with the
+  starter set loaded, because `npm run dev:session` did not start at the time: the shelf with the
+  real counts, choosing N4, the screen before a run naming it, a lesson of five words all N4, three
+  reviews still due with a deck active and that deck's one word as the lesson, the shelf's bar after
+  three *grades*, and both screens at phone width. No console message.
+- ⚠️ **Not done, and Yuta's**: applying `0014` to production before this is released (§ Next).
+
+**2026-10-14, latest — the release of #73, #68 and #70: `develop` at `aa3ea74` into `main`**
+([PR #80](https://github.com/yutaasakura96/kioku/pull/80), merge commit `61df90e`). Yuta's go-ahead
+the same day. `03` §4.2's procedure, from a clean clone of `aa3ea74` with no root `.env`:
+- **A restore point first**: Neon branch `pre-release-2026-10-14` of `main`, taken before anything
+  was applied. It is Yuta's to delete once the release has settled.
+- **`drizzle.__drizzle_migrations` read before**: eleven rows, `0000` to `0010`, each hash the
+  SHA-256 of its file.
+- **Three migrations applied, not two**: `0011_starter_set`, `0012_keen_zuras` and `0013_lessons`.
+  ⚠️ **§ Next's release list named `0011` and `0013` only.** `0012` adds
+  `vetting_session.subject_id`, nullable, and is additive like the other two. Read back: fourteen
+  rows, and the column, table, checks and index each migration adds.
+- **The starter set loaded** with `npm run starter:load`: N5 684, N4 640, N3 1,730, N2 1,811,
+  N1 3,408; 8,273 *notes* created, none already there. ADR 0075 §4's table, row for row.
+- **The string came from the signed-in `neon` CLI**, the direct one, injected into each command and
+  written nowhere. ⚠️ **Not `op run`**, which `03` §4.2 names (amended there).
+- **Checked before the merge on a build with the Vercel preset**, because previews are off and
+  Vercel had never built `develop`: `server/stubs/not-installed.mjs` lands in its own chunk behind
+  one dynamic import inside a `.catch()`, and the built function answered `200` on every *place*
+  and both *modes* signed in against a local database. The `nuxt dev` `500` at the time was
+  local-only.
+- **Deployed and answering signed out**: `/auth` `200`, `/` and `/review` to the door,
+  `/favicon.ico` `200`.
+- ⚠️ **Not done, and Yuta's**: restarting the laptop worker on the released code before any new
+  run, and the signed-in look (a lesson of five, the quiz, `/settings`, the export). **And ADR 0022
+  § Amended 2026-10-10 still owes the cold-start measurement on the deployed site.**
+
+**2026-10-12 — [#70](https://github.com/yutaasakura96/kioku/issues/70): the quiz with
 lessons.** The second build step of #67's direction change
 ([ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)). *Review* is
 rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
@@ -185,8 +307,9 @@ rebuilt as the prototype's lesson, quiz and summary; the scheduler is untouched.
   Forgot, three left due. It turned up three things, fixed in the same commit: the bar's exit was
   44px as a link and 32px as a button, *Next reviews Tomorrow* had a capital mid-sentence, and a
   kana-only word drew its reading under itself. ADR 0076 § Settled by the build has what differs
-  from the prototype on purpose. ⚠️ **Not on `dev:session`, which does not start** (§ Carrying).
-- ⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.
+  from the prototype on purpose. ⚠️ **Not on `dev:session`, which did not start at the time.**
+- ~~⚠️ **Not done, and Yuta's**: `0013` on production, with the rest of § Next's release list.~~
+  ⚠️ **Done 2026-10-14** (the entry above).
 
 **2026-10-10 — [#68](https://github.com/yutaasakura96/kioku/issues/68): the starter set, and
 a *level* from a list.** The first build step of #67's direction change
@@ -207,7 +330,8 @@ data and no screen.
   filter, the *Vet* strip and the JLPT *categories* read declared *authorities* only. A model's
   estimate is still written for a word the dictionary lacks, and nothing reads it as a level.
 - ***Categories*, derived** (`shared/category/category.ts`, `server/utils/category/queries.ts`):
-  `jlpt:<level>`, `deck:<source id>`, `my-words`. No screen reads them yet; #69 does.
+  `jlpt:<level>`, `deck:<source id>`, `my-words`. No screen reads them yet; #69 does (⚠️ built
+  2026-10-14, above).
 - **Start fresh, without deleting.** `subject_id` is `jlpt-vocab-2`, and every reader-facing read
   goes through `server/utils/subject.ts`. `test/schema/start-fresh.test.ts` seeds a whole history
   under the old id and asserts that no screen read returns it, and that the export, the ledger and
@@ -217,7 +341,7 @@ data and no screen.
   The worker caches JMdict in `worker/.cache/` (ignored) and fetches it again after thirty days.
 - **Migration `0011`**, additive: `note_meaning.dictionary_version`, `model_id` and
   `prompt_version` nullable with a check that a list is attributed to one or the other, and a
-  partial index on `level_claim` for the category counts. **Not on Neon.**
+  partial index on `level_claim` for the category counts. ~~**Not on Neon.**~~ ⚠️ **Applied 2026-10-14.**
 - **The acknowledgement** is in the *shell*'s footer, in front of the KANJIDIC2 line, with a link
   to each source and licence (ADR 0075 §8). Read in a browser on `dev:session` at desktop and phone
   widths, with a kana-only starter word (テレビ: the meaning alone) and a kanji one (会う: the
@@ -2356,24 +2480,34 @@ Seven findings worth knowing without opening it:
 ⚠️ **2026-10-10: the frontier is the direction change, [#67](https://github.com/yutaasakura96/kioku/issues/67).**
 #68 and #70 are built (§ Done; ⚠️ this said *#68 is built* until 2026-10-12) and the rest are filed:
 
-- [#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
+- ~~[#69](https://github.com/yutaasakura96/kioku/issues/69): **choose what to study by category.**
   Reads `categories()` and `noteInCategory()`, which #68 left unread. The reader's one active
-  category is its to store.
+  category is its to store.~~ ⚠️ **Built 2026-10-14** (§ Done, ADR 0077). ⚠️ **It leaves one thing
+  for Yuta and one for #71**: migration `0014_active_category` is to be applied to production
+  before the release that carries it (additive: one table, nothing dropped), by `03` §4.2's
+  procedure; and the line naming the *category* lives on `/review`'s screen before a run until #71
+  builds Home.
 - ~~[#70](https://github.com/yutaasakura96/kioku/issues/70): **the quiz with lessons.**~~ ⚠️ **Built
   2026-10-12** (§ Done, ADR 0076). It paid the mint — a lesson accepts and mints the starter words
   it teaches — and settled the example sentence: it is drawn when the *note* has one, and a starter
   word's lesson screen is shorter. ⚠️ **It leaves two things for the tickets after it**: the lesson's
   pool is every *level* in order until #69 gives it an active *category*, and the screen before a
   run lives on `/review` until #71 builds Home.
-- [#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.** The
-  prototype puts the sources' acknowledgement on Welcome; it is in the *shell*'s footer until then
-  (ADR 0075 §8), and wherever it moves it must stay on the site with its links.
-- [#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
-  test.** [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
+- ~~[#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.**~~
+  ⚠️ **Built 2026-10-14** (§ Done, ADR 0078). The acknowledgement is on Welcome and still in the
+  *shell*'s footer. #72 filled the three planned placement entrances and the level card
+  (ADR 0079 §1, §3).
+- ~~[#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
+  test.**~~ ⚠️ **Built 2026-10-15** (§ Done, ADR 0079). ⚠️ **It leaves one thing for Yuta**:
+  migration `0015_placement` is to be applied to production before the release that carries it
+  (additive: two tables, nothing dropped), by `03` §4.2's procedure.
+  [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
   [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
 
-⚠️ **Owed by Yuta before any of #68 reaches the deployed app**, in this order, by the release
-procedure in § Carrying. None of it was done or simulated by the build:
+⚠️ **Steps 1, 2 and 4 below were done on 2026-10-14** (§ Done), and step 1 was three migrations:
+`0012_keen_zuras` was pending too and this list never named it. **Step 3 is still owed, and step 5
+is still optional.** ⚠️ This said *owed by Yuta before any of #68 reaches the deployed app* until
+then, in this order, by the release procedure in § Carrying:
 
 1. **Apply the pending migrations to production**, `0011` among them, and since #70 `0013_lessons`.
    Both are additive: `0013` adds `review_session.kind` with a default and the `study_setting`
@@ -3159,15 +3293,16 @@ Nothing.
 
 ## Carrying
 
-- ⚠️ **`nuxt dev` answers `500` to every page, so `npm run dev:session` shows nothing** (found
-  2026-10-12 during #70, present on `develop` at `8974f3f` without #70). #73's `nitro.alias` points
-  `@opentelemetry/api` at `server/stubs/not-installed.mjs`, which throws when it is evaluated. A
-  production build keeps that module in a chunk loaded on demand, inside the `.catch()`
-  `better-auth` wraps it in; the dev bundle is one file, so the stub runs at boot, the bundle stops
-  there, and every request ends in `Cannot access 'renderer' before initialization`. **Not fixed
-  here and not ticketed.** Until it is, look at screens on `npm run build` and
-  `node .output/server/index.mjs` with `.data/dev-session/app.env`'s values, which is what #70 did
-  and what the e2e tier does.
+- ⚠️ **`/` is Home and Ingest is `/add`** (ADR 0078, #71). A form, a redirect or a link that means
+  Ingest says `/add`; `/` is the dashboard. ⚠️ **Home never redirects**: Welcome and the dashboard
+  are two screens of one *place*, chosen on the request (`homeData`'s `firstVisit`), which keeps
+  ADR 0031's refusal of a chooser. ⚠️ **A new *place* goes in `PLACES`** (`shared/utils/origin.ts`),
+  which is the `from` allowlist and `shell-data.ts`'s list in one, and in `nuxt.config.ts`'s
+  `noScripts` rules.
+
+- **`npm run dev:session` serves pages under `nuxt dev`** (fixed 2026-10-15). Keep the
+  dev-only `nitro:config` hook in `nuxt.config.ts` when changing bundling; ADR 0022 § Amended
+  2026-10-10 explains why. `test/e2e/dev-server.test.ts` covers the dev server's routes.
 - ⚠️ **The database never sees a question** (ADR 0076 §4, #70). It holds positions and *grades*.
   Which question is next and which words were missed is `shared/review/quiz.ts`'s, kept in
   `localStorage` under `kioku:review:quiz`. **A word is graded once, by the answer that completes
@@ -3177,11 +3312,25 @@ Nothing.
   being composed (ADR 0066 §3), so a run starts only from `start` in the request body, which only a
   control or the start block's `?start=` sets, and the page takes `start` out of the address once
   it has read it. A mount that composed would spend a reader's ten words on page loads.
-- ⚠️ **Every answer carries the page's filter, and the outbox stores none** (ADR 0076 §8). The
-  summary's lesson count is read through it (`offerIfFinished`), because the summary's control
-  starts the next lesson through it. `bodyOf` adds it at send time; stored in an entry it would be
-  a saved query (ADR 0065 §6). On an answer endpoint a missing or illegal filter is **no filter,
-  never a `400`**: a `400` there drops the *grade* with it.
+- ⚠️ ~~**Every answer carries the page's filter, and the outbox stores none** (ADR 0076 §8).~~
+  **Removed with #69 (2026-10-14)**: there is no filter. An answer carries its own fields and
+  nothing about the next lesson.
+- ⚠️ **No request says which *category* a lesson is drawn from, except the one that chooses it**
+  (ADR 0077 §1, #69). `composeLessonRun`, `offerOf` and `startBlockCounts` each read
+  `active_category` through `readActiveCategory`, so the lesson, the count on the screen before a
+  run, the summary's count and the start block's *Lesson · n new* cannot disagree. **Do not add a
+  `category` to the *session* request or to an answer**: it would be page memory again, and a
+  *place* has no page to keep it in. And **`newCards` and `unstartedNotes` take a *category* as a
+  required argument on purpose**: a call without one would be new words from everywhere.
+- ⚠️ **The due read takes no *category*, and must not gain one** (ADR 0077 §1). Reviews mix
+  everything the reader has learned; `test/schema/review.test.ts` holds a due *card* outside the
+  active *category* in a review run.
+- ⚠️ **A stored key that names nothing is read as the first *level*, and the row is left alone**
+  (ADR 0077 §2). A deleted deck is soft-deleted and its `deck:<id>` key stays in the row. Do not
+  "clean it up" on read: a *place* render would then write.
+- ⚠️ **A *place*'s page must not import from `server/`.** `/categories` ships no script, but its
+  component is still in the client build; the shelf's shape and `learned` live in
+  `shared/category/shelf.ts` for that reason.
 - ⚠️ **`finish` is an outbox entry and not an answer.** It answers no position, it is not counted
   in the summary's unsent line, and a refused one is dropped rather than kept. It must stay
   **behind** the Forgot *grades* it follows: the stream's order is the order the server learns them.

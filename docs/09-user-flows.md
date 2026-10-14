@@ -26,7 +26,10 @@ story it protects.
 
 1. **What `/` is.** `08` §2 set `callbackURL: "/"` and never said which screen that names.
    [ADR 0031](adr/0031-the-landing-route-is-ingest-and-never-a-decision-about-data.md): it is Ingest,
-   permanently, and it inspects nothing.
+   permanently, and it inspects nothing. ⚠️ **Superseded by
+   [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md) (#71, 2026-10-14)**: `/`
+   is Home, Welcome on a first visit and the dashboard after it, and it never redirects; Ingest is
+   `/add`.
 2. **How a *mode* is entered, and what the affordance is.** ADR 0013 decided a mode has no navigation
    out; nothing decided the way in.
    [ADR 0032](adr/0032-a-mode-is-entered-from-a-start-control-and-done-is-the-only-way-out.md): a
@@ -57,20 +60,27 @@ what happens and in what order; that one says what it is made of.
 
 | Path | Is | Rendering | Public |
 | --- | --- | --- | --- |
-| `/` | **Ingest** — the *place* (ADR 0031) | `noScripts: true` | No |
+| `/` | **Home** — the *place* (ADR 0078 §1, #71): Welcome on a first visit, the dashboard after it. **Ingest until #71** (ADR 0031) | `noScripts: true` | No |
+| `/add` | **Ingest** — the *place* (ADR 0078, #71; `/` until then) | `noScripts: true` | No |
+| `/more` | **More** — the *place* (ADR 0078 §3, #71): Add, Settings, Vet, Sources, Stats, the export, the door | `noScripts: true` | No |
 | `/sources` | **Sources** — the *place* | `noScripts: true` | No |
 | `/sources/:id` | One *source*, readable, with its *notes* and *occurrences* | `noScripts: true` | No |
 | `/sources/:id/delete` | The delete confirmation (§4.11) | `noScripts: true` | No |
 | `/stats` | **Stats** — the *place* | `noScripts: true` | No |
 | `/settings` | **Settings** — the *place* (ADR 0076 §2, #70): three study settings | `noScripts: true` | No |
+| `/categories` | **Categories** — the *place* (ADR 0077 §3, #69): choose new words | `noScripts: true` | No |
 | `/vet` | ***Vet*** — the *mode* | `ssr: false` | No |
 | `/review` | ***Review*** — the *mode* | `ssr: false` | No |
+| `/placement` | ***Placement*** — the *mode* (ADR 0079 §1, #72) | `ssr: false` | No |
 | `/auth` | The door: sign in, sign out (`08` §2) | Universal, ships JavaScript | Yes |
 | `/auth/refused` | The refusal (`08` §2.1) | `noScripts: true` | Yes |
 | `/api/auth/**` | Better Auth's catch-all | Nitro | Yes |
-| ⚠️ `/` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`** — see below | Nitro middleware, then the *place* | No |
+| ⚠️ `/add` (`POST`) | Submit a *source* (§4.2). **Was `/api/source`**, then `POST /` until #71 — see below | Nitro middleware, then the *place* | No |
 | `/api/source/:id/delete` | `POST` — soft-delete a *source* (§4.11) | Nitro | No |
 | `/api/settings` | `POST` — store the three study settings, clamped (ADR 0076 §2) | Nitro | No |
+| `/api/category` | `POST` — choose the active *category* (ADR 0077 §3) | Nitro | No |
+| `/api/placement` | `GET` — fetch test questions; `POST` — score and accept the result (ADR 0079 §1) | Nitro | No |
+| `/api/placement/declare` | `POST` — start at a chosen level from Welcome (ADR 0079 §1) | Nitro | No |
 | `/api/export` | `GET` — `S12`'s export (§4.12) | Nitro | No |
 | `/api/vetting/**`, `/api/review/**` | The two *modes*' data and outbox endpoints | Nitro | No |
 
@@ -86,6 +96,14 @@ validation failure to re-render, because nothing is refused: a value out of rang
 page shows what was kept. On a validation failure they answer `200` with the form
 re-rendered and the submitted text still in it, because a redirect would throw away a paste the
 reader cannot get back (§4.2).
+
+⚠️ **Since #69 there are five *places***: `/categories` also posts a form to choose the active
+*category*. Its `303` destination and invalid-key case are in §4.7.
+
+⚠️ **Since #71 there are seven** (ADR 0078): `/` is Home, Ingest is `/add`, and `/more` is new.
+**Every `POST /` and `303` to `/` below that means Ingest is `/add`** — the *source* submission, the
+seed request and the resume all post to `/add` and answer `303` there. Welcome's forms post to
+`/api/placement/declare` (ADR 0079 §1).
 
 ⚠️ **Amended 2026-09-11, while building #6 — the submission is `POST /`, not `POST /api/source`.**
 The row above said the latter, and the paragraph it sits under is why it could not be: a validation
@@ -116,13 +134,14 @@ requests, and cross-site only for top-level navigations using a safe method — 
 
 ## 2. The shell, and the two controls that leave it
 
-The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and (since #70)
-`/settings`, and nowhere else (ADR 0013). It carries three things:
+The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats`, (since #70)
+`/settings`, (since #69) `/categories` and (since #71) `/add` and `/more`, and nowhere else
+(ADR 0013). ⚠️ **`/` draws Welcome without it** on a first visit (ADR 0078 §1). It carries three things:
 
 | | What | Goes to |
 | --- | --- | --- |
-| **Navigation** | Ingest · Sources · Stats · Settings | The four *places*. Never a *mode* (ADR 0032) |
-| **The start block** | Vet, with the flagged count · Review, with the number due now · Lesson, with the new words the brake allows today | `/vet?from=…` · `/review?start=review&from=…` · `/review?start=lesson&from=…` |
+| **Navigation** | Home · Categories · More | ⚠️ Three since #71 (ADR 0078 §3); every other *place* is a row under More. Five until then, Ingest · Categories · Sources · Stats · Settings. Never a *mode* (ADR 0032) |
+| **The start block** (⚠️ not on Home or More since #71, ADR 0078) | Vet, with the flagged count · Review, with the number due now · Lesson, with the new words the brake allows today | `/vet?from=…` · `/review?start=review&from=…` · `/review?start=lesson&from=…` |
 | **The door** | A quiet link, for signing out | `/auth` (`08` §2) |
 
 Neither start control is ever disabled. A zero on Review is how the reader reaches the empty state
@@ -415,12 +434,14 @@ the summary's way back.
    asked for (§6). Otherwise the server composes the run that was asked for, or none.
 3. **A review run** is the due *cards*, least remembered first when they do not all fit, up to the
    *session* size. **A lesson** is new words up to the lesson size, as far as the brake allows: the
-   reader's own unscheduled *cards* first, then starter words not yet started, easiest *level*
-   first. **The lesson accepts and mints the starter words it holds, in the transaction that writes
+   reader's own unscheduled *cards* first, then words not yet started in a fixed shuffle.
+   ⚠️ **Since #69 both are of the reader's active *category* only** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), and
+   a *category* is one *level* or one shelf under *My decks*. **The lesson accepts and mints the starter words it holds, in the transaction that writes
    the run** (`04` §7.6, §7.7). `snapshot_taken_at` is stamped server-side as before.
 4. **With no run, the screen says what is waiting**: how many reviews, how many new words a lesson
    would teach, which brake is on, and a control for each run that has something in it. The
-   *session*-size knob and the filter live here.
+   *session*-size knob lives here, and since #69 the line naming the active *category* with the
+   way to change it (it was the filter until then).
 5. **A lesson teaches first**: one word a screen with its reading, meaning, part of speech, *level*
    and its example when it has one, *Back* and *Next word*, and then *Quiz me on these 5*. The
    teaching does not come back once the quiz has begun.
@@ -441,8 +462,22 @@ the summary's way back.
    is set. **Starting another is one deliberate action, never automatic** (`S7`): a control that
    names the run it starts.
 
-***Session* size and the filter are set on the screen before a run**, never mid-session. The knob
-caps a review run; the lesson's size, the day's new words and the pause are on `/settings`.
+***Session* size is set on the screen before a run**, never mid-session. The knob caps a review
+run; the lesson's size, the day's new words and the pause are on `/settings`.
+
+#### Choosing a *category* (#69, [ADR 0077](adr/0077-the-reader-has-one-active-category.md))
+
+1. **Home names the active *category*** and links to `/categories`: *New words come from JLPT N5 ·
+   Change category*. ⚠️ **The screen before a run carried it until #71** (ADR 0078), when it was a
+   *mode*'s link and a document load; `/review` opened bare no longer shows it.
+2. **`/categories` lists every *category***: the five JLPT *levels*, then under *My decks* each
+   imported deck and *My words*. Each row says how many words it has and how many the reader has
+   learned. The active one says *New words come from here*; every other has one control, *Study*.
+3. **Choosing posts the row's form** to `/api/category`, which stores the key and answers `303` to
+   `/`: Home, now counting the lesson in the *category* just chosen. Nothing is composed. ⚠️ **It
+   answered `/review?from=/categories` until #71** (ADR 0078), and step 1's line moved to Home then.
+4. **Reviews are not touched.** A review run holds every due *card*, whichever *category* its word
+   is in. A lesson already composed keeps its words.
 
 #### As built until 2026-10-12
 
@@ -672,7 +707,8 @@ untested export a belief, and `11-testing-plan.md` owns it (`04` §14).
 
 ## 5. Entering and leaving a mode
 
-The mechanism, once, for both.
+The shared entry and exit mechanism for *modes*. Placement's question flow and result are in
+[ADR 0079 §1](adr/0079-a-level-is-proved-and-placement-is-checked.md).
 
 ### 5.1 In
 
@@ -680,8 +716,8 @@ A start control in the shell (§2) is an `<a href="/vet?from=/stats">`. The *pla
 JavaScript, so nothing can intercept it and the full document load happens for free.
 
 **The `from` parameter is the origin, and it is validated on the way out**, not on the way in: it is
-matched against the three place paths and anything else falls back to `/` (ADR 0032). It is a
-redirect target arriving in a URL. The allowlist is three strings long.
+matched against the seven *place* paths and anything else falls back to `/` (ADR 0032,
+ADR 0078 §3). It is a redirect target arriving in a URL.
 
 A *mode* reached without the parameter — a bookmark, a typed URL — returns to `/`.
 
@@ -691,7 +727,9 @@ open vetting run cannot be in a *review session*, because getting to one would h
 
 ### 5.2 Out
 
-Done, or `Esc`. Both do the same thing, and ADR 0026 exists because a phone has no `Esc`.
+For *Vet* and *Review*, Done or `Esc` do the same thing, and ADR 0026 exists because a phone has no
+`Esc`. Placement has a Leave link to its origin and writes nothing until the result is accepted
+(ADR 0079 §1).
 
 ⚠️ **The Done control is `<NuxtLink :to="origin" external>`, or `navigateTo(origin, { external: true })`.**
 A bare `<NuxtLink>` inside a *mode* does a client-side navigation: Nuxt renders the Stats route

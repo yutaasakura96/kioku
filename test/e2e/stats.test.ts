@@ -310,6 +310,9 @@ describe('the start block — `10` §3.2, amended by #33', () => {
         VALUES ('${noteId}', '${reader.userId}', 'accepted', now());
         INSERT INTO card (note_id, owner_id, template_key)
         VALUES ('${noteId}', '${reader.userId}', 'recognition');
+        -- The lesson counts in the reader's active category (ADR 0077 §1),
+        -- and one who has chosen none is at N5.
+        INSERT INTO level_claim (note_id, authority_key, level) VALUES ('${noteId}', 'tanos-jlpt', 'N5');
       `)
     }
   })

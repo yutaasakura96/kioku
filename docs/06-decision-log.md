@@ -1694,6 +1694,37 @@ thresholds, ADR 0069 §2, ADR 0066 §1 and §2 as constants, and `S7`'s one kind
 `0013` is not applied to production.**
 → [ADR 0076](adr/0076-new-words-are-taught-in-a-lesson-and-a-miss-is-asked-again.md)
 
+### [2026-10-14] The reader has one active category, and it feeds new words only
+#69; Yuta's answers 9 and 11 on [#67](https://github.com/yutaasakura96/kioku/issues/67). **New words
+come from one *category* at a time**: a lesson draws its words from the reader's active *category*
+and from nowhere else, and a review run never reads it. **The choice is one row**,
+`active_category`, holding a key; a reader with no row, or whose deck was deleted, studies the first
+declared *level*. **`/categories` is a fifth *place***, the prototype's screen: the five JLPT
+*levels*, then imported decks and *My words* under *My decks*, each with its words, how many are
+learned and a bar of the three stages. Choosing posts a form and lands on the screen before a run,
+which names the *category* and links back; that screen is `/review`'s until #71 builds Home.
+**ADR 0065 §5's *session* filter is removed**, and with it the filter every answer carried. A
+finished *category* says so by name. Overturns ADR 0065 §5 and §6 and ADR 0076 §1's pool; `02`,
+`03`, `04`, `05`, `08`, `09`, `10`, `11` and `CONTEXT.md` are amended in the same commit. ⚠️
+**Migration `0014` is additive and is not applied to production.**
+→ [ADR 0077](adr/0077-the-reader-has-one-active-category.md)
+
+### [2026-10-14] Home is the landing place, and More holds the rest
+#71; Yuta's answer 12 on [#67](https://github.com/yutaasakura96/kioku/issues/67). **`/` is Home**:
+Welcome on a first visit (no *category* chosen and no run composed), where the reader picks a level to
+start at, and the prototype's dashboard after it — today's sentence, the *Reviews* and *Lessons*
+cards, the active *category*, the level card (no estimate until #72), *Coming up*, the last fourteen
+days, progress by level and the words the reader keeps missing. **Ingest moves to `/add`.** **The bar
+names Home, Categories and More**, and *Vet*, *Sources*, *Stats*, *Settings*, Ingest and the export
+are rows under More, a seventh *place*: each still does a job nothing else does, and none is daily.
+Choosing a *category* lands on Home. Overturns ADR 0031, ADR 0076 §8's stand-in and ADR 0077 §3's
+redirect. No migration.
+→ [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)
+
+### [2026-10-15] A level is proved, and a placement is checked
+#72. [ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md) owns the estimate,
+placement and spot-check rules.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

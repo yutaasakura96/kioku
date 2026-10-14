@@ -63,17 +63,28 @@ this document says which column it comes from and stops.
 
 Seven documents render. Five are the app (PRD §3); two are the boundary before it (`08` §2).
 ⚠️ **Eight since 2026-10-12**: ADR 0076 §2 added Settings, and *Review*'s row below is amended.
+⚠️ **Nine since 2026-10-14**: ADR 0077 §3 added Categories.
+⚠️ **Eleven since #71 (2026-10-14)**: `/` is Home and Ingest moved to `/add`, and More is new
+([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). ⚠️ **Home and More have
+no section here yet**: ADR 0078 §1–§3 and `docs/prototype/` (`vWelcome`, `vHome`, `vMore`) are how
+they read.
+⚠️ **Twelve since #72 (2026-10-15)**: Placement is a third *mode*; ADR 0079 §1 and
+`docs/prototype/` own its three screens.
 
 | Screen | Route | Is | New components it needs |
 | --- | --- | --- | --- |
-| **Ingest** | `/` | *place* | Text field, run row, filter tally |
+| **Home** | `/` | *place* | Welcome on a first visit; the dashboard after it (ADR 0078 §1, §2) |
+| **Ingest** | `/add` (`/` until #71) | *place* | Text field, run row, filter tally |
+| **More** | `/more` | *place* | One row per destination (ADR 0078 §3) |
 | **Sources** | `/sources` | *place* | List row |
 | One *source* | `/sources/:id` | *place* | Source header, prose block, occurrence row |
 | Delete confirmation | `/sources/:id/delete` | *place* | — reuses the empty-state block |
 | **Stats** | `/stats` | *place* | Figure grid (the *session tally*, parameterised), ledger row |
 | **Settings** | `/settings` | *place* | Number field (§8A, #70) |
+| **Categories** | `/categories` | *place* | Category row, stage bar (§8B, #69) |
 | ***Vet*** | `/vet` | *mode* | Done cluster, run-end confirmation, edit field |
 | ***Review*** | `/review` | *mode* | ⚠️ Since #70 (§5.0): mode bar, lesson card, quiz card, word row, summary; *session*-size knob, unsent-answers notice. Until then: Done cluster, *session*-size knob, unsent-grades notice |
+| ***Placement*** | `/placement` | *mode* | Introduction, multiple-choice questions, result (ADR 0079 §1) |
 | The door | `/auth` | neither | — reuses the empty-state block |
 | The refusal | `/auth/refused` | neither | — reuses the empty-state block, minus its rule |
 
@@ -144,12 +155,21 @@ are still off the scale, so they are named rather than hidden:
 
 ## 3. The shell, and the start block
 
-The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and (since #70)
-`/settings`, and nowhere else (ADR 0013, `09` §2).
+The *shell* is on `/`, `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats`, (since #70)
+`/settings`, (since #69) `/categories` and (since #71) `/add` and `/more`, and nowhere else
+(ADR 0013, `09` §2). Welcome, on `/`, draws none (ADR 0078 §1).
+⚠️ **The start block is not drawn on Home or More** since #71: Home's two cards are the entrances
+(ADR 0078 §2, §3).
 
 ### 3.1 The bar
 
 ⚠️ **Since 2026-10-12 the nav is four**: `Ingest` · `Sources` · `Stats` · `Settings` (ADR 0076 §2).
+⚠️ **Since 2026-10-14 it is five**: `Ingest` · `Categories` · `Sources` · `Stats` · `Settings`
+(ADR 0077 §3). ⚠️ **Since #71 it is three**: `Home` · `Categories` · `More`, with every other *place*
+a row under More, More marked while the reader is on one of them, the current item under the
+prototype's accent rule, and a bar of tabs at the foot of the screen below 720px (ADR 0078 §3). **The
+table and the paragraph below are as built until #71**; the rule supersedes their *no underline* and
+*marked by ink alone*.
 
 **56px tall**, matching *Vet*'s chrome bar so the two screens share a horizon, `--k-gutter`
 horizontal padding, `--k-rule` bottom border.
@@ -588,7 +608,17 @@ waiting; one line under it at 17px `--k-ink-secondary`; then a control for each 
 something in it, the first on the ink ground and a second as a ghost:
 `Start reviews · 12 due`, `Start lesson · 5 new words`. **No control is drawn for a run of nothing**,
 and the sentence above says why there is none. Under them, ADR 0066 §7's line naming the brake
-(15px, `--k-ink-secondary`), then the *session*-size knob (§5.8) and the filter.
+(15px, `--k-ink-secondary`), then the line naming the active *category* (below), then the
+*session*-size knob (§5.8). ⚠️ The filter sat under the knob until #69.
+
+**The *category* line** (#69, [ADR 0077](adr/0077-the-reader-has-one-active-category.md) §3; the prototype's `.studying`, which it draws under
+Home's two heroes). `20px` under the brake's line, 15.5px, `--k-ink-secondary`, wrapping:
+`New words come from`, then the *category*'s name in a pill (11px Plex Mono, 0.06em,
+`--k-on-ink` on `--k-ink-ground`, `2px 7px`, fully rounded), then `Change category`, a link in
+`--k-accent` to `/categories`. The name is the server's, sent with the count it was made in. The
+link is a document load, like every way out of a *mode*. ~~**When #71 builds Home this line moves
+there with the rest of this screen.**~~ ⚠️ **#71 moved the line to Home** (ADR 0078 §2), and this
+screen no longer draws it; the screen itself stays, as what `/review` opened bare shows.
 
 | What is waiting | Statement | Under it |
 | --- | --- | --- |
@@ -878,15 +908,11 @@ due"). The Done cluster is in the header in both.
 
 There is no ahead-of-schedule study in v1 (PRD §5), so neither state offers a way to start one.
 
-⚠️ **Amended 2026-09-17 with #22:** when the request that produced *Nothing due* carried a filter,
-the body reads `There is no ahead-of-schedule study, and no new card matches the filter.` — because
-it is then true of the filter and may not be true of the pool.
-
 ⚠️ **Amended 2026-09-18 with #21: the two states are three** ([ADR 0066](adr/0066-the-review-load-has-a-brake.md) §7).
 
 | | Statement | Body | After the rule |
 | --- | --- | --- | --- |
-| **The brake held words back** | `No new words today.` | `10 of 10 new words today. Nothing is due, and the next ones arrive after 04:00.` | The next-due datum when there is one, then the knob and the filter |
+| **The brake held words back** | `No new words today.` | `10 of 10 new words today. Nothing is due, and the next ones arrive after 04:00.` | The next-due datum when there is one, then the knob |
 
 It is shown when new *cards* are waiting, nothing is due and the day's ten are spent. **Read as
 *Nothing due* it would be true, and it is the one sentence that makes the brake look like a bug.** It
@@ -914,29 +940,8 @@ knob has nowhere to live before a *session* exists. Twenty is the default and th
 at the end of the first run. This is a stated cost, not a gap to patch with a knob on Ingest — the
 knob belongs to *Review* and a *place* would have to reach into a mode's state to carry it.
 
-⚠️ **Amended 2026-09-17 with [#22](https://github.com/yutaasakura96/kioku/issues/22): the *session*
-filter shares the knob's three homes and sits directly beneath it**
-([ADR 0065](adr/0065-a-domain-is-a-claim-like-a-level-and-the-filter-only-touches-new-cards.md) §5).
-This is what #22 calls *Review*'s start: the three screens a *session* is started from.
-
-| | Value |
-| --- | --- |
-| Groups | `DOMAIN`, then `LEVEL`, each a `fieldset` whose legend is the knob's eyebrow (10px Plex Mono, 0.14em, `--k-ink-secondary`) |
-| Options | One checkbox per value of the *subject*'s `domains` and `levels`, in declaration order — **nothing names a value here**. 12px Plex Mono, `--k-ink-value`, `8px` between box and word |
-| Aside | 13px italic, `--k-ink-secondary`: `New cards only. Every card that is due is still in the session, and nothing ticked means everything.` |
-| Gap | `32px` below the knob, as the knob is below what precedes it |
-
-⚠️ **It filters the new half only** and says so, because the due half is never filtered: what is owed
-is owed. ⚠️ **Nothing ticked is no filter**, and within a group the values are alternatives — `tech`
-and `business` is either — while the two groups restrict together.
-
-⚠️ **Not persisted.** It lives in the page's memory; a reload is an unfiltered start. A filter that
-survived would be a saved query, which is a *deck* (ADR 0009). The first-ever *session* carries no
-filter for the knob's own reason.
-
-⚠️ **`space` on a checkbox ticks it.** The controls are inside the mode container, so their key events
-reach the handler that starts a *session*; that handler ignores `space` from a form control
-(`test/e2e/review.test.ts`).
+⚠️ **The *session* filter was removed with #69.** ADR 0065 §5 records its earlier design;
+[ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1 owns the active *category* rule.
 
 ### 5.9 *Review*'s loading and error states
 
@@ -957,7 +962,9 @@ mid-run.
 
 ## 6. Ingest
 
-`/`, `noScripts: true`, a *place* (ADR 0031). **The only screen that works with nothing ingested**
+`/add` (`/` until #71, ADR 0078; ADR 0031 before it), `noScripts: true`, a *place*. ⚠️ **Since #71
+every `/` in this section that means Ingest — the form's `action`, the resume's `POST`, each `303` —
+is `/add`.** **The only screen that works with nothing ingested**
 (PRD §4). The shell (§3), then the page body in a **760px** column — one object of attention that the
 reader acts on, which is what 760 means in `05` §5.
 
@@ -1419,6 +1426,44 @@ and that document says `Saved.` above the form (`role="status"`). **Nothing is r
 out of range is clamped, a blank one is the default, and the fields show what was kept; the form is
 `novalidate`, so the browser does not hold back a value the server would clamp. The start
 block's Lesson figure follows from the next page load.
+
+## 8B. Categories
+
+⚠️ **Added 2026-10-14 with [#69](https://github.com/yutaasakura96/kioku/issues/69)
+([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §3).** The prototype's `vCategories`, in this app's *shell*.
+
+`/categories`, `noScripts: true`, a *place*, in the 760px measure. An eyebrow, `CATEGORIES`; a
+statement at 26px, `Choose what to study.`; and under it at 17px `--k-ink-secondary`:
+`Your new words come from one category at a time. Reviews always cover everything you have learned,
+whichever category it came from.` Then three shelves, `40px` apart, each under a 10px eyebrow.
+
+| Shelf | Holds |
+| --- | --- |
+| `JLPT LEVELS` | One row per declared *level*, easiest first. A *level* with no words is still a row |
+| `TOPICS · COMING LATER` | Five dashed pills, as the prototype drew them. Not controls |
+| `MY DECKS` | One row per imported deck, then *My words* once it holds a word, then a dashed box: `Nothing here fits?` with `Import an Anki deck` and `Add my own words`, both links to `/add` (`/` until #71) |
+
+**The category row.** `--k-raised`, `1px --k-rule-raised`, `--k-radius-card`, `16px 20px`, `10px`
+between rows; a grid of three columns, `70px`, the rest, and the action.
+
+| Part | Value |
+| --- | --- |
+| Code | `N5` at 36px Newsreader 300. `Anki` or `Mine` at 22px under *My decks* |
+| Name | 18px, 500. `Beginner`, `Elementary`, `Intermediate`, `Upper intermediate`, `Advanced`; a deck's title; `My words` |
+| Meta | 12px Plex Mono, `--k-ink-secondary`: `684 words · 12 learned`, and `· imported` for a deck |
+| Stage bar | `10px` tall, `--k-radius-tick`, ground `--k-st-none`; three fills left to right, Known, Familiar, Learning (`05` §2), each as wide as its share of the *category*'s words. `role="img"`, labelled `3 known, 4 familiar, 5 learning` |
+| Action | The active row: a pill, `New words come from here`, 11px Plex Mono in `--k-accent` with a `1px --k-accent` border. Every other row: a form posting its key to `/api/category` with one quiet control, `Study N4`, or `Study this` under *My decks* (named `Study <title>` for a screen reader) |
+
+**The active row** also takes a `1px --k-ink` border and `--k-shadow-card`. The accent on its pill is
+`05` §2's *where you are*. ⚠️ **It has no control**: there is nothing to choose on it.
+
+**Learned** is a word graded at least once and still studied; the three stages are ADR 0076 §7's.
+
+Choosing answers `303` to `/`, Home (ADR 0078; `/review?from=/categories`, the screen before a run, until #71). A key that
+names no *category* answers `303` back here and changes nothing.
+
+**Below 720px** the row is two columns, `52px` and the rest; the code is 28px (18px under *My
+decks*); the action drops under the row and fills its width.
 
 ---
 

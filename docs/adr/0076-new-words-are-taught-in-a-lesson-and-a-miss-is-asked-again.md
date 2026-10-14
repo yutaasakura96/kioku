@@ -63,6 +63,8 @@ day's allowance from what was offered (ADR 0066 §3).
   reviews*.
 - **Until #69 there is no active *category***, so the pool is every *level* in order. The *session*
   filter (ADR 0065 §5) narrows it and stays where it was, on the screen before a run starts.
+  ⚠️ **#69 is built (2026-10-14, [ADR 0077](0077-the-reader-has-one-active-category.md))**: the pool is the
+  reader's active *category*, the filter is gone, and the two orders above hold inside it.
 
 ⚠️ **The prototype says the first review is in four hours.** That is sample text from a scheduler
 this app does not run. With short-term scheduling off, a word graded Good comes back in about three
@@ -248,6 +250,12 @@ Things #70 had to choose to build §1 to §8, none of which changes a rule above
 - **A lesson-quiz miss turns out to be mostly typing**, so new words start at Forgot unfairly. Not
   counting a miss in a lesson is one branch.
 - **The reader wants a missed review word back sooner than tomorrow.** That is ADR 0016's question.
-- **#69 builds the active *category*.** The lesson's pool takes it, and the filter on the start
-  screen goes.
-- **#71 builds Home.** The screen before a run moves there.
+- ~~**#69 builds the active *category*.** The lesson's pool takes it, and the filter on the start
+  screen goes.~~ ⚠️ **Done 2026-10-14** ([ADR 0077](0077-the-reader-has-one-active-category.md)). §8's two
+  bullets about counting through the reader's filter are superseded with it: the count is of the
+  active *category*, which the server reads, and an answer carries nothing about the next lesson.
+  The sentence for a *category* with nothing left is *There are no new words left in JLPT N5.*
+- ~~**#71 builds Home.** The screen before a run moves there.~~ ⚠️ **Done 2026-10-14**
+  ([ADR 0078](0078-home-is-the-landing-place-and-more-holds-the-rest.md)): Home's *Reviews* and
+  *Lessons* cards start a run with `?start=`. `/review` opened bare still draws its screen, without
+  the *category* line, which moved to Home.

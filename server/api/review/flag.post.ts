@@ -15,8 +15,6 @@
  * types: a *grade* carries the moment it was given because FSRS schedules on
  * elapsed time (ADR 0007), and a flag replayed an hour late is still a flag.
  */
-import { jlptVocab } from '../../../shared/subject/declaration'
-import { offerFilter } from '../../../shared/review/filter'
 import { parseFlag } from '../../../shared/review/request'
 import { recordFlag } from '../../utils/review/flag'
 import { offerIfFinished } from '../../utils/review/session'
@@ -44,6 +42,6 @@ export default defineEventHandler(async (event) => {
     session,
     // ⚠️ Only once the run is over — the summary's *What next* (ADR 0076 §8),
     // read after the answers rather than at composition.
-    offer: await offerIfFinished(db, ownerId, session, offerFilter(body, jlptVocab)),
+    offer: await offerIfFinished(db, ownerId, session),
   }
 })

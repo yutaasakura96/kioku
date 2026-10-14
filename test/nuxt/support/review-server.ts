@@ -33,6 +33,7 @@ export const NOTHING_WAITING: StudyOffer = {
   dueCount: 0,
   lesson: 0,
   waiting: false,
+  category: { key: 'jlpt:N5', name: 'JLPT N5' },
   limits: DEFAULT_LIMITS,
   nextDue: null,
 }

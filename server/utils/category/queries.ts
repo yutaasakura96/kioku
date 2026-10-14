@@ -1,6 +1,6 @@
 /**
- * What is in each *category* — ADR 0075 §3, #68. The reads #69's screen is
- * built on; nothing renders them yet.
+ * What is in each *category* — ADR 0075 §3, #68 — and how far the reader is
+ * into each, which is the shelf `/categories` draws (#69, ADR 0077).
  *
  * ⚠️ **Sequential reads and no correlated `sql` templates**, for the two
  * reasons at the head of `server/utils/review/queries.ts`.
@@ -19,19 +19,17 @@ import {
   categoryKey,
   levelAuthority,
   levelCategories,
+  parseCategoryKey,
 } from '../../../shared/category/category'
 import type { CategoryGroup, CategoryRef } from '../../../shared/category/category'
+import { noProgress } from '../../../shared/category/shelf'
+import type { CategoryProgress, CategoryRow, ShelfRow } from '../../../shared/category/shelf'
+import { stageOfEpoch } from '../../../shared/review/stage'
 import type { IngestDatabase } from '../ingest/record'
 import { CURRENT_SUBJECT_ID, noteInCurrentSubject } from '../subject'
+import { readActiveCategory } from './active'
 
-export interface CategoryRow {
-  key: string
-  group: CategoryGroup
-  /** `N5`, a deck's title, or *My words*. */
-  label: string
-  /** The *notes* in it — shared rows, so the same number for every reader. */
-  words: number
-}
+export type { CategoryRow, ShelfRow } from '../../../shared/category/shelf'
 
 /**
  * Every *category* there is, JLPT first and in the declaration's order.
@@ -182,4 +180,81 @@ export async function categoriesOfNote(db: IngestDatabase, noteId: string): Prom
     keys.push(MY_WORDS_KEY)
 
   return keys
+}
+
+/**
+ * The shelf as one reader sees it: every *category*, how far they are into
+ * each, and which one is active (prototype `vCategories`).
+ *
+ * ⚠️ **A word is learned once it has been graded**: its *card* has a live
+ * *scheduling epoch* that has left the library's New, and the stage is
+ * `stageOfEpoch`'s reading of that epoch, the same one the summary shows. A
+ * suspended *card* is not counted, as it is not studied.
+ *
+ * ⚠️ **Counted per *card***, and the *subject* declares one template, so that
+ * is per word. A second template would count a word twice here.
+ *
+ * ⚠️ **One read per shelf under *My decks***. A reader has a handful of decks,
+ * and the alternative is one query that joins every epoch to every *source*.
+ */
+export async function categoryShelf(db: IngestDatabase, ownerId: string): Promise<ShelfRow[]> {
+  const rows = await categories(db)
+  const active = await readActiveCategory(db, ownerId)
+
+  const atLevel = await db
+    .select({
+      level: schema.levelClaim.level,
+      state: schema.schedulingEpoch.state,
+      stability: schema.schedulingEpoch.stability,
+    })
+    .from(schema.schedulingEpoch)
+    .innerJoin(schema.card, eq(schema.card.id, schema.schedulingEpoch.cardId))
+    .innerJoin(schema.levelClaim, eq(schema.levelClaim.noteId, schema.card.noteId))
+    .where(
+and(studied(db, ownerId), eq(schema.levelClaim.authorityKey, levelAuthority())))
+
+  const progress = new Map<string, CategoryProgress>()
+  for (const row of atLevel)
+    tally(progress, categoryKey({ kind: 'level', level: row.level }), row)
+
+  for (const row of rows) {
+    const ref = parseCategoryKey(row.key)
+    if (!ref || ref.kind === 'level')
+      continue
+
+    const epochs = await db
+      .select({ state: schema.schedulingEpoch.state, stability: schema.schedulingEpoch.stability })
+      .from(schema.schedulingEpoch)
+      .innerJoin(schema.card, eq(schema.card.id, schema.schedulingEpoch.cardId))
+      .where(and(studied(db, ownerId), noteInCategory(db, ref, schema.card.noteId)))
+
+    for (const epoch of epochs)
+      tally(progress, row.key, epoch)
+  }
+
+  return rows.map(row => ({
+    ...row,
+    progress: progress.get(row.key) ?? noProgress(),
+    active: row.key === active.key,
+  }))
+}
+
+/** The reader's live epochs on *cards* they are still studying, in this *subject*. */
+function studied(db: IngestDatabase, ownerId: string) {
+  return and(
+    eq(schema.schedulingEpoch.ownerId, ownerId),
+    isNull(schema.schedulingEpoch.supersededAt),
+    isNull(schema.card.suspendedAt),
+    noteInCurrentSubject(db, schema.card.noteId),
+  )
+}
+
+function tally(into: Map<string, CategoryProgress>, key: string, epoch: { state: number, stability: number }) {
+  const stage = stageOfEpoch(epoch)
+  if (stage === null)
+    return
+
+  const counts = into.get(key) ?? noProgress()
+  counts[stage] += 1
+  into.set(key, counts)
 }

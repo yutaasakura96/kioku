@@ -20,7 +20,8 @@ import {
 } from '../../scripts/starter/load'
 import type { StarterBundle, StarterLoad } from '../../scripts/starter/load'
 import * as schema from '../../server/db/schema'
-import { categories, categoriesOfNote, listedLevel, noteInCategory } from '../../server/utils/category/queries'
+import { chooseCategory } from '../../server/utils/category/active'
+import { categories, categoriesOfNote, categoryShelf, listedLevel, noteInCategory } from '../../server/utils/category/queries'
 import { newCards } from '../../server/utils/review/queries'
 import { queueBatch } from '../../server/utils/vet/queries'
 import { categoryKey, parseCategoryKey } from '../../shared/category/category'
@@ -54,7 +55,9 @@ beforeAll(async () => {
 // `ingestion`, so truncating that table cascades into every starter *note*.
 afterEach(async () => {
   await client.exec(`
+    DELETE FROM active_category;
     DELETE FROM card_flag;
+    DELETE FROM scheduling_epoch;
     DELETE FROM card;
     DELETE FROM note_vetting;
     DELETE FROM occurrence;
@@ -421,7 +424,80 @@ describe('categories', () => {
   })
 })
 
-// The read side of *levels from the list*: the *session* filter and the Vet
+// #69, ADR 0077 §3 — the shelf as one reader sees it: how far they are into
+// each *category*, and which one their new words come from.
+describe('the shelf a reader sees', () => {
+  /** A *card* of the word, graded once: a live epoch at `stability` days. */
+  async function studied(noteId: string, stability: number, { suspended = false, owner = OWNER } = {}) {
+    const card = await one(
+      `INSERT INTO card (note_id, owner_id, template_key, suspended_at, suspended_reason)
+       VALUES ($1, $2, 'recognition', $3, $4) RETURNING id`,
+      [noteId, owner, suspended ? new Date() : null, suspended ? 'flagged' : null],
+    )
+    await client.query(
+      `INSERT INTO scheduling_epoch
+         (card_id, owner_id, ordinal, due, stability, difficulty, scheduled_days, reps, lapses, state)
+       VALUES ($1, $2, 1, now() + interval '3 days', $3, 5.2, 3, 1, 0, 2)`,
+      [card.id, owner, stability],
+    )
+    return card.id
+  }
+
+  it('marks the first level active for a reader who has chosen none, and nothing as learned', async () => {
+    const shelf = await categoryShelf(db, OWNER)
+
+    expect(shelf.map(row => row.key)).toEqual(LEVELS.map(level => `jlpt:${level}`))
+    expect(shelf.filter(row => row.active).map(row => row.key)).toEqual(['jlpt:N5'])
+    expect(shelf.every(row => row.progress.known + row.progress.familiar + row.progress.learning === 0)).toBe(true)
+  })
+
+  it('marks the one the reader chose, and only that one', async () => {
+    await chooseCategory(db, OWNER, 'jlpt:N3')
+
+    expect((await categoryShelf(db, OWNER)).filter(row => row.active).map(row => row.key)).toEqual(['jlpt:N3'])
+  })
+
+  // ADR 0076 §7's three stages, read from the live epoch as the summary reads
+  // them. ⚠️ A word with a *card* and no *grade* yet is not learned, and
+  // neither is one the reader flagged out.
+  it('counts the reader\'s graded words at each stage, in every category that holds them', async () => {
+    const deck = await source('anki', 'Core 2k')
+    const meet = await noteOf('会う', 'あう')
+    await seenIn(meet, deck)
+    await studied(meet, 30)
+    const [second, third, fourth, fifth] = (await client.query<{ id: string }>(
+      `SELECT n.id FROM note n JOIN level_claim l ON l.note_id = n.id
+       WHERE l.authority_key = 'tanos-jlpt' AND l.level = 'N5' AND n.id <> $1 ORDER BY n.id LIMIT 4`,
+      [meet],
+    )).rows.map(row => row.id)
+    await studied(second!, 9)
+    await studied(third!, 2)
+    await studied(fourth!, 40, { suspended: true })
+    await client.exec(`
+      INSERT INTO auth."user" (id, name, email, email_verified, created_at, updated_at)
+      VALUES ('usr_other', 'Other', 'other@example.test', true, now(), now()) ON CONFLICT DO NOTHING;
+    `)
+    await studied(fifth!, 40, { owner: 'usr_other' })
+    await client.query(
+      `INSERT INTO card (note_id, owner_id, template_key) SELECT id, $1, 'recognition' FROM note
+       WHERE id NOT IN (SELECT note_id FROM card WHERE owner_id = $1) AND subject_id = 'jlpt-vocab-2' LIMIT 1`,
+      [OWNER],
+    )
+
+    const shelf = await categoryShelf(db, OWNER)
+
+    expect(shelf.find(row => row.key === 'jlpt:N5')!.progress).toEqual({ known: 1, familiar: 1, learning: 1 })
+    expect(shelf.find(row => row.key === 'jlpt:N4')!.progress).toEqual({ known: 0, familiar: 0, learning: 0 })
+    expect(shelf.find(row => row.key === `deck:${deck.id}`)).toMatchObject({
+      label: 'Core 2k',
+      words: 1,
+      progress: { known: 1, familiar: 0, learning: 0 },
+      active: false,
+    })
+  })
+})
+
+// The read side of *levels from the list*: a lesson's *category* and the Vet
 // strip both stop reading a model's estimate as a level.
 describe('a level, wherever a screen reads one', () => {
   async function minted(noteId: string): Promise<string> {
@@ -447,11 +523,15 @@ describe('a level, wherever a screen reads one', () => {
       [own],
     )
 
-    const atN5 = await newCards(db, OWNER, 20, { domains: [], levels: ['N5'] })
-    const unfiltered = await newCards(db, OWNER, 20)
+    const atN5 = await newCards(db, OWNER, 20, { kind: 'level', level: 'N5' })
 
     expect(atN5.map(card => card.cardId)).toEqual([listed])
-    expect(unfiltered.map(card => card.cardId).sort()).toEqual([listed, estimated].sort())
+    // ⚠️ And the estimate puts it at no level at all: it is the reader's own
+    // word, found under *My decks* by the *source* it came from.
+    for (const level of LEVELS) {
+      const cards = await newCards(db, OWNER, 20, { kind: 'level', level })
+      expect(cards.map(card => card.cardId), level).not.toContain(estimated)
+    }
   })
 
   it('shows the Vet strip the list\'s level, and no level for a word only a model placed', async () => {

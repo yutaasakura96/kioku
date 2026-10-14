@@ -25,8 +25,6 @@
  * what makes a *session* answerable underground, and what makes PRD §5's "the
  * snapshot wins" a mechanism rather than a promise.
  */
-import { jlptVocab } from '../../../shared/subject/declaration'
-import { parseSessionFilter } from '../../../shared/review/filter'
 import { parseSessionSize, parseStart } from '../../../shared/review/request'
 import { requireOwnerId } from '../../utils/reader'
 import { offerOf, resumeOrStart } from '../../utils/review/session'
@@ -47,26 +45,21 @@ export default defineEventHandler(async (event) => {
   if (!start.ok)
     throw createError({ statusCode: 400, statusMessage: start.code })
 
-  // ⚠️ **A filter naming a value the *subject* does not declare is refused, not
-  // dropped** (ADR 0065 §2): dropped, it would start an unfiltered lesson the
-  // reader did not ask for.
-  const filter = parseSessionFilter(body, jlptVocab)
-  if (!filter.ok)
-    throw createError({ statusCode: 400, statusMessage: filter.code })
-
   // ⚠️ **The reader's zone rides every request, the mount's included** (ADR
   // 0066 §4). A zone that is not one is dropped to `null` rather than refused:
   // the worst a wrong value can do is move one reader's own boundary by a few
   // hours, and a *session* that would not start over it would be the brake
   // taking the run away.
   const zone = canonicalZone((body as Record<string, unknown> | undefined)?.zone)
-  const session = await resumeOrStart(db, ownerId, { start: start.start, size, filter: filter.filter, zone })
+  const session = await resumeOrStart(db, ownerId, { start: start.start, size, zone })
 
   return {
     session,
     // ADR 0076 §8 — what is waiting, counted after the run so that a lesson's
     // own words are in the day (ADR 0066 §7). Always: the screen before a run
-    // is made of it, and so is the summary's *What next*.
-    offer: await offerOf(db, ownerId, resolveZone(zone), filter.filter),
+    // is made of it, and so is the summary's *What next*. A lesson's words
+    // are counted in the reader's active *category* (ADR 0077 §1), which the
+    // server reads: the request names none.
+    offer: await offerOf(db, ownerId, resolveZone(zone)),
   }
 })

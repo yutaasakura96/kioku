@@ -62,15 +62,23 @@ export default defineNuxtConfig({
     '/stats': { noScripts: true },
     // The fourth *place*: three numbers in a form (ADR 0076 §2).
     '/settings': { noScripts: true },
+    // The fifth: a shelf of forms, one button each (ADR 0077 §3).
+    '/categories': { noScripts: true },
+    // ⚠️ Since #71 (ADR 0078) `/` is Home, Ingest is here, and More is the
+    // menu that reaches it, Sources, Stats and Settings.
+    '/add': { noScripts: true },
+    '/more': { noScripts: true },
 
     // The refusal page: a message and nothing else (`08` §2.1).
     '/auth/refused': { noScripts: true },
 
-    // The two *modes* — client-owned state: a session snapshot, an outbox, a
+    // The *modes* — client-owned state: a session snapshot, an outbox, a
     // keystroke budget. `ssr: false` is a build-time optimisation only; the
     // server still returns a real document (verification §5.5).
     '/vet': { ssr: false },
     '/review': { ssr: false },
+    // The placement test (ADR 0079 §1): a third, walked one question at a time.
+    '/placement': { ssr: false },
 
     // The door. Universal, and deliberately so: `authClient` is a client
     // library, and it is the one route that ships JavaScript while being
@@ -92,6 +100,21 @@ export default defineNuxtConfig({
     alias: {
       'pg-native': stub('pg-native'),
       '@opentelemetry/api': stub('not-installed'),
+    },
+  },
+
+  hooks: {
+    // ⚠️ Cold boot is a production concern, so `nuxt dev` keeps the externals
+    // it had before #73. The dev server is one file with every dynamic import
+    // inlined, so the `@opentelemetry/api` stand-in would run at boot and its
+    // throw would stop the server before it serves anything. External, the
+    // package is simply missing and `better-auth`'s `.catch()` handles that.
+    'nitro:config'(config) {
+      if (!config.dev)
+        return
+
+      config.noExternals = false
+      delete config.alias?.['@opentelemetry/api']
     },
   },
 })

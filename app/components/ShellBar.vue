@@ -1,91 +1,172 @@
 <script setup lang="ts">
-// `10` §3.1 — the *shell*'s bar. On `/`, `/sources`, `/sources/:id`,
-// `/sources/:id/delete`, `/stats` and `/settings`, and nowhere else (ADR 0013,
-// `09` §2).
+// `10` §3.1 — the *shell*'s bar. On every *place* (`shared/utils/origin.ts`)
+// and nowhere else (ADR 0013, `09` §2).
+//
+// ⚠️ **The prototype's bar since #71** (ADR 0078): the name, Home and
+// Categories, and More at the far end. *Words* is the prototype's third item
+// and no ticket has built it, so it is not drawn. Every other *place* is
+// reached from More, and More is marked while the reader is on one.
+//
+// ⚠️ **Below 720px the items move to a bar of tabs at the foot of the
+// screen**, as the prototype's phone frame has them, and the bar at the top
+// keeps the name alone. Both are links; no script is involved.
 //
 // ⚠️ **The nav names the *places* and never a *mode*** (ADR 0032). A
-// *mode* is entered from the start block, which is a different component for a
-// different reason — the nav is text, the start block is bounded.
+// *mode* is entered from the start block or from Home's two cards.
 //
-// ⚠️ **The current *place* is marked by ink alone, not by the accent.** `05` §2
-// spends the accent on where you are *in a task* and on what costs you the
-// decision, and "which screen am I on" is neither. One ramp step
-// between `--k-ink` and `--k-ink-secondary` is 15.67 against 4.59, which is not
-// subtle.
+// ⚠️ **The current item is marked by ink and the prototype's accent rule**
+// under it. ⚠️ This was ink alone until #71; the prototype, which the owner
+// kept as built, draws the rule.
 
-import { PLACES } from '~~/shared/utils/origin'
+import { NAV, navItemOf } from '~~/shared/utils/origin'
 
 const route = useRoute()
 
 const NAMES: Record<string, string> = {
-  '/': 'Ingest',
-  '/sources': 'Sources',
-  '/stats': 'Stats',
-  '/settings': 'Settings',
+  '/': 'Home',
+  '/categories': 'Categories',
+  '/more': 'More',
 }
 
-/** `/sources/:id` is inside Sources, so the nav marks Sources — `09` §2. */
-function isCurrent(place: string): boolean {
-  if (place === '/')
-    return route.path === '/'
-
-  return route.path === place || route.path.startsWith(`${place}/`)
-}
+const current = computed(() => navItemOf(route.path))
+const left = NAV.filter(item => item !== '/more')
 </script>
 
 <template>
   <header class="bar">
-    <nav class="nav">
+    <NuxtLink to="/" class="brand" aria-label="Kioku home">
+      <span lang="ja">記憶</span>Kioku
+    </NuxtLink>
+
+    <nav class="nav" aria-label="Main">
       <NuxtLink
-        v-for="place in PLACES"
-        :key="place"
-        :to="place"
-        :class="{ current: isCurrent(place) }"
-        :aria-current="isCurrent(place) ? 'page' : undefined"
+        v-for="item in left"
+        :key="item"
+        :to="item"
+        :class="{ current: current === item }"
+        :aria-current="current === item ? 'page' : undefined"
       >
-        {{ NAMES[place] }}
+        {{ NAMES[item] }}
       </NuxtLink>
     </nav>
 
-    <!-- The door, quiet, for signing out (`08` §2). -->
-    <NuxtLink to="/auth" class="door">
-      Sign out
+    <span class="grow" />
+
+    <NuxtLink
+      to="/more"
+      class="more"
+      :class="{ current: current === '/more' }"
+      :aria-current="current === '/more' ? 'page' : undefined"
+    >
+      More
     </NuxtLink>
   </header>
+
+  <nav class="tabs" aria-label="Main">
+    <NuxtLink
+      v-for="item in NAV"
+      :key="item"
+      :to="item"
+      :class="{ current: current === item }"
+      :aria-current="current === item ? 'page' : undefined"
+    >
+      {{ NAMES[item] }}
+    </NuxtLink>
+  </nav>
 </template>
 
 <style scoped>
 .bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--k-space-6); /* 28px */
   height: var(--k-bar-height); /* 56px — the horizon *Vet*'s chrome bar shares */
   padding: 0 var(--k-gutter);
   border-bottom: 1px solid var(--k-rule);
 }
 
-.nav {
+/* The prototype's `.brand`: 記憶 in the accent, then the name. */
+.brand {
   display: flex;
-  gap: var(--k-space-6); /* 28px */
+  align-items: baseline;
+  gap: var(--k-space-2);
+  font-size: 19px;
+  color: var(--k-ink);
+  text-decoration: none;
 }
 
-/* ⚠️ No face, no border, no underline — `10` §3.1. */
+.brand [lang] {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--k-accent);
+}
+
+.nav {
+  display: flex;
+  gap: 6px;
+}
+
+.grow {
+  flex: 1;
+}
+
+/* ⚠️ No face and no border — `10` §3.1 — and the prototype's padding. */
 .nav a,
-.door {
-  font-size: 15px;
+.more {
+  padding: 8px 10px;
+  font-size: 16px;
   font-weight: 400;
   color: var(--k-ink-secondary);
   text-decoration: none;
 }
 
-.nav a.current {
+.nav a.current,
+.more.current {
   color: var(--k-ink);
+  box-shadow: inset 0 -2px 0 var(--k-accent);
 }
 
 /* `10` §3.3 — a nav item's hover moves its ink and nothing else. There is no
    active state and no disabled state (ADR 0035). */
 .nav a:hover,
-.door:hover {
+.more:hover {
   color: var(--k-ink);
+}
+
+.tabs {
+  display: none;
+}
+
+/* `10` §10.1's breakpoint: the prototype's phone frame. */
+@media (width < 720px) {
+  .nav,
+  .more {
+    display: none;
+  }
+
+  .tabs {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    background: var(--k-raised);
+    border-top: 1px solid var(--k-rule);
+  }
+
+  .tabs a {
+    padding: 13px 4px 14px;
+    font-size: 14.5px;
+    color: var(--k-ink-secondary);
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .tabs a.current {
+    color: var(--k-ink);
+    box-shadow: inset 0 2px 0 var(--k-accent);
+  }
 }
 </style>

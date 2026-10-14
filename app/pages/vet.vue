@@ -546,7 +546,7 @@ onMounted(async () => {
               says what to do instead. ⚠️ It is `external` for the same reason
               Done is.
             -->
-            <NuxtLink to="/" external class="affordance">
+            <NuxtLink to="/add" external class="affordance">
               <span class="arrow" aria-hidden="true">→</span>
               <span>Ingest a source</span>
             </NuxtLink>

@@ -106,7 +106,7 @@ beforeAll(async () => {
 describe('the gate is still the gate', () => {
   // ⚠️ Asserting the forgery *works* would pass on an application that had
   // stopped checking. This is the other half: the same routes, no cookie.
-  it.each(['/', '/sources', '/stats', '/settings'])('%s without a session is a 302 to /auth', async (path) => {
+  it.each(['/', '/categories', '/more', '/add', '/sources', '/stats', '/settings'])('%s without a session is a 302 to /auth', async (path) => {
     const response = await nuxtFetch(path, { redirect: 'manual' })
 
     expect(response.status).toBe(302)
@@ -115,7 +115,7 @@ describe('the gate is still the gate', () => {
 })
 
 describe('assertion 1, signed in — the places ship no JavaScript', () => {
-  it.each(['/', '/sources', '/stats', '/settings'])('%s contains no <script', async (path) => {
+  it.each(['/', '/categories', '/more', '/add', '/sources', '/stats', '/settings'])('%s contains no <script', async (path) => {
     const response = await asReader(path)
 
     expect(response.status).toBe(200)
@@ -124,9 +124,11 @@ describe('assertion 1, signed in — the places ship no JavaScript', () => {
 
 })
 
-describe('ADR 0031 — signing in lands on Ingest', () => {
-  it('serves the form at /, with both start controls and neither disabled', async () => {
-    const html = await asReader('/').then(response => response.text())
+// ⚠️ **Ingest was the landing route, `/`, until #71** (ADR 0031, ADR 0078).
+// It is `/add` now and still carries the start block.
+describe('Ingest, at /add since ADR 0078', () => {
+  it('serves the form at /add, with the start controls and none disabled', async () => {
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('name="content"')
     expect(html).toContain('Vet')
@@ -143,20 +145,207 @@ describe('ADR 0031 — signing in lands on Ingest', () => {
   // teaches them and a review run never holds one. Read as text, because the
   // count and its word are separate spans with a scoped attribute on each.
   it('reads Review · 0 due and Lesson · 0 new for a reader with no cards', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
     const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
 
     expect(text).toContain('Vet · 0 flagged')
     expect(text).toContain('Review · 0 due')
     expect(text).toContain('Lesson · 0 new')
     // Each control asks for its own run, and says where to come back to.
-    expect(html).toContain('href="/review?start=review&amp;from=%2F"')
-    expect(html).toContain('href="/review?start=lesson&amp;from=%2F"')
+    expect(html).toContain('href="/review?start=review&amp;from=%2Fadd"')
+    expect(html).toContain('href="/review?start=lesson&amp;from=%2Fadd"')
   })
 
   it('says every figure is as of this page load — `09` §2', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
     expect(html).toContain('as of this page load')
+  })
+})
+
+// ADR 0077 §3 — the fifth *place*. A shelf of forms with one button each: no
+// JavaScript, a POST, and a `303` to Home (to the screen before a run until
+// #71, ADR 0078).
+describe('Categories — ADR 0077 §3', () => {
+  const text = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+  const shelf = () => asReader('/categories').then(response => response.text())
+  /** The keys the shelf offers to study: every row but the active one. */
+  const offered = (html: string) => [...html.matchAll(/name="category" value="([^"]+)"/g)].map(match => match[1])
+
+  it('lists the five levels, marks N5 for a reader who has chosen none, and writes no row to do it', async () => {
+    const html = await shelf()
+
+    expect(text(html)).toContain('Choose what to study.')
+    expect(text(html)).toContain('Reviews always cover everything you have learned')
+    expect(offered(html)).toEqual(['jlpt:N4', 'jlpt:N3', 'jlpt:N2', 'jlpt:N1'])
+    expect(html.match(/New words come from here/g)).toHaveLength(1)
+    expect(html).toContain('action="/api/category"')
+    expect(await count('active_category')).toBe(0)
+  })
+
+  // ⚠️ Not `/` here: a reader who has chosen nothing is on Welcome, which has
+  // no nav (ADR 0078). Home's own block asserts the dashboard's link.
+  it('is in the nav of every place', async () => {
+    for (const path of ['/categories', '/more', '/add', '/sources', '/stats', '/settings'])
+      expect(await asReader(path).then(response => response.text())).toContain('href="/categories"')
+  })
+
+  it('stores the choice, answers 303 to Home, and marks it on the shelf', async () => {
+    const response = await asReader('/api/category', form({ category: 'jlpt:N3' }))
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+    expect(offered(await shelf())).toEqual(['jlpt:N5', 'jlpt:N4', 'jlpt:N2', 'jlpt:N1'])
+
+    await asReader('/api/category', form({ category: 'jlpt:N2' }))
+    expect(await count('active_category'), 'a second choice wrote a second row').toBe(1)
+  })
+
+  // ⚠️ The way a reader sends such a key is a page drawn before a deck was
+  // deleted, so the answer is the shelf as it is now and not an error page.
+  it('changes nothing for a key that names no category, and lands back on the shelf', async () => {
+    for (const category of ['jlpt:N6', 'deck:0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b', 'my-words', '']) {
+      const response = await asReader('/api/category', form({ category }))
+
+      expect(response.status, category).toBe(303)
+      expect(response.headers.get('location'), category).toBe('/categories')
+    }
+
+    expect(offered(await shelf())).toEqual(['jlpt:N5', 'jlpt:N4', 'jlpt:N3', 'jlpt:N1'])
+  })
+
+  it('puts an imported deck and the reader\'s own words under My decks', async () => {
+    await database.client.exec(`
+      WITH deck AS (
+        INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
+        VALUES ('jlpt-vocab-2', 'anki', 'Core 2k', '会う', 'hash-core-2k', 2) RETURNING id
+      ), list AS (
+        INSERT INTO source (subject_id, kind, title, content, content_hash, char_count)
+        VALUES ('jlpt-vocab-2', 'word_list', '今週の単語', '沼', 'hash-own-list', 1) RETURNING id
+      ), piece AS (
+        INSERT INTO source_chunk (source_id, ordinal, char_start, char_end, content_hash)
+        SELECT id, 0, 0, 1, 'c' FROM list RETURNING id, source_id
+      ), word AS (
+        INSERT INTO note (subject_id, identity_key, fields)
+        VALUES ('jlpt-vocab-2', '沼␟ぬま', '{"term":"沼","reading":"ぬま"}'::jsonb) RETURNING id
+      )
+      INSERT INTO occurrence (note_id, source_id, source_chunk_id, char_start, char_end, surface_form)
+      SELECT word.id, piece.source_id, piece.id, 0, 1, '沼' FROM word, piece;
+    `)
+
+    const html = await shelf()
+    const [deck, own] = offered(html).slice(-2)
+
+    expect(deck).toMatch(/^deck:/)
+    expect(own).toBe('my-words')
+    expect(text(html)).toContain('Core 2k 0 words · 0 learned · imported')
+    expect(text(html)).toContain('My words 1 word · 0 learned')
+
+    const response = await asReader('/api/category', form({ category: 'my-words' }))
+    expect(response.headers.get('location')).toBe('/')
+    expect(offered(await shelf())).not.toContain('my-words')
+  })
+
+  it('is the reader\'s alone: no session, no write', async () => {
+    const response = await nuxtFetch('/api/category', { ...form({ category: 'jlpt:N1' }), redirect: 'manual' })
+
+    expect(response.status).toBe(401)
+    expect(offered(await shelf())).not.toContain('my-words')
+
+    // Back to no choice and no sources, for the files' other tests.
+    await database.client.exec('DELETE FROM active_category; TRUNCATE occurrence, source_chunk, source CASCADE;')
+    await database.client.exec(`DELETE FROM note WHERE identity_key = '沼␟ぬま';`)
+  })
+})
+
+// ADR 0078 — Home, the landing *place*: Welcome on a first visit, the
+// dashboard once the reader has chosen where to start. No JavaScript on either.
+describe('Home — ADR 0078', () => {
+  const text = (html: string) => html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+  const home = () => asReader('/').then(response => response.text())
+
+  it('is Welcome for a reader who has chosen nothing: what Kioku is, and a level to start at', async () => {
+    const html = await home()
+
+    expect(text(html)).toContain('Learn the Japanese words you need for the JLPT.')
+    expect(text(html)).toContain('I am new to Japanese · start at N5')
+    // ADR 0079 §1: *Find my level* enters the test, and each *Start at* is a
+    // form; starting above N5 is a placement.
+    expect(html).toContain('href="/placement?from=%2F"')
+    expect(text(html)).toContain('Find my level · 3 minute test')
+    expect([...html.matchAll(/name="start" value="([^"]+)"/g)].map(match => match[1]))
+      .toEqual(['N5', 'N5', 'N4', 'N3', 'N2', 'N1'])
+    expect(html).toContain('action="/api/placement/declare"')
+    // ADR 0075 §8: the sources, with their links, on the screen the prototype puts them on.
+    expect(html).toContain('href="https://www.tanos.co.uk/jlpt/"')
+    // No *shell*: one decision, and no way around it.
+    expect(html).not.toContain('href="/more"')
+    expect(html).not.toContain('<script')
+    expect(await count('active_category')).toBe(0)
+  })
+
+  it('is the dashboard once a level is chosen, naming it and explaining what is empty', async () => {
+    const response = await asReader('/api/category', form({ category: 'jlpt:N3' }))
+    expect(response.headers.get('location')).toBe('/')
+
+    const html = await home()
+    const page = text(html)
+
+    expect(page).toContain('Today')
+    expect(page).toContain('Reviews 0 words due')
+    expect(page).toContain('Nothing to review yet. Words appear here after your first lesson.')
+    // No starter set in this database: the lesson card says why it is empty.
+    expect(page).toContain('There are no new words left in JLPT N3.')
+    expect(page).toContain('New words come from JLPT N3 Change category')
+    expect(page).toContain('Your JLPT vocabulary level · estimate')
+    expect(page).toContain('No estimate yet.')
+    expect(page).toContain('Progress by level')
+    expect(page).toContain('as of this page load')
+    expect(html).toContain('href="/categories"')
+    expect(html).toContain('href="/more"')
+    expect(html).toContain('href="/add"')
+    // A card with nothing to start has no control, and nothing is disabled.
+    expect(html).not.toContain('start=review')
+    expect(html).not.toContain('disabled')
+    expect(html).not.toContain('<script')
+    // ADR 0079 §3: with no placement and no level, the card offers the test.
+    expect(html).toContain('href="/placement?from=%2F"')
+    expect(page).toContain('How is this worked out?')
+
+    await database.client.exec('DELETE FROM active_category;')
+  })
+
+  it('places a reader who starts at N3 at N4, with N5 and N4 placed out', async () => {
+    const response = await asReader('/api/placement/declare', form({ start: 'N3' }))
+    expect(response.status).toBe(303)
+    expect(response.headers.get('location')).toBe('/')
+
+    const page = text(await home())
+    expect(page).toContain('N4 working toward N3')
+    expect(page).toContain('From the level you chose to start at.')
+    expect(page).toContain('New words come from JLPT N3')
+    expect(page.match(/placed out/g)).toHaveLength(2)
+
+    await database.client.exec('DELETE FROM placement; DELETE FROM active_category;')
+  })
+
+  it('only chooses the category for a reader who starts at N5', async () => {
+    await asReader('/api/placement/declare', form({ start: 'N5' }))
+
+    expect(text(await home())).toContain('New words come from JLPT N5')
+    expect(await count('placement')).toBe(0)
+
+    await database.client.exec('DELETE FROM active_category;')
+  })
+})
+
+// More — the menu the prototype puts everything else under (ADR 0078).
+describe('More — ADR 0078', () => {
+  it('reaches Add, Settings, Vet, Sources, Stats, the export and the door', async () => {
+    const html = await asReader('/more').then(response => response.text())
+
+    for (const href of ['/add', '/placement?from=%2Fmore', '/settings', '/vet?from=%2Fmore', '/sources', '/stats', '/api/export', '/auth'])
+      expect(html, href).toContain(`href="${href}"`)
+    expect(html).not.toContain('<script')
   })
 })
 
@@ -175,9 +364,10 @@ describe('Settings — ADR 0076 §2', () => {
     expect(await count('study_setting')).toBe(0)
   })
 
-  it('is in the nav of every place', async () => {
-    for (const path of ['/', '/sources', '/stats', '/settings'])
-      expect(await asReader(path).then(response => response.text())).toContain('href="/settings"')
+  // ⚠️ Since #71 the bar names Home, Categories and More, and Settings is a
+  // row under More (ADR 0078).
+  it('is reached from More', async () => {
+    expect(await asReader('/more').then(response => response.text())).toContain('href="/settings"')
   })
 
   it('stores what the form sends, answers 303, and shows it back', async () => {
@@ -214,7 +404,7 @@ describe('Settings — ADR 0076 §2', () => {
 
 describe('an accepted submission — `S2`', () => {
   it('answers 303 to / and has already written the four rows', async () => {
-    const response = await asReader('/', form({
+    const response = await asReader('/add', form({
       title: '朝日新聞 社説',
       content: '駅の近くに図書館があります。'.repeat(50),
     }))
@@ -223,7 +413,7 @@ describe('an accepted submission — `S2`', () => {
     // disk by the time this status is read — that is what `S2`'s "returns
     // control immediately" means (`09` §4.2).
     expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/')
+    expect(response.headers.get('location')).toBe('/add')
 
     expect(await count('source')).toBe(1)
     expect(await count('ingestion')).toBe(1)
@@ -232,7 +422,7 @@ describe('an accepted submission — `S2`', () => {
   })
 
   it('lists the queued run above the form, without the screen polling', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('朝日新聞 社説')
     expect(html).toContain('queued')
@@ -244,7 +434,7 @@ describe('an accepted submission — `S2`', () => {
   })
 
   it('⚠️ never diagnoses a dead worker, and never names the provider', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).not.toMatch(/worker is (down|not running)|offline/i)
     expect(html).not.toMatch(/anthropic|openai|rate.?limit/i)
@@ -255,7 +445,7 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
   const tooMuch = 'あ'.repeat(SOURCE_CHARACTER_CAP + 1)
 
   it('answers 200 rather than redirecting', async () => {
-    const response = await asReader('/', form({ title: '', content: tooMuch }))
+    const response = await asReader('/add', form({ title: '', content: tooMuch }))
 
     // A `303` here would lose the paste. There is no client to hold it, and the
     // reader may not be able to get it back.
@@ -263,7 +453,7 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
   })
 
   it('names the count and says to split it', async () => {
-    const html = await asReader('/', form({ title: '', content: tooMuch }))
+    const html = await asReader('/add', form({ title: '', content: tooMuch }))
       .then(response => response.text())
 
     expect(html).toContain('100,001 characters — the cap is 100,000. Split it and submit the halves.')
@@ -271,7 +461,7 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
 
   it('⚠️ re-renders the form with the reader\'s text still in it', async () => {
     const marked = `見つけてください。${'あ'.repeat(SOURCE_CHARACTER_CAP)}`
-    const html = await asReader('/', form({ title: '社説の下書き', content: marked }))
+    const html = await asReader('/add', form({ title: '社説の下書き', content: marked }))
       .then(response => response.text())
 
     // ⚠️ **Inside the textarea, not merely somewhere on the page.** Asserting
@@ -292,7 +482,7 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
     // it went in — silently, and `09` §4.2's whole point is that a paste which
     // cannot be got back is handed back **unchanged**.
     const marked = `\n\n見つけてください。${'あ'.repeat(SOURCE_CHARACTER_CAP)}`
-    const html = await asReader('/', form({ title: '', content: marked }))
+    const html = await asReader('/add', form({ title: '', content: marked }))
       .then(response => response.text())
 
     const textarea = html.match(/<textarea\b[^<>]*>([\s\S]*?)<\/textarea>/)?.[1]
@@ -310,7 +500,7 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
     // none — and `test/e2e/no-scripts.test.ts` would go on passing, since it
     // never posts anything.
     const nasty = `</textarea><script>alert(1)</script>${'あ'.repeat(SOURCE_CHARACTER_CAP)}`
-    const html = await asReader('/', form({ title: '<b>bold</b>', content: nasty }))
+    const html = await asReader('/add', form({ title: '<b>bold</b>', content: nasty }))
       .then(response => response.text())
 
     expect(html).not.toContain('<script')
@@ -320,14 +510,14 @@ describe('⚠️ the over-cap paste — `09` §4.2, and the reason this file exi
 
   it('refused before any spend — nothing was written', async () => {
     const before = await count('source')
-    await asReader('/', form({ title: '', content: tooMuch }))
+    await asReader('/add', form({ title: '', content: tooMuch }))
 
     expect(await count('source')).toBe(before)
     expect(await count('job')).toBe(await count('ingestion'))
   })
 
   it('refuses an empty paste the same way, with one sentence', async () => {
-    const response = await asReader('/', form({ title: '', content: '   ' }))
+    const response = await asReader('/add', form({ title: '', content: '   ' }))
     const html = await response.text()
 
     expect(response.status).toBe(200)
@@ -339,19 +529,19 @@ describe('an identical source resubmitted — PRD §5', () => {
   const content = '同じ文章をもう一度貼りました。'.repeat(10)
 
   it('creates a new source and points at the earlier one', async () => {
-    const first = await asReader('/', form({ title: '一回目', content }))
-    expect(first.headers.get('location')).toBe('/')
+    const first = await asReader('/add', form({ title: '一回目', content }))
+    expect(first.headers.get('location')).toBe('/add')
 
-    const second = await asReader('/', form({ title: '二回目', content }))
+    const second = await asReader('/add', form({ title: '二回目', content }))
 
     // ⚠️ `04` §5.1: `content_hash` is indexed and **not** unique. Detection, not
     // prevention — resubmission is a choice rather than an error.
     expect(second.status).toBe(303)
-    expect(second.headers.get('location')).toMatch(/^\/\?existing=[0-9a-f-]{36}$/)
+    expect(second.headers.get('location')).toMatch(/^\/add\?existing=[0-9a-f-]{36}$/)
   })
 
   it('offers to open it, by name, on the page the redirect lands on', async () => {
-    const location = await asReader('/', form({ title: '三回目', content }))
+    const location = await asReader('/add', form({ title: '三回目', content }))
       .then(response => response.headers.get('location')!)
 
     const html = await asReader(location).then(response => response.text())
@@ -361,7 +551,7 @@ describe('an identical source resubmitted — PRD §5', () => {
   })
 
   it('ignores an `existing` that is not an id, rather than failing the page', async () => {
-    const response = await asReader('/?existing=not-an-id')
+    const response = await asReader('/add?existing=not-an-id')
 
     expect(response.status).toBe(200)
     expect(await response.text()).not.toContain('Identical to an earlier source')
@@ -421,7 +611,7 @@ describe('⚠️ the resume control — `10` §6.2, owed since #6 and buildable 
 
   it('is absent on a run that is not incomplete', async () => {
     await setStatus('complete')
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).not.toContain('name="resume"')
   })
@@ -431,7 +621,7 @@ describe('⚠️ the resume control — `10` §6.2, owed since #6 and buildable 
     // back button — and there is no JavaScript here to intercept anything
     // (ADR 0020), so the method **is** the protection.
     await setStatus('incomplete')
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('name="resume"')
     expect(html).toContain('Resume')
@@ -443,10 +633,10 @@ describe('⚠️ the resume control — `10` §6.2, owed since #6 and buildable 
     await setStatus('incomplete')
     const id = await theRun()
 
-    const response = await asReader('/', form({ resume: id }))
+    const response = await asReader('/add', form({ resume: id }))
 
     expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/')
+    expect(response.headers.get('location')).toBe('/add')
 
     const rows = await database.client.query<{ kind: string, state: string }>(
       `SELECT kind, state FROM job WHERE ingestion_id = $1 ORDER BY created_at;`,
@@ -463,7 +653,7 @@ describe('⚠️ the resume control — `10` §6.2, owed since #6 and buildable 
     const id = await theRun()
     const before = await count('job')
 
-    const response = await asReader('/', form({ resume: id }))
+    const response = await asReader('/add', form({ resume: id }))
 
     expect(response.status).toBe(303)
     expect(await count('job')).toBe(before)
@@ -483,7 +673,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
   })
 
   it('offers both kinds, with the word list checked and prose still reachable', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('name="kind"')
     // The checked one is the default, and the other is on the screen rather than
@@ -497,7 +687,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
     // A urlencoded form sends a file input's *name* and not its bytes. This is
     // the one attribute that makes the upload below possible at all, and it is
     // invisible everywhere except in the markup.
-    return asReader('/')
+    return asReader('/add')
       .then(response => response.text())
       .then(html => expect(html).toMatch(/<form[^<>]*enctype="multipart\/form-data"/))
   })
@@ -505,7 +695,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
   it('writes a word_list source, chunked at 25 terms rather than 1200 characters', async () => {
     const terms = Array.from({ length: 30 }, (_, index) => `語${index}`).join('\n')
 
-    const response = await asReader('/', upload({ kind: 'word_list', title: '語彙', content: terms }))
+    const response = await asReader('/add', upload({ kind: 'word_list', title: '語彙', content: terms }))
 
     expect(response.status).toBe(303)
     const source = await database.client.query<{ kind: string }>('SELECT kind FROM source;')
@@ -518,7 +708,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
     await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
     const terms = ['図書館', 'あります', 'コーヒー'].join('\n')
 
-    const response = await asReader('/', upload(
+    const response = await asReader('/add', upload(
       { kind: 'word_list', title: '', content: '' },
       { name: 'vocab.txt', text: terms },
     ))
@@ -538,7 +728,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
     await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
     const marked = `語彙${'あ'.repeat(SOURCE_CHARACTER_CAP)}`
 
-    const response = await asReader('/', upload(
+    const response = await asReader('/add', upload(
       { kind: 'word_list', title: '', content: '' },
       { name: 'too-long.txt', text: marked },
     ))
@@ -557,7 +747,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
   })
 
   it('keeps the reader\'s answer about the material when it refuses them', async () => {
-    const html = await asReader('/', form({ kind: 'prose', title: '', content: '   ' }))
+    const html = await asReader('/add', form({ kind: 'prose', title: '', content: '   ' }))
       .then(response => response.text())
 
     // Everything else on the form comes back; this must too, or a refusal
@@ -574,7 +764,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
     // `word_list` would chunk a pasted passage at 25 terms. `04` §5.1's column
     // default is `prose` and `readSourceKind` answers with that one, not with
     // the screen's.
-    const response = await asReader('/', form({
+    const response = await asReader('/add', form({
       title: '社説',
       content: '駅の近くに図書館があります。'.repeat(50),
     }))
@@ -587,7 +777,7 @@ describe('a word list is what Ingest asks for — ADR 0063', () => {
   it('still writes prose when prose is what was chosen', async () => {
     await database.client.exec('TRUNCATE job, ingestion, source_chunk, source CASCADE;')
 
-    const response = await asReader('/', form({
+    const response = await asReader('/add', form({
       kind: 'prose',
       title: '社説',
       content: '駅の近くに図書館があります。'.repeat(50),
@@ -626,7 +816,7 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
   })
 
   it('offers the kind on the form, and the form still ships no JavaScript', async () => {
-    const document = await (await asReader('/')).text()
+    const document = await (await asReader('/add')).text()
 
     expect(document).toContain('value="anki"')
     expect(document).toContain('Anki deck')
@@ -638,7 +828,7 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
 
   it('unpacks the deck at submit and stores it as a word list', async () => {
     const before = await count('source')
-    const response = await asReader('/', uploadBytes(
+    const response = await asReader('/add', uploadBytes(
       { title: 'N5 deck', kind: 'anki' },
       { name: 'deck.apkg', bytes: deck() },
     ))
@@ -672,7 +862,7 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
 
   it('⚠️ refuses a file that is not a deck, on this screen, before any row', async () => {
     const before = await count('source')
-    const response = await asReader('/', upload(
+    const response = await asReader('/add', upload(
       { title: 'not a deck', kind: 'anki' },
       { name: 'notes.txt', text: 'これはテキストです' },
     ))
@@ -686,7 +876,7 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
   it('⚠️ refuses an anki submission with no file at all, by its own name', async () => {
     // ⚠️ Not `empty`. A deck is a file, and "paste the text you want notes
     // from" is advice the reader cannot take.
-    const response = await asReader('/', upload({ title: 'nothing', kind: 'anki' }))
+    const response = await asReader('/add', upload({ title: 'nothing', kind: 'anki' }))
 
     expect(response.status).toBe(200)
     const document = await response.text()
@@ -694,7 +884,7 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
   })
 
   it('keeps the reader\'s choice of kind on the re-rendered form', async () => {
-    const response = await asReader('/', upload(
+    const response = await asReader('/add', upload(
       { title: 'not a deck', kind: 'anki' },
       { name: 'notes.txt', text: 'これはテキストです' },
     ))
@@ -708,11 +898,11 @@ describe('⚠️ an Anki deck — ADR 0068, #26', () => {
   it('a `.txt` and a paste are unchanged by any of this', async () => {
     const before = await count('source')
 
-    expect((await asReader('/', upload(
+    expect((await asReader('/add', upload(
       { title: 'a list', kind: 'word_list' },
       { name: 'list.txt', text: '図書館\n新聞' },
     ))).status).toBe(303)
-    expect((await asReader('/', form({ title: 'a paste', kind: 'prose', content: '本を読む。' }))).status).toBe(303)
+    expect((await asReader('/add', form({ title: 'a paste', kind: 'prose', content: '本を読む。' }))).status).toBe(303)
 
     expect(await count('source')).toBe(before + 2)
   })
@@ -744,7 +934,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
   const request = { seed_action: 'request', domain: 'tech', level: 'N3', count: '25' }
 
   it('offers a domain, a level and a count from the subject\'s closed sets', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('DRAFT A LIST')
     expect(html).toContain('name="seed_action" value="request"')
@@ -757,7 +947,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
 
   it('writes nothing for a request the form could not have sent', async () => {
     const before = await count('seed')
-    const response = await asReader('/', form({ ...request, domain: 'cooking' }))
+    const response = await asReader('/add', form({ ...request, domain: 'cooking' }))
 
     expect(response.status).toBe(303)
     expect(await count('seed')).toBe(before)
@@ -765,10 +955,10 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
 
   it('writes a seed and a queued seed job, answers 303, and writes no source', async () => {
     const sources = await count('source')
-    const response = await asReader('/', form(request))
+    const response = await asReader('/add', form(request))
 
     expect(response.status).toBe(303)
-    expect(response.headers.get('location')).toBe('/')
+    expect(response.headers.get('location')).toBe('/add')
 
     const job = await database.client.query<{ kind: string, state: string, ingestion_id: string | null }>(
       `SELECT kind, state, ingestion_id FROM job WHERE seed_id = $1;`,
@@ -779,7 +969,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
   })
 
   it('says the draft is not yet picked up, and gives the controls way while it is open', async () => {
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     // ⚠️ #34: the page never changes by itself, so the sentence names the reload.
     expect(html).toContain('Drafting 25 tech words at N3 — not yet picked up. Reload to see it.')
@@ -798,7 +988,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
       `UPDATE job SET state = 'claimed', claimed_by = 'test', claimed_at = now(), heartbeat_at = now()
        WHERE kind = 'seed' AND state = 'queued';`,
     )
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('Drafting 25 tech words at N3 — reload to see it.')
     expect(html).not.toContain('N3 — not yet picked up')
@@ -811,7 +1001,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
 
   it('⚠️ lands pre-filled in the word-list field once it has come back — ADR 0070 §1', async () => {
     await answer(['会議', '予算'])
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
 
     expect(html).toContain('2 of 25 tech words at N3 are in the list below.')
     expect(html).toMatch(/<textarea[^>]*>\n会議\n予算<\/textarea>/)
@@ -822,7 +1012,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
 
   it('is submitted as an ordinary word_list source, and the draft leaves the screen', async () => {
     const seedId = await openSeedId()
-    const response = await asReader('/', upload({
+    const response = await asReader('/add', upload({
       kind: 'word_list',
       title: 'tech · N3 · 25 words',
       // The reader removed one word before submitting.
@@ -838,27 +1028,27 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
     )
     expect(seed.rows).toEqual([{ kind: 'word_list', content: '会議', submitted: true }])
 
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
     expect(html).toContain('DRAFT A LIST')
     expect(html).not.toContain('name="seed" value=')
   })
 
   it('says so when the draft did not come back, with the job\'s own sentence', async () => {
-    await asReader('/', form(request))
+    await asReader('/add', form(request))
     await database.client.exec(
       `UPDATE job SET state = 'failed', finished_at = now(),
          last_error = 'the model provider answered 529 after 3 attempts'
        WHERE kind = 'seed' AND state = 'queued';`,
     )
 
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
     expect(html).toContain('The draft of tech words at N3 did not come back: the model provider answered 529 after 3 attempts.')
     expect(html).not.toMatch(/anthropic/i)
   })
 
   it('⚠️ discards it and keeps the row, because a discarded draft was still paid for — ADR 0070 §2', async () => {
     const seedId = await openSeedId()
-    const response = await asReader('/', form({ seed_action: 'discard', seed_id: seedId }))
+    const response = await asReader('/add', form({ seed_action: 'discard', seed_id: seedId }))
     expect(response.status).toBe(303)
 
     const row = await database.client.query<{ discarded: boolean }>(
@@ -867,7 +1057,7 @@ describe('⚠️ a seed — ADR 0070, #25', () => {
     )
     expect(row.rows).toEqual([{ discarded: true }])
 
-    const html = await asReader('/').then(response => response.text())
+    const html = await asReader('/add').then(response => response.text())
     expect(html).toContain('DRAFT A LIST')
   })
 

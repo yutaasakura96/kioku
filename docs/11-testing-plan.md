@@ -97,6 +97,7 @@ about the export and it is true of all twelve.
 | **S6** Fix before accepting | `Enter` commits and accepts with `edited = true`; an *accepted* note's fields are frozen — **in the `WHERE` of both write paths**, the app's and the worker's, each sabotaged to red (ADR 0052). ⚠️ **Amended 2026-09-18 by #23**: the *acceptance rate* half of this row is gone with the figure (ADR 0062), and `edited` is now written and read by nothing on `/stats` | unit + schema + nuxt + worker |
 | **S7** A session that ends | `review_session.size` rows in `review_session_card`, composed due-first; `snapshot_taken_at` is **server-side**; a graded *card* leaves and never returns; ⚠️ the end screen **never starts the next session** | schema + e2e |
 | **S7**, as ADR 0076 amended it (#70, 2026-10-12) | **Two kinds of run**: a review run holds due *cards* only and a lesson new words only, five at a time, ten a day, none at fifty due, each limit the reader's (`test/schema/review.test.ts`). **A lesson accepts and mints the starter words it holds** and never a rejected one. **A miss is asked again and still counts**: the question goes to the back, and the word is graded Forgot by the answer that finally gets it (`test/unit/review-quiz.test.ts`, `test/nuxt/review-quiz.test.ts`, and against the real scheduler in `test/e2e/review.test.ts`). **The tolerance limits**: exact under five letters, one edit for five to eight, two from nine, a reading exact (`test/unit/review-answer.test.ts`). **No key overrules a result.** *Finish early* grades a missed word Forgot in a review run and nothing in a lesson. ⚠️ The summary **never starts the next run**, and opening `/review` composes none | unit + schema + nuxt + e2e |
+| The active *category* (#69, 2026-10-14, [ADR 0077](adr/0077-the-reader-has-one-active-category.md)) | **New words come only from it, and reviews are unaffected by it**: a lesson holds the active *category*'s words and no other's, for a *level*, a deck and *My words*; a review run holds every due *card*; no row is the first *level*, and so is a row whose deck was deleted; a key that names no *category* writes nothing; a lesson already composed keeps its words (`test/schema/review.test.ts`). The shelf's counts and its one active row (`test/schema/starter.test.ts`). The start block counts in it (`test/schema/place-queries.test.ts`). `/categories` ships no script, is gated, and its form answers `303` (`test/e2e/ingest.test.ts`). **Choosing, end to end in a browser**: the screen before a run names the *category*, the shelf changes it, and the lesson started next holds that *category*'s word (`test/e2e/review.test.ts`) | unit + schema + nuxt + e2e |
 | **S8** Not lose grades | ADR 0039's five properties, browser side. A *session* completed with the network off loses nothing when it returns | nuxt + e2e |
 | **S9** Catch a bad card | `X` does **four things in one transaction** (`04` §7.8): `card_flag` with `prompt_version` and `model_id` denormalised, `suspended_at`, `note_vetting.flagged_at`, advance without a *grade*. ⚠️ **History untouched** | schema |
 | **S10** The numbers | §3 in full | unit + schema |
@@ -260,7 +261,8 @@ grep for `<script`. **It stops being an experiment**, because the tool makes it 
 Three assertions, in `test/e2e/`, and it was always three rather than one:
 
 1. **A *place* ships no JavaScript.** `expect(await $fetch('/')).not.toContain('<script')`, for `/`,
-   `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and `/auth/refused`.
+   `/sources`, `/sources/:id`, `/sources/:id/delete`, `/stats` and `/auth/refused` — ⚠️ and, as
+   built, every entry of `PLACES` (`shared/utils/origin.ts`), seven since #71 (ADR 0078).
 2. ⚠️ **A *mode*'s Done control is a real anchor.** The rendered `/vet` contains an `<a href>` to the
    origin, and following it lands on a *place* that itself contains no `<script>`. This is the
    `external` prop (ADR 0032, verification §12.1) — **a bare `<NuxtLink>` fails this test and
@@ -673,7 +675,8 @@ the `validate` seam. ⚠️ **None of the three needs Docker or a database.**
   zero composes due-only, a short due half is not backfilled past the allowance, fifty due shuts the
   gate and forty-nine does not, and a backlog larger than the run is taken least-retrievable first.
   Removing the gate or the retrievability order reddens both the unit and the schema tier.
-- **The `from` allowlist.** Three strings; anything else falls back to `/` (ADR 0032). ⚠️ Test the
+- **The `from` allowlist.** Three strings (⚠️ seven since #71, ADR 0078: `PLACES` in
+  `shared/utils/origin.ts`); anything else falls back to `/` (ADR 0032). ⚠️ Test the
   attacks: `//evil.com`, `https://evil.com`, `/vet`, `/stats/../../x`, empty, absent.
 - **The grade validator** — `03` §8.2's future-skew and before-snapshot rules, as a pure function.
   ⚠️ **Built 2026-09-12 with #13** — `shared/review/stamp.ts` and `test/unit/review-stamp.test.ts`.

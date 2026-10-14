@@ -84,20 +84,22 @@ ADR 0020, verification §5.5. Node 20 is out.
 
 ADR 0013 made three screens *places* and two of them *modes*. That split is the reason Nuxt was
 chosen at all, and it is expressed per route. ⚠️ **Four *places* since 2026-10-12**: ADR 0076 §2
-added Settings, which is a form and nothing else.
+added Settings, which is a form and nothing else. ⚠️ **Seven since #71** (ADR 0078): Categories,
+then Home at `/`, More at `/more`, and Ingest at `/add`. ⚠️ **Three *modes* since #72**:
+the placement test at `/placement` (ADR 0079 §1).
 
 | Route | Rule | Why |
 | --- | --- | --- |
-| Ingest, Sources, Stats, Settings | `routeRules: { noScripts: true }` | A form, a list, five numbers and three settings. They ship no JavaScript at all |
-| *Vet*, *Review* | `routeRules: { ssr: false }` | Client-owned state — a *session* snapshot, an outbox, a keystroke budget |
+| Home, Categories, More, Ingest, Sources, Stats, Settings | `routeRules: { noScripts: true }` | A dashboard, forms, a list, five numbers and three settings. They ship no JavaScript at all |
+| *Vet*, *Review*, *Placement* | `routeRules: { ssr: false }` | Client-owned state — a *session* snapshot, an outbox, a keystroke budget, or a test walked one question at a time |
 
 **Write `routeRules.noScripts` and `features.noScripts`.** `experimental.noScripts` and the route
 rule `experimentalNoScripts` both still exist at v4.5.2 and are **both deprecated** (verification
 §8). A future session copying an older recommendation will reach for the wrong name.
 
 ⚠️ **`features.noScripts` is app-wide and must not be set here.** It is typed
-`'production' | 'all' | boolean` and applies to everything. *Vet* and *Review* need JavaScript;
-stripping it globally breaks both. The per-route rule is the whole mechanism.
+`'production' | 'all' | boolean` and applies to everything. All three *modes* need JavaScript;
+stripping it globally breaks them. The per-route rule is the whole mechanism.
 
 Two properties fall out of `noScripts` and are accepted rather than worked around:
 
@@ -107,7 +109,7 @@ Two properties fall out of `noScripts` and are accepted rather than worked aroun
   is therefore server-side only (§13.2). This is a feature: there is no client guard to bypass.
 
 `ssr: false` is a **build-time optimisation only** (verification §5.5) — the Node server still
-returns a real document for *Vet* and *Review*. They get an app shell, not a blank page.
+returns a real document for *Vet*, *Review* and *Placement*. They get an app shell, not a blank page.
 
 ### 2.2 Identity
 
@@ -322,7 +324,7 @@ integration. So the release step comes first: apply the pending migrations to th
 database, check `drizzle.__drizzle_migrations` to confirm they landed, and only then merge. The
 check is not optional. `0003` to `0005` were once written up as missing from Neon while `0003` was
 already there (`00-status.md` § Done, 2026-09-19). And code that runs ahead of its schema breaks
-*Ingest*, because `/` reads `seed` on every render. The rule does not put migrations in Vercel's build
+*Ingest*, because `/add` (`/` until #71) reads `seed` on every render. The rule does not put migrations in Vercel's build
 command, because that would give the build a database string. It does not put them in a GitHub Actions
 job either, because the Actions secrets belong to a public repository. **Revisit if a migration is ever
 forgotten.** Two things about the step were settled on 2026-09-28 as well:
@@ -372,9 +374,14 @@ repository and the tracker.
    the object the migration adds (a table, a column or a constraint) in the same way.
 6. **Only then merge `develop` into `main`.** Vercel deploys `main` on the merge.
 
-⚠️ **The procedure is written and has not been run yet.** Production had every migration when #45
-deployed, so the first release that carries a new migration is the first run of it. That includes
-the first `op run` against the 1Password item.
+⚠️ **The procedure has been run twice**: for `0009` and `0010` on 2026-10-06
+([PR #66](https://github.com/yutaasakura96/kioku/pull/66)) and for `0011` to `0013` on 2026-10-14
+([PR #80](https://github.com/yutaasakura96/kioku/pull/80)). ⚠️ **This said *written and has not been
+run yet* until 2026-10-14.** ⚠️ **On 2026-10-14 the string did not come through `op run`**: it was
+the direct string from the signed-in `neon` CLI (`neon connection-string`), substituted into each
+command's environment and written nowhere, with a Neon branch of production taken first as a
+restore point. The rule that matters held, since no file held the string, but the `op run` form
+above is not recorded as having been run against the 1Password item.
 
 **When a migration is not additive.** Migrating before merging is safe only while **the code still on
 `main` tolerates the new schema**, because between steps 4 and 6 production runs the old code against
@@ -409,8 +416,9 @@ DATABASE_URL='<ref>' op run -- npm run starter:load
 It reads no `.env`, names the host and database it is about to write to and never the string, writes
 shared rows only in batches that each commit or roll back whole, and prints the per-level counts. A
 second run writes nothing, so one that stopped half-way is finished by running it again. `<ref>` is
-the reference the migration used. ⚠️ **It is the owner's step and has not been run against
-production.**
+the reference the migration used. ~~⚠️ **It is the owner's step and has not been run against
+production.**~~ ⚠️ **Run against production 2026-10-14**, on the owner's go-ahead: 8,273 *notes*
+created, the per-level counts ADR 0075 §4's.
 
 ⚠️ Better Auth's `getMigrations` **does not work with the Drizzle adapter** (verification §2.3) —
 its schema is generated (`npx auth@latest generate --adapter … --dialect …`) and then lands in the
@@ -795,9 +803,14 @@ the reader's synonyms (`04` §7.9).
   `start: 'lesson'`; without one it resumes a live run or composes nothing. It always answers
   `{ session, offer }`, and `offer` is what is waiting: the due count, the size of the next lesson,
   which brake is on, the reader's limits and the next due instant (`shared/review/offer.ts`). The
-  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run, counted
-  through the *session* filter the answer carries (`domains`, `levels`; absent or not legal is no
-  filter, never a refusal). The page adds its filter when an entry is sent and stores none.
+  *grade*, flag and finish endpoints send a fresh `offer` with the answer that ends a run.
+  ⚠️ **Since #69 the lesson in an `offer` is counted in the reader's active *category***
+  ([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §1), which the server reads from `active_category` (`04` §7.11) and
+  names in `offer.category`. No request carries it: until then each answer carried the page's
+  *session* filter (`domains`, `levels`) for that count.
+- **The active *category* is the reader's** (`04` §7.11): `POST /api/category` takes a row's form on
+  `/categories`, checks the key names a *category*, and answers `303` to `/review`; a key that names
+  none answers `303` back to `/categories` and writes nothing.
 - **The three limits are the reader's** (`study_setting`, `04` §7.10): `POST /api/settings` takes
   the form on `/settings`, clamps, and answers `303`.
 
@@ -892,10 +905,9 @@ would widen it by whatever Vercel and Neon disagree by. The rule itself is a pur
 | Auth session | Postgres + cookie | Postgres | Database sessions, 7 days, sliding |
 | The current *session* snapshot | `localStorage` | Postgres | A bounded cache, not a replica |
 | The *grade* outbox | `localStorage` | Postgres, after replay | Append-only, in order, never merges |
-| Ingest / Sources / Stats client state | — | — | **There is none.** They ship no JavaScript |
+| *Places*' client state | — | — | **There is none.** Ingest, Sources, Stats, Settings and Categories ship no JavaScript |
 
-The last row is the point of ADR 0013 and §2.1. Three of the five screens have no client state to
-manage because they have no client.
+The last row is the point of ADR 0013 and §2.1: *places* have no client state to manage.
 
 ---
 
@@ -1078,7 +1090,7 @@ Node **24.x**, built with the **`vercel`** Nitro preset, and the address is
 
 ### 13.2 How input is validated, and where
 
-**Server-side, always. Three of the five screens have no client to validate on** (§2.1), which
+**Server-side, always. The *places* have no client to validate on** (§2.1), which
 makes the usual mistake structurally impossible.
 
 - **Route protection is Nitro server middleware.** Every route, including every API route, resolves

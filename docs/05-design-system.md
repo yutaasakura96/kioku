@@ -77,8 +77,23 @@ decoration and never a state.
 
 **Every use is beside a word that says the same thing**, so neither colour is the only signal
 (SC 1.4.1). They are for the result of an answer and nothing else: a brake, an empty state and a
-notice are still sentences in ink. ⚠️ **The prototype's stage ramp is not here.** Nothing draws a
-stage in colour until #71, and a token nothing uses is a decision nobody made.
+notice are still sentences in ink. ⚠️ ~~**The prototype's stage ramp is not here.** Nothing draws a
+stage in colour until #71, and a token nothing uses is a decision nobody made.~~
+
+⚠️ **Added 2026-10-14 with [#69](https://github.com/yutaasakura96/kioku/issues/69): the stage ramp**
+([ADR 0077](adr/0077-the-reader-has-one-active-category.md) §3). `/categories` draws how far the reader is into each *category* as
+a bar, and it is the first thing to draw a stage in colour.
+
+| Token | Value | Role |
+| --- | --- | --- |
+| `--k-st-known` | `#1d1a16` | Known. The ink's own value |
+| `--k-st-familiar` | `#776d5f` | Familiar |
+| `--k-st-learning` | `#c2b29b` | Learning |
+| `--k-st-none` | `#e6ddd2` | Not started: the bar's ground |
+
+A ramp of the ink, darker for further along, as the prototype has it. **Never the only signal**: the
+bar sits under a line saying how many words are learned and carries the count at each stage as its
+label. They are fills and never text.
 
 ## 3. Rules
 

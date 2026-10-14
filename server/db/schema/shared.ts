@@ -673,7 +673,9 @@ export const levelClaim = pgTable(
  * it, and the *provenance marker* draws it hollow.
  *
  * ⚠️ **Not a key in `note.fields`** (ADR 0029): the blob has no index because no
- * query reads inside it, and the *session* filter is exactly such a query.
+ * query reads inside it, and a filter on *domain* is exactly such a query.
+ * ⚠️ Nothing asks it since #69 (ADR 0077): the *session* filter is gone, and
+ * the claims wait for topic *categories*.
  *
  * ⚠️ **Not generalised with `level_claim` into one table, yet.** ADR 0065 names
  * the third attribute as the moment to do that; two tables cost one copy of four
