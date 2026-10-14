@@ -102,4 +102,19 @@ export default defineNuxtConfig({
       '@opentelemetry/api': stub('not-installed'),
     },
   },
+
+  hooks: {
+    // ⚠️ Cold boot is a production concern, so `nuxt dev` keeps the externals
+    // it had before #73. The dev server is one file with every dynamic import
+    // inlined, so the `@opentelemetry/api` stand-in would run at boot and its
+    // throw would stop the server before it serves anything. External, the
+    // package is simply missing and `better-auth`'s `.catch()` handles that.
+    'nitro:config'(config) {
+      if (!config.dev)
+        return
+
+      config.noExternals = false
+      delete config.alias?.['@opentelemetry/api']
+    },
+  },
 })

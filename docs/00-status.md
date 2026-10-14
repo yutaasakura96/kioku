@@ -165,7 +165,29 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-15, latest — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
+**2026-10-15, latest — `npm run dev:session` serves pages again.** Built on `fm/kioku-dev-500` from
+`develop` at `c8af2a1`. No ADR; ADR 0022 § Amended 2026-10-10 gains a sentence.
+- **Reproduced first**: `npm run dev:session` booted, logged `[uncaughtException] Cannot find module
+  '@opentelemetry/api': optional, and not installed`, and answered `500` to all eleven routes signed
+  in, each with `Cannot access 'renderer' before initialization`. `.nuxt/dev/index.mjs` held the
+  stub's `throw` at top level, so § Carrying's reading of the cause was right.
+- **The fix is dev-only**: a `nitro:config` hook in `nuxt.config.ts` that, under `nuxt dev`, turns
+  `noExternals` off and removes the `@opentelemetry/api` alias. External, the package is simply
+  missing and `better-auth`'s `.catch()` falls back to its no-op. A build returns before touching
+  anything.
+- **The production build is unchanged**: two `npm run build`s, before and after, have 981 files each
+  and the same total (6.46 MB, 1.44 MB gzip). Their contents match except the build id, timestamps,
+  and two same-named style chunks (`index-styles`) that came out with their names swapped,
+  each carrying the same CSS under the other's name.
+  `server/chunks/_/not-installed.mjs` is still its own chunk behind one `import()` inside the
+  `.catch()`, and both builds answered their first request in about 0.2 s.
+- **The check**: `test/e2e/dev-server.test.ts` boots `nuxt dev` through `@nuxt/test-utils` against
+  `prepareDevSession`'s local database and fetches the door signed out and the ten other routes
+  signed in. About 11 s. It failed all eleven before the fix and passes after.
+- **Checked in a browser** on `dev:session`: Home signed in, *Review* through to a lesson's first
+  word, `/categories` and `/placement`. No console error.
+
+**2026-10-15 — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
 and the placement test** ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)). Built
 on `fm/kioku-72` from `develop` at `d220529`. **Migration `0015_placement`, additive**: two tables,
 `placement` and `placement_check`, nothing dropped; to be applied to production before the release
@@ -3293,7 +3315,7 @@ Nothing.
   which is the `from` allowlist and `shell-data.ts`'s list in one, and in `nuxt.config.ts`'s
   `noScripts` rules.
 
-- ⚠️ **`nuxt dev` answers `500` to every page, so `npm run dev:session` shows nothing** (found
+- ~~⚠️ **`nuxt dev` answers `500` to every page, so `npm run dev:session` shows nothing** (found
   2026-10-12 during #70, present on `develop` at `8974f3f` without #70). #73's `nitro.alias` points
   `@opentelemetry/api` at `server/stubs/not-installed.mjs`, which throws when it is evaluated. A
   production build keeps that module in a chunk loaded on demand, inside the `.catch()`
@@ -3301,7 +3323,11 @@ Nothing.
   there, and every request ends in `Cannot access 'renderer' before initialization`. **Not fixed
   here and not ticketed.** Until it is, look at screens on `npm run build` and
   `node .output/server/index.mjs` with `.data/dev-session/app.env`'s values, which is what #70 did
-  and what the e2e tier does.
+  and what the e2e tier does.~~
+  ⚠️ **Fixed 2026-10-15**: `nuxt dev` keeps the externals it had before #73 and drops the
+  `@opentelemetry/api` alias (`nuxt.config.ts`'s `nitro:config` hook, which does nothing on a
+  build), so `npm run dev:session` serves every page signed in. `test/e2e/dev-server.test.ts` boots
+  `nuxt dev` and fails if any page answers otherwise.
 - ⚠️ **The database never sees a question** (ADR 0076 §4, #70). It holds positions and *grades*.
   Which question is next and which words were missed is `shared/review/quiz.ts`'s, kept in
   `localStorage` under `kioku:review:quiz`. **A word is graded once, by the answer that completes
