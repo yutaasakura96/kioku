@@ -61,13 +61,14 @@ const router = useRouter()
 const origin = computed(() => resolveOrigin(route.query.from))
 
 /**
- * What the way out is called. ⚠️ `/` is *Home* here, as the prototype's
- * summary has it, though the nav still calls that *place* Ingest: #71 puts the
- * dashboard there.
+ * What the way out is called. `/` is Home, the dashboard, since #71
+ * (ADR 0078); it was Ingest until then and the summary called it Home anyway.
  */
 const PLACE_NAMES: Record<string, string> = {
   '/': 'Home',
   '/categories': 'Categories',
+  '/more': 'More',
+  '/add': 'Add words',
   '/sources': 'Sources',
   '/stats': 'Stats',
   '/settings': 'Settings',
@@ -941,7 +942,11 @@ onBeforeUnmount(() => {
         </EmptyBlock>
 
         <!-- ADR 0076 §8 — what is waiting, and the reader starts one. The
-             prototype puts this on Home (#71); until Home exists it is here.
+             prototype puts this on Home, and since #71 Home has it (ADR 0078):
+             Home's two cards start a run with `?start=`, so this screen is
+             what `/review` opened bare shows. ⚠️ **The line naming the active
+             *category* moved to Home with #71**; this screen no longer
+             draws it.
              ⚠️ **Neither control is drawn for a run of nothing**: the sentence
              above says why, and a control that composed nothing would answer a
              press with this same screen. -->
@@ -975,16 +980,6 @@ onBeforeUnmount(() => {
             {{ brakeLine }}
           </p>
 
-          <!-- ADR 0077 §3 — the prototype's line under Home's two heroes: which
-               *category* the lesson above is counted in, and the way to change
-               it. ⚠️ **`external`**, like every way out of a *mode*:
-               `/categories` is a *place* and ships no JavaScript. Until #69
-               this was ADR 0065 §5's filter, two rows of checkboxes. -->
-          <p class="studying">
-            <span>New words come from</span>
-            <span class="tag">{{ offer.category.name }}</span>
-            <NuxtLink to="/categories" external class="link">Change category</NuxtLink>
-          </p>
 
           <!-- `10` §5.8: never mid-run, so it lives on the screen before one.
                The knob caps a review run. -->
@@ -1157,37 +1152,6 @@ onBeforeUnmount(() => {
   margin: var(--k-space-5) 0 0;
   font-size: 15px;
   color: var(--k-ink-secondary);
-}
-
-/* The prototype's `.studying`, its solid `.tag` and its `.link`. */
-.studying {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: var(--k-space-5) 0 0;
-  font-size: 15.5px;
-  color: var(--k-ink-secondary);
-}
-
-.tag {
-  padding: 2px 7px;
-  background: var(--k-ink-ground);
-  border: 1px solid var(--k-ink-ground);
-  border-radius: 999px;
-  font-family: var(--k-face-mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--k-on-ink);
-}
-
-.link {
-  color: var(--k-accent);
-  text-underline-offset: 3px;
-}
-
-.link:hover {
-  color: var(--k-accent-hover);
 }
 
 .knob {

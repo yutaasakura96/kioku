@@ -1709,6 +1709,18 @@ finished *category* says so by name. Overturns ADR 0065 §5 and §6 and ADR 0076
 **Migration `0014` is additive and is not applied to production.**
 → [ADR 0077](adr/0077-the-reader-has-one-active-category.md)
 
+### [2026-10-14] Home is the landing place, and More holds the rest
+#71; Yuta's answer 12 on [#67](https://github.com/yutaasakura96/kioku/issues/67). **`/` is Home**:
+Welcome on a first visit (no *category* chosen and no run composed), where the reader picks a level to
+start at, and the prototype's dashboard after it — today's sentence, the *Reviews* and *Lessons*
+cards, the active *category*, the level card (no estimate until #72), *Coming up*, the last fourteen
+days, progress by level and the words the reader keeps missing. **Ingest moves to `/add`.** **The bar
+names Home, Categories and More**, and *Vet*, *Sources*, *Stats*, *Settings*, Ingest and the export
+are rows under More, a seventh *place*: each still does a job nothing else does, and none is daily.
+Choosing a *category* lands on Home. Overturns ADR 0031, ADR 0076 §8's stand-in and ADR 0077 §3's
+redirect. No migration.
+→ [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

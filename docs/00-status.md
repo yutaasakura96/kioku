@@ -7,7 +7,9 @@ sentence is history** ([ADR 0075](adr/0075-the-words-are-ready-made-and-a-level-
 whose words are already there, from open data, and building a deck from your own material is a
 tucked-away option.
 **Phase:** 6 — Build. **Open.** Phases 1–5 are closed; the spec and the route are published.
-**76 ADRs** — ⚠️ **ADR 0076, new words are taught in a lesson and a miss is asked again, added
+**78 ADRs** — ⚠️ **ADR 0078, Home is the landing place and More holds the rest, added 2026-10-14**
+with #71, and ADR 0077, one active *category*, the same day with #69 (this said *76* until then,
+one behind the directory from #69). ⚠️ **ADR 0076, new words are taught in a lesson and a miss is asked again, added
 2026-10-12** with #70 (this said *75* until then). ⚠️ **ADR 0075, the words are ready-made and a level comes from a list, added
 2026-10-10** with #68 (this said *74* until then). ⚠️ **ADR 0074, the app ships its own faces, added 2026-09-25** (this said *70* from
 2026-09-21 until then, three ADRs behind the directory). ⚠️ **ADR 0070, a seeded list is a draft the reader submits, added 2026-09-21** in #25's triage (this said *69* until then). ⚠️ **ADR 0069, the check is the grade, added 2026-09-21** from the reader's first *session* (this said *68* until then). ⚠️ **#26 added none and amended ADR 0068 in place** (2026-09-20: a deck name
@@ -151,11 +153,45 @@ signed-in look at the live site.
 gone.** ⚠️ **Migration `0014_active_category` is additive and is not on production**; it is Yuta's
 to apply before this is released (§ Next). The frontier is #71, then #72.
 
+⚠️ **2026-10-14: [#71](https://github.com/yutaasakura96/kioku/issues/71) is built — Welcome and
+Home** (§ Done, [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). **`/` is
+Home**, Welcome on a first visit and the prototype's dashboard after it; **Ingest is `/add`**; the bar
+is Home, Categories and More, and *Vet*, *Sources*, *Stats* and *Settings* are under More. No
+migration. The frontier is #72.
+
 **Updated:** 2026-10-14 (⚠️ this said 2026-10-12 until the release, 2026-10-10 until #70, 2026-09-30 until #68, and 2026-09-22 while § Done ran to 2026-09-25)
 
 Read `AGENTS.md` first, then this.
 
 ## Done
+
+**2026-10-14, latest — [#71](https://github.com/yutaasakura96/kioku/issues/71): Welcome and the
+dashboard** ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). Built on
+`fm/kioku-71` from `develop` at `8867f7e`. No migration.
+- **`/` is Home, and Ingest moved to `/add`**, with its three `POST` middlewares and their `303`s.
+  ⚠️ **ADR 0031 is superseded**: the words are already there, so the landing is what is waiting
+  today. Home reads one thing to choose between two screens and redirects nowhere.
+- **Welcome** (`WelcomeScreen.vue`) is drawn when the reader has no `active_category` row and has
+  never composed a run in this *subject*: what Kioku is, the three steps, and one form a *level*
+  posting to `/api/category`, which now answers `303` to `/`. ***Find my level* is not drawn**
+  until #72 builds the test. No *shell*; the sources' acknowledgement is its fine print, and stays in
+  the *shell*'s footer.
+- **The dashboard is the prototype's `vHome`**: *Today*, the *Reviews* and *Lessons* cards (links with
+  `?start=`, so no start block on Home), the *category* line moved here from `/review`, the level card
+  with no estimate (#72), *Coming up*, *Last 14 days*, *Progress by level* and *Weak words*. The
+  arithmetic is `shared/home/dashboard.ts`; the read is `server/utils/home/queries.ts`. ⚠️ **The
+  weak-word rule (missed twice, still *Learning*) is this ticket's and is not measured.**
+- **More, a seventh *place*** (`/more`), holds Add, *Settings*, *Vet* with its flagged count,
+  *Sources*, *Stats*, the export and the door. ⚠️ **#71's open question, answered: under More, none
+  removed** (ADR 0078 §3). The bar is Home, Categories and More, with tabs at the foot below 720px.
+- ⚠️ **Not drawn, because their screens do not exist**: *Words* in the bar and the links to it, and
+  *Practise these*.
+- **Checked in a browser** on a production build against a throwaway PGlite database with the
+  starter set loaded (`npm run dev:session` still does not start, § Carrying): Welcome, *start at N5*
+  landing on Home's day one, a lesson of five through the quiz with a miss asked again, Home with
+  seeded history (two due, *Coming up*, the fourteen days, two weak words), choosing N4 on
+  `/categories` landing on Home naming it, More, `/add`, and Welcome and Home at phone width with no
+  horizontal scroll. No `<script>` on any of them and no console message.
 
 **2026-10-14, latest — [#69](https://github.com/yutaasakura96/kioku/issues/69): choose what to study
 by category** ([ADR 0077](adr/0077-the-reader-has-one-active-category.md)). Built on `fm/kioku-69` from
@@ -2441,9 +2477,10 @@ Seven findings worth knowing without opening it:
   word's lesson screen is shorter. ⚠️ **It leaves two things for the tickets after it**: the lesson's
   pool is every *level* in order until #69 gives it an active *category*, and the screen before a
   run lives on `/review` until #71 builds Home.
-- [#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.** The
-  prototype puts the sources' acknowledgement on Welcome; it is in the *shell*'s footer until then
-  (ADR 0075 §8), and wherever it moves it must stay on the site with its links.
+- ~~[#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.**~~
+  ⚠️ **Built 2026-10-14** (§ Done, ADR 0078). The acknowledgement is on Welcome and still in the
+  *shell*'s footer. ⚠️ **It leaves #72 three places to fill**: *Find my level* on Welcome, *Retake
+  the placement test* under More, and the level card's estimate.
 - [#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
   test.** [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
   [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
@@ -3236,6 +3273,13 @@ on this list is `S3`'s run of twenty notes, and no session can do it.**
 Nothing.
 
 ## Carrying
+
+- ⚠️ **`/` is Home and Ingest is `/add`** (ADR 0078, #71). A form, a redirect or a link that means
+  Ingest says `/add`; `/` is the dashboard. ⚠️ **Home never redirects**: Welcome and the dashboard
+  are two screens of one *place*, chosen on the request (`homeData`'s `firstVisit`), which keeps
+  ADR 0031's refusal of a chooser. ⚠️ **A new *place* goes in `PLACES`** (`shared/utils/origin.ts`),
+  which is the `from` allowlist and `shell-data.ts`'s list in one, and in `nuxt.config.ts`'s
+  `noScripts` rules.
 
 - ⚠️ **`nuxt dev` answers `500` to every page, so `npm run dev:session` shows nothing** (found
   2026-10-12 during #70, present on `develop` at `8974f3f` without #70). #73's `nitro.alias` points

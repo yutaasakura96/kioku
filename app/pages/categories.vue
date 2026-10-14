@@ -153,10 +153,10 @@ function barLabel(row: ShelfRow) {
         <!-- Both live on Ingest today (`/`); #71 gives them a screen of their own. -->
         <div class="dashed">
           <span>Nothing here fits?</span>
-          <NuxtLink to="/" class="link">
+          <NuxtLink to="/add" class="link">
             Import an Anki deck
           </NuxtLink>
-          <NuxtLink to="/" class="link">
+          <NuxtLink to="/add" class="link">
             Add my own words
           </NuxtLink>
         </div>

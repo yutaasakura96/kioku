@@ -9,6 +9,7 @@ import type { SourceDeletion } from '../utils/ingest/delete'
 import type { StatsData } from '../utils/stats/queries'
 import type { StudyLimits } from '../../shared/review/limits'
 import type { ShelfRow } from '../../shared/category/shelf'
+import type { HomeData } from '../utils/home/queries'
 
 /**
  * A lazy reader over the *places*' data. Every member is a function: a `POST /`
@@ -42,6 +43,11 @@ interface PlaceReader {
    * each, and which one their new words come from (ADR 0077 §3).
    */
   categories: () => Promise<ShelfRow[]>
+  /**
+   * Home — Welcome on a first visit, else the dashboard and everything on it
+   * (ADR 0078).
+   */
+  home: () => Promise<HomeData>
   /**
    * The delete confirmation's count — `10` §7.3. ⚠️ **The same predicate the
    * `POST` suspends by**, so the page cannot promise one number and do another.
@@ -104,14 +110,14 @@ export interface IngestFailure {
 declare module 'h3' {
   interface H3EventContext {
     /**
-     * Attached on `/`, `/categories`, `/sources`, `/stats` and `/settings`, for a reader with a session.
+     * Attached on every *place* (`shared/utils/origin.ts`), for a reader with a session.
      *
      * ⚠️ `undefined` means either that this is not a *place* or that no session
      * resolved — the *place* renders its empty state rather than guessing.
      */
     place?: PlaceReader
 
-    /** Present only on the `POST /` that was refused. */
+    /** Present only on the `POST /add` that was refused. */
     ingestFailure?: IngestFailure
   }
 }

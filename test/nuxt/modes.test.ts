@@ -59,7 +59,7 @@ describe('a mode resolves its origin', () => {
     expect(mode.find('a').attributes('href')).toBe('/sources')
   })
 
-  it.each(MODES)('%s falls back to Ingest when from is not a place', async (path, component) => {
+  it.each(MODES)('%s falls back to Home when from is not a place', async (path, component) => {
     const mode = await mountSuspended(component, { route: `${path}?from=https://evil.com` })
 
     expect(mode.find('a').attributes('href')).toBe('/')

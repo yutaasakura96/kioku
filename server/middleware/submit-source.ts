@@ -1,4 +1,7 @@
-// `POST /` — the *source* submission, and the one write Ingest performs.
+// `POST /add` — the *source* submission, and the one write Ingest performs.
+//
+// ⚠️ **It was `POST /` until #71** (ADR 0078): Home took `/` and Ingest moved
+// to `/add`. Where the notes below say `POST /`, they mean Ingest's path.
 //
 // ⚠️ **This is a middleware rather than a route handler, and the reason is the
 // error render.** `09` §4.2 requires an over-cap paste to be answered `200` with
@@ -198,7 +201,7 @@ export default defineEventHandler(async (event) => {
   if (event.method !== 'POST')
     return
 
-  if ((event.path.split('?')[0] ?? '/') !== '/')
+  if ((event.path.split('?')[0] ?? '/') !== '/add')
     return
 
   // `session.ts` has already refused an unauthenticated `POST` (`08` §6.3); this
@@ -269,7 +272,7 @@ export default defineEventHandler(async (event) => {
   //
   // `303` rather than `302`: it is the status that means "the response is at
   // another URI, fetch it with `GET`", which is the whole of post-redirect-get.
-  const target = written.duplicateOf ? `/?existing=${written.duplicateOf.id}` : '/'
+  const target = written.duplicateOf ? `/add?existing=${written.duplicateOf.id}` : '/add'
 
   return sendRedirect(event, target, 303)
 })

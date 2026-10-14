@@ -6,10 +6,13 @@
  * `/categories` ships no JavaScript, and each row of the shelf is a form with
  * one button.
  *
- * ⚠️ **A chosen *category* lands on the screen before a run**, as the
- * prototype's choice lands on Home: that screen names the *category* and
- * counts the lesson in it, and until #71 builds Home it is `/review` (ADR 0076
- * §8). It composes nothing — `/review` without `start` never does.
+ * ⚠️ **A chosen *category* lands on Home**, as the prototype's choice does:
+ * Home names the *category* and counts the lesson in it. ⚠️ Until #71 built
+ * Home (ADR 0078) this landed on `/review`'s screen before a run, which stood
+ * in for it (ADR 0076 §8). It composes nothing.
+ *
+ * ⚠️ **Welcome posts here too**, one form a *level*, and choosing is what ends
+ * a first visit: the row it writes is how Home tells the reader is not new.
  *
  * ⚠️ **A key that names no *category* changes nothing and lands back on the
  * shelf.** The way a reader sends one is a page drawn before a deck was
@@ -26,5 +29,5 @@ export default defineEventHandler(async (event) => {
 
   const chosen = await chooseCategory(useDatabase(), ownerId, key)
 
-  return sendRedirect(event, chosen ? '/review?from=%2Fcategories' : '/categories', 303)
+  return sendRedirect(event, chosen ? '/' : '/categories', 303)
 })

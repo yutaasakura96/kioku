@@ -33,7 +33,7 @@ const PUBLIC_ROUTES = ['/auth', '/auth/refused', '/api/auth/**']
 // posted and redirected, with no client.
 // ⚠️ `/categories` added 2026-10-14 by #69 (ADR 0077 §3): a shelf of forms with
 // one button each, posted and redirected the same way.
-const SCRIPT_FREE_ROUTES = ['/', '/categories', '/sources', '/sources/**', '/stats', '/settings', '/auth/refused']
+const SCRIPT_FREE_ROUTES = ['/', '/categories', '/more', '/add', '/sources', '/sources/**', '/stats', '/settings', '/auth/refused']
 
 const MODES = ['/vet', '/review']
 
@@ -54,7 +54,7 @@ describe('route rules', () => {
     // A subset assertion, not an exact one: #6 adds `/sources/:id` and
     // `/sources/:id/delete` with rules of their own, and a test that counts
     // route rules would fail on a correct addition.
-    for (const route of ['/', '/categories', '/sources', '/sources/**', '/stats', '/settings', '/vet', '/review', '/auth', '/auth/refused'])
+    for (const route of ['/', '/categories', '/more', '/add', '/sources', '/sources/**', '/stats', '/settings', '/vet', '/review', '/auth', '/auth/refused'])
       expect(routeRules, `${route} has no route rule`).toHaveProperty([route])
   })
 

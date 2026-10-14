@@ -157,6 +157,18 @@ async function openReview(start: 'lesson' | 'review' | null, ready: string) {
 
 type Page = Awaited<ReturnType<typeof openReview>>
 
+/** Home, signed in, drawn on the server (ADR 0078). */
+async function openHome() {
+  const page = await createPage()
+  const [name, ...rest] = reader.cookie.split('=')
+
+  await page.context().addCookies([{ name: name!, value: rest.join('='), domain: '127.0.0.1', path: '/' }])
+  await page.goto(url('/'), { waitUntil: 'networkidle' })
+  await page.locator('.today .statement').waitFor()
+
+  return page
+}
+
 /** A lesson, opened the way the start block opens one, on its first word. */
 const openLesson = () => openReview('lesson', '.lesson .term')
 
@@ -384,8 +396,11 @@ describe('choosing a category (ADR 0077 §3)', () => {
     await database.client.exec('DELETE FROM active_category;')
   })
 
-  it('names the category on the screen before a run, changes it from the shelf, and comes back', async () => {
-    const page = await openReview(null, '.start .statement')
+  // ⚠️ **Through Home since #71** (ADR 0078): the line naming the *category*
+  // moved there from `/review`'s screen before a run, and choosing lands on it.
+  // The describes above composed runs, so this reader is past Welcome.
+  it('names the category on Home, changes it from the shelf, and comes back', async () => {
+    const page = await openHome()
 
     expect(await page.locator('.studying').textContent()).toContain('New words come from')
     expect(await page.locator('.studying .tag').textContent()).toBe('JLPT N5')
@@ -400,13 +415,14 @@ describe('choosing a category (ADR 0077 §3)', () => {
 
     const runs = await sessions()
     await page.getByRole('button', { name: 'Study N4' }).click()
-    await page.locator('.start .statement').waitFor()
+    await page.locator('.today .statement').waitFor()
 
-    expect(new URL(page.url()).pathname).toBe('/review')
+    expect(new URL(page.url()).pathname).toBe('/')
+    expect(await page.locator('script').count()).toBe(0)
     expect(await page.locator('.studying .tag').textContent()).toBe('JLPT N4')
     // ⚠️ The one N4 word, and not the N3 one: the lesson is counted in the
     // *category* just chosen.
-    expect(await page.locator('.cta').textContent()).toContain('Start lesson · 1 new word')
+    expect(await page.locator('.hero').nth(1).locator('.num').textContent()).toBe('1')
     // ⚠️ Choosing is not starting: nothing was composed.
     expect(await sessions(), 'choosing a category started a run').toBe(runs)
     expect((await database.client.query<{ key: string }>(
@@ -414,7 +430,7 @@ describe('choosing a category (ADR 0077 §3)', () => {
     )).rows).toEqual([{ key: 'jlpt:N4' }])
 
     // And the lesson it starts holds that word alone.
-    await page.getByRole('button', { name: /Start lesson/ }).click()
+    await page.getByRole('link', { name: 'Start lesson' }).click()
     await page.locator('.lesson .term').waitFor()
     expect(await page.locator('.lesson .term').textContent()).toBe('映画')
 

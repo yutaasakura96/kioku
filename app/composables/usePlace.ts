@@ -1,4 +1,5 @@
 import type { ShelfRow } from '#shared/category/shelf'
+import type { HomeData } from '#shared/home/dashboard'
 import { DEFAULT_LIMITS } from '#shared/review/limits'
 import { FALLBACK_ZONE } from '#shared/time/local-day'
 
@@ -50,4 +51,12 @@ export async function useCategoryShelf(): Promise<ShelfRow[]> {
 /** The reader's study settings (ADR 0076 §2) — the defaults when there is no *place*. */
 export async function useStudyLimits() {
   return (await usePlace()?.limits()) ?? { ...DEFAULT_LIMITS }
+}
+
+/**
+ * Home's data (ADR 0078) — `null` when there is no *place*, which `/` draws as
+ * Welcome: with nothing read, nothing is known about the reader.
+ */
+export async function useHome(): Promise<HomeData | null> {
+  return (await usePlace()?.home()) ?? null
 }

@@ -13,7 +13,7 @@ words or an Anki deck is now the secondary path, and most of the history below d
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-eight more ADRs** with it — **77** as of 2026-10-14 (ADR 0077, #69's active *category*; ⚠️ this said *thirty-seven* and *76* until then. ADR 0076 is #70's lessons and quiz; ⚠️ this said *thirty-six* and *75* until 2026-10-12. ADR 0075 is the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until 2026-10-10. ADR 0074 self-hosts the three faces
+code since 2026-09-09 and **thirty-nine more ADRs** with it — **78** as of 2026-10-14 (ADR 0078, #71's Home and More; ⚠️ this said *thirty-eight* and *77* until then. ADR 0077 is #69's active *category*; ⚠️ this said *thirty-seven* and *76* until then. ADR 0076 is #70's lessons and quiz; ⚠️ this said *thirty-six* and *75* until 2026-10-12. ADR 0075 is the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until 2026-10-10. ADR 0074 self-hosts the three faces
 from `@fontsource` and closes the last "Still open" entry in the decision log; ⚠️ this said *73*
 until then. ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
@@ -128,7 +128,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1512 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-14, after #69)
+npm run test        # 1557 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-14, after #71)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # ⚠️ does not start since #73 (`docs/00-status.md` § Carrying, 2026-10-12).

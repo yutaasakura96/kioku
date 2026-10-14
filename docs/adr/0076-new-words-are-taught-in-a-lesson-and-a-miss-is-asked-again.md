@@ -255,4 +255,7 @@ Things #70 had to choose to build §1 to §8, none of which changes a rule above
   bullets about counting through the reader's filter are superseded with it: the count is of the
   active *category*, which the server reads, and an answer carries nothing about the next lesson.
   The sentence for a *category* with nothing left is *There are no new words left in JLPT N5.*
-- **#71 builds Home.** The screen before a run moves there.
+- ~~**#71 builds Home.** The screen before a run moves there.~~ ⚠️ **Done 2026-10-14**
+  ([ADR 0078](0078-home-is-the-landing-place-and-more-holds-the-rest.md)): Home's *Reviews* and
+  *Lessons* cards start a run with `?start=`. `/review` opened bare still draws its screen, without
+  the *category* line, which moved to Home.

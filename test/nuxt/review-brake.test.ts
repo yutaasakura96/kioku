@@ -93,18 +93,15 @@ describe('the screen before a run (ADR 0076 §8)', () => {
     expect(view.find('.brake').text()).toBe('4 of 4 new words today.')
   })
 
-  // ADR 0077 §3 — the prototype's line under Home's two heroes. ⚠️ The
-  // *category* is the server's, named beside the count it was counted in, and
-  // the way to change it is a document load: `/categories` is a *place*.
-  it('names the category new words come from, and links to where it is changed', async () => {
+  // ADR 0077 §3 — the line naming the active *category* stood in here for Home
+  // until #71 built it (ADR 0078). ⚠️ It moved with the rest of the screen, and
+  // ADR 0065 §5's checkboxes, which it replaced, stay gone.
+  it('no longer names the category, which Home does since #71', async () => {
     server.offer = { ...NOTHING_WAITING, lesson: 5, waiting: true, category: { key: 'jlpt:N4', name: 'JLPT N4' } }
     const view = await start()
 
-    expect(view.find('.studying').text()).toContain('New words come from')
-    expect(view.find('.studying .tag').text()).toBe('JLPT N4')
-    expect(view.find('.studying a').text()).toBe('Change category')
-    expect(view.find('.studying a').attributes('href')).toBe('/categories')
-    // ⚠️ ADR 0065 §5's checkboxes are gone: one *category*, chosen elsewhere.
+    expect(view.text()).not.toContain('New words come from')
+    expect(view.find('a[href="/categories"]').exists()).toBe(false)
     expect(view.find('input[type=checkbox]').exists()).toBe(false)
   })
 

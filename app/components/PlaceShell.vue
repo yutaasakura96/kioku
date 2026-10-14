@@ -22,8 +22,15 @@ withDefaults(
     newToday: number
     /** `05` §5's measure for this *place* — `10` §2.2. */
     measure?: string
+    /**
+     * Whether the start block heads the page. ⚠️ **Home alone draws none**
+     * (ADR 0078): its two cards are the entrances to a review run and a
+     * lesson, with the same counts, and a second set above them would say
+     * everything twice.
+     */
+    startBlock?: boolean
   }>(),
-  { measure: 'var(--k-measure-read)' },
+  { measure: 'var(--k-measure-read)', startBlock: true },
 )
 </script>
 
@@ -32,7 +39,7 @@ withDefaults(
     <ShellBar />
 
     <main :style="{ '--measure': measure }">
-      <StartBlock :origin="origin" :flagged="flagged" :due="due" :new-today="newToday" />
+      <StartBlock v-if="startBlock" :origin="origin" :flagged="flagged" :due="due" :new-today="newToday" />
 
       <slot />
     </main>
@@ -48,7 +55,8 @@ withDefaults(
          under CC BY, which asks for his site to be credited. The prototype puts
          this sentence on the Welcome screen (#71); until that screen exists it
          is here, on every *place*. `subjects/starter/NOTICE.md` is the
-         repository's half. -->
+         repository's half. ⚠️ **#71 built Welcome and the sentence is on it
+         too** (ADR 0078), but Welcome is seen once, so this line stays. -->
     <footer :style="{ '--measure': measure }">
       <p>
         Words and meanings from
@@ -100,5 +108,13 @@ footer p + p {
 
 footer a {
   color: inherit;
+}
+
+/* The tab bar is fixed to the foot of a phone screen (`ShellBar.vue`); the
+   page ends above it rather than under it. */
+@media (width < 720px) {
+  footer {
+    padding-bottom: calc(var(--k-space-6) + 56px);
+  }
 }
 </style>
