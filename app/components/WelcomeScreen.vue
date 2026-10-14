@@ -7,12 +7,13 @@
 // reader's *category* (ADR 0077 §2) and lands on Home, which from then on is
 // the dashboard.
 //
-// ⚠️ **Each level is a form with one button**, posting to `/api/category`:
-// `/` ships no JavaScript (`03` §2.1).
+// ⚠️ ***Find my level* is a link into the placement test** (ADR 0079 §1), a
+// *mode*, with `from=/` so that leaving it comes back here.
 //
-// ⚠️ ***Find my level* is not drawn.** The placement test is #72's, and a
-// control that led nowhere would be a disabled one in disguise (ADR 0035).
-// Starting at a level is the whole of the choice until then.
+// ⚠️ **Each level is a form with one button**, posting to
+// `/api/placement/declare`: `/` ships no JavaScript (`03` §2.1). Starting at
+// N3 claims N4, as the prototype reads it, so its words are marked known and
+// spot-checked; starting at N5 only chooses the *category*.
 //
 // ⚠️ **The sources' acknowledgement is the prototype's fine print here**, with
 // its links (ADR 0075 §8), and stays in the *shell*'s footer too, because
@@ -22,6 +23,7 @@ import { categoryKey, levelCategories } from '#shared/category/category'
 
 const levels = levelCategories().flatMap(ref => (ref.kind === 'level' ? [{ level: ref.level, key: categoryKey(ref) }] : []))
 const first = levels[0]
+const placementLink = `/placement?from=${encodeURIComponent('/')}`
 </script>
 
 <template>
@@ -32,7 +34,8 @@ const first = levels[0]
     <h1>Learn the Japanese words you need for the JLPT.</h1>
     <p class="lede">
       Kioku teaches you a few new words a day, then quizzes you: you type what each word means and how
-      it is read. It brings every word back just before you would forget it.
+      it is read. It brings every word back just before you would forget it, and shows your JLPT level
+      as you go.
     </p>
 
     <ol class="how">
@@ -66,17 +69,20 @@ const first = levels[0]
       </li>
     </ol>
 
-    <form v-if="first" method="post" action="/api/category" class="cta">
-      <input type="hidden" name="category" :value="first.key">
-      <button type="submit" class="btn">
-        I am new to Japanese · start at {{ first.level }}
-      </button>
-    </form>
+    <div class="cta">
+      <a :href="placementLink" class="btn">Find my level · 3 minute test</a>
+      <form v-if="first" method="post" action="/api/placement/declare">
+        <input type="hidden" name="start" :value="first.level">
+        <button type="submit" class="btn ghost">
+          I am new to Japanese · start at {{ first.level }}
+        </button>
+      </form>
+    </div>
 
     <div class="know">
       <span>Already know your level? Start at</span>
-      <form v-for="level in levels" :key="level.key" method="post" action="/api/category">
-        <input type="hidden" name="category" :value="level.key">
+      <form v-for="level in levels" :key="level.key" method="post" action="/api/placement/declare">
+        <input type="hidden" name="start" :value="level.level">
         <button type="submit" :aria-label="`Start at ${level.level}`">
           {{ level.level }}
         </button>
@@ -240,7 +246,14 @@ h1 {
 }
 
 .cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   margin: 36px 0 0;
+}
+
+.cta form {
+  margin: 0;
 }
 
 /* The prototype's `.btn`. */
@@ -258,6 +271,22 @@ h1 {
 
 .btn:hover {
   color: var(--k-on-ink-quiet);
+}
+
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+}
+
+.btn.ghost {
+  background: var(--k-raised);
+  color: var(--k-ink);
+  border-color: var(--k-border-control);
+}
+
+.btn.ghost:hover {
+  background: var(--k-key-face);
+  color: var(--k-ink);
 }
 
 .know {

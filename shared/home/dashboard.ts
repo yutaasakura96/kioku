@@ -11,6 +11,7 @@
 
 import { localDayKey, windowStartKey } from '../time/local-day'
 import type { ShelfRow } from '../category/shelf'
+import type { LevelEstimate } from '../level/estimate'
 import type { StudyOffer } from '../review/offer'
 import type { Stage } from '../review/stage'
 
@@ -27,6 +28,8 @@ export interface HomeData {
   offer: StudyOffer
   /** The JLPT rows of the shelf, for *Progress by level*. */
   levels: ShelfRow[]
+  /** *Your JLPT vocabulary level* (ADR 0079), and which levels are placed out. */
+  estimate: LevelEstimate
   comingUp: ComingUp
   days: StudyDay[]
   weak: WeakWord[]

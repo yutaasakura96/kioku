@@ -24,6 +24,8 @@
 import { createEmptyCard, fsrs, generatorParameters } from 'ts-fsrs'
 import type { Card } from 'ts-fsrs'
 
+import { KNOWN_FROM_DAYS } from './stage'
+
 /** ADR 0016's four, and `04` §7.5's `CHECK (rating BETWEEN 1 AND 4)`. */
 export const GRADES = [1, 2, 3, 4] as const
 
@@ -103,6 +105,35 @@ export interface ReviewLogEntry {
  */
 export function freshEpoch(now: Date): EpochState {
   return fromCard(createEmptyCard(now))
+}
+
+/**
+ * The first epoch of a word a placement marked known and chose to spot-check
+ * (ADR 0079 §4): in review, as stable as *Known* begins, and due on its check
+ * day, so that it reaches a review run as any due word does and the scheduler
+ * takes it from there — Good keeps it Known, Forgot takes it down to Learning.
+ *
+ * ⚠️ **The one epoch the application writes that no *grade* wrote**, and the
+ * exception `freshEpoch`'s rule names: the placement is the reader telling us
+ * they know the word, and the check is the review that tests it. `reps` stays
+ * 0 because nothing has been graded; the difficulty is the library's own for a
+ * first Easy.
+ */
+export function knownEpoch(markedAt: Date, due: Date): EpochState {
+  const { card } = scheduler.next(createEmptyCard(markedAt), markedAt, 4)
+
+  return {
+    due,
+    stability: Math.max(card.stability, KNOWN_FROM_DAYS),
+    difficulty: card.difficulty,
+    scheduledDays: Math.round((due.getTime() - markedAt.getTime()) / 86_400_000),
+    learningSteps: 0,
+    reps: 0,
+    lapses: 0,
+    // Review — the state of a word that is known and is not being learned.
+    state: 2,
+    lastReview: markedAt,
+  }
 }
 
 /**

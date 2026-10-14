@@ -15,9 +15,11 @@
 // ⚠️ **The line naming the active *category* lives here since #71**; it was on
 // `/review`'s screen before a run as Home's stand-in (ADR 0077 §3).
 //
-// ⚠️ ***Your JLPT vocabulary level* is drawn with no estimate.** The estimate
-// and the placement test are #72's; until then the card says there is none,
-// as the prototype's day one does, and its ladder is empty.
+// ⚠️ ***Your JLPT vocabulary level* is the estimate since #72** (ADR 0079):
+// the level proved, working toward the next, and the sentence that says what
+// it rests on — all `shared/level/estimate.ts`'s. A level the placement marks
+// known reads *placed out* under *Progress by level*, as the prototype has it.
+// *How is this worked out?* is a `<details>`, which needs no script.
 //
 // ⚠️ **The prototype's links to *Words* are not drawn**: no ticket has built
 // that screen, so a level's progress row and the weak words are text, and
@@ -29,6 +31,7 @@ import type { ShelfRow } from '#shared/category/shelf'
 import { lessonsHint, missedNote, reviewsHint } from '#shared/home/dashboard'
 import { noLessonLine, startLines } from '#shared/review/offer'
 import { STAGES, STAGE_LABELS } from '#shared/review/stage'
+import { ESTIMATE_WINDOW_DAYS, PROVED_MIN_WORDS, PROVED_RIGHT_SHARE } from '#shared/level/thresholds'
 
 const home = await useHome()
 
@@ -60,6 +63,26 @@ function barLabel(row: ShelfRow) {
 const legend = [...[...STAGES].reverse().map(stage => ({ key: stage, label: STAGE_LABELS[stage] })), { key: 'none', label: 'Not started' }]
 
 const studiedOn = computed(() => home?.days.filter(day => day.studied).length ?? 0)
+
+const estimate = home?.estimate
+
+/** The ladder: each level done, being worked toward, or neither. */
+const ladder = computed(() => {
+  const levels = home?.levels.map(row => row.label) ?? []
+  const reached = estimate?.level ? levels.indexOf(estimate.level) : -1
+
+  return levels.map((level, index) => ({
+    level,
+    state: index <= reached ? 'done' : index === reached + 1 ? 'now' : '',
+    // The prototype's sliver: an empty bar would read as no level to work toward.
+    pct: `${Math.max(6, Math.round((estimate?.progress ?? 0) * 100))}%`,
+  }))
+})
+
+const placementLink = `/placement?from=${encodeURIComponent('/')}`
+const rule = `From your first-try answers over the last ${ESTIMATE_WINDOW_DAYS} days. A level counts as yours once you get at least ${Math.round(PROVED_RIGHT_SHARE * 100)}% right across ${PROVED_MIN_WORDS} or more of its words. The placement test gives the first estimate.`
+
+const placedOut = (row: ShelfRow) => estimate?.placedOut.includes(row.label) ?? false
 </script>
 
 <template>
@@ -137,17 +160,26 @@ const studiedOn = computed(() => home?.days.filter(day => day.studied).length ??
           </h2>
           <div class="card levelcard">
             <div class="levelnow">
-              <span class="lv">–</span>
-              <span class="to">working toward <b>{{ home.levels[0]?.label ?? 'N5' }}</b></span>
+              <span class="lv">{{ home.estimate.level ?? '–' }}</span>
+              <span v-if="home.estimate.next" class="to">working toward <b>{{ home.estimate.next }}</b></span>
+              <span v-else class="to">top level</span>
             </div>
             <div class="ladder" aria-hidden="true">
-              <div v-for="(row, index) in home.levels" :key="row.key" :class="{ now: index === 0 }">
-                {{ row.label }}
+              <div v-for="step in ladder" :key="step.level" :class="step.state" :style="step.state === 'now' ? { '--pct': step.pct } : undefined">
+                {{ step.level }}
               </div>
             </div>
             <p class="why">
-              No estimate yet. Your level will be worked out from your answers in lessons and reviews.
+              {{ home.estimate.why }}
             </p>
+            <p v-if="!home.estimate.placement && home.estimate.level === null" class="take">
+              <a :href="placementLink" class="link">Take the 3 minute placement test</a>
+            </p>
+            <details>
+              <summary>How is this worked out?</summary>
+              <p>{{ rule }}</p>
+              <p>It measures vocabulary only. The real JLPT also tests grammar, reading and listening.</p>
+            </details>
           </div>
         </section>
 
@@ -210,10 +242,13 @@ const studiedOn = computed(() => home?.days.filter(day => day.studied).length ??
           </h2>
           <div v-for="row in home.levels" :key="row.key" class="prow">
             <span class="lvl">{{ row.label }}</span>
-            <span class="sbar" role="img" :aria-label="barLabel(row)">
+            <span v-if="placedOut(row)" class="sbar" role="img" aria-label="Placed out: marked known by your placement">
+              <i class="placed" style="width: 100%" />
+            </span>
+            <span v-else class="sbar" role="img" :aria-label="barLabel(row)">
               <i v-for="segment in segments(row)" :key="segment.stage" :class="segment.stage" :style="{ width: segment.width }" />
             </span>
-            <span class="cnt">{{ figure(learned(row.progress)) }} of {{ figure(row.words) }}</span>
+            <span class="cnt">{{ placedOut(row) ? 'placed out' : `${figure(learned(row.progress))} of ${figure(row.words)}` }}</span>
           </div>
           <div class="legend">
             <span v-for="item in legend" :key="item.key" :class="item.key">{{ item.label }}</span>
@@ -496,19 +531,50 @@ const studiedOn = computed(() => home?.days.filter(day => day.studied).length ??
   border-radius: 3px;
 }
 
-/* The level being worked toward, with the prototype's sliver of progress. */
+/* A level proved, or placed. */
+.ladder div.done {
+  color: var(--k-ink);
+}
+
+.ladder div.done::before {
+  background: var(--k-ink);
+}
+
+/* The level being worked toward, filled as far as the reader is toward it. */
 .ladder div.now {
   color: var(--k-accent);
 }
 
 .ladder div.now::before {
-  background: linear-gradient(90deg, var(--k-accent) 6%, var(--k-tick-empty) 6%);
+  background: linear-gradient(90deg, var(--k-accent) var(--pct, 6%), var(--k-tick-empty) var(--pct, 6%));
 }
 
 .why {
   margin: 14px 0 0;
   font-size: 15.5px;
   color: var(--k-ink-quiet);
+}
+
+.take {
+  margin: 10px 0 0;
+}
+
+.levelcard details {
+  margin-top: 10px;
+  font-size: 14.5px;
+  color: var(--k-ink-secondary);
+}
+
+.levelcard summary {
+  width: fit-content;
+  color: var(--k-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.levelcard details p {
+  margin: 8px 0 0;
 }
 
 /* *Progress by level*. */
@@ -568,6 +634,11 @@ const studiedOn = computed(() => home?.days.filter(day => day.studied).length ??
 
 .legend .none::before {
   background: var(--k-st-none);
+}
+
+/* A level the placement marks known: the prototype's hatch of the two middle stages. */
+.sbar .placed {
+  background: repeating-linear-gradient(135deg, var(--k-st-familiar) 0 3px, var(--k-st-learning) 3px 6px);
 }
 
 .legend {

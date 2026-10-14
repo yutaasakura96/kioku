@@ -85,20 +85,21 @@ ADR 0020, verification §5.5. Node 20 is out.
 ADR 0013 made three screens *places* and two of them *modes*. That split is the reason Nuxt was
 chosen at all, and it is expressed per route. ⚠️ **Four *places* since 2026-10-12**: ADR 0076 §2
 added Settings, which is a form and nothing else. ⚠️ **Seven since #71** (ADR 0078): Categories,
-then Home at `/`, More at `/more`, and Ingest at `/add`.
+then Home at `/`, More at `/more`, and Ingest at `/add`. ⚠️ **Three *modes* since #72**:
+the placement test at `/placement` (ADR 0079 §1).
 
 | Route | Rule | Why |
 | --- | --- | --- |
 | Home, Categories, More, Ingest, Sources, Stats, Settings | `routeRules: { noScripts: true }` | A dashboard, forms, a list, five numbers and three settings. They ship no JavaScript at all |
-| *Vet*, *Review* | `routeRules: { ssr: false }` | Client-owned state — a *session* snapshot, an outbox, a keystroke budget |
+| *Vet*, *Review*, *Placement* | `routeRules: { ssr: false }` | Client-owned state — a *session* snapshot, an outbox, a keystroke budget, or a test walked one question at a time |
 
 **Write `routeRules.noScripts` and `features.noScripts`.** `experimental.noScripts` and the route
 rule `experimentalNoScripts` both still exist at v4.5.2 and are **both deprecated** (verification
 §8). A future session copying an older recommendation will reach for the wrong name.
 
 ⚠️ **`features.noScripts` is app-wide and must not be set here.** It is typed
-`'production' | 'all' | boolean` and applies to everything. *Vet* and *Review* need JavaScript;
-stripping it globally breaks both. The per-route rule is the whole mechanism.
+`'production' | 'all' | boolean` and applies to everything. All three *modes* need JavaScript;
+stripping it globally breaks them. The per-route rule is the whole mechanism.
 
 Two properties fall out of `noScripts` and are accepted rather than worked around:
 
@@ -108,7 +109,7 @@ Two properties fall out of `noScripts` and are accepted rather than worked aroun
   is therefore server-side only (§13.2). This is a feature: there is no client guard to bypass.
 
 `ssr: false` is a **build-time optimisation only** (verification §5.5) — the Node server still
-returns a real document for *Vet* and *Review*. They get an app shell, not a blank page.
+returns a real document for *Vet*, *Review* and *Placement*. They get an app shell, not a blank page.
 
 ### 2.2 Identity
 

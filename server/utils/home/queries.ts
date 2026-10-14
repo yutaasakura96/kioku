@@ -18,6 +18,7 @@ import type { HomeData, WeakWord } from '../../../shared/home/dashboard'
 import { stageOfEpoch } from '../../../shared/review/stage'
 import { categoryShelf } from '../category/queries'
 import type { IngestDatabase } from '../ingest/record'
+import { readLevelEstimate } from '../level/queries'
 import { readerZone } from '../review/queries'
 import { offerOf } from '../review/session'
 import { noteInCurrentSubject, sessionInCurrentSubject } from '../subject'
@@ -70,6 +71,7 @@ export async function homeData(db: IngestDatabase, ownerId: string, now: Date): 
     hasHistory: (any?.n ?? 0) > 0,
     offer,
     levels: shelf.filter(row => row.group === 'jlpt'),
+    estimate: await readLevelEstimate(db, ownerId, now),
     comingUp: comingUp(dues.map(row => row.due), now, zone),
     days: studyDays(graded.map(row => row.reviewedAt), now, zone),
     weak: await weak(db, ownerId),

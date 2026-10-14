@@ -1721,6 +1721,10 @@ Choosing a *category* lands on Home. Overturns ADR 0031, ADR 0076 §8's stand-in
 redirect. No migration.
 → [ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)
 
+### [2026-10-15] A level is proved, and a placement is checked
+#72. [ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md) owns the estimate,
+placement and spot-check rules.
+
 ## Adding an entry
 
 Write the ADR first — that is where the argument lives — then add a line here. Keep the format:

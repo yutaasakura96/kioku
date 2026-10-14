@@ -68,6 +68,8 @@ Seven documents render. Five are the app (PRD §3); two are the boundary before 
 ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). ⚠️ **Home and More have
 no section here yet**: ADR 0078 §1–§3 and `docs/prototype/` (`vWelcome`, `vHome`, `vMore`) are how
 they read.
+⚠️ **Twelve since #72 (2026-10-15)**: Placement is a third *mode*; ADR 0079 §1 and
+`docs/prototype/` own its three screens.
 
 | Screen | Route | Is | New components it needs |
 | --- | --- | --- | --- |
@@ -82,6 +84,7 @@ they read.
 | **Categories** | `/categories` | *place* | Category row, stage bar (§8B, #69) |
 | ***Vet*** | `/vet` | *mode* | Done cluster, run-end confirmation, edit field |
 | ***Review*** | `/review` | *mode* | ⚠️ Since #70 (§5.0): mode bar, lesson card, quiz card, word row, summary; *session*-size knob, unsent-answers notice. Until then: Done cluster, *session*-size knob, unsent-grades notice |
+| ***Placement*** | `/placement` | *mode* | Introduction, multiple-choice questions, result (ADR 0079 §1) |
 | The door | `/auth` | neither | — reuses the empty-state block |
 | The refusal | `/auth/refused` | neither | — reuses the empty-state block, minus its rule |
 

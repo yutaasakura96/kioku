@@ -165,7 +165,15 @@ Read `AGENTS.md` first, then this.
 
 ## Done
 
-**2026-10-14, latest — [#71](https://github.com/yutaasakura96/kioku/issues/71): Welcome and the
+**2026-10-15, latest — [#72](https://github.com/yutaasakura96/kioku/issues/72): the estimated level
+and the placement test** ([ADR 0079](adr/0079-a-level-is-proved-and-placement-is-checked.md)). Built
+on `fm/kioku-72` from `develop` at `d220529`. **Migration `0015_placement`, additive**: two tables,
+`placement` and `placement_check`, nothing dropped; to be applied to production before the release
+that carries it, by `03` §4.2's procedure.
+The test, estimate and spot-check rules are in ADR 0079; `09` §1 owns their routes and `10` §1
+owns the screen inventory.
+
+**2026-10-14 — [#71](https://github.com/yutaasakura96/kioku/issues/71): Welcome and the
 dashboard** ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-rest.md)). Built on
 `fm/kioku-71` from `develop` at `8867f7e`. No migration.
 - **`/` is Home, and Ingest moved to `/add`**, with its three `POST` middlewares and their `303`s.
@@ -173,13 +181,14 @@ dashboard** ([ADR 0078](adr/0078-home-is-the-landing-place-and-more-holds-the-re
   today. Home reads one thing to choose between two screens and redirects nowhere.
 - **Welcome** (`WelcomeScreen.vue`) is drawn when the reader has no `active_category` row and has
   never composed a run in this *subject*: what Kioku is, the three steps, and one form a *level*
-  posting to `/api/category`, which now answers `303` to `/`. ***Find my level* is not drawn**
-  until #72 builds the test. No *shell*; the sources' acknowledgement is its fine print, and stays in
-  the *shell*'s footer.
+  posting to `/api/category`, which answered `303` to `/` at #71. **#72 replaced that form with
+  `/api/placement/declare` and added *Find my level*** (ADR 0079 §1). No *shell*; the sources'
+  acknowledgement is its fine print, and stays in the *shell*'s footer.
 - **The dashboard is the prototype's `vHome`**: *Today*, the *Reviews* and *Lessons* cards (links with
   `?start=`, so no start block on Home), the *category* line moved here from `/review`, the level card
-  with no estimate (#72), *Coming up*, *Last 14 days*, *Progress by level* and *Weak words*. The
-  arithmetic is `shared/home/dashboard.ts`; the read is `server/utils/home/queries.ts`. ⚠️ **The
+  with no estimate at #71 (filled by #72, ADR 0079 §3), *Coming up*, *Last 14 days*, *Progress by
+  level* and *Weak words*. The arithmetic is `shared/home/dashboard.ts`; the read is
+  `server/utils/home/queries.ts`. ⚠️ **The
   weak-word rule (missed twice, still *Learning*) is this ticket's and is not measured.**
 - **More, a seventh *place*** (`/more`), holds Add, *Settings*, *Vet* with its flagged count,
   *Sources*, *Stats*, the export and the door. ⚠️ **#71's open question, answered: under More, none
@@ -2479,10 +2488,13 @@ Seven findings worth knowing without opening it:
   run lives on `/review` until #71 builds Home.
 - ~~[#71](https://github.com/yutaasakura96/kioku/issues/71): **Welcome and the dashboard.**~~
   ⚠️ **Built 2026-10-14** (§ Done, ADR 0078). The acknowledgement is on Welcome and still in the
-  *shell*'s footer. ⚠️ **It leaves #72 three places to fill**: *Find my level* on Welcome, *Retake
-  the placement test* under More, and the level card's estimate.
-- [#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
-  test.** [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
+  *shell*'s footer. #72 filled the three planned placement entrances and the level card
+  (ADR 0079 §1, §3).
+- ~~[#72](https://github.com/yutaasakura96/kioku/issues/72): **the estimated level and the placement
+  test.**~~ ⚠️ **Built 2026-10-15** (§ Done, ADR 0079). ⚠️ **It leaves one thing for Yuta**:
+  migration `0015_placement` is to be applied to production before the release that carries it
+  (additive: two tables, nothing dropped), by `03` §4.2's procedure.
+  [#73](https://github.com/yutaasakura96/kioku/issues/73): the slow first load.
   [#74](https://github.com/yutaasakura96/kioku/issues/74): polish.
 
 ⚠️ **Steps 1, 2 and 4 below were done on 2026-10-14** (§ Done), and step 1 was three migrations:

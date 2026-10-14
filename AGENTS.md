@@ -13,7 +13,7 @@ words or an Anki deck is now the secondary path, and most of the history below d
 
 **Planning is finished and the build is under way.** Phase 4 closed on 2026-09-07 with eleven
 documents, **39 ADRs**, fourteen verification sections and an empty frontier; Phase 6 has been adding
-code since 2026-09-09 and **thirty-nine more ADRs** with it — **78** as of 2026-10-14 (ADR 0078, #71's Home and More; ⚠️ this said *thirty-eight* and *77* until then. ADR 0077 is #69's active *category*; ⚠️ this said *thirty-seven* and *76* until then. ADR 0076 is #70's lessons and quiz; ⚠️ this said *thirty-six* and *75* until 2026-10-12. ADR 0075 is the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until 2026-10-10. ADR 0074 self-hosts the three faces
+code since 2026-09-09 and **forty more ADRs** with it — **79** as of 2026-10-15 (ADR 0079, #72's level estimate and placement test; ⚠️ this said *thirty-nine* and *78* until then. ADR 0078 is #71's Home and More; ⚠️ this said *thirty-eight* and *77* until 2026-10-14. ADR 0077 is #69's active *category*; ⚠️ this said *thirty-seven* and *76* until then. ADR 0076 is #70's lessons and quiz; ⚠️ this said *thirty-six* and *75* until 2026-10-12. ADR 0075 is the direction change and #68's starter set; ⚠️ this said *thirty-five* and *74* until 2026-10-10. ADR 0074 self-hosts the three faces
 from `@fontsource` and closes the last "Still open" entry in the decision log; ⚠️ this said *73*
 until then. ADR 0073, from #38's re-scope, sets TCP keepalives on the worker's listening connection because a keepalive is not the query `03` §3.1 refuses; ⚠️ this said *72* until then, *71* on 2026-09-23 and *70* earlier that day): five are the
 pivot, ADR 0067 was needed to build #20, because "reuse the mint path" had no answer across two
@@ -64,7 +64,7 @@ it.~~ ⚠️ **#38 was re-scoped and built 2026-09-24** (ADR 0073): the worker's
 stopped answering without saying so. **The evidence it was filed on was wrong — macOS sleep — and the
 ticket was right anyway**, because an idle `serve` issues no statements and so cannot notice a
 half-open socket. ⚠️ **One link is unmeasured and ADR 0073 §4 names it rather than rounding it up.**
-~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-10-10 the frontier is the direction change, #69–#74, and #68, #70 and #69 are built** (⚠️ **#69 on 2026-10-14, ADR 0077**: one active *category* feeds new words, `/categories` is a fifth *place*, and migration `0014` is additive and applied nowhere but a test database) (⚠️ **#70 on 2026-10-12, ADR 0076**: new words are taught in a lesson of five, *Review* asks the meaning then the reading and asks a miss again before grading it Forgot, the brake's numbers are the reader's on `/settings`, and migration `0013` ~~is applied nowhere but a test database~~ is on production since 2026-10-14) (`docs/00-status.md` § Next: **the corpus started again under `subject_id` `jlpt-vocab-2`, every screen read goes through `server/utils/subject.ts`, and ~~none of it is on production yet~~ ⚠️ **it is on production since 2026-10-14**, `0011` to `0013` applied and the starter set loaded**). ⚠️ This said *since 2026-09-28 the frontier is the first deployment* until then (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
+~~**Nothing is `needs-triage` and the frontier is empty**~~ ⚠️ **Since 2026-10-10 the frontier is the direction change, #69–#74, and #68, #70, #69, #71 and #72 are built** (⚠️ **#72 on 2026-10-15, ADR 0079**: the placement test is a third *mode* at `/placement`, the level card is the estimate, and migration `0015` is additive and applied nowhere but a test database) (⚠️ **#69 on 2026-10-14, ADR 0077**: one active *category* feeds new words, `/categories` is a fifth *place*, and migration `0014` is additive and applied nowhere but a test database) (⚠️ **#70 on 2026-10-12, ADR 0076**: new words are taught in a lesson of five, *Review* asks the meaning then the reading and asks a miss again before grading it Forgot, the brake's numbers are the reader's on `/settings`, and migration `0013` ~~is applied nowhere but a test database~~ is on production since 2026-10-14) (`docs/00-status.md` § Next: **the corpus started again under `subject_id` `jlpt-vocab-2`, every screen read goes through `server/utils/subject.ts`, and ~~none of it is on production yet~~ ⚠️ **it is on production since 2026-10-14**, `0011` to `0013` applied and the starter set loaded**). ⚠️ This said *since 2026-09-28 the frontier is the first deployment* until then (ADR 0022 § Amended 2026-09-28): #45–#48, confirmed by Yuta the same day and `ready-for-agent`, with the human-only steps still his (`docs/00-status.md` § Next; ⚠️ drafted `needs-triage` until then). ⚠️ **#45 is done: the app is live at `https://kioku-pink.vercel.app`** (Vercel project `kioku`, `sin1`, production `main`, previews off), and Neon is production. Its values are Vercel *sensitive* and Production-only; ADR 0022 § Observed on the first deployment has the readings. N2 and N1 are Yuta's call at ~$0.002 a word.
 ~~The frontier is empty~~: [#25](https://github.com/yutaasakura96/kioku/issues/25), AI-seeded lists, was
 built 2026-09-21 from ADR 0070 (⚠️ it was the frontier from its triage earlier that day; empty before that, and #26 was closed the same day).
 ⚠️ **`0007` is applied to Neon (2026-09-21); ~~the first live seed request spends on Yuta's key and is his call~~ — it ran 2026-09-22 (tech, N3, 10 words, $0.0013, all ten minted).** Before that, [#30](https://github.com/yutaasakura96/kioku/issues/30), the kanji-reading retry, was built
@@ -84,7 +84,7 @@ build on 2026-09-18, #21 until it was built that day, #23 until earlier that day
 until 2026-09-17.**
 
 **What exists now:** #2 through #18 are built (and the pivot's, above) — a Nuxt app with the rendering split enforced by the
-build, twenty-five tables (twenty-four until #69 added `active_category` on 2026-10-14, twenty-three until #70 added `study_setting` on 2026-10-12, twenty-two until `backfill` on 2026-09-22, twenty-one until #25 added `seed`, nineteen until #28 added `note_meaning` and `meaning_synonym`, eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
+build, twenty-seven tables (twenty-five until #72 added `placement` and `placement_check` on 2026-10-15, twenty-four until #69 added `active_category` on 2026-10-14, twenty-three until #70 added `study_setting` on 2026-10-12, twenty-two until `backfill` on 2026-09-22, twenty-one until #25 added `seed`, nineteen until #28 added `note_meaning` and `meaning_synonym`, eighteen until #22 added `domain_claim`) plus four the auth library owns, a *subject* declaration both toolchains read,
 a session gate, Ingest and Sources end to end, a Python worker that subscribes, polls, claims and
 sweeps, a pipeline that turns a pasted *source* into *pending notes* one model request per *chunk*,
 a reader who can see one of those *notes*, judge it in a single keystroke, and mint a *card* by doing
@@ -128,7 +128,7 @@ yet**. ⚠️ **This paragraph said both values were empty and nobody had signed
 **The commands:**
 
 ```
-npm run test        # 1557 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-14, after #71)
+npm run test        # 1621 across four tiers — unit, schema, nuxt, e2e (counted 2026-10-15, after #72)
 npm run typecheck   # nuxt typecheck, then tsc over the tests
 npm run build
 npm run dev:session # ⚠️ does not start since #73 (`docs/00-status.md` § Carrying, 2026-10-12).
@@ -189,7 +189,7 @@ before writing code that touches any of them.**
 | --- | --- |
 | `02-product-requirements.md` | The twelve stories, `S1`–`S12`, each with an acceptance criterion |
 | `03-technical-design.md` | The rendering split, the worker, the pipeline, the outbox, security |
-| `04-database-schema.md` | Twenty-five tables, every delete rule, and the one trigger |
+| `04-database-schema.md` | Twenty-seven tables, every delete rule, and the one trigger |
 | `05-design-system.md` | Every token. **Where it disagrees with the canvas, it wins** (§9) |
 | `08-authentication.md` | The six routes, the allowlist's shape, the cookie attributes |
 | `09-user-flows.md` | What happens and in what order |
