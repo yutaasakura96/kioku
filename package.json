@@ -46,7 +46,7 @@
     "@types/pg": "8.23.1",
     "@vue/test-utils": "^2.4.6",
     "drizzle-kit": "0.31.10",
-    "happy-dom": "^20.0.11",
+    "happy-dom": "^21.0.0",
     "playwright-core": "^1.43.1",
     "typescript": "^5.9.3",
     "vitest": "5.0.0",
